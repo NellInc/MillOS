@@ -1,3 +1,6 @@
+import { copy } from './epilogue.messages';
+import { formatFixed } from '../i18n';
+import { localizedMillCharacter } from './record';
 /**
  * The epilogue (docs/CHRONICLE.md, system 24), after Awakening's closing
  * slides, which are chosen from the decisions made ("Alec ... conscripted"
@@ -264,6 +267,47 @@ export function epilogue(context: RecordContext): EpilogueEntry[] {
   for (const section of EPILOGUE_SECTIONS) {
     const slide = section.slides.find((candidate) => conditionMet(context, candidate.when));
     if (slide) entries.push({ id: section.id, title: section.title, text: slide.text });
+  }
+  return entries;
+}
+
+export function localizedEpilogue(context: RecordContext): EpilogueEntry[] {
+  const character = localizedMillCharacter(context);
+  const standing = standingOf(context.certifier);
+  const entries: EpilogueEntry[] = [
+    {
+      id: 'character',
+      title: copy('The mill'),
+      text: copy(
+        'The valley came to call it {character}. {certifier} rated the mill {standing} of 9{suffix}.',
+        {
+          character: character.title,
+          certifier: CERTIFIER_NAME,
+          standing: formatFixed(standing),
+          suffix: context.certifier.suspended ? copy(', under suspension') : '',
+        }
+      ),
+    },
+  ];
+  const decisions = Object.values(context.marks).filter((mark) => !ENGINE_MARKS.includes(mark.id));
+  const partner = decisions.filter((mark) => mark.actor === 'ai-partner').length;
+  if (partner > 0)
+    entries.push({
+      id: 'partner',
+      title: copy('The AI partner'),
+      text:
+        partner === decisions.length
+          ? copy('The AI partner made every one of the {total} decisions in the record.', {
+              total: formatFixed(decisions.length),
+            })
+          : copy('The AI partner made {partner} of the {total} decisions in the record.', {
+              partner: formatFixed(partner),
+              total: formatFixed(decisions.length),
+            }),
+    });
+  for (const section of EPILOGUE_SECTIONS) {
+    const slide = section.slides.find((candidate) => conditionMet(context, candidate.when));
+    if (slide) entries.push({ id: section.id, title: copy(section.title), text: copy(slide.text) });
   }
   return entries;
 }

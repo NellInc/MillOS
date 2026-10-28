@@ -1,16 +1,19 @@
+import { getCharterColumns } from '../../chronicle/charter';
+import { useT } from '../../i18n';
+import { messages } from './CharterScreen.messages';
 import { useState } from 'react';
 import { ScrollText } from 'lucide-react';
-import { CHARTER_COLUMNS, charterScore, DEFAULT_CHARTER } from '../../chronicle/charter';
+import { charterScore, DEFAULT_CHARTER } from '../../chronicle/charter';
 import type { Charter, CharterTier } from '../../chronicle/types';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { BUTTON_PRIMARY, CARD } from './shared';
 
 type CharterChoice = Omit<Charter, 'seed'>;
 
-const TIER_LABEL: Record<CharterTier, string> = {
-  beginner: 'Beginner',
-  historical: 'Historical',
-  hard: 'Hard',
+const TIER_LABEL: Record<CharterTier, keyof typeof messages.en> = {
+  beginner: 'm0',
+  historical: 'm1',
+  hard: 'm2',
 };
 
 const TIER_CLASS: Record<CharterTier, string> = {
@@ -20,12 +23,13 @@ const TIER_CLASS: Record<CharterTier, string> = {
 };
 
 export function CharterScreen() {
+  const t = useT(messages);
   const [choice, setChoice] = useState<CharterChoice>(DEFAULT_CHARTER);
   const sign = useChronicleStore((s) => s.sign);
   const bonus = charterScore(choice);
   return (
-    <section aria-label="Site charter" className="space-y-3">
-      {CHARTER_COLUMNS.map((column) => (
+    <section aria-label={t('m3')} className="space-y-3">
+      {getCharterColumns().map((column) => (
         <fieldset key={column.key} className={CARD}>
           <legend className="px-1 font-semibold text-white">{column.label}</legend>
           <div className="mt-1 grid gap-2">
@@ -54,7 +58,7 @@ export function CharterScreen() {
                     <span className="font-medium text-white">{option.label}</span>
                     <span className="text-slate-200">: {option.effect}. </span>
                     <span className={TIER_CLASS[option.tier]}>
-                      {TIER_LABEL[option.tier]}
+                      {t(TIER_LABEL[option.tier])}
                       {option.score > 0 ? ` +${option.score}` : ''}
                     </span>
                   </span>
@@ -66,7 +70,8 @@ export function CharterScreen() {
       ))}
       <button className={`${BUTTON_PRIMARY} w-full`} onClick={() => sign(choice)}>
         <ScrollText className="mr-2 inline h-4 w-4" aria-hidden="true" />
-        Sign the charter{bonus > 0 ? ` (score +${bonus})` : ''}
+        {t('m4')}
+        {bonus > 0 ? t('m5', { bonus }) : ''}
       </button>
     </section>
   );

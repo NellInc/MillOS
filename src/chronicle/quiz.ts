@@ -4,6 +4,8 @@
  * can answer it. See docs/CHRONICLE.md, section 14.
  */
 import type { QuizQuestion } from './types';
+import { translate } from '../i18n';
+import { quizMessages } from './quiz.messages';
 
 export const QUIZ_QUESTIONS: QuizQuestion[] = [
   // history-first-grain
@@ -705,3 +707,20 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     correctIndex: 1,
   },
 ];
+
+/** Localized questions with canonical order and answer indices. */
+export function getQuizQuestions(): QuizQuestion[] {
+  return QUIZ_QUESTIONS.map((question) => {
+    const messages = quizMessages(question);
+    return {
+      ...question,
+      prompt: translate(messages, 'prompt'),
+      options: [
+        translate(messages, 'option0'),
+        translate(messages, 'option1'),
+        translate(messages, 'option2'),
+        translate(messages, 'option3'),
+      ],
+    };
+  });
+}

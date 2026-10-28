@@ -1,3 +1,4 @@
+import { copy } from './plans.messages';
 /**
  * Eras of the mill (Predynastic Egypt's social stages) and the improvement
  * plans (its discovery tree, with Old Kingdom's cost / rent / bonus split).
@@ -365,4 +366,12 @@ export function planAvailability(
   if (!plan.requires.every((id) => installed.has(id) || progress.some((p) => p.id === id)))
     return 'locked_requires';
   return 'available';
+}
+
+export function getEras(): EraDefinition[] {
+  return ERAS.map((era) => ({ ...era, label: copy(era.label) }));
+}
+
+export function getImprovements(): ImprovementDefinition[] {
+  return IMPROVEMENTS.map((plan) => ({ ...plan, label: copy(plan.label) }));
 }

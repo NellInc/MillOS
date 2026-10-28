@@ -1,3 +1,5 @@
+import { useT } from '../../i18n';
+import { messages } from './ChroniclePanel.messages';
 import { useEffect, useRef, useState } from 'react';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { CharterScreen } from './CharterScreen';
@@ -10,12 +12,12 @@ import { ScoreTab } from './ScoreTab';
 import { rovingNext } from './shared';
 
 const TABS = [
-  { id: 'overview', label: 'Chronicle' },
-  { id: 'plans', label: 'Plans' },
-  { id: 'partners', label: 'Partners' },
-  { id: 'ledger', label: 'Ledger' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'score', label: 'Score' },
+  { id: 'overview', label: 'm0' },
+  { id: 'plans', label: 'm1' },
+  { id: 'partners', label: 'm2' },
+  { id: 'ledger', label: 'm3' },
+  { id: 'notes', label: 'm4' },
+  { id: 'score', label: 'm5' },
 ] as const;
 type TabId = (typeof TABS)[number]['id'];
 
@@ -24,6 +26,7 @@ const SCROLL = 'h-full overflow-y-auto custom-scrollbar p-3';
 
 /** The Mill Chronicle workspace (docs/CHRONICLE.md). */
 export function ChroniclePanel() {
+  const t = useT(messages);
   const state = useChronicleStore((s) => s.chronicle);
   const [tab, setTab] = useState<TabId>('overview');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -49,7 +52,7 @@ export function ChroniclePanel() {
     <div ref={rootRef} className={`${SCROLL} space-y-3`} data-testid="chronicle-panel">
       <div
         role="tablist"
-        aria-label="Chronicle sections"
+        aria-label={t('m6')}
         className="grid grid-cols-3 gap-1"
         onKeyDown={(event) => {
           const next = rovingNext(
@@ -78,7 +81,7 @@ export function ChroniclePanel() {
                 : 'bg-slate-800/80 text-slate-300 hover:text-white'
             }`}
           >
-            {entry.label}
+            {t(entry.label)}
             {entry.id === 'notes' && unread > 0 && (
               <span className="ml-1 rounded-full bg-cyan-500 px-1.5 text-[10px] text-slate-950">
                 {unread}

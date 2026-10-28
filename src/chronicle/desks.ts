@@ -1,3 +1,4 @@
+import { copy } from './desks.messages';
 /**
  * Desks of attention (docs/CHRONICLE.md, system 24), after Castles II's
  * administrative, military and political points: separate pools, a limited
@@ -63,4 +64,8 @@ export function refillDesks(desks: Desks): Desks {
   for (const { id } of DESKS)
     next[id] = { ...next[id], points: Math.min(next[id].room, next[id].points + DESK_REFILL) };
   return next;
+}
+
+export function localizedDeskLabel(id: Desk): string {
+  return copy(DESKS.find((desk) => desk.id === id)?.label ?? id);
 }

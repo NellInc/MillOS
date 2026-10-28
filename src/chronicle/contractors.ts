@@ -1,3 +1,5 @@
+import { copy } from './contractors.messages';
+import { formatGrouped } from '../i18n';
 /**
  * Contractors with paired traits, after Egypt: Old Kingdom's architects
  * (architect_features.txt): one strength and one weakness from different
@@ -42,7 +44,7 @@ export function traitLabel(trait: ContractorTrait): string {
   }
 }
 
-const FIRM_NAMES = [
+export const FIRM_NAMES = [
   'Harrow and Daughters Millwrights',
   'Fenland Mechanical Cooperative',
   'Weirside Engineering',
@@ -131,4 +133,35 @@ export function contractorInstallShifts(contractor: Contractor | null, baseShift
     ? Math.max(0.5, 1 - traitFactor(contractor, 'speed'))
     : IN_HOUSE_DURATION_MULTIPLIER;
   return Math.max(1, Math.round(baseShifts * multiplier));
+}
+
+export function localizedTraitLabel(trait: ContractorTrait): string {
+  const definition = TRAIT_DEFINITIONS.find((d) => d.id === trait.id);
+  const name = copy(definition?.label ?? trait.id);
+  switch (trait.group) {
+    case 'cost':
+      return copy('{name}: install cost {sign}{magnitude}%', {
+        name,
+        sign: trait.positive ? '-' : '+',
+        magnitude: formatGrouped(trait.magnitude, { maximumFractionDigits: 20 }),
+      });
+    case 'effect':
+      return copy('{name}: plan effect {sign}{magnitude}%', {
+        name,
+        sign: trait.positive ? '+' : '-',
+        magnitude: formatGrouped(trait.magnitude, { maximumFractionDigits: 20 }),
+      });
+    case 'risk':
+      return copy('{name}: snag chance {sign}{magnitude}%', {
+        name,
+        sign: trait.positive ? '-' : '+',
+        magnitude: formatGrouped(trait.magnitude, { maximumFractionDigits: 20 }),
+      });
+    case 'speed':
+      return copy('{name}: install time {sign}{magnitude}%', {
+        name,
+        sign: trait.positive ? '-' : '+',
+        magnitude: formatGrouped(trait.magnitude, { maximumFractionDigits: 20 }),
+      });
+  }
 }

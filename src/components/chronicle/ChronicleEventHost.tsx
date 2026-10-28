@@ -1,3 +1,11 @@
+import { localizedEventText } from '../../chronicle/eventDeck';
+import { formatGrouped } from '../../i18n';
+import { getEventDeck } from '../../chronicle/eventDeck';
+import { getFronts } from '../../chronicle/longNight';
+import { localizedConditionText } from '../../chronicle/record';
+import { localizedDescribeEffect } from '../../chronicle/describe';
+import { useT } from '../../i18n';
+import { messages } from './ChronicleEventHost.messages';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Bookmark, Flame, ScrollText, Scale } from 'lucide-react';
 import {
@@ -11,15 +19,9 @@ import {
   fundOf,
   knowHowOf,
 } from '../../chronicle/engine';
-import { describeEffect } from '../../chronicle/describe';
-import { EVENT_DECK } from '../../chronicle/eventDeck';
-import {
-  FRONT_HOLD_THRESHOLD,
-  FRONTS,
-  frontPreparation,
-  otherFront,
-} from '../../chronicle/longNight';
-import { conditionText, hasMark } from '../../chronicle/record';
+
+import { FRONT_HOLD_THRESHOLD, frontPreparation, otherFront } from '../../chronicle/longNight';
+import { hasMark } from '../../chronicle/record';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
@@ -34,6 +36,7 @@ type Prompt = { kind: 'event'; instanceId: string } | { kind: 'fire' } | { kind:
  * the Chronicle workspace. Mounted once by the game interface.
  */
 export function ChronicleEventHost() {
+  const t = useT(messages);
   const state = useChronicleStore((s) => s.chronicle);
   const choose = useChronicleStore((s) => s.choose);
   const suppress = useChronicleStore((s) => s.suppress);
@@ -148,9 +151,8 @@ export function ChronicleEventHost() {
   let buttons: ReactNode = null;
 
   if (prompt.kind === 'fire') {
-    title = 'Smouldering dust in the extraction ducting';
-    body =
-      'The fail-safe has stopped production and the forklifts. Nobody is in danger. The duct must be suppressed and cleaned before restart.';
+    title = t('m0');
+    body = t('m1');
     icon = <Flame className="h-5 w-5 text-rose-300" aria-hidden="true" />;
     buttons = (
       <>
@@ -159,11 +161,11 @@ export function ChronicleEventHost() {
           disabled={!canAfford(state, { fund: FIRE_SUPPRESSION_COST })}
           onClick={() => suppress('suppress')}
         >
-          Suppress and clean, {FIRE_SUPPRESSION_MINUTES} min
+          {t('m2')} {FIRE_SUPPRESSION_MINUTES} {t('m3')}
           <CostTag state={state} cost={{ fund: FIRE_SUPPRESSION_COST }} />
         </button>
         <button className={BUTTON} onClick={() => suppress('by_hand')}>
-          Clean by hand, {FIRE_HAND_CLEAN_MINUTES} min
+          {t('m4')} {FIRE_HAND_CLEAN_MINUTES} {t('m3')}
         </button>
       </>
     );
@@ -172,20 +174,23 @@ export function ChronicleEventHost() {
     const knowHow = Math.ceil(
       Math.max(0, due - Math.max(0, fundOf(state))) / FORCED_FUND_PER_KNOW_HOW
     );
-    title = 'Lack of material';
-    body = `Upkeep of ${Math.round(due)} is due and the fund holds ${Math.max(0, Math.floor(fundOf(state)))}. Decrepit plant raises the chance of breakdown and fire.`;
+    title = t('m5');
+    body = t('p10', {
+      due: formatGrouped(Math.round(due)),
+      fund: formatGrouped(Math.max(0, Math.floor(fundOf(state)))),
+    });
     icon = <Scale className="h-5 w-5 text-amber-300" aria-hidden="true" />;
     buttons = (
       <>
         <button className={BUTTON} onClick={() => answerShortfall('conserve')}>
-          Conserve resources: upkeep halved; production x0.92, wear x1.2
+          {t('m6')}
         </button>
         <button
           className={BUTTON}
           disabled={knowHowOf(state) < knowHow}
           onClick={() => answerShortfall('forced')}
         >
-          Forced maintenance: pay in full
+          {t('m7')}
           <CostTag state={state} cost={{ knowHow }} />
         </button>
       </>
@@ -193,10 +198,10 @@ export function ChronicleEventHost() {
   } else {
     const instanceId = prompt.instanceId;
     const pending = state.pendingEvents.find((p) => p.instanceId === instanceId)!;
-    const event = EVENT_DECK.find((e) => e.id === pending.eventId);
+    const event = getEventDeck().find((e) => e.id === pending.eventId);
     if (!event) return null;
     title = event.title;
-    body = pending.echo?.text ?? event.text;
+    body = pending.echo ? localizedEventText(event.id, pending.echo.text) : event.text;
     // A choice the record has ruled out (its party is gone) is not offered at all;
     // one that is only locked stays, and says what it needs.
     const offered = event.choices.filter(
@@ -205,16 +210,23 @@ export function ChronicleEventHost() {
     buttons = offered.map((choice) => {
       const available = choiceAvailable(state, choice);
       const { effect } = effectiveChoice(state, choice);
-      const parts = [describeEffect(effect)];
+      const parts = [localizedDescribeEffect(effect)];
       if (effect.holdFront) {
         const other = otherFront(effect.holdFront);
         const prepared = frontPreparation(state, other);
-        if (choice.delegates) parts.push(`holds ${FRONTS[effect.holdFront].subject}`);
+        if (choice.delegates)
+          parts.push(t('p11', { front: getFronts()[effect.holdFront].subject }));
         parts.push(
-          `${FRONTS[other].subject} will ${prepared >= FRONT_HOLD_THRESHOLD ? 'hold' : 'fall'} (${prepared} of ${FRONT_HOLD_THRESHOLD} prepared)`
+          t('p14', {
+            front: getFronts()[other].subject,
+            outcome: prepared >= FRONT_HOLD_THRESHOLD ? t('p12') : t('p13'),
+            prepared,
+            threshold: FRONT_HOLD_THRESHOLD,
+          })
         );
       }
-      if (!available && choice.requires) parts.push(`needs ${conditionText(choice.requires)}`);
+      if (!available && choice.requires)
+        parts.push(t('p15', { condition: localizedConditionText(choice.requires) }));
       const text = parts.filter(Boolean).join('; ');
       return (
         <button
@@ -230,7 +242,7 @@ export function ChronicleEventHost() {
             <Bookmark
               className="mr-1 inline h-3.5 w-3.5 text-violet-300"
               role="img"
-              aria-label="Goes in the record"
+              aria-label={t('m8')}
             />
           ) : null}
           {choice.label}
@@ -273,7 +285,7 @@ export function ChronicleEventHost() {
             className={`${BUTTON} border-slate-600 text-slate-300 [@media(max-height:500px)]:col-span-2`}
             onClick={defer}
           >
-            Think it over
+            {t('m9')}
           </button>
         </div>
       </div>

@@ -51,7 +51,7 @@ import {
 } from '../../stores/knowledgeStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
-import { formatFixed, useT } from '../../i18n';
+import { formatFixed, useT, useLocale } from '../../i18n';
 import { datalinksMessages } from './Datalinks.messages';
 
 // Icon mapping from KnowledgeIcon to Lucide component
@@ -95,6 +95,7 @@ interface DatalinksProps {
 
 export function Datalinks({ isOpen, onClose }: DatalinksProps) {
   const t = useT(datalinksMessages);
+  const locale = useLocale();
   const reducedMotion = useReducedMotion();
   const [audience, setAudience] = useState<'player' | 'developer'>('player');
   const [searchQuery, setSearchQuery] = useState('');
@@ -157,17 +158,17 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
 
       // Search filter
       if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
+        const query = searchQuery.toLocaleLowerCase(locale);
         return (
-          entry.title.toLowerCase().includes(query) ||
-          entry.tooltip.toLowerCase().includes(query) ||
-          entry.brief.toLowerCase().includes(query)
+          entry.title.toLocaleLowerCase(locale).includes(query) ||
+          entry.tooltip.toLocaleLowerCase(locale).includes(query) ||
+          entry.brief.toLocaleLowerCase(locale).includes(query)
         );
       }
 
       return true;
     });
-  }, [visibleEntries, searchQuery, selectedCategory]);
+  }, [visibleEntries, searchQuery, selectedCategory, locale]);
 
   // Group entries by category
   const entriesByCategory = useMemo(() => {

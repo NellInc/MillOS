@@ -1,9 +1,17 @@
+import { formatFixed } from '../../i18n';
+import { getDelegationLevels } from '../../chronicle/delegation';
+import {
+  localizedStakeholderName,
+  localizedStakeholderStanding,
+} from '../../chronicle/stakeholders';
+import { localizedInitiative } from '../../chronicle/presentation';
+import { useT } from '../../i18n';
+import { messages } from './PartnersTab.messages';
 import { useShallow } from 'zustand/react/shallow';
 import { Bot, ShieldAlert, ShieldCheck, Undo2 } from 'lucide-react';
 import { CERTIFIER_NAME, standingOf } from '../../chronicle/certifier';
 import { relationshipTier } from '../../chronicle/customers';
-import { stakeholderStanding } from '../../chronicle/stakeholders';
-import { DELEGATION_LEVELS } from '../../chronicle/delegation';
+
 import { canReverse, type ChronicleState } from '../../chronicle/engine';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { BUTTON, ProgressBar, rovingNext, Section } from './shared';
@@ -15,12 +23,13 @@ const TIER_CLASS = {
 } as const;
 
 export function PartnersTab({ state }: { state: ChronicleState }) {
+  const t = useT(messages);
   const actions = useChronicleStore(
     useShallow((s) => ({ setDelegation: s.setDelegation, reverse: s.reverse }))
   );
   return (
     <div className="space-y-3">
-      <Section title="Customers">
+      <Section title={t('m0')}>
         {state.customers.map((customer) => {
           const tier = relationshipTier(customer.value);
           return (
@@ -28,29 +37,32 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
               <div className="flex items-baseline justify-between gap-2">
                 <span className="text-white">{customer.name}</span>
                 <span className={`text-xs capitalize ${TIER_CLASS[tier]}`}>
-                  {tier} {customer.value}
+                  {{ cool: t('p16'), neutral: t('p17'), warm: t('p18') }[tier]} {customer.value}
                 </span>
               </div>
-              <ProgressBar value={customer.value / 100} label={`${customer.name} relationship`} />
+              <ProgressBar value={customer.value / 100} label={t('p13', { name: customer.name })} />
             </div>
           );
         })}
       </Section>
 
-      <Section title="Organisations">
+      <Section title={t('m1')}>
         {state.stakeholders.map((party) => {
           const tier = relationshipTier(party.value);
-          const standing = stakeholderStanding(state.stakeholders, party.id);
+          const standing = localizedStakeholderStanding(state.stakeholders, party.id);
           return (
             <div key={party.id} className="space-y-1">
               <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-                <span className="shrink-0 text-white">{party.name}</span>
+                <span className="shrink-0 text-white">{localizedStakeholderName(party.id)}</span>
                 <span className={`text-xs capitalize ${TIER_CLASS[tier]}`}>
-                  {tier} {party.value}
+                  {{ cool: t('p16'), neutral: t('p17'), warm: t('p18') }[tier]} {party.value}
                   {standing ? <span className="normal-case"> · {standing}</span> : null}
                 </span>
               </div>
-              <ProgressBar value={party.value / 100} label={`${party.name} relationship`} />
+              <ProgressBar
+                value={party.value / 100}
+                label={t('p13', { name: localizedStakeholderName(party.id) })}
+              />
             </div>
           );
         })}
@@ -65,30 +77,30 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
               <ShieldCheck className="h-4 w-4 text-emerald-300" aria-hidden="true" />
             )}
             {state.certifier.suspended
-              ? 'Approval suspended'
-              : `Standing ${standingOf(state.certifier)} of 9`}
+              ? t('m2')
+              : t('p14', { standing: standingOf(state.certifier) })}
           </span>
           {!state.certifier.suspended && (
             <span className="text-xs tabular-nums text-slate-300">
-              {(state.certifier.score / 100).toFixed(2)}
+              {formatFixed(state.certifier.score / 100, 2)}
             </span>
           )}
         </div>
         <ProgressBar
           value={state.certifier.suspended ? 0 : (state.certifier.score - 100) / 899}
-          label={`${CERTIFIER_NAME} standing`}
+          label={t('p15', { name: CERTIFIER_NAME })}
         />
       </Section>
 
-      <Section title="Delegation to the AI partner">
+      <Section title={t('m3')}>
         <div
           role="radiogroup"
-          aria-label="Delegation level"
+          aria-label={t('m4')}
           className="grid grid-cols-2 gap-2"
           onKeyDown={(event) => {
             const next = rovingNext(
               event.key,
-              DELEGATION_LEVELS.map((entry) => entry.level),
+              getDelegationLevels().map((entry) => entry.level),
               state.delegation
             );
             if (next === null) return;
@@ -97,7 +109,7 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
             document.getElementById(`delegation-level-${next}`)?.focus();
           }}
         >
-          {DELEGATION_LEVELS.map((level) => (
+          {getDelegationLevels().map((level) => (
             <button
               key={level.level}
               role="radio"
@@ -120,31 +132,34 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
         </div>
       </Section>
 
-      <Section title="Initiatives">
+      <Section title={t('m9')}>
         {state.initiatives.length === 0 ? (
-          <p className="text-xs text-slate-300">None yet</p>
+          <p className="text-xs text-slate-300">{t('m5')}</p>
         ) : (
           <ul className="space-y-2">
-            {[...state.initiatives].reverse().map((entry) => (
-              <li key={entry.id} className="rounded-lg border border-slate-700 p-2 text-xs">
-                <div className="flex items-start gap-2">
-                  <Bot className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
-                  <div className="flex-1">
-                    <div className="text-white">
-                      Shift {entry.shift}: {entry.summary}
-                      {entry.reversed && <span className="text-slate-300"> (reversed)</span>}
+            {[...state.initiatives].reverse().map((savedEntry) => {
+              const entry = localizedInitiative(savedEntry);
+              return (
+                <li key={entry.id} className="rounded-lg border border-slate-700 p-2 text-xs">
+                  <div className="flex items-start gap-2">
+                    <Bot className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
+                    <div className="flex-1">
+                      <div className="text-white">
+                        {t('m6')} {entry.shift}: {entry.summary}
+                        {entry.reversed && <span className="text-slate-300"> {t('m7')}</span>}
+                      </div>
+                      <div className="text-slate-300">{entry.reason}</div>
                     </div>
-                    <div className="text-slate-300">{entry.reason}</div>
                   </div>
-                </div>
-                {canReverse(state, entry) && (
-                  <button className={`${BUTTON} mt-2`} onClick={() => actions.reverse(entry.id)}>
-                    <Undo2 className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
-                    Reverse and refund
-                  </button>
-                )}
-              </li>
-            ))}
+                  {canReverse(state, entry) && (
+                    <button className={`${BUTTON} mt-2`} onClick={() => actions.reverse(entry.id)}>
+                      <Undo2 className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+                      {t('m8')}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </Section>

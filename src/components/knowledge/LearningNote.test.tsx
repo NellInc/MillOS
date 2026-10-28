@@ -1,10 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LearningNote } from './LearningNote';
 import { Datalinks } from './Datalinks';
 import { setLocale } from '../../i18n';
 import {
   getKnowledgeEntries,
+  useKnowledgeStore,
   HISTORY_ENTRY_UNLOCK,
   KNOWLEDGE_ENTRIES,
 } from '../../stores/knowledgeStore';
@@ -118,4 +119,39 @@ describe('contextual operating guide', () => {
       screen.queryByRole('heading', { name: 'A Delivery Has a Destination' })
     ).not.toBeInTheDocument();
   });
+});
+
+it('keeps Chronicle Datalinks entries live when language changes with a selected article and search', () => {
+  const prior = useKnowledgeStore.getState();
+  const id = 'history-first-grain';
+  const note = KNOWLEDGE_ENTRIES.find((entry) => entry.id === id)!;
+  const original = { title: note.title, brief: note.brief, article: note.article };
+  useKnowledgeStore.setState({ unlockedEntries: new Set([...prior.unlockedEntries, id]) });
+  try {
+    render(<Datalinks isOpen onClose={vi.fn()} />);
+    const search = screen.getByRole('textbox');
+    fireEvent.change(search, { target: { value: original.title } });
+    fireEvent.click(screen.getByRole('button', { name: original.title }));
+    expect(screen.getByRole('heading', { name: original.title })).toBeInTheDocument();
+    act(() => setLocale('pt-BR'));
+    expect(note.title).not.toBe(original.title);
+    expect(note.article).not.toBe(original.article);
+    expect(screen.getByRole('heading', { name: note.title })).toBeInTheDocument();
+    const back = screen.getByRole('button', { name: /Voltar/ });
+    fireEvent.click(back);
+    // Search text is retained, so the English-only title no longer matches.
+    expect(screen.queryByRole('button', { name: note.title })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: note.title } });
+    expect(screen.getByRole('button', { name: note.title })).toBeInTheDocument();
+    act(() => setLocale('en'));
+    expect(note.title).toBe(original.title);
+    expect(note.article).toBe(original.article);
+    expect(screen.queryByRole('button', { name: original.title })).not.toBeInTheDocument();
+  } finally {
+    useKnowledgeStore.setState({
+      unlockedEntries: prior.unlockedEntries,
+      readEntries: prior.readEntries,
+      newEntries: prior.newEntries,
+    });
+  }
 });

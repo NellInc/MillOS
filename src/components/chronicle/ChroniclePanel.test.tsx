@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { setLocale } from '../../i18n';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ChroniclePanel } from './ChroniclePanel';
 import { ChronicleEventHost } from './ChronicleEventHost';
@@ -10,7 +11,9 @@ import { createInitialState } from '../../chronicle/engine';
 import { EVENT_DECK } from '../../chronicle/eventDeck';
 
 describe('Mill Chronicle workspace', () => {
+  afterEach(() => setLocale('en'));
   beforeEach(() => {
+    setLocale('en');
     useOperationsCampaignStore.getState().resetCampaign();
     useChronicleStore.setState({ chronicle: createInitialState() });
   });
@@ -146,5 +149,20 @@ describe('Mill Chronicle workspace', () => {
         useSafetyStore.getState().setForkliftEmergencyStop(false);
       });
     }
+  });
+
+  it('switches the live charter and signed workspace without rewriting Chronicle state', () => {
+    render(<ChroniclePanel />);
+    expect(screen.getByRole('button', { name: /Sign the charter/ })).toBeInTheDocument();
+    act(() => setLocale('pt-BR'));
+    fireEvent.click(screen.getByRole('button', { name: /Assinar a carta/ }));
+    expect(screen.getByRole('tab', { name: /Crônica/ })).toBeInTheDocument();
+    const saved = JSON.stringify(useChronicleStore.getState().chronicle);
+    act(() => setLocale('en'));
+    expect(screen.getByRole('tab', { name: /Chronicle/ })).toBeInTheDocument();
+    expect(JSON.stringify(useChronicleStore.getState().chronicle)).toBe(saved);
+    act(() => setLocale('pt-BR'));
+    expect(screen.getByRole('tab', { name: /Planos/ })).toBeInTheDocument();
+    expect(JSON.stringify(useChronicleStore.getState().chronicle)).toBe(saved);
   });
 });

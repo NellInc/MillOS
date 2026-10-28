@@ -1,3 +1,5 @@
+import { translate } from '../i18n';
+import { ledgerMessages } from './ledger.messages';
 /**
  * Where every number comes from, after Predynastic Egypt's source types
  * (source_types.txt: cells, population, events, trading, technologies,
@@ -172,4 +174,30 @@ export function netContribution(economics: CampaignEconomics): number {
       economics.demurrageCost -
       economics.latePenalties
   );
+}
+
+/** Resolve source labels when presented; ledger values and keys are canonical. */
+export function localizedSourceLabels<K extends string>(
+  labels: Record<K, string>
+): Record<K, string> {
+  return Object.fromEntries(
+    Object.entries(labels).map(([key, label]) => {
+      const messageKey = Object.keys(ledgerMessages.en).find(
+        (id) => ledgerMessages.en[id as keyof typeof ledgerMessages.en] === label
+      );
+      return [
+        key,
+        messageKey
+          ? translate(ledgerMessages, messageKey as keyof typeof ledgerMessages.en)
+          : label,
+      ];
+    })
+  ) as Record<K, string>;
+}
+
+export function localizedEconomicsLines(economics: CampaignEconomics): SourceLine[] {
+  return economicsLines(economics).map((line) => ({
+    ...line,
+    label: localizedSourceLabels(ECONOMICS_LABELS)[line.key as keyof CampaignEconomics],
+  }));
 }

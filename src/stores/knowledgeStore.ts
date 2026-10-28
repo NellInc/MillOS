@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { sanitizeKnowledgeState } from './persistenceMigrations';
-import { HISTORY_NOTES } from '../chronicle/history';
+import { HISTORY_NOTES, getHistoryNote } from '../chronicle/history';
 import { translate } from '../i18n';
 import { knowledgeStoreMessages } from './knowledgeStore.messages';
 
@@ -267,19 +267,29 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
 export const HISTORY_ENTRY_UNLOCK: UnlockCondition = {
   type: 'feature-use',
   requirement: 'chronicle',
-  description: 'Unlocked by an event in the Mill Chronicle',
+  get description() {
+    return translate(knowledgeStoreMessages, 'historyUnlock');
+  },
 };
 
 KNOWLEDGE_ENTRIES.push(
   ...HISTORY_NOTES.map(
     (note): KnowledgeEntry => ({
       id: note.id,
-      title: note.title,
+      get title() {
+        return getHistoryNote(note.id)?.title ?? note.title;
+      },
       category: 'pioneers',
       icon: 'book-open',
-      tooltip: note.brief,
-      brief: note.brief,
-      article: note.article,
+      get tooltip() {
+        return getHistoryNote(note.id)?.brief ?? note.brief;
+      },
+      get brief() {
+        return getHistoryNote(note.id)?.brief ?? note.brief;
+      },
+      get article() {
+        return getHistoryNote(note.id)?.article ?? note.article;
+      },
       relatedEntries: note.relatedEntries,
       seeInAction: ['Mill Chronicle'],
       unlockCondition: HISTORY_ENTRY_UNLOCK,

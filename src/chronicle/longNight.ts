@@ -1,3 +1,7 @@
+import { copy } from './longNight.messages';
+import { localizedMarkLabel } from './record';
+import { localizedStakeholderPhrase } from './stakeholders';
+import { getImprovements } from './plans';
 /**
  * The long night (docs/CHRONICLE.md, system 21), after Awakening's choice of
  * Amaranthine or Vigil's Keep: the mill can put its own hands on one front;
@@ -114,4 +118,61 @@ export function frontHolds(context: RecordContext, front: FrontId): boolean {
 
 function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+export function localizedFrontSources(context: RecordContext, front: FrontId): PreparationSource[] {
+  const sources: PreparationSource[] = [];
+  for (const [id, definition] of Object.entries(MARKS)) {
+    for (const prepare of definition.prepares ?? []) {
+      if (prepare.front !== front) continue;
+      sources.push({
+        id: `mark:${id}`,
+        label: localizedMarkLabel(id),
+        weight: prepare.weight,
+        met: hasMark(context, id),
+      });
+    }
+  }
+  const definition = FRONTS[front];
+  const plan = definition.plans.find((id) =>
+    context.improvements.some((p) => p.id === id && p.phase === 'installed')
+  );
+  sources.push({
+    id: `plan:${definition.plans.join('|')}`,
+    label: copy('{plans} installed', {
+      plans: definition.plans
+        .map((id, index) =>
+          index === 0
+            ? (getImprovements().find((plan) => plan.id === id)?.label ?? id)
+            : (getImprovements().find((plan) => plan.id === id)?.label ?? id).toLowerCase()
+        )
+        .join(copy(' or ')),
+    }),
+    weight: 1,
+    met: plan !== undefined,
+  });
+  for (const party of definition.parties) {
+    const value = context.stakeholders.find((s) => s.id === party)?.value ?? 50;
+    sources.push({
+      id: `party:${party}`,
+      label: copy('{party} warm', { party: capitalise(localizedStakeholderPhrase(party)) }),
+      weight: 1,
+      met: relationshipTier(value) === 'warm',
+    });
+  }
+  return sources;
+}
+
+export function getFronts(): typeof FRONTS {
+  return Object.fromEntries(
+    Object.entries(FRONTS).map(([id, front]) => [
+      id,
+      {
+        ...front,
+        label: copy(front.label),
+        subject: copy(front.subject),
+        pronoun: copy(front.pronoun),
+      },
+    ])
+  ) as typeof FRONTS;
 }

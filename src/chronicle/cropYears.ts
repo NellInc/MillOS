@@ -1,3 +1,4 @@
+import { copy } from './cropYears.messages';
 /**
  * Crop years: harvest variation stamped on every receiving lot.
  *
@@ -188,4 +189,13 @@ export function qcReadingsForLots(
 export function cropTreatmentCost(kind: CropKind): number {
   // Treating in place is the dearest route: events and plans do it cheaper.
   return kind === 'sprouted' || kind === 'wet' ? 200 : 0;
+}
+
+export function getCropYears(): Record<CropKind, CropYearDefinition> {
+  return Object.fromEntries(
+    Object.entries(CROP_YEARS).map(([kind, definition]) => [
+      kind,
+      { ...definition, label: copy(definition.label) },
+    ])
+  ) as Record<CropKind, CropYearDefinition>;
 }

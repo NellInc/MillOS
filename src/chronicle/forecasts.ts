@@ -1,3 +1,4 @@
+import { copy } from './forecasts.messages';
 /**
  * Forewarned risk with paid mitigation, after Egypt: Old Kingdom's flood
  * oracle ("Probability of disaster N%" with "Construct dams: -X, chance -Y%").
@@ -68,4 +69,18 @@ export function forecastChance(
       options.relief -
       (options.mitigated ? definition.mitigationRelief : 0)
   );
+}
+
+export function getForecasts(): Record<ForecastKind, ForecastDefinition> {
+  return Object.fromEntries(
+    Object.entries(FORECASTS).map(([kind, definition]) => [
+      kind,
+      {
+        ...definition,
+        title: copy(definition.title),
+        text: copy(definition.text),
+        mitigationLabel: copy(definition.mitigationLabel),
+      },
+    ])
+  ) as Record<ForecastKind, ForecastDefinition>;
 }

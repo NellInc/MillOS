@@ -1,3 +1,5 @@
+import { copy } from './trials.messages';
+import { formatFixed, formatGrouped } from '../i18n';
 /**
  * Trials, after Predynastic Egypt's trials (trial_sanctuary.txt: ten turns,
  * gold with seven or more to spare, silver with four or more, otherwise
@@ -261,3 +263,79 @@ export function challengeMedal(run: {
 
 export const MEDAL_POINTS: Record<Medal, number> = { gold: 3, silver: 2, bronze: 1 };
 export const MEDAL_KNOW_HOW: Record<Medal, number> = { gold: 12, silver: 8, bronze: 4 };
+
+export function localizedTrialById(id: TrialId): TrialDefinition {
+  return getTrials().find((trial) => trial.id === id) ?? getTrials()[0];
+}
+
+export function localizedTrialShortfall(
+  definition: TrialDefinition,
+  progress: TrialProgress
+): string {
+  const goal = definition.goal;
+  if (goal.kind === 'clean_closes')
+    return copy('{done} of {total} consecutive clean shift closes.', {
+      done: formatFixed(progress.cleanCloses),
+      total: formatFixed(goal.closes),
+    });
+  const parts = [
+    copy('{done} of {total} kg dispatched.', {
+      done: formatFixed(progress.dispatchedKg),
+      total: formatGrouped(goal.kg),
+    }),
+  ];
+  if (goal.maxEnergyPerKg !== undefined && progress.dispatchedKg > 0)
+    parts.push(
+      copy('Energy {actual} per kg against {target}.', {
+        actual: formatFixed(progress.energyCost / progress.dispatchedKg, 3),
+        target: formatGrouped(goal.maxEnergyPerKg),
+      })
+    );
+  const graded = gradedShiftsOf(progress);
+  if (goal.minAverageGrade !== undefined && graded > 0)
+    parts.push(
+      copy('Average grade points {actual} against {target}.', {
+        actual: formatFixed(progress.gradePoints / graded, 1),
+        target: formatFixed(GRADE_POINTS[goal.minAverageGrade]),
+      })
+    );
+  return parts.join(' ');
+}
+
+export function localizedTrialGoalConditions(definition: TrialDefinition): string {
+  const goal = definition.goal;
+  if (goal.kind !== 'dispatch') return '';
+  const parts: string[] = [];
+  if (goal.noQualityFailure) parts.push(copy('no quality failure'));
+  if (goal.maxEnergyPerKg !== undefined)
+    parts.push(
+      copy('energy at most {target} per kg', { target: formatGrouped(goal.maxEnergyPerKg) })
+    );
+  if (goal.minAverageGrade)
+    parts.push(copy('average grade {grade} or better', { grade: goal.minAverageGrade }));
+  return parts.join(', ');
+}
+
+export function localizedTrialGoalText(definition: TrialDefinition): string {
+  const goal = definition.goal;
+  if (goal.kind === 'clean_closes')
+    return copy('{closes} clean shift closes in a row within {shifts} shifts', {
+      closes: formatFixed(goal.closes),
+      shifts: formatFixed(definition.durationShifts),
+    });
+  const conditions = localizedTrialGoalConditions(definition);
+  return copy('dispatch {kg} kg in {shifts} shifts{conditions}', {
+    kg: formatGrouped(goal.kg),
+    shifts: formatFixed(definition.durationShifts),
+    conditions: conditions ? `, ${conditions}` : '',
+  });
+}
+
+export function getTrials(): TrialDefinition[] {
+  return TRIALS.map((trial) => ({
+    ...trial,
+    title: copy(trial.title),
+    briefing: copy(trial.briefing),
+    pressureBeat: copy(trial.pressureBeat),
+  }));
+}

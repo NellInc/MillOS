@@ -1,6 +1,10 @@
+import { formatGrouped } from '../../i18n';
+import { localizedDeskLabel } from '../../chronicle/desks';
+import { translate, useT } from '../../i18n';
+import { messages } from './shared.messages';
 import type { ReactNode } from 'react';
 import { Coins, Handshake, Hammer, Landmark, Lightbulb, type LucideIcon } from 'lucide-react';
-import { deskLabel, DESKS } from '../../chronicle/desks';
+import { DESKS } from '../../chronicle/desks';
 import type { ChronicleState } from '../../chronicle/engine';
 import { fundOf, knowHowOf, price } from '../../chronicle/engine';
 import type { Cost, Desk } from '../../chronicle/types';
@@ -15,24 +19,26 @@ export const CHIP =
   'inline-flex items-center gap-1 rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-200';
 
 export function whole(value: number): string {
-  return Math.round(value).toLocaleString();
+  return formatGrouped(Math.round(value));
 }
 
 export function FundAmount({ value }: { value: number }) {
+  const t = useT(messages);
   return (
     <span className="inline-flex items-center gap-1 tabular-nums">
       <Coins className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />
-      <span className="sr-only">fund</span>
+      <span className="sr-only">{t('m0')}</span>
       {whole(value)}
     </span>
   );
 }
 
 export function KnowHowAmount({ value }: { value: number }) {
+  const t = useT(messages);
   return (
     <span className="inline-flex items-center gap-1 tabular-nums">
       <Lightbulb className="h-3.5 w-3.5 text-sky-300" aria-hidden="true" />
-      <span className="sr-only">know-how</span>
+      <span className="sr-only">{t('m1')}</span>
       {whole(value)}
     </span>
   );
@@ -55,17 +61,18 @@ export function DeskAmount({
   room?: number;
   short?: boolean;
 }) {
+  const t = useT(messages);
   const Icon = DESK_ICON[desk];
   return (
     <span
       className={`inline-flex items-center gap-1 tabular-nums ${short ? 'text-rose-200' : ''}`}
-      title={deskLabel(desk)}
+      title={localizedDeskLabel(desk)}
     >
       <Icon className="h-3.5 w-3.5 text-violet-300" aria-hidden="true" />
-      <span className="sr-only">{deskLabel(desk)} desk</span>
+      <span className="sr-only">{t('m2', { desk: localizedDeskLabel(desk) })}</span>
       <span>
-        {value}
-        {room !== undefined ? <span className="text-slate-400">/{room}</span> : null}
+        {formatGrouped(value)}
+        {room !== undefined ? <span className="text-slate-400">/{formatGrouped(room)}</span> : null}
       </span>
     </span>
   );
@@ -140,7 +147,9 @@ export function ProgressBar({ value, label }: { value: number; label: string }) 
 }
 
 export function plural(count: number, one: string, many = `${one}s`): string {
-  return `${count} ${count === 1 ? one : many}`;
+  const unit =
+    one === 'shift' ? translate(messages, count === 1 ? 'm3' : 'm4') : count === 1 ? one : many;
+  return `${formatGrouped(count)} ${unit}`;
 }
 
 /**

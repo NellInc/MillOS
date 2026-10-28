@@ -1,5 +1,7 @@
+import { localizedSourceLabels, localizedEconomicsLines } from '../../chronicle/ledger';
+import { useT } from '../../i18n';
+import { messages } from './LedgerTab.messages';
 import {
-  economicsLines,
   FUND_SOURCE_LABELS,
   KNOW_HOW_SOURCE_LABELS,
   netContribution,
@@ -11,10 +13,11 @@ import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore
 import { Section, whole } from './shared';
 
 function Lines({ lines, total, unit }: { lines: SourceLine[]; total: number; unit: string }) {
+  const t = useT(messages);
   const largest = Math.max(1, ...lines.map((line) => Math.abs(line.value)));
   return (
     <table className="w-full text-xs">
-      <caption className="sr-only">{unit} by source</caption>
+      <caption className="sr-only">{t('m8', { unit })}</caption>
       <tbody>
         {lines.map((line) => (
           <tr key={line.key}>
@@ -37,7 +40,7 @@ function Lines({ lines, total, unit }: { lines: SourceLine[]; total: number; uni
         ))}
         <tr className="border-t border-slate-700">
           <th scope="row" className="py-1 text-left font-semibold text-white">
-            Balance
+            {t('m0')}
           </th>
           <td className="py-1 text-right font-semibold tabular-nums text-white">{whole(total)}</td>
         </tr>
@@ -47,38 +50,42 @@ function Lines({ lines, total, unit }: { lines: SourceLine[]; total: number; uni
 }
 
 export function LedgerTab({ state }: { state: ChronicleState }) {
+  const t = useT(messages);
   const economics = useOperationsCampaignStore((s) => s.economics);
-  const lastShiftFund = sourceLines(state.ledger.lastShiftFund, FUND_SOURCE_LABELS);
+  const lastShiftFund = sourceLines(
+    state.ledger.lastShiftFund,
+    localizedSourceLabels(FUND_SOURCE_LABELS)
+  );
   return (
     <div className="space-y-3">
-      <Section title="Co-op fund">
+      <Section title={t('m1')}>
         <Lines
-          lines={sourceLines(state.ledger.fund, FUND_SOURCE_LABELS)}
+          lines={sourceLines(state.ledger.fund, localizedSourceLabels(FUND_SOURCE_LABELS))}
           total={fundOf(state)}
-          unit="Fund"
+          unit={t('m2')}
         />
       </Section>
       {lastShiftFund.length > 0 && (
-        <Section title="Fund, last shift">
+        <Section title={t('m3')}>
           <Lines
             lines={lastShiftFund}
             total={lastShiftFund.reduce((sum, line) => sum + line.value, 0)}
-            unit="Fund last shift"
+            unit={t('m4')}
           />
         </Section>
       )}
-      <Section title="Know-how">
+      <Section title={t('m5')}>
         <Lines
-          lines={sourceLines(state.ledger.knowHow, KNOW_HOW_SOURCE_LABELS)}
+          lines={sourceLines(state.ledger.knowHow, localizedSourceLabels(KNOW_HOW_SOURCE_LABELS))}
           total={knowHowOf(state)}
-          unit="Know-how"
+          unit={t('m5')}
         />
       </Section>
-      <Section title="Plant ledger">
+      <Section title={t('m6')}>
         <Lines
-          lines={economicsLines(economics)}
+          lines={localizedEconomicsLines(economics)}
           total={netContribution(economics)}
-          unit="Plant contribution"
+          unit={t('m7')}
         />
       </Section>
     </div>

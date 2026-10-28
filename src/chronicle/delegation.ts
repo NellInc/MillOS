@@ -1,3 +1,4 @@
+import { copy } from './delegation.messages';
 /**
  * Delegation, after Egypt: Old Kingdom's decentralization: the more authority
  * is delegated, the more often useful work starts without being ordered. Here
@@ -46,4 +47,12 @@ export function canStartInstalls(level: DelegationLevel): boolean {
 
 export function aiShiftBudget(fund: number): number {
   return Math.max(0, Math.floor(fund * AI_SHIFT_BUDGET_SHARE));
+}
+
+export function getDelegationLevels() {
+  return DELEGATION_LEVELS.map((level) => ({
+    ...level,
+    label: copy(level.label),
+    grants: copy(level.grants),
+  }));
 }

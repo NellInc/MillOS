@@ -1,3 +1,5 @@
+import { copy } from './stakeholders.messages';
+import { formatFixed } from '../i18n';
 /**
  * Organisations that are not customers (docs/CHRONICLE.md, system 18), after
  * Awakening's lesson that loyalty is who shows up: Ser Derren on the wall,
@@ -87,4 +89,38 @@ export function stakeholderStanding(
   if (id === 'village')
     return tier === 'warm' ? `storm front -${VILLAGE_FORECAST * 100} points` : null;
   return tier === 'warm' ? `reinvestment +${FEDERATION_REINVESTMENT * 100}%` : null;
+}
+
+export function localizedStakeholderPhrase(id: StakeholderId): string {
+  return copy(STAKEHOLDERS.find((party) => party.id === id)?.phrase ?? id);
+}
+
+export function localizedStakeholderName(id: StakeholderId): string {
+  return copy(STAKEHOLDERS.find((party) => party.id === id)?.name ?? id);
+}
+
+export function localizedStakeholderStanding(
+  stakeholders: readonly StakeholderRelationship[],
+  id: StakeholderId
+): string | null {
+  const tier = tierOf(stakeholders, id);
+  if (id === 'growers')
+    return tier === 'warm'
+      ? copy('crop treatment -25%')
+      : tier === 'cool'
+        ? copy('crop treatment +25%')
+        : null;
+  if (id === 'haulier')
+    return tier === 'warm'
+      ? copy('road works -{points} points', { points: formatFixed(HAULIER_FORECAST * 100) })
+      : tier === 'cool'
+        ? copy('road works +{points} points', { points: formatFixed(HAULIER_FORECAST * 100) })
+        : null;
+  if (id === 'village')
+    return tier === 'warm'
+      ? copy('storm front -{points} points', { points: formatFixed(VILLAGE_FORECAST * 100) })
+      : null;
+  return tier === 'warm'
+    ? copy('reinvestment +{points}%', { points: formatFixed(FEDERATION_REINVESTMENT * 100) })
+    : null;
 }

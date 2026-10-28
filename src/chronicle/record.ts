@@ -1,3 +1,9 @@
+import { createTranslator, getLocale, formatGrouped } from '../i18n';
+import { getHistoryNotes } from './history';
+import { getImprovements } from './plans';
+import { localizedStakeholderName, localizedStakeholderPhrase } from './stakeholders';
+import { translate } from '../i18n';
+import { recordMessages } from './record.messages';
 /**
  * The record (docs/CHRONICLE.md, system 16): decisions that come due.
  *
@@ -337,4 +343,83 @@ export function millCharacter(context: Pick<RecordContext, 'marks'>): {
 /** The record as a list, oldest first. */
 export function recordEntries(context: Pick<RecordContext, 'marks'>): DecisionMark[] {
   return Object.values(context.marks).sort((a, b) => a.shift - b.shift);
+}
+
+/** Read-time presentation; canonical marks and saved record entries stay unchanged. */
+export function localizedMarkLabel(id: MarkId): string {
+  return Object.prototype.hasOwnProperty.call(recordMessages.en, id)
+    ? translate(recordMessages, id as keyof typeof recordMessages.en)
+    : markLabel(id);
+}
+
+export function localizedMillCharacter(context: Pick<RecordContext, 'marks'>) {
+  const character = millCharacter(context);
+  const key = `character_${character.leaning}` as keyof typeof recordMessages.en;
+  return { ...character, title: translate(recordMessages, key) };
+}
+
+export function localizedPartyName(id: PartyId): string {
+  return (
+    CUSTOMERS.find((c) => c.id === id)?.name ??
+    (['growers', 'haulier', 'village', 'federation'].includes(id)
+      ? localizedStakeholderName(id as StakeholderId)
+      : id)
+  );
+}
+export function localizedPartyPhrase(id: PartyId): string {
+  return CUSTOMERS.some((c) => c.id === id)
+    ? localizedPartyName(id)
+    : localizedStakeholderPhrase(id as StakeholderId);
+}
+export function localizedConditionText(condition: ChronicleCondition): string {
+  const t = createTranslator(recordMessages, getLocale());
+  const parts: string[] = [];
+  const tier = (value: 'cool' | 'neutral' | 'warm') =>
+    t(({ cool: 'condition8', neutral: 'condition9', warm: 'condition10' } as const)[value]);
+  if (condition.marks?.all)
+    parts.push(...condition.marks.all.map((id) => lowerFirst(localizedMarkLabel(id))));
+  if (condition.marks?.any)
+    parts.push(
+      condition.marks.any
+        .map((id) => lowerFirst(localizedMarkLabel(id)))
+        .join(' ' + t('condition0') + ' ')
+    );
+  if (condition.marks?.none)
+    parts.push(
+      ...condition.marks.none.map((id) =>
+        t('condition1', { mark: localizedMarkLabel(id).toLowerCase() })
+      )
+    );
+  if (condition.plan)
+    parts.push(
+      getImprovements().find((plan) => plan.id === condition.plan)?.label ?? condition.plan
+    );
+  if (condition.note)
+    parts.push(
+      t('condition2', {
+        title:
+          getHistoryNotes().find((note) => note.id === condition.note)?.title ?? condition.note,
+      })
+    );
+  if (condition.party) {
+    const party = localizedPartyPhrase(condition.party.id);
+    if (condition.party.tier)
+      parts.push(t('condition3', { party, tier: tier(condition.party.tier) }));
+    if (condition.party.notTier)
+      parts.push(t('condition4', { party, tier: tier(condition.party.notTier) }));
+  }
+  if (condition.minStanding !== undefined)
+    parts.push(t('condition5', { standing: formatGrouped(condition.minStanding) }));
+  if (condition.suspended !== undefined)
+    parts.push(t(condition.suspended ? 'condition6' : 'condition7'));
+  if (condition.anyOf)
+    parts.push(condition.anyOf.map(localizedConditionText).join(' ' + t('condition0') + ' '));
+  return parts.join(', ');
+}
+/** Localize an exact historical character title without consulting present state. */
+export function localizedCharacterTitle(title: string): string {
+  const entry = Object.entries(CHARACTERS).find(([, canonical]) => canonical === title);
+  return entry
+    ? translate(recordMessages, `character_${entry[0]}` as keyof typeof recordMessages.en)
+    : title;
 }

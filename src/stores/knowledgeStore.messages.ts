@@ -6,6 +6,7 @@ import { defineMessages } from '../i18n';
  */
 export const knowledgeStoreMessages = defineMessages({
   en: {
+    historyUnlock: 'Unlocked by an event in the Mill Chronicle',
     // Loading-screen principles
     quoteTraceEveryLot: 'Trace every lot, state change, alarm, and dispatch.',
     quoteSafeStop: 'A safe stop is part of production, not a failure of it.',
@@ -120,6 +121,7 @@ export const knowledgeStoreMessages = defineMessages({
     autonomousEvidenceSeeInAction: 'AI Command Centre\nDecision replay',
   },
   'pt-BR': {
+    historyUnlock: 'Desbloqueado por um evento na Crônica do Moinho',
     // Loading-screen principles
     quoteTraceEveryLot: 'Rastreie cada lote, mudança de estado, alarme e expedição.',
     quoteSafeStop: 'Uma parada segura faz parte da produção, não é uma falha dela.',

@@ -11,8 +11,16 @@
  * Every event's default choice carries no cost and is what "Think it over"
  * lapses into, so the bad outcome of a negative event sits on its default.
  */
+import { defineMessages, translate } from '../i18n';
+import { eventDeckMessages } from './eventDeck.messages';
 import { STEWARD_DECK } from './stewardDeck';
-import type { ChronicleEventDefinition } from './types';
+import { stewardDeckMessages } from './stewardDeck.messages';
+import type { ChronicleEventDefinition, ChronicleEventEffect } from './types';
+
+const eventPresentationMessages = defineMessages({
+  en: { ...eventDeckMessages.en, ...stewardDeckMessages.en },
+  'pt-BR': { ...eventDeckMessages['pt-BR'], ...stewardDeckMessages['pt-BR'] },
+});
 
 const BASE_DECK: ChronicleEventDefinition[] = [
   // -------------------------------------------------------------------------
@@ -776,3 +784,56 @@ const BASE_DECK: ChronicleEventDefinition[] = [
 
 /** Part one's twenty events, then part two's (docs/CHRONICLE.md, systems 16-24). */
 export const EVENT_DECK: ChronicleEventDefinition[] = [...BASE_DECK, ...STEWARD_DECK];
+
+/**
+ * Presentation-only copies, resolved in the current interface language.
+ * Engine commands and persisted records keep using the raw English EVENT_DECK.
+ */
+export function getEventDeck(): ChronicleEventDefinition[] {
+  const copy = (path: string): string =>
+    translate(eventPresentationMessages, path as keyof typeof eventPresentationMessages.en);
+  const effect = (value: ChronicleEventEffect, path: string): ChronicleEventEffect => ({
+    ...value,
+    result: copy(`${path}.result`),
+    ...(value.modifier && {
+      modifier: { ...value.modifier, label: copy(`${path}.modifier.label`) },
+    }),
+  });
+  return EVENT_DECK.map((event) => ({
+    ...event,
+    title: copy(`${event.id}.title`),
+    text: copy(`${event.id}.text`),
+    choices: event.choices.map((choice) => {
+      const path = `${event.id}.choices.${choice.id}`;
+      return {
+        ...choice,
+        label: copy(`${path}.label`),
+        effect: effect(choice.effect, `${path}.effect`),
+        ...(choice.variants && {
+          variants: choice.variants.map((variant, index) => ({
+            ...variant,
+            because: copy(`${path}.variants.${index}.because`),
+            effect: effect(variant.effect, `${path}.variants.${index}.effect`),
+          })),
+        }),
+      };
+    }),
+    ...(event.echoes && {
+      echoes: event.echoes.map((echo, index) => ({
+        ...echo,
+        text: copy(`${event.id}.echoes.${index}.text`),
+        because: copy(`${event.id}.echoes.${index}.because`),
+      })),
+    }),
+  }));
+}
+
+/** Translate only recognized authored event copy; custom or historical receipts stay intact. */
+export function localizedEventText(eventId: string, text: string): string {
+  const entry = Object.entries(eventPresentationMessages.en).find(
+    ([key, english]) => key.startsWith(`${eventId}.`) && english === text
+  );
+  return entry
+    ? translate(eventPresentationMessages, entry[0] as keyof typeof eventPresentationMessages.en)
+    : text;
+}

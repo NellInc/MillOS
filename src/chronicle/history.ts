@@ -6,6 +6,8 @@
  * disagree the prose says "about" or names a decade rather than a year.
  */
 import type { HistoryNote } from './types';
+import { translate } from '../i18n';
+import { historyMessages } from './history.messages';
 
 export const HISTORY_NOTES: HistoryNote[] = [
   {
@@ -312,3 +314,26 @@ export const HISTORY_NOTES: HistoryNote[] = [
     relatedEntries: ['history-first-grain', 'history-rochdale', 'history-mondragon'],
   },
 ];
+
+function localizeHistoryNote(note: HistoryNote): HistoryNote {
+  const messages = historyMessages(note);
+  return {
+    ...note,
+    title: translate(messages, 'title'),
+    brief: translate(messages, 'brief'),
+    article: translate(messages, 'article'),
+    triggers: [...note.triggers],
+    relatedEntries: [...note.relatedEntries],
+  };
+}
+
+/** Localized copy, resolved when read; persisted and engine IDs stay canonical. */
+export function getHistoryNotes(): HistoryNote[] {
+  return HISTORY_NOTES.map(localizeHistoryNote);
+}
+
+/** Resolve one Datalinks note without rebuilding the whole authored corpus. */
+export function getHistoryNote(id: string): HistoryNote | undefined {
+  const note = HISTORY_NOTES.find((entry) => entry.id === id);
+  return note ? localizeHistoryNote(note) : undefined;
+}

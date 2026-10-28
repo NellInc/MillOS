@@ -41,3 +41,7 @@ export const RELATIONSHIP_DELTAS = {
   qualityFailure: -12,
   lateAtClose: -4,
 } as const;
+
+export function getCustomers() {
+  return CUSTOMERS.map((customer) => ({ ...customer }));
+}

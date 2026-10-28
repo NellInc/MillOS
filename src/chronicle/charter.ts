@@ -1,3 +1,4 @@
+import { copy } from './charter.messages';
 /**
  * Site charter: the start options (Predynastic Egypt's four columns of perks,
  * Old Kingdom's game parameters). Harder choices add to the final score.
@@ -194,3 +195,15 @@ export const TRAINING_MODE = {
   forecastShift: -0.25,
   scorePenalty: 2,
 } as const;
+
+export function getCharterColumns() {
+  return CHARTER_COLUMNS.map((column) => ({
+    ...column,
+    label: copy(column.label),
+    options: column.options.map((option) => ({
+      ...option,
+      label: copy(option.label),
+      effect: copy(option.effect),
+    })),
+  }));
+}
