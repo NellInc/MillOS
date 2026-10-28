@@ -4,9 +4,76 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import type { WindmillLearningStage } from '../../stores/windmillLearningStore';
-import { ExteriorPointLight, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
-import { applyWorldSurface } from '../../utils/worldSurface';
+import { EXTERIOR_LAMP_LEVEL, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
+import { composeWorldSurface } from '../../utils/worldSurface';
 import { angularRatios, gearContacts, sampleGrainPath, grainPhase } from './windmillMechanism';
+
+export interface WindmillTaskLight {
+  position: THREE.IUniform<THREE.Vector3>;
+  color: THREE.IUniform<THREE.Color>;
+  strength: THREE.IUniform<number>;
+  gain: THREE.IUniform<number>;
+}
+
+/** One local PBR source, compiled only into owned inspection materials.
+ * A scene Light changes every world's NUM_POINT_LIGHTS variant on open. This
+ * uses Three's own distance falloff and direct BRDF without that global churn.
+ * Working if the held same-page gain control changes the night interior, with
+ * no scene-light addition and no change to the cached exterior materials.
+ */
+export function taskLitMaterial(
+  color: string,
+  profile: 'painted' | 'masonry' | 'metal' | 'fabric',
+  light: WindmillTaskLight,
+  metalness = 0
+) {
+  const material = new THREE.MeshStandardMaterial({ color, roughness: 0.82, metalness });
+  material.userData.windmillTaskLight = light;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, {
+      uMillLampPosition: light.position,
+      uMillLampColor: light.color,
+      uMillLampStrength: light.strength,
+      uMillLampGain: light.gain,
+    });
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+      uniform vec3 uMillLampPosition;
+      uniform vec3 uMillLampColor;
+      uniform float uMillLampStrength;
+      uniform float uMillLampGain;
+    `
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+      #if defined(RE_Direct) && defined(STANDARD)
+        vec3 millLampVector = (viewMatrix * vec4(uMillLampPosition, 1.0)).xyz - geometryPosition;
+        float millLampDistance = length(millLampVector);
+        IncidentLight millLamp;
+        millLamp.direction = millLampVector / max(millLampDistance, 0.0001);
+        millLamp.color = uMillLampColor * uMillLampStrength * uMillLampGain *
+          getDistanceAttenuation(millLampDistance, 6.5, 2.0);
+        millLamp.visible = true;
+        // r186 initialises this only when a scene direct light exists. A local
+        // source also needs it when the global count is zero (including Low).
+        #if NUM_SUN_LIGHTS == 0 && NUM_DIR_LIGHTS == 0 && NUM_POINT_LIGHTS == 0 && NUM_SPOT_LIGHTS == 0
+          material.multiScatteringCompensation = 1.0 + material.specularColorBlended *
+            (1.0 / max(material.dfg.x + material.dfg.y, 0.0001) - 1.0);
+        #endif
+        RE_Direct(millLamp, geometryPosition, geometryNormal, geometryViewDir,
+          geometryClearcoatNormal, material, reflectedLight);
+      #endif
+    `
+      );
+  };
+  return composeWorldSurface(material, profile, {
+    cacheKey: 'windmill_task_lamp_v1',
+    overrides: { objectSpace: 1 },
+  });
+}
 
 type Parts = THREE.BufferGeometry[];
 type Point = THREE.Vector3Tuple;
@@ -260,6 +327,16 @@ export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: Wind
       !state.graphics.perfDebug.disablePunctualLights &&
       !state.graphics.perfDebug.disableLightingPolish
   );
+  const root = useRef<THREE.Group>(null);
+  const light = useMemo<WindmillTaskLight>(
+    () => ({
+      position: { value: new THREE.Vector3() },
+      color: { value: new THREE.Color('#ffdda8') },
+      strength: { value: 0 },
+      gain: { value: 1 },
+    }),
+    []
+  );
   const crown = useRef<THREE.Mesh>(null),
     upright = useRef<THREE.Mesh>(null);
   const nut = useRef<THREE.Mesh>(null),
@@ -271,12 +348,7 @@ export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: Wind
       color: string,
       profile: 'painted' | 'masonry' | 'metal' | 'fabric',
       metalness = 0
-    ) =>
-      applyWorldSurface(
-        new THREE.MeshStandardMaterial({ color, roughness: 0.82, metalness }),
-        profile,
-        { objectSpace: 1 }
-      );
+    ) => taskLitMaterial(color, profile, light, metalness);
     return {
       wood: make('#8b613b', 'painted'),
       stone: make('#8b8980', 'masonry'),
@@ -285,7 +357,7 @@ export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: Wind
       cloth: make('#c7b889', 'fabric'),
       grain: make('#d6ae5e', 'painted'),
     };
-  }, []);
+  }, [light]);
   const kernelGeometry = useMemo(
     () => new THREE.SphereGeometry(0.0017 * modelScale, 5, 3).scale(1, 0.65, 0.65),
     [modelScale]
@@ -303,6 +375,11 @@ export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: Wind
   );
   useEffect(() => () => Object.values(materials).forEach((item) => item.dispose()), [materials]);
   useFrame(() => {
+    if (root.current) {
+      light.position.value.set(0.09 * modelScale, -0.05 * modelScale, 0.11 * modelScale);
+      root.current.localToWorld(light.position.value);
+      light.strength.value = directLight ? EXTERIOR_LAMP_LEVEL.value * 40 : 0;
+    }
     if (crown.current) crown.current.rotation.x = angle.value * angularRatios.crown;
     if (upright.current) upright.current.rotation.y = angle.value * angularRatios.upright;
     if (nut.current) nut.current.rotation.y = angle.value * angularRatios.stoneNut;
@@ -366,15 +443,6 @@ export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: Wind
         material={EXTERIOR_LAMP_LENS_MATERIAL}
         dispose={null}
       />
-      {directLight && (
-        <ExteriorPointLight
-          name="windmill-inspection-light"
-          position={p(0.09, -0.05, 0.11)}
-          intensity={40}
-          distance={6.5}
-          color="#ffdda8"
-        />
-      )}
       <instancedMesh
         name="windmill-grain"
         ref={grain}

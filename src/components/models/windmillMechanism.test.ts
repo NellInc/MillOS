@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Vector3 } from 'three';
-import { createWindmillInteriorGeometry } from './WindmillInterior';
+import { Color, MeshStandardMaterial, ShaderLib, Vector3 } from 'three';
+import { createWindmillInteriorGeometry, taskLitMaterial } from './WindmillInterior';
 import { angularRatios, gearContacts, sampleGrainPath, grainPhase } from './windmillMechanism';
 
 describe('illustrative windmill transmission', () => {
@@ -82,5 +82,35 @@ describe('owned interior geometry budget', () => {
       geometry.dispose();
     });
     process.stdout.write(`Interior: 11 draws, ${triangles + 480} triangles including grain\n`);
+  });
+});
+
+describe('scoped task lamp shading', () => {
+  it('shares the held control and composes surface finish without adding a scene light', () => {
+    const light = {
+      position: { value: new Vector3() },
+      color: { value: new Color('#ffdda8') },
+      strength: { value: 40 },
+      gain: { value: 1 },
+    };
+    const wood = taskLitMaterial('#8b613b', 'painted', light),
+      metal = taskLitMaterial('#45484a', 'metal', light, 0.65);
+    const shader = { ...ShaderLib.standard, uniforms: { ...ShaderLib.standard.uniforms } };
+    wood.onBeforeCompile(
+      shader as Parameters<MeshStandardMaterial['onBeforeCompile']>[0],
+      {} as Parameters<MeshStandardMaterial['onBeforeCompile']>[1]
+    );
+    expect(shader.fragmentShader).toContain('RE_Direct(millLamp');
+    expect(shader.fragmentShader).toContain('(viewMatrix * vec4(uMillLampPosition, 1.0)).xyz');
+    expect(shader.fragmentShader).toContain('NUM_SUN_LIGHTS == 0 && NUM_DIR_LIGHTS == 0');
+    expect(shader.fragmentShader).toContain('getDistanceAttenuation(millLampDistance, 6.5, 2.0)');
+    expect(shader.fragmentShader).toContain('material.multiScatteringCompensation =');
+    expect(shader.uniforms.uMillLampGain).toBe(light.gain);
+    expect(shader.uniforms.uSurfStrength).toBeDefined();
+    expect(wood.userData.windmillTaskLight).toBe(metal.userData.windmillTaskLight);
+    expect(wood.customProgramCacheKey()).toBe(metal.customProgramCacheKey());
+    expect(wood.emissive.getHex()).toBe(0);
+    wood.dispose();
+    metal.dispose();
   });
 });
