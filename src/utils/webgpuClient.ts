@@ -528,7 +528,7 @@ class WebGPUClient {
     modelId: string,
     onProgress?: (progress: WebGPULoadProgress) => void,
     fastLane = false,
-    cacheBackend: ModelCacheBackend = 'cache'
+    cacheBackend?: ModelCacheBackend
   ): Promise<boolean> {
     if (!checkWebGPUSupport()) {
       logger.warn('[WebGPU] navigator.gpu unavailable — cannot load local model');
@@ -551,6 +551,18 @@ class WebGPUClient {
     try {
       // Dynamic import keeps the main-thread web-llm proxy off the eager bundle.
       const { CreateWebWorkerMLCEngine, prebuiltAppConfig } = await import('@mlc-ai/web-llm');
+      if (cacheBackend === undefined) {
+        const cachedBackend = await Promise.race([
+          WebGPUClient.cachedModelBackend(modelId),
+          cancelSignal,
+        ]);
+        if (cachedBackend === 'cancelled' || this.cancelled) {
+          this.teardownWorker();
+          return false;
+        }
+        cacheBackend = cachedBackend ?? 'cache';
+      }
+
       // web-llm merges these over the build's config and the record's overrides.
       const chatOptions = WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId]?.chatOptions;
       const record = prebuiltAppConfig.model_list.find((entry) => entry.model_id === modelId);
@@ -994,15 +1006,19 @@ class WebGPUClient {
 
   /** Whether the pinned copy, the one load() uses, is downloaded. */
   static async isModelCached(modelId: string = DEFAULT_WEBGPU_MODEL_ID): Promise<boolean> {
+    return (await WebGPUClient.cachedModelBackend(modelId)) !== null;
+  }
+
+  private static async cachedModelBackend(modelId: string): Promise<ModelCacheBackend | null> {
     try {
       const { hasModelInCache, prebuiltAppConfig } = await import('@mlc-ai/web-llm');
       for (const backend of CACHE_BACKENDS) {
         const config = pinnedAppConfig(prebuiltAppConfig, modelId, null, backend);
-        if (await hasModelInCache(modelId, config).catch(() => false)) return true;
+        if (await hasModelInCache(modelId, config).catch(() => false)) return backend;
       }
-      return false;
+      return null;
     } catch {
-      return false;
+      return null;
     }
   }
 
@@ -1017,20 +1033,21 @@ class WebGPUClient {
       ...CACHE_BACKENDS.map((backend) =>
         pinnedAppConfig(prebuiltAppConfig, modelId, null, backend)
       ),
-      prebuiltAppConfig,
+      ...CACHE_BACKENDS.map((backend) => ({ ...prebuiltAppConfig, cacheBackend: backend })),
     ];
-    // Most players never used IndexedDB: one store's failure must not stop the others.
-    let failure: unknown = null;
+    // One store's failure must not stop the other store or URL version.
+    const failures: unknown[] = [];
     for (const config of configs) {
       try {
         await deleteModelAllInfoInCache(modelId, config);
       } catch (error) {
         logger.warn(`[WebGPU] Could not clear one store for ${modelId}:`, error);
-        failure ??= error;
+        failures.push(error);
       }
     }
-    // A failure that left a copy behind is still a failure to delete; say so.
-    if (failure !== null && (await WebGPUClient.isModelCached(modelId))) throw failure;
+    // hasModelInCache only checks tensors. Their absence cannot prove that a
+    // failed later WASM/tokenizer/config deletion left no artifacts behind.
+    if (failures.length > 0) throw failures[0];
   }
 
   /**
