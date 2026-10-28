@@ -35,7 +35,7 @@ beforeEach(() => {
   replay.begin.mockReturnValue({ changed: true, reason: null });
   replay.record.mockReturnValue({ changed: false, reason: 'Complete recovery before review.' });
   replay.forget.mockReturnValue({ changed: true, reason: null });
-  useGameSimulationStore.setState({ gameSpeed: 180 });
+  useGameSimulationStore.setState({ gameSpeed: 180, clockHolds: [], emergencyActive: false });
   useWorkplaceStore.setState({ workplace: createWorkplace() });
 });
 afterEach(cleanup);
@@ -73,6 +73,75 @@ describe('Matched plant replay interface', () => {
     view.rerender(<WorkplaceReplay seed={0} validSeed={false} navigate={navigate} />);
     expect(screen.getByRole('button', { name: 'Start guided plant replay' })).toBeDisabled();
   });
+  it.each(['capture', 'begin'] as const)(
+    'restores the requested running pace after a rejected %s',
+    (stage) => {
+      replay[stage].mockReturnValue({ changed: false, reason: 'Replay guard rejected.' });
+      useGameSimulationStore.getState().setGameSpeed(60);
+      render(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Start guided plant replay' }));
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+      expect(useGameSimulationStore.getState().clockHolds).toEqual([]);
+      expect(replay.setGuided).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    }
+  );
+  it.each(['capture', 'begin'] as const)(
+    'preserves existing pauses and emergency state after rejected %s',
+    (stage) => {
+      for (const holder of ['player', 'shortcut', 'workplace', 'scada'] as const) {
+        useGameSimulationStore.setState({ gameSpeed: 60, clockHolds: [], emergencyActive: true });
+        if (holder === 'player') useGameSimulationStore.getState().setGameSpeed(0);
+        else useGameSimulationStore.getState().holdClock(holder);
+        const before = useGameSimulationStore.getState();
+        replay[stage].mockReturnValue({ changed: false, reason: 'Replay guard rejected.' });
+        const view = render(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Start guided plant replay' }));
+        expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+        expect(useGameSimulationStore.getState().clockHolds).toEqual(before.clockHolds);
+        expect(useGameSimulationStore.getState().emergencyActive).toBe(true);
+        view.unmount();
+      }
+    }
+  );
+  it('keeps an independent hold acquired during rejection and its requested resume pace', () => {
+    useGameSimulationStore.getState().setGameSpeed(60);
+    replay.capture.mockImplementationOnce(() => {
+      useGameSimulationStore.getState().holdClock('shortcut');
+      return { changed: false, reason: 'Replay guard rejected.' };
+    });
+    render(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Start guided plant replay' }));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(useGameSimulationStore.getState().clockHolds).toEqual([
+      { holder: 'shortcut', resumeSpeed: 60 },
+    ]);
+    useGameSimulationStore.getState().releaseClock('shortcut');
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+  });
+  it.each(['capture', 'begin'] as const)(
+    'releases its exact hold without consuming same-holder reentry during %s rejection',
+    (stage) => {
+      useGameSimulationStore.getState().setGameSpeed(60);
+      let independent:
+        | ReturnType<typeof useGameSimulationStore.getState>['clockHolds'][number]
+        | undefined;
+      replay[stage].mockImplementationOnce(() => {
+        const game = useGameSimulationStore.getState();
+        game.holdClock('shortcut');
+        game.holdClock('workplace');
+        independent = useGameSimulationStore.getState().clockHolds.at(-1);
+        return { changed: false, reason: 'Participant changed pause ownership.' };
+      });
+      render(<WorkplaceReplay seed={17} validSeed navigate={navigate} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Start guided plant replay' }));
+      const game = useGameSimulationStore.getState();
+      expect(game.gameSpeed).toBe(0);
+      expect(game.clockHolds.map((hold) => hold.holder)).toEqual(['shortcut', 'workplace']);
+      expect(game.clockHolds.at(-1)).toBe(independent);
+      expect(game.clockHolds[0].resumeSpeed).toBe(60);
+    }
+  );
   it('shows actual dispatch, separate currencies and unequal horizons', () => {
     replay.checkpoint = {
       customer: 'Local customer',

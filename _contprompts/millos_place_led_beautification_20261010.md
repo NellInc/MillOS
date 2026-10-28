@@ -9276,3 +9276,120 @@ EC UI attempts remain honestly separate: initial adapter wrongly assumed idle co
 EC original affected milling performance gate terminal1, separately OPEN: first frame389.3ms exceeds350, p9517.4ms exceeds16.7; average60FPS,p9917.6ms,1%low56.6FPS. Load101.08on10cores(10.11/core), original budgets and adaptation retained, effectiveDPR1.20exact. World/page/community/checkpoints/remaining frame gates pass. No quiet-GPU wait, budget relaxation or performance improvement claim.
 
 EC all30finite items are dispositioned in test-results/ec-people-cooperative-20261028/DISPOSITION.md with actual gallery and scoped raw receipts.341distinct affected checks across6files PASS; all required source/build/compiled gates0, optional Impeccable absent. Failed attempts, startup-cover image/logs and original benchmark failure retained. Owned native/browser/preview resources closed through finally, benchmark terminal observed and capture lock absent; no foreign cleanup. Built production source2db71128, later programme-only check-in is distinct. Parent goalACTIVE, local/muted/publicationheld; ordinary startup and pacingOPEN, physical player/device/native input/unmuted checksDEFERRED. Next rotated candidate is scout's retained hen-overlap finding; current native reproduction is required before any movement repair, preserving the already-refined model and existing pig/cow spacing.
+
+## ED: hen-yard personal space without losing grounded gait (2026-10-28)
+
+EC is verified PROGRESS atcb86ee56: built code2db71128,341checks,20art/support frames,4ordinary motion frames and8localized navigation frames accepted in their scoped modes. Original first-frame/p95timing and intermittent ordinary slow-animation cover remain separatelyOPEN. Current owned checkoutclean,28GiBfree, no capture lock. Scout's October17hen-yard image visibly merges two hens, and current live FarmArea still admits each hen independently with no peer sweep. That retained image alone does not prove current three-dimensional contact; root must reproduce it on this current sealed assembly before implementing a movement fix. Five hens must never be passed blindly into the existing three-peer joint pig solver.
+
+Pre-mortem: circular clearance chosen from root spacing can be either too small for posed bodies or so large the narrow yard deadlocks; a collision veto can silently advance stride and skate stationary feet; expanding the three-peer joint search to five can spend exponential frame time. Measure the actual delivered hen footprint and current contact, preserve targets/bounds/pet/forage/model clocks, and use bounded allocation-free swept admission with accepted travel as the sole stride input. If the observed old silhouette is only projection and current contact cannot be established, reject that repair hypothesis and choose another evidenced gap.
+
+### Finite execution list
+
+1. Reconcile currentcb86ee56source versus unchanged2db71128compiled source pins and preserve unrelated work.
+2. Keep local/muted/publicationheld, original4GiB/capture guards and deferred physical checks.
+3. Read actual FarmArea/Chicken/CreatureBody import chain and fresh compiled reachability before editing unfamiliar movement code.
+4. Inspect retained two-hen silhouette and current independent movement, real body geometry, five spawn seats and authored convex wander box.
+5. Record named baseline of existing creatureMotion and applicable actual hen rig checks; no invented duplicate framework.
+6. Fresh exact-current-build native view of all five hens after original readiness, using existing motion admission rather than actor/pose/stock injection.
+7. Measure real deformed body footprint, pairwise root gaps and same-height surface contacts to separate projection from physical intersection.
+8. Capture any reproduced contact from two camera angles at the same held instant; retain actual IDs, time, meshes and raw frame data.
+9. Decide the bounded repair only from that current evidence, otherwise reject the contact hypothesis and record why.
+10. If confirmed, name the minimum physical clearance from actual posed geometry, retaining all model vertices, rig, material and scale.
+11. Keep five original starting positions, all wander bounds, coop/ramp/sheep clearance, seeded targets and quiet forage/rest cadence.
+12. Reuse existing swept pair math where valid; do not scale the three-peer exponential joint search to five.
+13. Preallocate five-peer scratch state outside useFrame; introduce no render-loop vectors, arrays or objects.
+14. Admit bounded movement with deterministic priority/yielding and genuine separation from already touching starts.
+15. Preserve stationary/idle/petted hens' positions and allow nearby moving peers to yield around them.
+16. Base gait phase on accepted actual world travel divided by model scale; denied motion has no stride advance.
+17. Keep smooth shortest-arc heading and no backwards sliding, target overshoot, body teleport or turn-in-place orbit trap.
+18. Preserve reduced motion, pause/hidden-tab hold, capped recovery, pet jumps, beak/head animation and original5hen count.
+19. Reproduce the changed collision contract in the existing test setup before the fix.
+20. Exercise crossing, held peer, initial overlap, finite bounds and eventual resume/arrival with five seeded peers.
+21. Check equal admitted fixed steps remain deterministic across display partitions and no held/paused stride leaks.
+22. Root inspect any delegated disjoint edits; rerun relevant existing motion/rig/consumer checks.
+23. Required coherent source typecheck,agent:typecheck,lint,format,depth,shader,assets/manifest gates.
+24. Exact local production build under existing guards; seal actual source/output and run fresh bundle/reachability/community gates.
+25. Native day/dusk/night Medium and Low hen-yard/individual-context views at admitted game time, no actor/inventory/quality override.
+26. Check actual swept peer separation and resumes over short natural movement; retain comparison to the observed before-contact.
+27. Inspect gait/body/forage/pet seating and original coop/ramp/farm cohesion; no replacement anatomy pass.
+28. Run the original relevant farm frame/startup gate once; retain any miss separatelyOPEN with actual machine load, never relax budgets.
+29. Preserve raw failures, exact build, accepted art/behaviour boundaries, finite disposition/gallery, then selective local check-in only.
+30. Close only owned temporary browser/server/job resources and retain useful inputs/results; restore any owned temporary dependency setup.
+31. Keep parent goalACTIVE, no push/deploy/remote compute; rotate onward after this finite pass is actually verified.
+
+Allowed production surfaces only after confirmed reproduction: FarmArea.tsx hen movement integration, existing simulation/creatureMotion.ts and its existing tests if a bounded helper is necessary. Root owns integration/final checks/programme/evidence. Read-only scout owns no production files. Excluded: all GLBs, chickenWalk rig, pig/cow solver contracts, UI, lighting/preset/readiness/domain/stock, railway/port/mountains/world placement. Working if current actual contact is removed by bounded peer-aware travel, real five-hen gait/holds/forage and yard coherence remain, native/source/build checks finish, and original timing/deferred/publication limits remain explicit.
+
+### ED reproduction, batching and contract update
+
+Fresh current sealed native2db71128reproduces genuine hen skin contact after6.88seconds: two actual deformed triangle cross-section segments intersect at worldY.20, root gap.24632m. Root inspected both same-instant angles and measured horizontal posed radius up to.317854m; provisional.34menvelope requires actual combined-rig test. Baseline creatureMotion28PASS and live creature/rig49PASS. A bounded sequential five-peer helper was partially produced before the worker's runtime failed with "application network permission was revoked"; root resumed ownership from actual partial source, not a completed-worker claim. No equivalently failed delegation was repeated.
+
+Root first integrated candidate has one substantive head-on arrival failure despite31passing motion cases. Diagnostic actual roots show exactly mirrored same-world sidesteps at.755mgap. Read-only Astra independently ran actual transpiled source, rejected turn-cost-only hypothesis and demonstrated same-relative passing side breaks the symmetry without failed sweeps/backslides. Root implemented only that tie-break; the existing three-peer pig/cow solver is untouched. First integrated94tests has only an obsolete no-sound assertion failure because the new mounted hen test deliberately pets the hen; sound is mocked and expected exactly once, not emitted. Root corrects that fixture expectation, retaining pause/hidden/reduced-motion holds.
+
+Nell's latest request asks for all remaining work in dependency order with batched subagents. Two read-only scouts distinguish completed repairs from current gaps: actual ordinary startup acceptance remainsOPEN, real cooperative learning journey needs current ordinary/browser and deferred human/editorial acceptance, and retained market-awning green slivers are a current-reproduction candidate only. No new generic lighting/people defect is established. Keep completed cabbage/signage/packaging/grounded-worker work closed at its proven scope.
+
+One independent gameplay lane reproduces replay guide rejection leaving a new workplace pause (2FAIL,6baselinePASS); minimal two-file UI repair passes11cases. Its own source review exposes an actual domain rollback overwrite of clock ownership. This is a material extension of the same failed-entry outcome, so root authorizes only existing WorkplaceReplay component/test, workplaceReplayStore, existing UnifiedGameTick.workplace tests and gameSimulationStore releaseClock/test in this batch. Read-only Astra reviewed the cross-component contract: checkpoint/rollback must preserve live pause owners, UI releases only its own acquisition, success retains intended workplace pause, incomplete rollback adds existing restoreFailed hold. No replay/domain schema, stock, consent, safety gate or UI redesign. Required existing real-engine participant-throw tests must prove the domain far side; mocked UI tests alone do not close it. Root retains final integration/build/native acceptance.
+
+## Remaining programme in dependency order, requested 2026-10-28
+
+This is the execution order for the existing repeating objective, not a promise that unseen assets or deferred devices are already accepted. Current batch ED combines independently owned hen movement and rejected-replay clock recovery; root serializes integration/build/native rendering. Scouts and the read-only contract adviser are distinct from implementation and final acceptance. No new dependency, rendering service, remote compute, blanket asset regeneration or interface redesign is justified by this audit.
+
+### Batch1, execute now: physical life and failed-entry recovery
+
+1. Complete the confirmed five-hen peer sweep while preserving actual models, feed/rest cadence, bounds, gait and holds.
+2. Verify the actual posed envelope, same-handed passing, accepted-travel stride, held pet response, eventual routes and no additional per-frame allocation.
+3. Restore the requested pace after a rejected guided capture/begin without releasing another owner's pause.
+4. Preserve live pause entries across actual checkpoint restoration and rollback, retaining success's workplace pause.
+5. Add optional exact-acquisition release to the existing clock API; one-argument callers retain their old behavior.
+6. Prove same-holder reentry and independent later shortcut holds survive failed entry.
+7. Keep incomplete rollback stopped with the existing restoreFailed owner; do not resume a partially restored plant.
+8. Reproduce and retain failures before fixes in existing focused tests, then root rerun integrated motion/rig/clock/UI/real-engine checks.
+9. Run required source gates and one exact sealed production build; repair in-scope gate failures rather than stop at them.
+10. Serialize native hen day/dusk/night/Low movement/contact/context review and replay rejection/resume UI checks under original guards.
+11. Run original relevant farm timing once and retain any miss as pacingOPEN; no idle-GPU wait or budget/quality waiver.
+12. Inspect actual diff, source/build pins and useful outputs, save finite dispositions/gallery and commit only owned local work.
+
+### Batch2, ordinary startup/learning acceptance, separate from rendering speed claims
+
+13. Read the retained ordinary slow-cover failure state and current readiness state machine before scheduling another attempt.
+14. Trace which actual readiness condition kept that observed ordinary scene covered; no forced ready, quality disable or fake start.
+15. Reuse existing readiness/clock tests for any demonstrated contract defect; distinguish host contention from a source bug.
+16. On the next changed/sealed candidate run one ordinary startup-to-Autonomy path, capturing actual gate reason on timeout.
+17. Finish real handoff entry and both Overview/debrief review routes in the ordinary view; operational-capture acceptance already exists and must not be relabelled ordinary.
+18. Carry one bounded funded proposal through real work, valid review and owed recovery using current controls and actual records.
+19. Compare a second same-checkpoint replay at equal agreement duration; preserve refusal, pay, customer stock/dispatch and no forced winner.
+20. Verify explanations distinguish actual dispatch, modelled forecasts and retained obligations. Native-language/human learning judgment remains a separate deferred review.
+
+### Batch3, next authored-world craft candidate
+
+21. Reproduce retained green market-awning slivers on the latest exact build, all four dressings and two close angles.
+22. Locate actual atlas/gutter, colour-interpolation or overlapping-trim cause before selecting a repair; reject the candidate if current pixels are already correct.
+23. Repair only the confirmed cloth continuity boundary, preserving timber, UV/normals, trade colours, source asset, MarketGoods and printed branding.
+24. Use paired source/colour-control views and existing canopy assertions, then exact day/dusk/night/Low native acceptance.
+25. Leave accepted cabbage centres, branded sacks, bakery/butchers/service rasters, church glass and shipping task light intact.
+
+### Batch4, rotate a current whole-world inspection into the next substantial pass
+
+26. Survey actual people duty transitions and workface/hand/tool contact before another character edit; static gesture stills are insufficient.
+27. Check animal coexistence and quiet routines beyond hens while retaining completed pig/cow/rig work.
+28. Inspect village/shopping/inn/service-building materials and roof/window/interior continuity from current close views.
+29. Review station/transit/canal/river/boat edges and ground/plant cohesion without moving railway into port or mountains.
+30. Review castle terrace/access/path continuity from source and authored camera views; manual first-person walk remains deferred.
+31. Inspect efficient day/dusk/night source placement, shadow continuity and interior warmth at existing presets; no blanket brightness increase from old imagery.
+32. Inspect water/horizon/cloud/vegetation continuity at representative current views, changing only reproduced gaps.
+33. Select the strongest observed gap and write its next finite list with explicit ownership/non-goals, then implement and verify it before rotating again.
+
+### Separate gates and delivery custody
+
+34. Pacing/first-frame/ordinary-loading timing remainOPEN with exact failed thresholds and load. A green build/art view never closes them.
+35. Physical devices, touch/native input, manual castle navigation, accessibility in assistive technology and unmuted audio stayDEFERRED under Nell's hold.
+36. Brazilian Portuguese native-reader/editorial acceptance and actual player comprehension stayDEFERRED; source/catalogue coverage is already recorded separately.
+37. Keep useful raw failures/images/build/source receipts, clean only verified task-owned disposable resources, and never sweep other jobs or user browsers.
+38. Preserve selective local commits and clean ownership boundaries. Publication, upload, push and deployment remainHELD until Nell changes the current local-only scope.
+39. When publication is later authorized, apply the existing release/CI/ordinary-Git100MB/secret/source-check gates and verify actual served bytes; no release is part of this batch.
+40. Maintain the full repeating objective across these finite passes. The goal record returned blocked during this resume; the exposed update API cannot resume it, so work continues under Nell's explicit renewed request without falsely claiming a status transition was made.
+
+Working if batch1 delivers visible peer-aware hens and correct replay failure recovery with exact native/source proof, later batches are selected from current evidence rather than speculative wishlists, and open/deferred/held gates never acquire false greens.
+
+ED source checkpoint: root independently passes195distinct checks across7affected files:33motion,51real creature/rig,26clock ownership,13replay UI and29real workplace tick plus existing improvement/participation consumers included in the85test replay-root run. This is109root-motion/rig/clock +85replay/consumers +1new partition check, not sums of overlapping worker runs. New actual hen envelope test samples32gait phases×3forage×3head poses and remains below.34m; mounted five-hen owner verifies peer spacing, pet hold, pause, hidden tab and reduced motion. Pig/cow behavior remains covered and unchanged. UI baseline6/reproduced2failures; actual replay describe baseline10/reproduced3failures; exact clock-acquisition regression baseline25/reproduced1failure, all retained. Root reviewed actual delegated4filediff and real participant failure handling, including same-holder reentry and restoreFailed fail-closed boundary. Existing non-clock replay safety restoration policy is unchanged, not a newly certified contract.
+
+Actual old sealed native UI now independently reproduces the running-pace loss: real Workshop selection and Start guided plant replay correctly reject operational capture, but speed30silently becomes0, with actual workplace unchanged and clean diagnostics/audio/world. Final candidate must retain speed30after that same actual rejection. Native capture uses the existing operational-view route, not ordinary-startup acceptance. All required source gates terminal0after fixing root's unused callback parameter and regenerating existing stale manifest; original failures retained, no waived gate. Next: selective code checkpoint, exact build/seal, compiled gates and serialized native acceptance before this batch is complete.

@@ -694,7 +694,7 @@ it('the real material tick time-weights cover expiry when a coarse step crosses 
 describe('whole operational checkpoint replay', () => {
   let unregister: Array<() => void> = [];
   const actorState = { routeDistance: 3, operationMinute: 1 };
-  function checkpoint() {
+  function checkpoint(onRestore?: () => void) {
     useSafetyStore.setState(useSafetyStore.getInitialState());
     useOperationsCampaignStore.getState().initializeCampaign();
     useGameSimulationStore.getState().setGameSpeed(0);
@@ -703,7 +703,10 @@ describe('whole operational checkpoint replay', () => {
     unregister = REQUIRED_REPLAY_PARTICIPANTS.map((id) =>
       registerReplayParticipant(id, {
         capture: () => ({ ...actorState }),
-        restore: (saved) => Object.assign(actorState, saved),
+        restore: (saved) => {
+          onRestore?.();
+          Object.assign(actorState, saved);
+        },
       })
     );
     expect(useWorkplaceReplayStore.getState().capture(17)).toEqual({ changed: true, reason: null });
@@ -729,6 +732,53 @@ describe('whole operational checkpoint replay', () => {
     centralTick.reset();
     useWorkplaceReplayStore.setState(useWorkplaceReplayStore.getInitialState());
   });
+  it('keeps live pause ownership through successful checkpoint restoration', () => {
+    const lab = checkpoint();
+    const game = useGameSimulationStore.getState();
+    game.setGameSpeed(60);
+    game.holdClock('shortcut');
+    const independent = useGameSimulationStore.getState().clockHolds[0];
+    expect(lab.begin('team').changed).toBe(true);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(useGameSimulationStore.getState().clockHolds[0]).toBe(independent);
+    expect(useGameSimulationStore.getState().clockHolds.at(-1)?.holder).toBe('workplace');
+  });
+  it.each([1, 2])(
+    'preserves reentrant holds when a participant restore throws %s times',
+    (failures) => {
+      let restores = 0;
+      const lab = checkpoint(() => {
+        restores++;
+        if (restores === 1) {
+          useGameSimulationStore.getState().holdClock('shortcut');
+          useGameSimulationStore.getState().holdClock('workplace');
+        }
+        if (restores <= failures) throw new Error('Injected participant restore failure');
+      });
+      const game = useGameSimulationStore.getState();
+      game.setGameSpeed(60);
+      game.holdClock('workplace');
+      const acquired = useGameSimulationStore.getState().clockHolds.at(-1)!;
+      const result = lab.begin('team');
+      expect(result.changed).toBe(false);
+      const holds = useGameSimulationStore.getState().clockHolds;
+      expect(holds.map((hold) => hold.holder)).toEqual(
+        failures === 1
+          ? ['workplace', 'shortcut', 'workplace']
+          : ['workplace', 'shortcut', 'workplace', 'restoreFailed']
+      );
+      expect(holds[0]).toBe(acquired);
+      expect(useGameSimulationStore.getState().releaseClock('workplace', acquired)).toBe(true);
+      const remaining = useGameSimulationStore.getState().clockHolds;
+      expect(remaining.map((hold) => hold.holder)).toEqual(
+        failures === 1 ? ['shortcut', 'workplace'] : ['shortcut', 'workplace', 'restoreFailed']
+      );
+      expect(remaining[0].resumeSpeed).toBe(60);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+      expect(useWorkplaceReplayStore.getState().checkpoint).toBeNull();
+      expect(useWorkplaceReplayStore.getState().activeRunId).toBeNull();
+    }
+  );
   it('restores material maps, QC holds, faults, parts, clock and hidden tick state without inheriting consent', () => {
     useBreakdownStore.getState().triggerBreakdown('mill-a', 'Test mill', 'mechanical');
     useQCLabStore.setState({

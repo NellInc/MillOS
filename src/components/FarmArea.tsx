@@ -15,7 +15,9 @@ import { Cat } from './scenery/Cat';
 import { AuthoredPropTrim } from './scenery/AuthoredPropTrim';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import {
-  advanceCreatureStride,
+  stepChickenSpace,
+  createChickenSpaceWorkspace,
+  CHICKEN_CLEARANCE_RADIUS,
   stepPigSpace,
   createPigSpaceWorkspace,
   COW_SPACE,
@@ -23,7 +25,6 @@ import {
   creatureForageWeight,
   creaturePerchLook,
   creaturePoseBlend,
-  creatureTravelDistance,
 } from '../simulation/creatureMotion';
 import { CreatureBody, type CreatureRigHandle } from './models/RiggedCreatureModel';
 import { CHICKEN_WALK } from './models/chickenWalk';
@@ -378,9 +379,6 @@ farmPathCobbleColor.repeat.set(0.3, 1.4); // 3/10, 14/10
 farmPathCobbleNormal.repeat.set(0.3, 1.4);
 farmPathCobbleColor.needsUpdate = true;
 farmPathCobbleNormal.needsUpdate = true;
-
-// Module-level reusable temp to avoid per-animal Vector3 allocation in useFrame (GC pressure)
-const _animDir = new THREE.Vector3();
 
 // ============================================================
 // CUTE FARM AREA - North-West Corner (OPTIMIZED)
@@ -1331,6 +1329,7 @@ interface AnimalState {
 // the sheep at (9, -4); the cows keep 1.2 m off the paddock fence lines at
 // x -5/15 and z 9/21, as the pigs already do inside their pen.
 const CHICKEN_WANDER_BOUNDS: WanderBounds = { minX: 15.2, maxX: 18.5, minZ: -8.5, maxZ: -1.5 };
+const CHICKEN_SPACE = { radius: CHICKEN_CLEARANCE_RADIUS, ...CHICKEN_WALK };
 const PIG_WANDER_BOUNDS: WanderBounds = { minX: -14, maxX: -10, minZ: -7, maxZ: -3 };
 const COW_WANDER_BOUNDS: WanderBounds = { minX: -3.8, maxX: 13.8, minZ: 10.6, maxZ: 19.4 };
 
@@ -1352,7 +1351,7 @@ const _farmAtmosphere = createAtmosphereState();
 
 /**
  * Quarter turn, same as `CowPrimitiveBody` and for the same measured reason:
- * the parts are authored facing +X while `updateAnimalMovement` steers by
+ * the parts are authored facing +X while the farm movement driver steers by
  * `atan2(direction.x, direction.z)`, which aligns local +Z to the heading. An
  * unrotated primitive bird walks broadside to wherever it is going - the sidle
  * recorded against this component - and points 90 degrees off the generated
@@ -1518,7 +1517,7 @@ const Pig: React.FC<{
  * Primitive cow, kept as the Suspense fallback for the rigged GLB.
  *
  * The quarter turn is not decoration. Every part below is authored facing local
- * +X, but `updateAnimalMovement` steers with `Math.atan2(direction.x,
+ * +X, but the farm movement driver steers with `Math.atan2(direction.x,
  * direction.z)`, which aligns local **+Z** to the heading - so an unrotated cow
  * walks broadside to wherever it is going. The generated asset faces +Z per
  * `public/models/README.md`, and this turn puts the primitive in the same frame
@@ -1529,7 +1528,6 @@ const Pig: React.FC<{
  * A small walking step fitted to the original hen's leg reach. The previous
  * 1.5m/s and 12rad/s asked a 42cm hen to skate through a 79cm cycle.
  */
-const CHICKEN_STRIDE_RATE = (Math.PI * 2 * CHICKEN_WALK.speed) / CHICKEN_WALK.cycle;
 
 const CowPrimitiveBody: React.FC<{
   headRef: React.RefObject<THREE.Group | null>;
@@ -1606,7 +1604,7 @@ const CowPrimitiveBody: React.FC<{
  * primitive as the Suspense fallback.
  *
  * The group stays owned here rather than inside either body, so
- * `updateAnimalMovement` keeps writing one transform whichever body is mounted,
+ * the farm movement driver keeps writing one transform whichever body is mounted,
  * and a deployment without `public/models/farm/cow.glb` degrades to the
  * primitive rather than to an empty paddock.
  */
@@ -1618,7 +1616,7 @@ const PaddockCow: React.FC<{
   rigRef: React.RefObject<CreatureRigHandle | null>;
   onClick?: (e: ThreeEvent<MouseEvent>) => void;
 }> = ({ position, rotation = 0, groupRef, headRef, rigRef, onClick }) => (
-  // Scale only, no yaw jitter: `updateAnimalMovement` writes `rotation.y` on
+  // Scale only, no yaw jitter: the farm movement driver writes `rotation.y` on
   // this group every other frame, so a jittered yaw would be overwritten within
   // one frame of the herd starting to wander. Three identical Holsteins were
   // named by both reviewers; size is the channel that survives the driver.
@@ -2364,6 +2362,9 @@ export const FarmArea: React.FC = () => {
   const chickenStates = useRef<AnimalState[]>(
     Array.from({ length: 5 }, (_, index) => createAnimalState(100 + index, CHICKEN_WANDER_BOUNDS))
   );
+  const chickenSpaceElapsed = useRef(0);
+  const chickenSpace = useMemo(createChickenSpaceWorkspace, []);
+  const chickenSpaceRoots = useMemo<(THREE.Group | null)[]>(() => Array(5).fill(null), []);
 
   // --- Pig Refs & State ---
   const pigRefs = useMemo(
@@ -2557,66 +2558,6 @@ export const FarmArea: React.FC = () => {
   // as a single animal duplicated if their heads rise and fall together.
   const sheepOffsets = useMemo(() => [0, 1.6, 3.1, 4.7], []);
 
-  // Movement Helpers
-  const updateAnimalMovement = (
-    ref: THREE.Group | null,
-    state: AnimalState,
-    delta: number,
-    speed: number,
-    strideRate: number,
-    bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
-    yOffset: number = 0,
-    strideSpaceScale: number = 1
-  ) => {
-    if (!ref) return;
-    state.moving = false;
-
-    if (state.isIdle) {
-      state.idleTime -= delta;
-      if (state.idleTime <= 0) {
-        state.isIdle = false;
-      }
-    } else {
-      // Move towards target
-      const currentPos = ref.position;
-      const direction = _animDir.subVectors(state.target, currentPos);
-      // Horizontal only: a pet-jump's y offset must not bleed into the step
-      // or the arrival test.
-      direction.y = 0;
-      const dist = direction.length();
-
-      if (dist < 0.1) {
-        state.isIdle = true;
-        const nextPlan = createAnimalWanderPlan(state.seed, state.sequenceStep, bounds);
-        state.sequenceStep += 1;
-        state.target.set(nextPlan.x, yOffset, nextPlan.z);
-        state.idleTime = nextPlan.idleSeconds / state.cadence;
-      } else {
-        direction.normalize();
-
-        // Smooth rotation along the SHORTEST arc. A plain lerp toward atan2's
-        // [-PI, PI] result spins the animal ~340 degrees whenever its heading
-        // crosses +/-PI.
-        const targetRotation = Math.atan2(direction.x, direction.z);
-        const turn = Math.atan2(
-          Math.sin(targetRotation - ref.rotation.y),
-          Math.cos(targetRotation - ref.rotation.y)
-        );
-        const turned = turn * (1 - Math.exp(-delta * 5));
-        ref.rotation.y += turned;
-
-        const distance = creatureTravelDistance(dist, turn - turned, delta, speed);
-        currentPos.add(direction.multiplyScalar(distance));
-        state.moving = distance > 0.00001;
-        state.stridePhase = advanceCreatureStride(
-          state.stridePhase,
-          distance / strideSpaceScale,
-          strideRate / speed
-        );
-      }
-    }
-  };
-
   // SINGLE useFrame - THROTTLED/BATCHED
   useFrame((_state, delta) => {
     const { gameDay, gameTime, gameSpeed, weather, isTabVisible } =
@@ -2670,21 +2611,29 @@ export const FarmArea: React.FC = () => {
       const adjustDelta = movementElapsed.current * animalActivity;
       movementElapsed.current = 0;
 
-      // Chickens
-      chickenRefs.forEach((ref, i) => {
-        updateAnimalMovement(
-          ref.current,
-          chickenStates.current[i],
-          adjustDelta,
-          CHICKEN_WALK.speed,
-          CHICKEN_STRIDE_RATE,
+      // Admit five hens together, retaining quiet/petted peers as obstacles.
+      // Working if actual swept travel, rather than a denied attempt, drives feet.
+      chickenSpaceElapsed.current += adjustDelta;
+      for (let i = 0; i < 5; i++) {
+        chickenSpaceRoots[i] = chickenRefs[i].current;
+        chickenSpace.held[i] = chickenJumpStates.current[i] > 0 ? 1 : 0;
+      }
+      while (chickenSpaceElapsed.current + 1e-12 >= 1 / 60) {
+        stepChickenSpace(
+          chickenSpaceRoots,
+          chickenStates.current,
+          1 / 60,
           CHICKEN_WANDER_BOUNDS,
-          0,
-          ref.current?.scale.x ?? 1
+          createAnimalWanderPlan,
+          chickenSpace,
+          CHICKEN_SPACE
         );
+        chickenSpaceElapsed.current -= 1 / 60;
+      }
+      chickenRefs.forEach((_ref, i) => {
         chickenStride.current[i] = THREE.MathUtils.lerp(
           chickenStride.current[i],
-          chickenStates.current[i].moving ? 1 : 0,
+          chickenStates.current[i].moving && !chickenSpace.held[i] ? 1 : 0,
           creaturePoseBlend(0.4, adjustDelta)
         );
         chickenRigRefs[i].current?.setStride(

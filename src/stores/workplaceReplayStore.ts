@@ -77,13 +77,13 @@ function restorePlant(raw: ReturnType<typeof capturePlant>) {
   useAnnouncementsStore.setState(saved.announcements);
   useUIStore.setState({ alerts: saved.alerts });
   useProductionStore.setState({ ...saved.production, scadaLive: false });
-  // A replay restore holds the clock for the workplace step it replays, so the
-  // pace control names the hold and its own Resume releases it.
-  useGameSimulationStore.setState({
+  // Clock ownership is live, not checkpoint data. Preserve exact hold objects
+  // through both restoration and rollback, including participant-added holds.
+  useGameSimulationStore.setState((live) => ({
     ...saved.game,
-    gameSpeed: 0,
-    clockHolds: [{ holder: 'workplace', resumeSpeed: 0 }],
-  });
+    gameSpeed: live.gameSpeed,
+    clockHolds: live.clockHolds,
+  }));
   useLogisticsLayoutStore.getState().restoreSaved(saved.logistics);
   restoreUnifiedTickState(saved.tick);
   centralTick.restoreClock(saved.centralClock);
@@ -227,6 +227,7 @@ export const useWorkplaceReplayStore = create<WorkplaceReplayStore>((set, get) =
       useWorkplaceStore.setState({ workplace: fresh });
       const started = useWorkplaceStore.getState().startMission(profile, checkpoint.seed);
       if (!started.changed) throw new Error(started.reason ?? 'Agreement could not start.');
+      useGameSimulationStore.getState().holdClock('workplace');
       set({ activeRunId: `run-${++sequence}` });
       return result();
     } catch {
@@ -242,6 +243,7 @@ export const useWorkplaceReplayStore = create<WorkplaceReplayStore>((set, get) =
       endReplayClock();
       saved = null;
       set({ checkpoint: null, activeRunId: null, guided: false });
+      if (!rollbackComplete) useGameSimulationStore.getState().holdClock('restoreFailed');
       return result(
         rollbackComplete ? translate(msg, 'restorationFailed') : translate(msg, 'rollbackFailed')
       );

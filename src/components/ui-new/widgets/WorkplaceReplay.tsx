@@ -55,9 +55,20 @@ export function WorkplaceReplay({
   };
   const guide = () => {
     if (!validSeed) return;
-    useGameSimulationStore.getState().holdClock('workplace');
-    if (!report(replay.capture(seed))) return;
-    if (!report(useWorkplaceReplayStore.getState().begin('toe-dip'))) return;
+    const clock = useGameSimulationStore.getState();
+    // A pre-existing pause needs no new owner. Failed entry releases only the
+    // hold this attempt acquired; newer independent holds keep their place.
+    const running = clock.gameSpeed > 0;
+    if (running) clock.holdClock('workplace');
+    const acquired = running ? useGameSimulationStore.getState().clockHolds.at(-1) : undefined;
+    if (!report(replay.capture(seed))) {
+      if (acquired) useGameSimulationStore.getState().releaseClock('workplace', acquired);
+      return;
+    }
+    if (!report(useWorkplaceReplayStore.getState().begin('toe-dip'))) {
+      if (acquired) useGameSimulationStore.getState().releaseClock('workplace', acquired);
+      return;
+    }
     useWorkplaceReplayStore.getState().setGuided(true);
     navigate('Shift');
   };

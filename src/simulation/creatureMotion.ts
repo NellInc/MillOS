@@ -499,3 +499,170 @@ export function stepPigSpace(
     );
   }
 }
+
+/** Conservative actual-skin hen envelope; the owner supplies its authored walk configuration. */
+export const CHICKEN_CLEARANCE_RADIUS = 0.34;
+
+/** Five peers have bounded sequential admission, independent of the three-pig joint search. */
+export function createChickenSpaceWorkspace() {
+  return {
+    held: new Uint8Array(5),
+    admitted: new Uint8Array(5),
+    dx: new Float64Array(5),
+    dz: new Float64Array(5),
+    yaw: new Float64Array(5),
+    distance: new Float64Array(5),
+    headings: new Float64Array(14),
+    priority: 0,
+  };
+}
+
+/** One fixed admitted step. Chosen sweeps include held and unprocessed peers.
+ * Working if all five remain separate, denied travel has no stride, and holds stay exact.
+ */
+export function stepChickenSpace(
+  roots: readonly (PigSpaceRoot | null)[],
+  states: readonly PigSpaceState[],
+  delta: number,
+  bounds: WanderBounds,
+  nextPlan: (
+    seed: number,
+    step: number,
+    bounds: WanderBounds
+  ) => { x: number; z: number; idleSeconds: number },
+  workspace: ReturnType<typeof createChickenSpaceWorkspace>,
+  config: { radius: number; speed: number; cycle: number }
+): void {
+  if (!(delta > 0)) return;
+  const count = roots.length;
+  if (count > 5 || count === 0) return;
+  for (let i = 0; i < count; i++) {
+    workspace.admitted[i] = 0;
+    workspace.dx[i] = workspace.dz[i] = workspace.distance[i] = 0;
+    workspace.yaw[i] = roots[i]?.rotation.y ?? 0;
+    if (!workspace.held[i]) states[i].moving = false;
+  }
+  for (let order = 0; order < count; order++) {
+    const i = (workspace.priority + order) % count;
+    const root = roots[i],
+      state = states[i];
+    workspace.admitted[i] = 1;
+    if (!root || workspace.held[i]) continue;
+    if (state.isIdle) {
+      state.idleTime -= delta;
+      if (state.idleTime <= 0) state.isIdle = false;
+      continue;
+    }
+    const dx = state.target.x - root.position.x,
+      dz = state.target.z - root.position.z,
+      distance = Math.hypot(dx, dz);
+    if (distance < 0.1) {
+      state.isIdle = true;
+      const plan = nextPlan(state.seed, state.sequenceStep++, bounds);
+      state.target.x = plan.x;
+      state.target.y = 0;
+      state.target.z = plan.z;
+      state.idleTime = plan.idleSeconds / state.cadence;
+      continue;
+    }
+    // One relative passing side breaks mirror symmetry for opposed hens.
+    // Working if a head-on pair separates instead of sidestepping together.
+    const heading = Math.atan2(dx, dz),
+      side = 1;
+    workspace.headings[0] = heading;
+    for (let k = 0; k < 4; k++) {
+      const angle = k === 0 ? 0.55 : k === 1 ? 1.1 : k === 2 ? 1.57 : 2.2;
+      workspace.headings[1 + k * 2] = heading + side * angle;
+      workspace.headings[2 + k * 2] = heading - side * angle;
+    }
+    let headingCount = 9,
+      goalPriority = state.seed;
+    for (let j = 0; j < count; j++) {
+      const other = roots[j];
+      if (!other || j === i) continue;
+      if (
+        !states[j].isIdle &&
+        Math.hypot(states[j].target.x - state.target.x, states[j].target.z - state.target.z) < 0.1
+      )
+        goalPriority = Math.min(goalPriority, states[j].seed);
+      const px = root.position.x - other.position.x,
+        pz = root.position.z - other.position.z;
+      if (Math.hypot(px, pz) < config.radius * (root.scale.x + other.scale.x) + 0.1)
+        workspace.headings[headingCount++] =
+          Math.abs(px) + Math.abs(pz) > 1e-9 ? Math.atan2(px, pz) : (i * Math.PI * 2) / count;
+    }
+    const yielding = goalPriority < state.seed;
+    if (yielding) workspace.headings[headingCount++] = heading + Math.PI;
+    let bestScore = -0.001;
+    for (let k = 0; k < headingCount; k++) {
+      const desired = workspace.headings[k];
+      const turn = Math.atan2(
+        Math.sin(desired - root.rotation.y),
+        Math.cos(desired - root.rotation.y)
+      );
+      const yaw = root.rotation.y + turn * (1 - Math.exp(-delta * 5));
+      const travel = creatureTravelDistance(distance, desired - yaw, delta, config.speed);
+      const x = Math.sin(desired) * travel,
+        z = Math.cos(desired) * travel;
+      if (
+        root.position.x + x < bounds.minX ||
+        root.position.x + x > bounds.maxX ||
+        root.position.z + z < bounds.minZ ||
+        root.position.z + z > bounds.maxZ
+      )
+        continue;
+      let clear = true,
+        score = ((x * dx + z * dz) / distance) * (yielding ? -4 : 1) - k * 0.000001;
+      for (let j = 0; j < count; j++) {
+        const other = roots[j];
+        if (!other || j === i) continue;
+        if (
+          !pigPairClear(
+            root.position.x,
+            root.position.z,
+            other.position.x,
+            other.position.z,
+            x,
+            z,
+            workspace.admitted[j] ? workspace.dx[j] : 0,
+            workspace.admitted[j] ? workspace.dz[j] : 0,
+            config.radius * (root.scale.x + other.scale.x)
+          )
+        ) {
+          clear = false;
+          break;
+        }
+        const px = root.position.x - other.position.x,
+          pz = root.position.z - other.position.z;
+        const gap = Math.hypot(px, pz),
+          limit = config.radius * (root.scale.x + other.scale.x);
+        if (gap < 1e-9)
+          score +=
+            (x * Math.sin((i * Math.PI * 2) / count) + z * Math.cos((i * Math.PI * 2) / count)) * 8;
+        else if (gap < limit + 0.08) score += ((x * px + z * pz) / gap) * (gap < limit ? 8 : 1.5);
+      }
+      if (clear && score > bestScore) {
+        bestScore = score;
+        workspace.dx[i] = x;
+        workspace.dz[i] = z;
+        workspace.yaw[i] = yaw;
+        workspace.distance[i] = travel;
+      }
+    }
+  }
+  // Roots remain unchanged while every proposal is tested against this step's common origin.
+  for (let i = 0; i < count; i++) {
+    const root = roots[i];
+    if (!root || workspace.held[i]) continue;
+    root.position.x += workspace.dx[i];
+    root.position.z += workspace.dz[i];
+    root.rotation.y = workspace.yaw[i];
+    states[i].moving = workspace.distance[i] > 0.00001;
+    states[i].stridePhase = advanceCreatureStride(
+      states[i].stridePhase,
+      workspace.distance[i] / root.scale.x,
+      (Math.PI * 2) / config.cycle
+    );
+  }
+  workspace.priority = (workspace.priority + 1) % count;
+}

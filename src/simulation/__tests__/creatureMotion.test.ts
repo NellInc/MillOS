@@ -2,6 +2,9 @@ import { createAnimalWanderPlan } from '../ambientWorld';
 import { describe, expect, it } from 'vitest';
 import {
   advanceCreatureStride,
+  createChickenSpaceWorkspace,
+  stepChickenSpace,
+  CHICKEN_CLEARANCE_RADIUS,
   stepPigSpace,
   createPigSpaceWorkspace,
   pigPairClear,
@@ -579,4 +582,154 @@ it('gives cows separate bounded ear/tail bouts and breathing, with exact neutral
   expect(independent).toBeGreaterThan(50);
   for (const time of [0, -1, NaN, Infinity])
     expect(sampleCowRest(time, 300, pose)).toEqual(createCowRestPose());
+});
+
+describe('five-hen swept personal space', () => {
+  const bounds = { minX: 15.2, maxX: 18.5, minZ: -8.5, maxZ: -1.5 };
+  const config = { radius: CHICKEN_CLEARANCE_RADIUS, speed: 0.24, cycle: 0.09 };
+  const flock = () => ({
+    roots: [
+      [15.8, -3],
+      [17, -4.2],
+      [16, -7],
+      [18, -5.8],
+      [15.6, -5.4],
+    ].map(([x, z], i) => ({
+      position: { x, y: 0, z },
+      rotation: { y: [0.5, -0.3, 1.2, 2.1, -1.5][i] },
+      scale: { x: 1 },
+    })),
+    states: Array.from({ length: 5 }, (_, i) => {
+      const plan = createAnimalWanderPlan(100 + i, 0, bounds);
+      return {
+        target: { x: plan.x, y: 0, z: plan.z },
+        isIdle: false,
+        idleTime: 0,
+        seed: 100 + i,
+        sequenceStep: 1,
+        stridePhase: 0,
+        moving: false,
+        cadence: creatureCadence(100 + i),
+      };
+    }),
+    workspace: createChickenSpaceWorkspace(),
+  });
+  const step = (h: ReturnType<typeof flock>, delta = 1 / 60) =>
+    stepChickenSpace(h.roots, h.states, delta, bounds, createAnimalWanderPlan, h.workspace, config);
+
+  it('keeps all five real seeded routes clear over 120 seconds while each reaches new targets', () => {
+    const h = flock();
+    let badSweep = 0,
+      outOfBounds = 0,
+      strideError = 0;
+    for (let frame = 0; frame < 7200; frame++) {
+      const before = h.roots.map((r) => ({ ...r.position }));
+      const phases = h.states.map((s) => s.stridePhase);
+      step(h);
+      for (let i = 0; i < 5; i++) {
+        const r = h.roots[i],
+          dx = r.position.x - before[i].x,
+          dz = r.position.z - before[i].z;
+        if (
+          r.position.x < bounds.minX ||
+          r.position.x > bounds.maxX ||
+          r.position.z < bounds.minZ ||
+          r.position.z > bounds.maxZ
+        )
+          outOfBounds++;
+        if (
+          Math.abs(
+            h.states[i].stridePhase -
+              advanceCreatureStride(phases[i], Math.hypot(dx, dz), (Math.PI * 2) / config.cycle)
+          ) > 1e-8
+        )
+          strideError++;
+        for (let j = 0; j < i; j++)
+          if (
+            !pigPairClear(
+              before[i].x,
+              before[i].z,
+              before[j].x,
+              before[j].z,
+              dx,
+              dz,
+              h.roots[j].position.x - before[j].x,
+              h.roots[j].position.z - before[j].z,
+              config.radius * 2
+            )
+          )
+            badSweep++;
+      }
+    }
+    expect({ badSweep, outOfBounds, strideError }).toEqual({
+      badSweep: 0,
+      outOfBounds: 0,
+      strideError: 0,
+    });
+    expect(h.states.every((s) => s.sequenceStep >= 3)).toBe(true);
+  });
+
+  it('keeps equal admitted fixed steps identical across display-frame partitions', () => {
+    const run = (partition: number) => {
+      const h = flock();
+      let pending = 0;
+      for (let frame = 0; frame < 20 * partition; frame++) {
+        pending += 1 / partition;
+        while (pending + 1e-12 >= 1 / 60) {
+          step(h);
+          pending -= 1 / 60;
+        }
+      }
+      return { roots: h.roots, states: h.states };
+    };
+    expect(run(30)).toEqual(run(60));
+  });
+
+  it('holds a petted peer and zero admitted time exactly without granting denied stride', () => {
+    const h = flock();
+    h.workspace.held[0] = 1;
+    const held = JSON.stringify({ root: h.roots[0], state: h.states[0] });
+    for (let n = 0; n < 120; n++) step(h);
+    expect(JSON.stringify({ root: h.roots[0], state: h.states[0] })).toBe(held);
+    const paused = JSON.stringify(h);
+    step(h, 0);
+    expect(JSON.stringify(h)).toBe(paused);
+    h.workspace.held[0] = 0;
+    for (let n = 0; n < 600; n++) step(h);
+    expect(JSON.stringify({ root: h.roots[0], state: h.states[0] })).not.toBe(held);
+  });
+
+  it('allows initial touching bodies to separate without ever deepening their overlap', () => {
+    const h = flock();
+    h.roots[0].position = { x: 16, y: 0, z: -3 };
+    h.roots[1].position = { x: 16.25, y: 0, z: -3 };
+    let min = 0.25;
+    for (let n = 0; n < 1800; n++) {
+      step(h);
+      const gap = Math.hypot(
+        h.roots[0].position.x - h.roots[1].position.x,
+        h.roots[0].position.z - h.roots[1].position.z
+      );
+      expect(gap).toBeGreaterThanOrEqual(Math.min(min, 2 * config.radius) - 1e-9);
+      min = gap;
+    }
+    expect(min).toBeGreaterThanOrEqual(2 * config.radius - 1e-9);
+  });
+
+  it('lets a head-on pair yield and resume rather than remain at a blocked destination', () => {
+    const h = flock();
+    h.roots.splice(2);
+    h.states.splice(2);
+    h.roots[0].position = { x: 16, y: 0, z: -5 };
+    h.roots[1].position = { x: 17.5, y: 0, z: -5 };
+    h.roots[0].rotation.y = Math.PI / 2;
+    h.roots[1].rotation.y = -Math.PI / 2;
+    h.states[0].target = { x: 17.5, y: 0, z: -5 };
+    h.states[1].target = { x: 16, y: 0, z: -5 };
+    for (let n = 0; n < 3600; n++) step(h);
+    expect(
+      h.states.every((s) => s.sequenceStep > 1),
+      JSON.stringify(h)
+    ).toBe(true);
+  });
 });

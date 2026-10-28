@@ -2060,7 +2060,7 @@ it.each(['pig', 'cow'] as const)(
   }
 );
 
-it.each(['pig', 'cow'] as const)(
+it.each(['chicken', 'pig', 'cow'] as const)(
   'runs peer clearance through the mounted farm %s owner and freezes all roots under existing holds',
   (species) => {
     const saved = useGameSimulationStore.getState();
@@ -2078,8 +2078,11 @@ it.each(['pig', 'cow'] as const)(
         <>
           {React.Children.toArray(farm.props.children).filter(
             (child) =>
-              React.isValidElement<{ tailRef?: unknown; headRef?: unknown }>(child) &&
-              (species === 'pig' ? 'tailRef' : 'headRef') in child.props
+              React.isValidElement<{ tailRef?: unknown; headRef?: unknown; animRef?: unknown }>(
+                child
+              ) &&
+              (species === 'chicken' ? 'animRef' : species === 'pig' ? 'tailRef' : 'headRef') in
+                child.props
           )}
         </>
       );
@@ -2092,7 +2095,7 @@ it.each(['pig', 'cow'] as const)(
         return Object.assign(root, {
           position: new THREE.Vector3(...p),
           rotation: new THREE.Euler(0, Number(root.getAttribute('rotation')!.split(',')[1]), 0),
-          scale: new THREE.Vector3().setScalar(Number(root.getAttribute('scale'))),
+          scale: new THREE.Vector3().setScalar(Number(root.getAttribute('scale') ?? 1)),
         });
       }
     );
@@ -2103,11 +2106,22 @@ it.each(['pig', 'cow'] as const)(
     const positions = () => roots.map((r) => r.position.toArray());
     try {
       for (let i = 0; i < 1200; i++) tick();
-      for (let i = 0; i < 3; i++)
+      expect(roots).toHaveLength(species === 'chicken' ? 5 : 3);
+      for (let i = 0; i < roots.length; i++)
         for (let j = 0; j < i; j++)
           expect(roots[i].position.distanceTo(roots[j].position)).toBeGreaterThanOrEqual(
-            (species === 'pig' ? 0.76 : 1.12) * (roots[i].scale.x + roots[j].scale.x) - 1e-8
+            (species === 'chicken' ? 0.34 : species === 'pig' ? 0.76 : 1.12) *
+              (roots[i].scale.x + roots[j].scale.x) -
+              1e-8
           );
+      if (species === 'chicken') {
+        const petted = roots[0].position.clone();
+        fireEvent.click(roots[0]);
+        for (let i = 0; i < 20; i++) tick();
+        expect(roots[0].position.x).toBe(petted.x);
+        expect(roots[0].position.z).toBe(petted.z);
+        expect(roots[0].position.y).toBeGreaterThan(0);
+      }
       const held = positions();
       useGameSimulationStore.setState({ gameSpeed: 0 });
       for (let i = 0; i < 60; i++) tick();
@@ -2121,7 +2135,7 @@ it.each(['pig', 'cow'] as const)(
       const reduced = positions();
       for (let i = 0; i < 60; i++) tick();
       expect(positions()).toEqual(reduced);
-      expect(playCritterSound).not.toHaveBeenCalled();
+      expect(playCritterSound).toHaveBeenCalledTimes(species === 'chicken' ? 1 : 0);
     } finally {
       view.unmount();
       useGameSimulationStore.setState({
@@ -2250,4 +2264,39 @@ it('fits quiet cow regions without horns/hooves, preserves corrected skin and re
   expect(borrowedDispose).not.toHaveBeenCalled();
   mesh.skeleton.dispose();
   expect(createCowRestMotion(new THREE.Group())).toBeNull();
+});
+
+it('contains the actual combined hen walk and forage poses inside the peer envelope', async () => {
+  const { RiggedCreatureModel } = await vi.importActual<
+    typeof import('./models/RiggedCreatureModel')
+  >('./models/RiggedCreatureModel');
+  const { CHICKEN_CLEARANCE_RADIUS } = await import('../simulation/creatureMotion');
+  const source = await actualCreature('chicken');
+  boundary.asset = { scene: source };
+  const cloned = vi.spyOn(source, 'clone');
+  const ref = React.createRef<import('./models/RiggedCreatureModel').CreatureRigHandle>();
+  const view = render(<RiggedCreatureModel creature="chicken" ref={ref} />);
+  const model = cloned.mock.results[0].value as THREE.Group;
+  const mesh = model.getObjectByName('ChickenBody') as THREE.SkinnedMesh;
+  const point = new THREE.Vector3(),
+    toModel = new THREE.Matrix4();
+  let radius = 0;
+  for (const forage of [0, 0.5, 1])
+    for (let frame = 0; frame < 32; frame++)
+      for (const shake of [-0.2, 0, 0.2]) {
+        ref.current!.setGraze(forage);
+        ref.current!.setHeadShake(shake);
+        ref.current!.setStride((frame * Math.PI) / 16, 1);
+        model.updateMatrixWorld(true);
+        mesh.skeleton.update();
+        toModel.copy(model.matrixWorld).invert().multiply(mesh.matrixWorld);
+        for (let i = 0; i < mesh.geometry.attributes.position.count; i++) {
+          mesh.getVertexPosition(i, point).applyMatrix4(toModel);
+          radius = Math.max(radius, Math.hypot(point.x, point.z));
+        }
+      }
+  expect(radius).toBeGreaterThan(0.31);
+  expect(radius).toBeLessThan(CHICKEN_CLEARANCE_RADIUS);
+  view.unmount();
+  cloned.mockRestore();
 });

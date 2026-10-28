@@ -145,9 +145,11 @@ export interface GameSimulationStore {
   holdClock: (holder: Exclude<ClockHolder, 'player'>) => void;
   /**
    * Release `holder`'s hold. Only the newest hold resumes the clock; releasing
-   * an older one passes its resume pace up. Returns false if it held nothing.
+   * an older one passes its resume pace up. An acquisition restricts release to
+   * that exact live entry. Working if same-holder reentry keeps its newer hold.
+   * Returns false if it held nothing matching.
    */
-  releaseClock: (holder: ClockHolder) => boolean;
+  releaseClock: (holder: ClockHolder, acquisition?: ClockHold) => boolean;
   /**
    * An explicit "run" from a holder's own control: release its hold and, if the
    * clock is still stopped underneath, start it at standard pace.
@@ -432,11 +434,14 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         const holds = current > 0 ? [] : clockHolds;
         set({ gameSpeed: 0, clockHolds: [...holds, { holder, resumeSpeed: current }] });
       },
-      releaseClock: (holder) => {
+      releaseClock: (holder, acquisition) => {
         const { gameSpeed: current, clockHolds } = get();
         let index = -1;
         for (let i = clockHolds.length - 1; i >= 0; i--)
-          if (clockHolds[i].holder === holder) {
+          if (
+            clockHolds[i].holder === holder &&
+            (acquisition === undefined || clockHolds[i] === acquisition)
+          ) {
             index = i;
             break;
           }

@@ -333,6 +333,27 @@ describe('one time model: pace migration and clock holds', () => {
     expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
   });
 
+  it('releases the exact acquisition beneath newer holds from the same holder', () => {
+    const store = useGameSimulationStore.getState();
+    store.setGameSpeed(60);
+    store.holdClock('workplace');
+    const acquired = useGameSimulationStore.getState().clockHolds.at(-1)!;
+    store.holdClock('shortcut');
+    store.holdClock('workplace');
+    const later = useGameSimulationStore.getState().clockHolds.at(-1)!;
+    expect(store.releaseClock('workplace', acquired)).toBe(true);
+    expect(useGameSimulationStore.getState().clockHolds).toEqual([
+      { holder: 'shortcut', resumeSpeed: 60 },
+      later,
+    ]);
+    expect(useGameSimulationStore.getState().clockHolds.at(-1)).toBe(later);
+    expect(store.releaseClock('workplace', acquired)).toBe(false);
+    expect(store.releaseClock('workplace', later)).toBe(true);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    store.releaseClock('shortcut');
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+  });
+
   it('lets an explicit pace choice override every hold, and keeps a player pause', () => {
     const store = useGameSimulationStore.getState();
     store.holdClock('workplace');
