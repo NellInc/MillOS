@@ -1090,6 +1090,13 @@ function CompactMachineSet({
         packerCoversRef,
         packerHardwareRef,
       ].forEach((ref) => hide(ref, [pi]));
+    // The status lens/base sit on the removed cover. Hide that selected pair
+    // with its mount rather than leaving an unsupported beacon over the nip.
+    const beaconIndex = allMachines.findIndex((machine) => machine.id === inspectionId);
+    if (beaconIndex >= 0) {
+      hide(beaconRef, [beaconIndex]);
+      hide(beaconBaseRef, [beaconIndex]);
+    }
     hide(
       decalRef,
       decals.flatMap((decal, i) => (decal.machineId === inspectionId ? [i] : []))
@@ -1097,7 +1104,15 @@ function CompactMachineSet({
     return () => {
       for (const mesh of owned) delete mesh.userData.inspectionHiddenIndices;
     };
-  }, [inspectionId, subsets, decals, enableMachineDetail, enableMachineGuard, enableMachineFinish]);
+  }, [
+    inspectionId,
+    subsets,
+    allMachines,
+    decals,
+    enableMachineDetail,
+    enableMachineGuard,
+    enableMachineFinish,
+  ]);
 
   useLayoutEffect(() => {
     const object = objectRef.current;
