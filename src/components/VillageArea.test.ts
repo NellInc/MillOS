@@ -22,6 +22,7 @@ import {
   MARKET_TRADE_BRANDS,
   MARKET_TRADE_PAINT,
   createMarketCanopyGeometry,
+  groupMarketCloth,
   MARKET_TRAY_FLOOR,
   MARKET_GOODS_MATERIAL,
   MARKET_FRUIT_TEXTURES,
@@ -835,6 +836,24 @@ it('varies only the real market red-cloth tile and its matching scallops, retain
         );
     }
     expect(cloth).toBe(900);
+    expect(groupMarketCloth(variant)).toBe(true);
+    const triKeys = (g: THREE.BufferGeometry) => {
+      const indices = g.index!.array;
+      const triangles: string[] = [];
+      for (let k = 0; k < indices.length; k += 3)
+        triangles.push(`${indices[k]},${indices[k + 1]},${indices[k + 2]}`);
+      return triangles.sort();
+    };
+    expect(triKeys(variant)).toEqual(triKeys(source));
+    expectSameArray(variant.getAttribute('uv').array, source.getAttribute('uv').array);
+    expect(variant.groups.map((group) => group.materialIndex)).toEqual([0, 1]);
+    for (const group of variant.groups)
+      for (let k = group.start; k < group.start + group.count; k++) {
+        const id = variant.index!.getX(k);
+        const selected = Math.floor(uv.getX(id) * 6) === 4 && Math.floor(uv.getY(id) * 6) === 2;
+        expect(selected).toBe(group.materialIndex === 1);
+      }
+
     const trim = AUTHORED_MARKET_TRIM_VARIANTS[trade],
       original = AUTHORED_PROP_TRIM.market;
     expectSameArray(trim.getAttribute('position').array, original.getAttribute('position').array);

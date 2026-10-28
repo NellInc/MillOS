@@ -593,6 +593,80 @@ export function createMarketCanopyGeometry(source: THREE.BufferGeometry, dressin
   return geometry;
 }
 
+/** Private red-cloth mip chain. Original UV buffers stay untouched.
+ * The delivered 768px, six-cell atlas uses red tile (4,2). Its actual cloth
+ * UV range samples pixels 517.76..634.24 and 261.76..378.24; the interior
+ * 116px crop excludes JPEG gutter bleed. Texture transforms retain texel scale.
+ * Working if minified valance faces cannot sample neighbouring green/cream.
+ */
+export function createMarketClothTexture(source: THREE.Texture): THREE.Texture | null {
+  const image = source.image as { width?: number; height?: number; data?: Uint8Array } | undefined;
+  if (image?.width !== 768 || image.height !== 768) return null;
+  const x = 518,
+    y = 262,
+    size = 116;
+  let cropped: THREE.Texture;
+  if (image.data instanceof Uint8Array && image.data.length === 768 * 768 * 4) {
+    const data = new Uint8Array(size * size * 4);
+    for (let row = 0; row < size; row++)
+      data.set(
+        image.data.subarray(((y + row) * 768 + x) * 4, ((y + row) * 768 + x + size) * 4),
+        row * size * 4
+      );
+    cropped = new THREE.DataTexture(data, size, size);
+  } else {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Market cloth isolation requires a 2D canvas');
+    context.drawImage(source.image as CanvasImageSource, x, y, size, size, 0, 0, size, size);
+    cropped = new THREE.CanvasTexture(canvas);
+  }
+  cropped.name = 'market-cloth-private';
+  cropped.channel = source.channel;
+  cropped.mapping = source.mapping;
+  cropped.premultiplyAlpha = source.premultiplyAlpha;
+  cropped.unpackAlignment = source.unpackAlignment;
+  cropped.colorSpace = source.colorSpace;
+  cropped.flipY = source.flipY;
+  cropped.minFilter = source.minFilter;
+  cropped.magFilter = source.magFilter;
+  cropped.generateMipmaps = source.generateMipmaps;
+  cropped.anisotropy = source.anisotropy;
+  cropped.wrapS = THREE.ClampToEdgeWrapping;
+  cropped.wrapT = THREE.ClampToEdgeWrapping;
+  cropped.repeat.set(768 / size, 768 / size);
+  cropped.offset.set(-x / size, -(source.flipY ? 768 - y - size : y) / size);
+  cropped.updateMatrix();
+  cropped.needsUpdate = true;
+  return cropped;
+}
+
+/** Complete indexed triangles only; never change position, normal or UV buffers. */
+export function groupMarketCloth(geometry: THREE.BufferGeometry): boolean {
+  const uv = geometry.getAttribute('uv'),
+    index = geometry.index;
+  if (!uv || !index) return false;
+  const cloth: number[] = [],
+    other: number[] = [];
+  for (let i = 0; i < index.count; i += 3) {
+    const ids = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
+    const selected = ids.filter(
+      (id) => Math.floor(uv.getX(id) * 6) === 4 && Math.floor(uv.getY(id) * 6) === 2
+    ).length;
+    if (selected !== 0 && selected !== 3)
+      throw new Error('Market cloth triangle crosses an atlas tile');
+    (selected === 3 ? cloth : other).push(...ids);
+  }
+  if (!cloth.length) return false;
+  geometry.setIndex([...other, ...cloth]);
+  geometry.clearGroups();
+  if (other.length) geometry.addGroup(0, other.length, 0);
+  geometry.addGroup(other.length, cloth.length, 1);
+  return true;
+}
+
 function marketTrim(canvas: string = MARKET_CANVAS_COLOURS[2]) {
   const parts: THREE.BufferGeometry[] = [];
   // The delivered straight hem spans y=1.8528..1.958. Extend below it by only

@@ -11,8 +11,9 @@
  * here: the SkeletonUtils rebinding these assets do not need costs a skeleton
  * walk, and none of them has a skin. Geometry and textures are shared by the
  * clone. Village glazing clones materials for the shared night-lighting shader;
- * explicit market cloth clones only colour attributes and its material; all atlas
- * textures remain shared. Station bodies clone owned canopy/pump/formed-grill geometry. Barn joinery uses
+ * market cloth partitions cloned indices and owns an isolated albedo crop;
+ * unrelated atlas textures and ORM remain shared.
+ * Station bodies clone owned canopy/pump/formed-grill geometry. Barn joinery uses
  * one owned merged geometry, retaining its source roof, cupola and floor.
  */
 
@@ -25,6 +26,8 @@ import { applyWorldSurface, pinSurfaceProfile } from '../../utils/worldSurface';
 import { CLOSED_DOUBLE_FACED_ASSETS } from './closedDoubleFacedAssets';
 import {
   createMarketCanopyGeometry,
+  createMarketClothTexture,
+  groupMarketCloth,
   createBarnJoineryGeometry,
   createPosterStationGeometry,
 } from '../scenery/AuthoredPropTrim';
@@ -183,9 +186,11 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
 }) => {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS[asset]);
 
-  const { model, materials, geometries } = useMemo(() => {
+  const { model, materials, geometries, textures } = useMemo(() => {
     const materials: THREE.Material[] = [];
+    const textures: THREE.Texture[] = [];
     const geometries: THREE.BufferGeometry[] = [];
+    const additions: { parent: THREE.Object3D; mesh: THREE.Mesh }[] = [];
     const clone = scene.clone(true);
     clone.traverse((object) => {
       const mesh = object as THREE.Mesh;
@@ -197,10 +202,53 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
       ) {
         const geometry = createMarketCanopyGeometry(mesh.geometry, marketDressing);
         if (geometry !== mesh.geometry) {
-          const material = mesh.material.clone();
+          const sourceMaterial = mesh.material;
+          const crop = sourceMaterial.map ? createMarketClothTexture(sourceMaterial.map) : null;
+          const material = sourceMaterial.clone();
           material.vertexColors = true;
+          if (crop && groupMarketCloth(geometry)) {
+            const noncloth = sourceMaterial.clone();
+            noncloth.side = THREE.FrontSide;
+            material.side = THREE.FrontSide;
+            material.map = crop;
+            const clothGeometry = geometry.clone();
+            const indices = geometry.index!;
+            const clothGroup = geometry.groups.find((group) => group.materialIndex === 1)!;
+            const nonclothGroup = geometry.groups.find((group) => group.materialIndex === 0);
+            clothGeometry.setIndex(
+              Array.from(indices.array).slice(clothGroup.start, clothGroup.start + clothGroup.count)
+            );
+            clothGeometry.clearGroups();
+            geometry.setIndex(
+              nonclothGroup ? Array.from(indices.array).slice(0, nonclothGroup.count) : []
+            );
+            geometry.clearGroups();
+            // Copy the complete authored Object3D state without children before
+            // replacing only geometry/material. Parent is retained at attachment.
+            const clothMesh = new THREE.Mesh().copy(mesh, false);
+            clothMesh.geometry = clothGeometry;
+            clothMesh.material = material;
+            clothMesh.name = 'market-isolated-cloth';
+            clothMesh.castShadow =
+              castShadow ??
+              (typeof mesh.userData.authoredCastShadow === 'boolean'
+                ? mesh.userData.authoredCastShadow
+                : true);
+            clothMesh.receiveShadow =
+              receiveShadow ??
+              (typeof mesh.userData.authoredReceiveShadow === 'boolean'
+                ? mesh.userData.authoredReceiveShadow
+                : true);
+            additions.push({ parent: mesh.parent!, mesh: clothMesh });
+            geometries.push(clothGeometry);
+            mesh.material = noncloth;
+            materials.push(noncloth);
+            textures.push(crop);
+          } else {
+            crop?.dispose();
+            mesh.material = material;
+          }
           mesh.geometry = geometry;
-          mesh.material = material;
           geometries.push(geometry);
           materials.push(material);
         }
@@ -304,14 +352,16 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
       mesh.receiveShadow =
         receiveShadow ?? (typeof authoredReceive === 'boolean' ? authoredReceive : true);
     });
-    return { model: clone, materials, geometries };
+    for (const addition of additions) addition.parent.add(addition.mesh);
+    return { model: clone, materials, geometries, textures };
   }, [scene, asset, shopTrade, marketDressing, castShadow, receiveShadow]);
   useEffect(
     () => () => {
       materials.forEach((material) => material.dispose());
       geometries.forEach((geometry) => geometry.dispose());
+      textures.forEach((texture) => texture.dispose());
     },
-    [materials, geometries]
+    [materials, geometries, textures]
   );
 
   return (

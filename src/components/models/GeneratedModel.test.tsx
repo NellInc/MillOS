@@ -878,3 +878,64 @@ it('owns a private formed grill from the actual delivered box and disposes each 
   normalMap.dispose();
   orm.dispose();
 });
+
+it('isolates market cloth mip storage while retaining original UVs and all triangles', () => {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0, 0, 3, 0, 0, 2, 1, 0], 3)
+  );
+  geometry.setAttribute(
+    'uv',
+    new THREE.Float32BufferAttribute(
+      [0.68, 0.35, 0.82, 0.35, 0.68, 0.49, 0.1, 0.1, 0.15, 0.1, 0.1, 0.15],
+      2
+    )
+  );
+  geometry.setIndex([0, 1, 2, 3, 4, 5]);
+  const texture = new THREE.DataTexture(new Uint8Array(768 * 768 * 4).fill(145), 768, 768);
+  texture.image.data[(262 * 768 + 518) * 4] = 17;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.generateMipmaps = true;
+  const material = new THREE.MeshStandardMaterial({ map: texture });
+  const source = new THREE.Group();
+  source.add(new THREE.Mesh(geometry, material));
+  holder.scene = source;
+  let clone: THREE.Group;
+  const original = source.clone.bind(source);
+  vi.spyOn(source, 'clone').mockImplementation((recursive) => (clone = original(recursive)));
+  const view = render(<GeneratedModel asset="marketstall" marketDressing={3} />);
+  const mesh = clone!.children[0] as THREE.Mesh;
+  const cloth = clone!.getObjectByName('market-isolated-cloth') as THREE.Mesh;
+  expect(cloth).toBeTruthy();
+  const mats = [mesh.material, cloth.material] as THREE.MeshStandardMaterial[];
+  expect(mats[0].map).toBe(texture);
+  expect(mats[1].map).not.toBe(texture);
+  expect(mats[1].map!.image.width).toBe(116);
+  expect(mats[1].map!.image.height).toBe(116);
+  expect(mats[1].map!.image.data[0]).toBe(17);
+  expect(mats[1].map!.image.data[4]).toBe(145);
+  expect(mats[1].map!.colorSpace).toBe(texture.colorSpace);
+  expect(mats[1].map!.wrapS).toBe(THREE.ClampToEdgeWrapping);
+  expect(mats[1].map!.minFilter).toBe(texture.minFilter);
+  expect(mats[1].map!.generateMipmaps).toBe(true);
+  expectSameArray(mesh.geometry.getAttribute('uv').array, geometry.getAttribute('uv').array);
+  expect(Array.from(mesh.geometry.index!.array)).toEqual([3, 4, 5]);
+  expect(Array.from(cloth.geometry.index!.array)).toEqual([0, 1, 2]);
+  expectSameArray(
+    cloth.geometry.getAttribute('position').array,
+    geometry.getAttribute('position').array
+  );
+  expectSameArray(cloth.geometry.getAttribute('uv').array, geometry.getAttribute('uv').array);
+  expect(cloth.castShadow && cloth.receiveShadow).toBe(true);
+  const sample = new THREE.Vector2(518 / 768, 262 / 768).applyMatrix3(mats[1].map!.matrix);
+  expect(sample.x).toBeCloseTo(0);
+  expect(sample.y).toBeCloseTo(0);
+  const crop = mats[1].map!;
+  const disposed = vi.spyOn(crop, 'dispose');
+  const shared = vi.spyOn(texture, 'dispose');
+  view.unmount();
+  expect(disposed).toHaveBeenCalledOnce();
+  expect(shared).not.toHaveBeenCalled();
+});
