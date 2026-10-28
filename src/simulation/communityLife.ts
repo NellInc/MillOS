@@ -50,6 +50,8 @@ export interface CommunityPose {
   task: string;
   seated: boolean;
   visible: boolean;
+  /** Cosmetic release only; operational observations still describe the duty. */
+  departingDuty?: boolean;
   /** Cosmetic support cue; route positions and dwell times are unchanged. */
   seat?: { amount: number; support: number; position: Vec3Tuple; rotation: number };
 }
@@ -269,7 +271,7 @@ export function communityAgreementResponse(
     response.task = cue.task;
   } else if (pose.activity === 'walking') {
     response.task = `Walking the safe route; ${cue.task}`;
-  } else if (pose.activity === 'working') {
+  } else if (pose.activity === 'working' || pose.departingDuty) {
     response.task = cue.task;
   }
 }
@@ -397,9 +399,22 @@ export function communityWorkResponse(
   operations: CommunityOperationsSnapshot,
   out: Pick<CommunityPose, 'activity' | 'task'> = { activity: pose.activity, task: pose.task }
 ): Pick<CommunityPose, 'activity' | 'task'> {
+  resolveCommunityWorkResponse(person, pose, operations, out);
+  // Release changes animation only, never the observation's operational meaning.
+  // Working if recalls/agreements retain their text while hands stay released.
+  if (pose.departingDuty) out.activity = 'idle';
+  return out;
+}
+
+function resolveCommunityWorkResponse(
+  person: CommunityPerson,
+  pose: CommunityPose,
+  operations: CommunityOperationsSnapshot,
+  out: Pick<CommunityPose, 'activity' | 'task'>
+) {
   out.activity = pose.activity;
   out.task = pose.task;
-  if (pose.activity !== 'working') return out;
+  if (pose.activity !== 'working' && !pose.departingDuty) return out;
   if (
     person.role === 'Gardener' &&
     (operations.weather === 'rain' || operations.weather === 'storm')
@@ -968,6 +983,7 @@ export function sampleCommunityPerson(
 ): CommunityPose {
   const previousSeat = out.seat;
   out.seat = undefined;
+  out.departingDuty = undefined;
   if (person.role === 'Cyclist') {
     const cycle = sampleCommunityCyclist(hour);
     out.position[0] = cycle.x;
@@ -1026,7 +1042,7 @@ export function sampleCommunityPerson(
   const period = routineDuration(person);
   const elapsed =
     ((((Number.isFinite(hour) ? hour : 12) + person.phase) % period) + period) % period;
-  sampleRoute(person.stops, elapsed, true, out, previousSeat);
+  sampleRoute(person.stops, elapsed, true, out, previousSeat, person.district === 'mill');
   return out;
 }
 
@@ -1064,10 +1080,13 @@ function sampleRoute(
   elapsed: number,
   loop: boolean,
   out: CommunityPose,
-  previousSeat: CommunityPose['seat']
+  previousSeat: CommunityPose['seat'],
+  anticipateDutyDeparture = false
 ) {
   let trip = 0,
-    afterDwell = false;
+    afterDwell = false,
+    departureWindow = 0;
+  routeTrip.departureInto = 0;
   for (let i = 0; i < stops.length; i++) {
     const node = stops[i],
       next = loop ? stops[(i + 1) % stops.length] : stops[i + 1];
@@ -1079,6 +1098,28 @@ function sampleRoute(
       out.activity = node.activity;
       out.task = node.task;
       out.seated = node.seated ?? false;
+      // Release the operating pose before turning away, within the existing
+      // dwell. The authored mill windows give duty blending .5 real seconds
+      // at pace 120 before the turn starts. Routes, departure time and seats stay exact.
+      // Working if mill duties relax in place and the first stride faces its travel.
+      if (anticipateDutyDeparture && node.activity === 'working' && !node.seated && next) {
+        const window = Math.min(standardSeconds(4), node.hours * 0.3);
+        const remaining = node.hours - elapsed;
+        if (window > 0 && remaining < window) {
+          out.activity = 'idle';
+          out.departingDuty = true;
+          routeTrip.departureInto = window - remaining;
+          const heading = Math.atan2(
+            next.position[0] - node.position[0],
+            next.position[2] - node.position[2]
+          );
+          const turn = Math.atan2(
+            Math.sin(heading - node.rotation),
+            Math.cos(heading - node.rotation)
+          );
+          out.rotation += turn * smoothSeat((window * 0.5 - remaining) / (window * 0.5));
+        }
+      }
       if (node.seated) {
         // At standard pace: 1.1 s down, 1.3 s up and 0.3 s standing before departure.
         // Short authored dwells reserve the same proportions without overlap.
@@ -1100,11 +1141,16 @@ function sampleRoute(
     if (node.hours > 0) {
       trip = 0;
       afterDwell = true;
+      departureWindow =
+        anticipateDutyDeparture && node.activity === 'working' && !node.seated
+          ? Math.min(standardSeconds(4), node.hours * 0.3)
+          : 0;
     }
     const travel = distance(node.position, next.position) * WALK_HOURS_PER_METRE;
     if (elapsed < travel) {
       routeTrip.into = trip + elapsed;
       routeTrip.afterDwell = afterDwell;
+      routeTrip.departureWindow = departureWindow;
       const t = elapsed / travel;
       for (let axis = 0; axis < 3; axis++)
         out.position[axis] = node.position[axis] + (next.position[axis] - node.position[axis]) * t;
@@ -1152,15 +1198,15 @@ function sampleRoute(
 /** How far into its current trip the last walking route sample was, in game
  * hours, and whether that trip began at the end of a dwell. Waypoints with no
  * dwell (`via`) continue the same trip. */
-const routeTrip = { into: 0, afterDwell: false };
+const routeTrip = { into: 0, afterDwell: false, departureInto: 0, departureWindow: 0 };
 /** A shown moment just inside the dwell a trip leaves from. */
 const STILL_EPSILON = 1e-7;
 const stillScratch = createCommunityPose();
 
 /** The hour to show a resident at under reduced motion: the moment their current
  * trip began, until they arrive, so the body cuts from stop to stop instead of
- * gliding along a route with frozen limbs. A trip from a dwell shows the end of
- * that dwell; a trip from a doorway (village door, bus door) or the street end
+ * gliding along a route with frozen limbs. A duty release and its trip show the
+ * moment before release; other dwells show their end. A trip from a doorway (village door, bus door) or the street end
  * shows its first instant there. The cyclist waits at the street end. Vehicles
  * are not people and keep their own clocks.
  * Working if every value is at most `hour` and is constant through a trip. */
@@ -1173,6 +1219,9 @@ export function communityStillHour(person: CommunityPerson, hour: number): numbe
   }
   stillScratch.seat = undefined;
   const pose = sampleCommunityPerson(person, hour, stillScratch);
+  // Frozen limbs keep the original duty heading through release and the trip.
+  // Working if reduced motion cuts once at arrival, never swivels in place.
+  if (pose.departingDuty) return hour - routeTrip.departureInto - STILL_EPSILON;
   if (pose.activity !== 'walking') return hour;
   if (person.id === 'village-courier') {
     const s = COMMUNITY_COURIER_SCHEDULE;
@@ -1196,7 +1245,9 @@ export function communityStillHour(person: CommunityPerson, hour: number): numbe
           : STAND_AT + COMMUNITY_SEAT_RAMP.up + COMMUNITY_SEAT_RAMP.standing;
     return hour - (p - start) - (start === ALIGHT_AT ? 0 : STILL_EPSILON);
   }
-  return hour - routeTrip.into - (routeTrip.afterDwell ? STILL_EPSILON : 0);
+  return (
+    hour - routeTrip.into - routeTrip.departureWindow - (routeTrip.afterDwell ? STILL_EPSILON : 0)
+  );
 }
 
 /** Inspect actual mounted roots, not an empty retired workforce store. */

@@ -591,7 +591,8 @@ describe('inhabited world routines', () => {
         const now = sampleCommunityPerson(person, h);
         const still = communityStillHour(person, h);
         expect(still, `${person.id} at ${h}`).toBeLessThanOrEqual(h);
-        if (now.activity !== 'walking') expect(still, `${person.id} at ${h}`).toBe(h);
+        if (now.activity !== 'walking' && !now.departingDuty)
+          expect(still, `${person.id} at ${h}`).toBe(h);
         // Mid-trip the shown moment does not move, so neither does the body.
         if (
           now.visible &&
@@ -627,6 +628,120 @@ describe('inhabited world routines', () => {
     const parked = sampleCommunityPerson(cyclist, communityStillHour(cyclist, 14));
     expect(parked.position[2]).toBeCloseTo(COMMUNITY_STREET_END_Z, 9);
     expect(parked.visible).toBe(true);
+  });
+  it('releases mill duties before turning and departs forwards on the unchanged route at both paces', () => {
+    for (const person of COMMUNITY_ROSTER.filter((p) => p.district === 'mill')) {
+      let start = -person.phase;
+      for (let index = 0; index < person.stops.length; index++) {
+        const stop = person.stops[index],
+          next = person.stops[(index + 1) % person.stops.length],
+          departure = start + stop.hours,
+          cueHours = (4 * STANDARD_GAME_SPEED) / 3600;
+        start =
+          departure +
+          Math.hypot(next.position[0] - stop.position[0], next.position[2] - stop.position[2]) *
+            WALK_HOURS_PER_METRE;
+        if (stop.activity !== 'working' || stop.seated) continue;
+        expect(sampleCommunityPerson(person, departure - cueHours - 1e-7).activity).toBe('working');
+        const release = sampleCommunityPerson(person, departure - cueHours * 0.75);
+        expect(release.activity, person.id).toBe('idle');
+        expect(release.position).toEqual(stop.position);
+        expect(release.rotation).toBe(stop.rotation);
+        expect(release.seated).toBe(false);
+        for (const pace of [30, 120]) {
+          const dt = 1 / 60,
+            frames = Math.round((4 * STANDARD_GAME_SPEED * 60) / pace);
+          let yaw = stop.rotation;
+          let previous = sampleCommunityPerson(person, departure - cueHours);
+          for (let frame = 1; frame <= frames + 1; frame++) {
+            const hour = departure - cueHours + (frame * dt * pace) / 3600;
+            const pose = sampleCommunityPerson(person, hour);
+            yaw = communityRootYaw(yaw, pose.rotation, dt, { moving: true });
+            if (frame < frames) {
+              expect(pose.position).toEqual(stop.position);
+              expect(pose.activity).toBe('idle');
+            }
+            if (frame === frames + 1) {
+              expect(pose.activity).toBe('walking');
+              const dx = pose.position[0] - previous.position[0],
+                dz = pose.position[2] - previous.position[2];
+              expect(
+                Math.sin(yaw) * dx + Math.cos(yaw) * dz,
+                `${person.id}/${pace} forwards`
+              ).toBeGreaterThan(0);
+              const travelled = (COMMUNITY_WALK_SPEED_MPS * dt * pace) / STANDARD_GAME_SPEED;
+              expect(Math.hypot(dx, dz)).toBeCloseTo(travelled, 8);
+              const heading = Math.atan2(
+                next.position[0] - stop.position[0],
+                next.position[2] - stop.position[2]
+              );
+              expect(pose.rotation).toBeCloseTo(heading, 10);
+            }
+            expect(communityRootYaw(yaw, pose.rotation, dt, { moving: false })).toBe(yaw);
+            previous = pose;
+          }
+        }
+      }
+    }
+  });
+  it('keeps reduced-motion duty releases and their outgoing trips at one static dwell pose', () => {
+    for (const person of COMMUNITY_ROSTER.filter((p) => p.district === 'mill')) {
+      let start = -person.phase;
+      for (let index = 0; index < person.stops.length; index++) {
+        const stop = person.stops[index],
+          next = person.stops[(index + 1) % person.stops.length],
+          departure = start + stop.hours,
+          cueHours = (4 * STANDARD_GAME_SPEED) / 3600,
+          travel =
+            Math.hypot(next.position[0] - stop.position[0], next.position[2] - stop.position[2]) *
+            WALK_HOURS_PER_METRE;
+        start = departure + travel;
+        if (stop.activity !== 'working' || stop.seated) continue;
+        for (const at of [
+          departure - cueHours * 0.75,
+          departure - cueHours * 0.4,
+          departure - cueHours * 0.1,
+          departure + travel * 0.5,
+        ]) {
+          const still = sampleCommunityPerson(person, communityStillHour(person, at));
+          expect(still.position).toEqual(stop.position);
+          expect(still.rotation, `${person.id}/${index}`).toBe(stop.rotation);
+          expect(still.activity).toBe('working');
+        }
+      }
+    }
+  });
+  it('retains recall and agreement observation text while departure hands remain idle', () => {
+    const person = COMMUNITY_ROSTER.find((p) => p.id === 'mill-quality')!;
+    const hour = person.stops[0].hours - person.phase - STANDARD_GAME_SPEED / 3600;
+    const pose = sampleCommunityPerson(person, hour);
+    const operations = {
+      machines: [],
+      workOrders: [],
+      batches: [],
+      bakeryStocked: false,
+      recalledStockKg: 10,
+    };
+    const response = communityWorkResponse(person, pose, operations);
+    expect(response).toEqual({
+      activity: 'idle',
+      task: 'Reviewing recalled stock from the quality inspection post',
+    });
+    const workplace = transitionWorkplace(createWorkplace(), {
+      type: 'startCampaign',
+      args: ['cooperative', 1],
+    }).state;
+    workplace.phase = 'active';
+    const cue = communityAgreementCue(person.id, workplace)!;
+    for (const state of ['duty', 'cover'] as const) {
+      const agreement = { ...cue, state, offDuty: false };
+      communityAgreementResponse(agreement, pose, response);
+      expect(response).toEqual({ activity: 'idle', task: agreement.task });
+    }
+    const reused = sampleCommunityPerson(person, hour);
+    sampleCommunityPerson(person, hour + 0.1, reused);
+    expect(communityWorkResponse(person, reused, operations).task).toBe(reused.task);
+    expect(operations.recalledStockKg).toBe(10);
   });
   it('keeps an unfinished turn where it is while held, and only snaps on a cut', () => {
     const quarter = Math.PI / 2;
