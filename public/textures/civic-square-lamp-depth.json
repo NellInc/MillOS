@@ -561,7 +561,7 @@
   "objects": [
     {
       "name": "static-merge:community-authored-static:0:0",
-      "vertices": 19629,
+      "vertices": 20877,
       "instances": 1
     },
     {
@@ -622,6 +622,11 @@
     {
       "name": "ShopBody",
       "vertices": 7074,
+      "instances": 1
+    },
+    {
+      "name": "",
+      "vertices": 17352,
       "instances": 1
     },
     {
@@ -696,7 +701,7 @@
     },
     {
       "name": "static-merge:authored-village:0:13",
-      "vertices": 87864,
+      "vertices": 70464,
       "instances": 1
     },
     {
@@ -714,12 +719,12 @@
     "alphaOrMoving": 41
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "fd1645d3951444978262e6c287102cd855aec595feedc936f4ddd9d3c630b2f6",
-  "atlasSha256": "39a22c552dfe260a8429528263c10a2f17966434e764c14e154197dacaba1245",
+  "inputSha256": "e14384c5f4d086e261adc2671d8b44dfb08ded65d54eb8608ff13c1da7a47bc3",
+  "atlasSha256": "e9a0ab7c0265e7a15fd2afb4a880ae894085d766e3ebc8452ba5d6c7a3e5dad2",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 419446,
-  "triangles": 179992,
-  "elapsedSeconds": 14.44,
+  "vertices": 420646,
+  "triangles": 180392,
+  "elapsedSeconds": 9.01,
   "sourceReceipts": [
     {
       "id": "hall-west",
@@ -743,22 +748,22 @@
     },
     {
       "id": "post-fountain",
-      "blockedRays": 75505,
+      "blockedRays": 75504,
       "rays": 98304
     },
     {
       "id": "post-garden",
-      "blockedRays": 55071,
+      "blockedRays": 55074,
       "rays": 98304
     },
     {
       "id": "post-right",
-      "blockedRays": 56824,
+      "blockedRays": 56846,
       "rays": 98304
     },
     {
       "id": "shed-wall",
-      "blockedRays": 61084,
+      "blockedRays": 61101,
       "rays": 98304
     },
     {
@@ -798,22 +803,22 @@
     },
     {
       "id": "gate-inner",
-      "blockedRays": 38650,
+      "blockedRays": 38846,
       "rays": 98304
     },
     {
       "id": "gate-outer",
-      "blockedRays": 38988,
+      "blockedRays": 39075,
       "rays": 98304
     },
     {
       "id": "shed-bed-west",
-      "blockedRays": 40489,
+      "blockedRays": 40860,
       "rays": 98304
     },
     {
       "id": "shed-bed-east",
-      "blockedRays": 34280,
+      "blockedRays": 34319,
       "rays": 98304
     },
     {
@@ -883,7 +888,7 @@
       "eea7e6ffc263141d4ce5c3bc76745e45b21a58ca69931c636eb8f669f95ae36d",
       "5ade559333214fe102d81f90fe82dfef11824c3545aea0765960062ff1911664",
       "822d0395204a3c5282d61ab5abec8fb96f9a057c1d4a3317ee123aaa1456009e",
-      "17f7352a5c44a1f5084cb7dc8aadd8c10dcec6bdff0924dc464d35fa66429936"
+      "daae4a36248bd70096d57c6e8d3d1ec9db4b12f3dc22a5f6190cf6111cec67ff"
     ],
     "townHallHedgePositions": "2ffd894b9cca542118f871dd706a846c96820db18db5c541dcba1412873ccb6c"
   }

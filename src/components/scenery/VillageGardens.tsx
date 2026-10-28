@@ -5,6 +5,11 @@ import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { WORLD_CRAFT_PALETTE } from '../../constants/publicRealmLayout';
 import { applyVillageWindows } from '../models/GeneratedOfficeModel';
 import { VillageHomeEntryLighting } from './VillageSignage';
+import {
+  ALLOTMENT_MATERIAL,
+  finishAllotmentSurface,
+  neutralAllotmentSurface,
+} from './allotmentSurface';
 
 import { VILLAGE_HOME_PLOTS, VILLAGE_ALLOTMENT } from '../../constants/siteLayout';
 export {
@@ -859,37 +864,47 @@ function allotmentLeaf(
     shade.multiplyScalar(i <= corners ? 1 : 0.87);
     colours.setXYZ(i, shade.r, shade.g, shade.b);
   }
+  finishAllotmentSurface(geometry, 'leaf');
 }
 
-/** Two cupped leaves nest a rounded heart at a lower 32-triangle cost/head.
- * Working if the soil contact stays fixed and neighbouring leaf shapes differ.
+/** Three broad cupped leaves nest a softly lobed closed heart, 56 triangles.
+ * Nine mature plants replace sixteen tiny ones per bed: 1,008 triangles total,
+ * below the former 1,024. Working if the crown reads as layered living leaves
+ * at gardener distance, with the same soil contact and clear bed/aisle edges.
  */
 export function addAllotmentCabbage(b: PlotGeometry, at: Point, seed: number) {
-  for (let leaf = 0; leaf < 2; leaf++) {
-    const phase = seed + leaf * Math.PI;
+  const size = 1 + Math.sin(seed * 1.7) * 0.055;
+  for (let leaf = 0; leaf < 3; leaf++) {
+    const phase = seed + leaf * ((Math.PI * 2) / 3);
     allotmentLeaf(
       b,
       at,
       phase,
-      0.25 + Math.sin(phase) * 0.018,
-      0.145 + Math.cos(phase * 1.7) * 0.012,
-      0.14 + Math.sin(phase * 2.1) * 0.02,
-      0.035,
-      leaf === 1 ? '#688b61' : '#79946b',
-      false,
-      true
+      (0.34 + Math.sin(phase) * 0.018) * size,
+      (0.195 + Math.cos(phase * 1.7) * 0.012) * size,
+      (0.2 + Math.sin(phase * 2.1) * 0.02) * size,
+      0.065 * size,
+      leaf === 1 ? '#688b61' : '#79946b'
     );
   }
-  const heart = new THREE.IcosahedronGeometry(1, 0);
-  heart.setAttribute('normal', heart.getAttribute('position').clone());
-  heart
-    .scale(0.16, 0.135, 0.16)
-    .rotateY(seed)
-    .translate(at[0], at[1] + 0.16, at[2]);
-  b.add(heart, '#a7b88b');
+  const heart = new THREE.SphereGeometry(1, 8, 3);
+  const p = heart.getAttribute('position'),
+    n = heart.getAttribute('normal'),
+    normal = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i),
+      y = p.getY(i),
+      z = p.getZ(i),
+      lobe = 1 + Math.sin(Math.atan2(z, x) * 3 + y * 2 + seed) * 0.035;
+    p.setXYZ(i, x * 0.22 * size * lobe, y * 0.175 * size, z * 0.22 * size * lobe);
+    normal.set(x / 0.22, y / 0.175, z / 0.22).normalize();
+    n.setXYZ(i, normal.x, normal.y, normal.z);
+  }
+  heart.rotateY(seed).translate(at[0], at[1] + 0.205 * size, at[2]);
+  b.add(heart, '#a3b791');
+  finishAllotmentSurface(heart, 'crown');
   const colours = heart.getAttribute('color'),
-    p = heart.getAttribute('position');
-  const base = new THREE.Color('#a7b88b'),
+    base = new THREE.Color('#a3b791'),
     shade = base.clone();
   for (let i = 0; i < p.count; i++) {
     shade.copy(base).multiplyScalar(0.88 + (p.getY(i) - at[1]) * 0.32);
@@ -1011,15 +1026,22 @@ function allotment() {
         b.box([2.98, 0.25, 0.11], [x, 0.125, z + side * 1.45], WOOD);
         b.box([0.11, 0.25, 2.92], [x + side * 1.45, 0.125, z], WOOD);
       }
-      for (let row = 0; row < 4; row++)
-        for (let col = 0; col < 4; col++) {
-          const px = x - 1.05 + col * 0.69,
-            pz = z - 1.02 + row * 0.68;
+      const rows = x < 0 ? 3 : 4;
+      for (let row = 0; row < rows; row++)
+        for (let col = 0; col < rows; col++) {
+          const px = x - 1.05 + col * (x < 0 ? 1.05 : 0.69),
+            pz = z - 1.02 + row * (x < 0 ? 1.02 : 0.68);
           const seed = px * 7.13 + pz * 3.71;
-          if (x < 0) addAllotmentCabbage(b, [px, 0.2, pz], seed);
+          if (x < 0)
+            addAllotmentCabbage(
+              b,
+              [px + Math.sin(seed) * 0.025, 0.2, pz + Math.cos(seed * 1.3) * 0.025],
+              seed
+            );
           else {
             addAllotmentLeafCrop(b, [px, 0.22, pz], seed);
             b.round([px, 0.23, pz], [0.12, 0.055, 0.12], z > 0 ? '#ab633f' : '#9f7653');
+            finishAllotmentSurface(b.parts[b.parts.length - 1], 'root');
           }
         }
     }
@@ -1048,6 +1070,7 @@ function allotment() {
   b.box([1.7, 0.035, 0.82], [2.9, 0.4, -2.45], '#92aca7');
   for (const x of [2.45, 3.35]) b.box([0.045, 0.045, 0.86], [x, 0.43, -2.45], CREAM);
   for (const x of [-4.8, 4.8]) pot(b, x, 5.75, '#dbb453', 1.05);
+  b.parts.forEach(neutralAllotmentSurface);
   return b.finish();
 }
 
@@ -1426,7 +1449,7 @@ export const VillageAllotment = React.memo(() => (
   >
     <mesh
       geometry={VILLAGE_ALLOTMENT_GEOMETRY}
-      material={VILLAGE_PLOT_MATERIAL}
+      material={ALLOTMENT_MATERIAL}
       castShadow
       receiveShadow
     />

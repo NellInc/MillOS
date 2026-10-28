@@ -15,6 +15,7 @@ import {
 } from './workplaceImprovement';
 import type { WorkplaceCommand } from './bilateralWorkplace';
 import type { WorkplaceProfile, WorkplaceState, ImprovementVerdict } from '../types/workplace';
+import { setLocale } from '../i18n';
 
 function exercise(profile: WorkplaceProfile = 'cooperative', mode: 'game' | 'workshop' = 'game') {
   let state = createWorkplace(mode, 17);
@@ -211,6 +212,17 @@ it('retains the origin campaign, caps eight shifts without discarding receipts a
   }
   expect(e.state.improvement?.history).toHaveLength(7);
   expect(improvementSummary(e.state)?.lifetimeWages).toBe(864);
+  try {
+    for (const [locale, next] of [
+      ['en', 'Close the handoff experiment.'],
+      ['pt-BR', 'Encerre o experimento de passagem de turno.'],
+    ] as const) {
+      setLocale(locale);
+      expect(improvementSummary(e.state)?.next).toBe(next);
+    }
+  } finally {
+    setLocale('en');
+  }
   const saved = saveWorkplace(e.state) as WorkplaceState;
   expect(restoreWorkplace(saved).improvement?.history).toHaveLength(7);
   const forged = structuredClone(saved);

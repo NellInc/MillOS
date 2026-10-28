@@ -57,6 +57,7 @@ export const workplaceImprovementMessages = defineMessages({
     nextHearComparison: 'Hear the adviser compare its forecast with actual dispatch.',
     nextVerdicts: 'Each member records adopt, amend or stop, then finalise the review.',
     nextOpenShift: 'Open the next shift with carried cash and a fresh agreement.',
+    nextCloseExperiment: 'Close the handoff experiment.',
     evidenceEndedAfter: 'Ended after',
     evidenceCompleted: 'Completed',
     evidenceHorizon: '{prefix} {minute} of 90 minutes. {status}',
@@ -143,6 +144,7 @@ export const workplaceImprovementMessages = defineMessages({
     nextVerdicts:
       'Cada cooperado registra adotar, ajustar ou interromper e, depois, finaliza a revisão.',
     nextOpenShift: 'Abra o próximo turno com o caixa acumulado e um novo acordo.',
+    nextCloseExperiment: 'Encerre o experimento de passagem de turno.',
     evidenceEndedAfter: 'Encerrado após',
     evidenceCompleted: 'Concluídos',
     evidenceHorizon: '{prefix} {minute} de 90 minutos. {status}',

@@ -5,7 +5,7 @@ type Point = [number, number, number];
 // Version both requests together so stale-cache recovery cannot mix revisions.
 export const CIVIC_SHADOW_BAKE_READY = true;
 export const CIVIC_SHADOW_ASSET_VERSION =
-  '4795097942caaf44a6317d8c9387778b6573a473fd7d76311d54b73e1f582e1d';
+  'a4b2708f45995a71a94fb62e112544aa43965af76ceae7dd5eff425c31fb47df';
 // One spelling for the loader hook and the startup preload, so both share a cache entry.
 export const CIVIC_SHADOW_DEPTH_URL = `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.png?v=${CIVIC_SHADOW_ASSET_VERSION}`;
 export const CIVIC_SHADOW_METADATA_URL = `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.json?v=${CIVIC_SHADOW_ASSET_VERSION}`;

@@ -29,6 +29,7 @@ import {
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { WORLD_CRAFT_PALETTE } from '../../constants/publicRealmLayout';
+import { ALLOTMENT_TILES } from './allotmentSurface';
 import {
   HOME_ENTRY_SCALE,
   HOME_ENTRY_SOURCE,
@@ -634,8 +635,8 @@ it('pins current shutters, recessed pots and unchanged glazing to the exact civi
       'b9cad670050dfd3dfdb6e83f576b6d356ee72c5a2bcabe50098e877f48509e92',
     ],
     [
-      '17f7352a5c44a1f5084cb7dc8aadd8c10dcec6bdff0924dc464d35fa66429936',
-      '988e588d54cca22b766a9eb3f825cf6883f7d1c916c54c7f41fdb0381a002fed',
+      'daae4a36248bd70096d57c6e8d3d1ec9db4b12f3dc22a5f6190cf6111cec67ff',
+      '7aa24804f71f1d7edde370790e8327faa4f779403b2c8453d8e918dffacf9ced',
     ],
   ];
   const actual = [
@@ -776,14 +777,14 @@ it('gives clay only deterministic kiln tones, retaining exact cylinder geometry 
 
 it('gives allotment crops closed cupped leaves, actual roots and distinct low-cost silhouettes', () => {
   const crops = [
-    [addAllotmentCabbage, 32, 0.28, 0.63],
+    [addAllotmentCabbage, 56, 0.39, 0.63],
     [addAllotmentLeafCrop, 24, 0.22, 0.69],
     [addAllotmentBeanLeaves, 24, 0.23, 0.31],
   ] as const;
   for (const [add, triangles, radius, height] of crops) {
     const plot = new PlotGeometry();
     add(plot, [0, 0.2, 0], 0.41);
-    for (const leaf of plot.parts.filter((part) => part.index)) {
+    for (const leaf of plot.parts.filter((part) => part.userData.allotmentSurface === 'leaf')) {
       const p = leaf.attributes.position;
       const corners = p.count / 2 - 1;
       expect(leaf.index!.count / 3).toBe(corners * 2);
@@ -813,11 +814,21 @@ it('gives allotment crops closed cupped leaves, actual roots and distinct low-co
       expect([...edges.values()].every((n) => n === 2)).toBe(true);
     }
     if (add === addAllotmentCabbage) {
-      const heart = plot.parts[2];
-      expect(heart.attributes.position.count / 3).toBe(20);
+      const heart = plot.parts[3];
+      expect(heart.index!.count / 3).toBe(32);
       heart.computeBoundingBox();
       expect(heart.boundingBox!.min.y).toBeLessThan(0.26);
-      expect(heart.boundingBox!.max.y).toBeLessThan(0.51);
+      expect(heart.boundingBox!.max.y).toBeLessThan(0.61);
+      const p = heart.attributes.position,
+        n = heart.attributes.normal,
+        centre = heart.boundingBox!.getCenter(new THREE.Vector3());
+      for (let i = 0; i < p.count; i++)
+        expect(
+          new THREE.Vector3()
+            .fromBufferAttribute(p, i)
+            .sub(centre)
+            .dot(new THREE.Vector3().fromBufferAttribute(n, i))
+        ).toBeGreaterThan(0);
     }
     const g = plot.finish(),
       p = g.attributes.position;
@@ -859,6 +870,15 @@ it('varies allotment crops deterministically without spending more village geome
     VILLAGE_ALLOTMENT_GEOMETRY,
   ].reduce((n, g) => n + g.attributes.position.count / 3, 0);
   expect(triangles).toBeLessThanOrEqual(39994);
+  const uv = VILLAGE_ALLOTMENT_GEOMETRY.attributes.uv,
+    [left, bottom, right, top] = ALLOTMENT_TILES.crown;
+  let crownVertices = 0;
+  for (let i = 0; i < uv.count; i++) {
+    const x = uv.getX(i) * 256 - 0.5,
+      y = uv.getY(i) * 256 - 0.5;
+    if (x >= left && x <= right && y >= bottom && y <= top) crownVertices++;
+  }
+  expect(crownVertices).toBe(18 * 32 * 3);
 });
 
 it('attaches every runner-bean node and both end caps to its actual climbing stem', () => {

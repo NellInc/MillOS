@@ -345,7 +345,12 @@ export function improvementSummary(s: WorkplaceState) {
             ? translate(msg, 'nextHearComparison')
             : !i.verdict
               ? translate(msg, 'nextVerdicts')
-              : translate(msg, 'nextOpenShift'),
+              : translate(
+                  msg,
+                  i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES
+                    ? 'nextCloseExperiment'
+                    : 'nextOpenShift'
+                ),
   };
 }
 

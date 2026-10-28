@@ -8950,3 +8950,54 @@ The church diagnostic is bounded honestly: the unchanged final CPU mask finds 2,
 Full fifty-task disposition, exact failures/corrections and raw evidence: test-results/dx-integrated-finish-20261028/DISPOSITION.md, with a local recap gallery alongside. Physical devices, native player input/manual castle walking, unmuted audio, native Brazilian editorial review and actual downloaded-model/device checks remain DEFERRED. Release is conditional: no new push, main merge or deployment. Work remains local and muted. Current build, masters, seals and failed/raw evidence are retained. Completed internal leaves expose no supported disposal API or authoritative chat UUID; no guessed archival or foreign-process control.
 
 Final forge-horse review on the actual blacksmith instance passes: clear profile/three-quarter views; 4,224 vertices; 2.33 mm natural pose change and 28 position-version increments; zero hoof drift and zero whole-body posed drift under real P pause. Earlier readers used changing head-index sets or expected a head gesture inside a short quiet interval. Those failures remain retained, with the corrected full-vertex measurement. No horse asset or animation clock was changed in this pass.
+
+## DY: everyday garden craft and bounded actor/gameplay triage (2026-10-28)
+
+Current goal tool status is ACTIVE. Earlier paused prose is historical and superseded by the live goal. Starting clean HEAD b4c4d1c083b096c68196490f95a13afaa9c4924e. Work stays local and muted; no release, upload, device/player check or pacing-budget change. Existing 82 GiB free supports the retained 4 GiB guards, with no new worktree.
+
+Observed gap: DX's exact-build `candidate/people-close/village-gardener.png` shows large faceted cabbage hearts and extremely sparse outer leaves. Live VillageArea renders VillageAllotment; compiled VillageArea includes its distinctive name. The reachability `--why` output happens to choose a test root, so that path alone is not live proof. Existing MarketGoods is already refined and is excluded from this pass.
+
+Pre-mortem: (1) a tiny triangle allocation may still produce rock-like silhouettes, so compare actual close pixels before acceptance; (2) an atlas can tint joinery through mip bleed, so reserve a large neutral quadrant and inspect the whole plot; (3) new crop spacing can break the gardener's real work contact, so retain the bed/aisle/actor anchors and inspect the posed hand context. No crop counts represent earned production.
+
+### Finite execution list
+
+1. Recheck clean owned checkout, active goal, free disk and prior acceptance before production edits.
+2. Read the actual allotment assembly, material, crop builders, gardener stop and gate tests.
+3. Record named affected baseline: VillageGardens.test.ts, 27 PASS, zero failed; baseline log retained.
+4. Keep the existing household buildings, garden joinery, routes, shed, trellis, lamp layout and work anchors unchanged.
+5. Compare the current clear gardener close view with the live crop owner before choosing geometry work.
+6. Ask one read-only leaf to identify an actual remaining people/motion defect, excluding accepted horse, feet and fixed-time posture artifacts.
+7. Ask a second read-only leaf for one reproducible cooperative feedback defect; no speculative new interface or mechanics.
+8. Retain a no-defect result honestly instead of manufacturing body/gameplay edits.
+9. Replace the conspicuous 20-face cabbage stone heart with a low-cost smooth, softly lobed closed crown.
+10. Give each cabbage three actual cupped outer leaves with outward upper surfaces and closed thickness.
+11. Reallocate the two cabbage beds to nine larger mature plants each, retaining their footprint and the nearest work-side row.
+12. Add deterministic small size, yaw and seating variation without a new random source or clock.
+13. Keep cabbage triangle spend no greater than its former 1,024 triangles and the entire village detail below the existing 39,994 bound.
+14. Give leaf surfaces coherent midribs, branching veins, wax bloom and subtle mottling through a single tiny authored raster atlas.
+15. Give strap leaves longitudinal fibers and paler bases, keeping their existing roots, geometry and silhouettes.
+16. Give existing root crowns a muted soil-stained finish; keep every root buried/seated as before.
+17. Preserve the bean trellis' stem/leaf attachment, shape, clocks and triangle count while finishing its leaves consistently.
+18. Keep all non-crop allotment surfaces in a large exact-neutral atlas region; preserve the home material and home geometry.
+19. Declare sRGB albedo and linear finish explicitly, with finite bounded texels, mip filters and shared ownership.
+20. Use one opaque lit allotment material, no transparency, emissive crop, added lights, per-frame work or per-plant draws.
+21. Add small existing-framework regressions for the changed crop topology, triangle allocation, deterministic variation, atlas isolation and finite normals/UVs.
+22. Run the affected test set and triage any actual failure by name; preserve failed output.
+23. Reconcile any concrete leaf finding with source and a reproduction before approving a disjoint edit lane.
+24. Root-review the integrated diff and verify all load-bearing changes directly.
+25. Run required typecheck, agent:typecheck, lint, format, depth/shader/assets/manifest checks once on the coherent candidate.
+26. Build the actual v0.40 candidate under the capture lock and retained disk guard; seal source and compiled identity.
+27. Run fresh compiled bundle/reachability/community checks, with a real live path for new modules.
+28. Capture native silent same-framing gardener and crop close views, plus allotment day/dusk/night and Low context, with original readiness/world/personnel/texture/quality/audio guards.
+29. Inspect actual pixels for crown shape, leaf readability, joins, gardener contact, night darkness and untouched surrounding plot. No claim of motion proof from fixed-time stills.
+30. Measure the new material/geometry facts in the delivered assembly and compare against original budgets; keep pacing open separately.
+31. Retain useful raw captures, failures, sealed build and terminal logs; close only this task's own temporary browser/server/lock through their owning APIs.
+32. Check in only this owned coherent local pass and record the task-by-task disposition. No push, main merge or deployment.
+
+Allowed production surfaces: VillageGardens.tsx and its existing test; one focused allotment-surface module/test if warranted. A reproduced cooperative or actor defect may add its actual owner plus small regression after root disposition. No changes to interface structure, simulation inventory, actor schedules, world placement, quality/adaptation or loading readiness. Working if the gardener's live allotment visibly reads as planted vegetables rather than stones, inherited contacts/access and village geometry limits hold, source/native checks have terminal evidence, and no speculative people/gameplay edits or pacing claims enter the result.
+
+### DY justified deviations during execution
+
+The people leaf found no established new defect; no body/animation changes are justified. The gameplay leaf's finite audit passed 111 existing assertions but its shell wrapper hit zsh's read-only `status` variable after Vitest, so the wrapper is not reported as exit0. It found a small real eighth-shift advisory mismatch. Root read the actual engine/UI predicates and approved a narrow simulation/messages/test lane: finalized eighth review must suggest the existing Close Experiment action rather than an impossible ninth shift, preserving obligations and consent.
+
+First integrated affected run: 84 PASS, one FAIL, `VillageGardens.test.ts` exact garden/civic-bake caster pins. This is a correct far-side contract failure, not a reason to change a hash alone. The allowed surfaces therefore expand only to the existing civic PNG/JSON pair and `constants/civicSquareLighting.ts` paired cache version. Reuse the existing actual-runtime native exporter and unchanged Blender BVH baker; retain full inputs and old assets, update exact caster hashes only after the real rebake, and validate sources/receipts/encoded hash. No shadow-quality or atlas-capacity change. Working if the new atlas comes from the actual new triangles and the exact original home/GLB/hedge pins remain protected.
