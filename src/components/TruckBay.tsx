@@ -3,6 +3,10 @@ import {
   SHIPPING_TASK_LIGHT,
   SHIPPING_TASK_ORIENTATION,
   SHIPPING_TASK_GAIN,
+  SHIPPING_TASK_HEAD_LOCAL,
+  SHIPPING_TASK_BRACKET_LOCAL,
+  SHIPPING_TASK_BRACKET_LENGTH,
+  SHIPPING_TASK_BRACKET_ORIENTATION,
 } from './truckbay/stagingTaskLighting';
 import { DockYardDressing } from './truckbay/DockYardDressing';
 import {
@@ -3691,11 +3695,23 @@ export const TruckBay: React.FC = () => {
                 <cylinderGeometry args={[0.12, 0.15, 14, 8]} />
                 <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
               </mesh>
-              {/* One existing optic turns toward the working stock area. The
-                housing, lens and source share a pivot at the actual pole top. */}
+              {isTaskOptic && (
+                <mesh
+                  name="shipping-staging-task-bracket"
+                  position={SHIPPING_TASK_BRACKET_LOCAL}
+                  quaternion={SHIPPING_TASK_BRACKET_ORIENTATION}
+                >
+                  <cylinderGeometry args={[0.055, 0.055, SHIPPING_TASK_BRACKET_LENGTH, 8]} />
+                  <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
+                </mesh>
+              )}
+              {/* One existing optic turns toward working stock. Its whole head
+                sits outboard on a bracket, keeping the aperture clear of the pole. */}
               <group
                 name={isTaskOptic ? 'shipping-staging-task-optic' : `shipping-yard-mast-head-${i}`}
-                position={[0, SHIPPING_TASK_LIGHT.pivotHeight, 0]}
+                position={
+                  isTaskOptic ? SHIPPING_TASK_HEAD_LOCAL : [0, SHIPPING_TASK_LIGHT.pivotHeight, 0]
+                }
                 quaternion={isTaskOptic ? SHIPPING_TASK_ORIENTATION : undefined}
                 userData={isTaskOptic ? { exteriorLampGain: SHIPPING_TASK_GAIN } : undefined}
               >

@@ -26,11 +26,24 @@ export const SHIPPING_TASK_LIGHT = {
   colour: '#ffe5b9',
 } as const;
 
-export const SHIPPING_TASK_PIVOT_WORLD = new THREE.Vector3(
+export const SHIPPING_TASK_MAST_TOP_WORLD = new THREE.Vector3(
   SHIPPING_TASK_LIGHT.mast[0],
   SHIPPING_TASK_LIGHT.pivotHeight,
   SHIPPING_TASK_LIGHT.mast[2] + dockZ
 );
+// The optical face must clear the pole, not shine from inside its top. Move
+// the entire head 0.5m outboard and join its rear housing with a short bracket.
+const outboard = new THREE.Vector3(...SHIPPING_TASK_LIGHT.aimWorld).sub(
+  SHIPPING_TASK_MAST_TOP_WORLD
+);
+outboard.y = 0;
+outboard.normalize().multiplyScalar(0.5);
+export const SHIPPING_TASK_PIVOT_WORLD = SHIPPING_TASK_MAST_TOP_WORLD.clone().add(outboard);
+export const SHIPPING_TASK_HEAD_LOCAL: [number, number, number] = [
+  outboard.x,
+  SHIPPING_TASK_LIGHT.pivotHeight,
+  outboard.z,
+];
 export const SHIPPING_TASK_DIRECTION = new THREE.Vector3(...SHIPPING_TASK_LIGHT.aimWorld)
   .sub(SHIPPING_TASK_PIVOT_WORLD)
   .normalize();
@@ -42,6 +55,20 @@ export const SHIPPING_TASK_SOURCE_WORLD = SHIPPING_TASK_PIVOT_WORLD.clone().addS
   SHIPPING_TASK_DIRECTION,
   -SHIPPING_TASK_LIGHT.sourceOffset
 );
+const bracketStart = SHIPPING_TASK_MAST_TOP_WORLD.clone().add(new THREE.Vector3(0, -0.05, 0));
+const bracketEnd = SHIPPING_TASK_PIVOT_WORLD.clone().addScaledVector(SHIPPING_TASK_DIRECTION, -0.3);
+const bracketVector = bracketEnd.clone().sub(bracketStart);
+export const SHIPPING_TASK_BRACKET_LENGTH = bracketVector.length();
+export const SHIPPING_TASK_BRACKET_ORIENTATION = new THREE.Quaternion().setFromUnitVectors(
+  new THREE.Vector3(0, 1, 0),
+  bracketVector.normalize()
+);
+export const SHIPPING_TASK_BRACKET_LOCAL = bracketStart
+  .clone()
+  .add(bracketEnd)
+  .multiplyScalar(0.5)
+  .sub(new THREE.Vector3(SHIPPING_TASK_LIGHT.mast[0], 0, SHIPPING_TASK_LIGHT.mast[2] + dockZ))
+  .toArray() as [number, number, number];
 // Shared registration gain also permits a same-page contribution control without
 // removing the source or changing a shader's NUM_SPOT_LIGHTS permutation.
 export const SHIPPING_TASK_GAIN = { value: 1 };

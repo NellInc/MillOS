@@ -8,13 +8,55 @@ import {
   SHIPPING_TASK_ORIENTATION,
   SHIPPING_TASK_SOURCE_WORLD,
   SHIPPING_TASK_GAIN,
+  SHIPPING_TASK_MAST_TOP_WORLD,
+  SHIPPING_TASK_BRACKET_LOCAL,
+  SHIPPING_TASK_BRACKET_LENGTH,
+  SHIPPING_TASK_BRACKET_ORIENTATION,
 } from './stagingTaskLighting';
 import { STAGING_LAYOUT, stagedPalletPosition } from './palletStagingLayout';
 import { getFlourPalletGeometry } from '../../utils/flourSacks';
 import { stagingBounds } from '../../simulation/layoutPlanning';
 
-it('aims the existing shipping mast optic from its real dock-transformed pole top', () => {
-  expect(SHIPPING_TASK_PIVOT_WORLD.toArray()).toEqual([30, 14, 85]);
+it('keeps the source and every optical-face corner outside the opaque mast', () => {
+  const horizontal = new THREE.Vector3(...light.aimWorld).sub(new THREE.Vector3(30, 14, 85));
+  horizontal.y = 0;
+  horizontal.normalize();
+  for (const x of [-0.775, 0.775])
+    for (const z of [-0.36, 0.36]) {
+      const corner = new THREE.Vector3(x, -0.07, z)
+        .applyQuaternion(SHIPPING_TASK_ORIENTATION)
+        .add(SHIPPING_TASK_PIVOT_WORLD);
+      // A separating plane outside the pole's circumscribed radius is also
+      // outside every face of its real eight-sided taper.
+      expect(corner.sub(new THREE.Vector3(30, 14, 85)).dot(horizontal)).toBeGreaterThan(0.12);
+    }
+  expect(
+    Math.hypot(SHIPPING_TASK_SOURCE_WORLD.x - 30, SHIPPING_TASK_SOURCE_WORLD.z - 85)
+  ).toBeGreaterThan(0.12);
+});
+
+it('aims the whole head from a bracket seated in the real dock-transformed pole top', () => {
+  expect(SHIPPING_TASK_MAST_TOP_WORLD.toArray()).toEqual([30, 14, 85]);
+  expect(SHIPPING_TASK_PIVOT_WORLD.distanceTo(SHIPPING_TASK_MAST_TOP_WORLD)).toBeCloseTo(0.5, 8);
+  const bracketCentre = new THREE.Vector3(...SHIPPING_TASK_BRACKET_LOCAL).add(
+    new THREE.Vector3(30, 0, 85)
+  );
+  const halfArm = new THREE.Vector3(0, SHIPPING_TASK_BRACKET_LENGTH / 2, 0).applyQuaternion(
+    SHIPPING_TASK_BRACKET_ORIENTATION
+  );
+  expect(
+    bracketCentre
+      .clone()
+      .sub(halfArm)
+      .distanceTo(new THREE.Vector3(30, 13.95, 85))
+  ).toBeLessThan(1e-8);
+  const housingContact = bracketCentre
+    .clone()
+    .add(halfArm)
+    .sub(SHIPPING_TASK_PIVOT_WORLD)
+    .applyQuaternion(SHIPPING_TASK_ORIENTATION.clone().invert());
+  expect(housingContact.toArray()[1]).toBeCloseTo(0.3, 8);
+  expect(Math.abs(housingContact.x) + Math.abs(housingContact.z)).toBeLessThan(1e-8);
   expect(SHIPPING_TASK_DIRECTION.length()).toBeCloseTo(1, 8);
   const mountedAxis = new THREE.Vector3(0, -1, 0).applyQuaternion(SHIPPING_TASK_ORIENTATION);
   expect(mountedAxis.distanceTo(SHIPPING_TASK_DIRECTION)).toBeLessThan(1e-8);
