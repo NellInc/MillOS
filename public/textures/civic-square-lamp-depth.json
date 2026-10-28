@@ -626,7 +626,7 @@
     },
     {
       "name": "",
-      "vertices": 17400,
+      "vertices": 20472,
       "instances": 1
     },
     {
@@ -701,7 +701,7 @@
     },
     {
       "name": "static-merge:authored-village:0:13",
-      "vertices": 70464,
+      "vertices": 67722,
       "instances": 1
     },
     {
@@ -719,12 +719,12 @@
     "alphaOrMoving": 41
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "82886215e34700da877dfee321ee3290fe8980eebba06306db57333e7ec0a650",
-  "atlasSha256": "006824f9329b126b5aa936e717957f110c9b1febcd06620b59b0aeb21379ea49",
+  "inputSha256": "c8a136db99372b07298469ef2aa579b871bb76d67aceb44379b0dc3a598e6f15",
+  "atlasSha256": "28d10cf78ff92863682283e6d6b25d18ecbd04fb5dd102952bfec6827c41eb91",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 420694,
-  "triangles": 180408,
-  "elapsedSeconds": 8.98,
+  "vertices": 421024,
+  "triangles": 180518,
+  "elapsedSeconds": 8.59,
   "sourceReceipts": [
     {
       "id": "hall-west",
@@ -748,22 +748,22 @@
     },
     {
       "id": "post-fountain",
-      "blockedRays": 75503,
+      "blockedRays": 75506,
       "rays": 98304
     },
     {
       "id": "post-garden",
-      "blockedRays": 55073,
+      "blockedRays": 55075,
       "rays": 98304
     },
     {
       "id": "post-right",
-      "blockedRays": 56834,
+      "blockedRays": 56854,
       "rays": 98304
     },
     {
       "id": "shed-wall",
-      "blockedRays": 61088,
+      "blockedRays": 61127,
       "rays": 98304
     },
     {
@@ -803,22 +803,22 @@
     },
     {
       "id": "gate-inner",
-      "blockedRays": 38808,
+      "blockedRays": 38925,
       "rays": 98304
     },
     {
       "id": "gate-outer",
-      "blockedRays": 39072,
+      "blockedRays": 39098,
       "rays": 98304
     },
     {
       "id": "shed-bed-west",
-      "blockedRays": 40786,
+      "blockedRays": 41088,
       "rays": 98304
     },
     {
       "id": "shed-bed-east",
-      "blockedRays": 34330,
+      "blockedRays": 34350,
       "rays": 98304
     },
     {
@@ -873,22 +873,22 @@
       "public/models/village/postbox.glb": "a9d444ddb857dab168a66fc14d8e09b35b0eeac0d5526846e1d1e503a7e38f95"
     },
     "villageGardenPositions": [
-      "a533110e0170120455bd18776e8049c42a0bc63d1ea1f19385af6db6d2c4a977",
+      "cfce6fd22b6eb0248051372e02a1f36610a96bb82d10a0d7e309f217685bc115",
       "58878f3dbe581bc21eefe9f8176f21b6352b7abcb3d35fde50c083fc48c318f6",
-      "f400d2c0684f399f781493365b568861172f3f172ec86e30aea73a4184426399",
-      "d621111d5d3be9a8f038f68ea851c99b32631e1e09238d04672e882d45fc7168",
+      "42dda835e1fb6db156bb81a79f2974b27e42796b03cc85f480d5325758914266",
+      "897093d75cdb3d3c97fc505e89826e0d77d8f1722a3db90c35702bb5b4c672ea",
       "32c990fd18097bb1d80eb7c4306ae2e14aaf7f387c8178fe686298adcf132870",
-      "e2193ae270a1a236cbee537812889ff4d24b04b3d2d78636cfa87a96fb193d2b",
-      "ece4d58c66ad6fdd8c92060eb256b018bd812d11f959889495f647a4504526af",
+      "a63ecfa88e4cf44238456736edaba66338b4553b9936780f61f98f704d092148",
+      "58a078423f0bdd1a765ace6c7f9906875c1a658b6f2842dd18e147b22372e212",
       "0e3b36611bb21694e2937379c8e732e2e66e39e141ab598c3c38a966b7f95464",
-      "03179ff6800a2e7193737208441301e0e031fbeddda46d8886eb248826b38eab",
-      "210b446a4bcb30ba6aea0147d9bfaeaed79ba8bdb4235f32aeaf852bf9601792",
+      "c7f96e8bd0261bf67d06cd3a25585e0b44d6da28a54d3d9c5383f6019f453343",
+      "4589064b24e052faa99bd27e6a80486b8480f2add488caf122862cc5cca42c50",
       "3a3cda642438e77b89ba59ef0987d54b2a38addcd790cedeaea68540459954c7",
-      "3d88a15819d6baf6341e308013f5e3eac290ecbab41ce0301f5148b6c379e898",
-      "eea7e6ffc263141d4ce5c3bc76745e45b21a58ca69931c636eb8f669f95ae36d",
+      "e0f42fa5c157bdba273fbbb5478ae9440931bc02b66000b061384b26277026d4",
+      "5c042acb730bd16d1889d3cd0cd5d542640fdabe1edc2cba16b956db0c466a51",
       "5ade559333214fe102d81f90fe82dfef11824c3545aea0765960062ff1911664",
-      "822d0395204a3c5282d61ab5abec8fb96f9a057c1d4a3317ee123aaa1456009e",
-      "83953e6845433315e391151a9afd30147637d2602d78fb5006f6920dd62eaa4c"
+      "b9fa42f2a8140de5880fcb9b75def343402d72202a75857bd0da3ae738268612",
+      "e4e6adc351b460e2bb37f89e0b52cace9dbff25e3afcc1cf7fe019d74e409904"
     ],
     "townHallHedgePositions": "2ffd894b9cca542118f871dd706a846c96820db18db5c541dcba1412873ccb6c"
   }

@@ -431,6 +431,63 @@ function homeChimneyPot(squareThroat: boolean) {
   return g;
 }
 
+/** Reclaim only faces strictly inside another opaque rectangular solid.
+ * No ground assumption, curved/rotated bounds approximation or exposed-face
+ * simplification. Glazing is built separately and never enters this pass.
+ * Working if every removed triangle has a convex solid witness and retained
+ * attributes and visible silhouettes remain exact, freeing space for planting.
+ */
+export function removeEnclosedVillageFaces(plot: PlotGeometry) {
+  const epsilon = 0.000001;
+  const boxes = plot.parts.flatMap((part) => {
+    if (part.type !== 'BoxGeometry') return [];
+    part.computeBoundingBox();
+    const bounds = part.boundingBox!,
+      p = part.attributes.position;
+    for (let i = 0; i < p.count; i++)
+      for (let axis = 0; axis < 3; axis++) {
+        const value = p.getComponent(i, axis);
+        if (
+          Math.abs(value - bounds.min.getComponent(axis)) > epsilon &&
+          Math.abs(value - bounds.max.getComponent(axis)) > epsilon
+        )
+          return [];
+      }
+    return [{ part, bounds }];
+  });
+  let removed = 0;
+  for (const part of plot.parts) {
+    const p = part.attributes.position,
+      index = part.index,
+      kept: number[] = [];
+    for (let i = 0; i < (index?.count ?? p.count); i += 3) {
+      const a = index?.getX(i) ?? i,
+        b = index?.getX(i + 1) ?? i + 1,
+        c = index?.getX(i + 2) ?? i + 2;
+      const minX = Math.min(p.getX(a), p.getX(b), p.getX(c)),
+        maxX = Math.max(p.getX(a), p.getX(b), p.getX(c)),
+        minY = Math.min(p.getY(a), p.getY(b), p.getY(c)),
+        maxY = Math.max(p.getY(a), p.getY(b), p.getY(c)),
+        minZ = Math.min(p.getZ(a), p.getZ(b), p.getZ(c)),
+        maxZ = Math.max(p.getZ(a), p.getZ(b), p.getZ(c));
+      const enclosed = boxes.some(
+        ({ part: other, bounds: box }) =>
+          other !== part &&
+          minX > box.min.x + epsilon &&
+          maxX < box.max.x - epsilon &&
+          minY > box.min.y + epsilon &&
+          maxY < box.max.y - epsilon &&
+          minZ > box.min.z + epsilon &&
+          maxZ < box.max.z - epsilon
+      );
+      if (enclosed) removed++;
+      else kept.push(a, b, c);
+    }
+    if (kept.length !== (index?.count ?? p.count)) part.setIndex(kept);
+  }
+  return removed;
+}
+
 function house(index: number) {
   const d = DESIGNS[index],
     b = new PlotGeometry(),
@@ -630,6 +687,7 @@ function house(index: number) {
   b.box([0.73, 0.13, 0.8], [chimney[0], chimney[1] + 0.015, chimney[2]], CREAM);
   for (const z of [-0.2, 0.2])
     b.add(homeChimneyPot(step).translate(chimney[0], chimney[1], chimney[2] + z), '#aa704f');
+  removeEnclosedVillageFaces(b);
   return {
     body: b.finish(),
     glass: glass.finish(),
@@ -783,6 +841,7 @@ function garden(index: number) {
   b.box([1.9, 0.44, 0.08], [-3.7, 0.73, -2.54], WOOD);
   for (const x of [-4.4, -3]) b.box([0.1, 0.45, 0.42], [x, 0.225, -2.3], IRON);
   pot(b, 3.9, -2.5, d.flowers, 1.15);
+  removeEnclosedVillageFaces(b);
   return b.finish();
 }
 
@@ -868,8 +927,8 @@ function allotmentLeaf(
 }
 
 /** Two broad cupped leaves nest a softly lobed closed heart, 64 triangles.
- * Eight mature plants replace sixteen tiny ones per bed: 1,024 triangles total,
- * exactly the former allocation. Working if the crown reads as rounded leaves
+ * Sixteen mature plants fill each bed, including its centre columns.
+ * Working if the crown reads as rounded leaves
  * at gardener distance, with the same soil contact and clear bed/aisle edges.
  */
 export function addAllotmentCabbage(b: PlotGeometry, at: Point, seed: number) {
@@ -1032,12 +1091,12 @@ function allotment() {
         b.box([0.11, 0.25, 2.92], [x + side * 1.45, 0.125, z], WOOD);
       }
       const rows = 4,
-        columns = x < 0 ? 2 : 4;
+        columns = 4;
       for (let row = 0; row < rows; row++)
         for (let col = 0; col < columns; col++) {
-          // Retain the near work-side row at -1.85m. The inner column has space
-          // for mature hearts, rather than another narrow row of little stones.
-          const px = x - (x < 0 ? 0.75 : 1.05) + col * (x < 0 ? 1.8 : 0.69),
+          // Keep the work-side column at -1.85m and restore the planted centre.
+          // The outer column is inset enough for the mature cupped leaves.
+          const px = x - (x < 0 ? 0.975 : 1.05) + col * (x < 0 ? 0.675 : 0.69),
             pz = z - 1.02 + row * 0.68;
           const seed = px * 7.13 + pz * 3.71;
           if (x < 0)

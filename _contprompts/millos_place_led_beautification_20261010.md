@@ -9156,3 +9156,54 @@ Corrected exact-build native28art plus9optics/control frames pass unchanged read
 Original corrected shipping frame/startup gate exits1:60.03FPS and1%low56.50PASS, p9517.6ms>16.7FAIL, firstframe354.2ms>350FAIL. No frames>25ms, long tasks0, effectiveDPR1.20, world/personnel/page/checkpoint guardsPASS. Load3.05/core exceeds unchanged3.0 indicator. This is an OPEN pacing/startup result, not an aggregate green or demonstrated regression; no limit relaxation or quiet-GPU wait. Exact failed candidate receipt retained separately from craft acceptance.
 
 Both native helpers explicitly report owned resources closed; build lock release and benchmark terminal result observed. No foreign process interference, unsupported helper disposal, remote activity or publication. Local code commits543ac17b and4d6db41b retained, later doc-only HEAD must be distinguished from built code. Recurring goalACTIVE; player/device/native input/unmuted audio/editorial Brazilian reviewDEFERRED, no push/main merge/upload/deployment. Next grounded village correction is Nell's sparse-centre feedback: restore fuller cabbage planting while retaining improved round heads, judging the actual scene budget rather than automatically culling plants to an over-strict sub-allocation. EA has not restored those plants.
+
+## EB: restore full cabbage beds after Nell's density feedback (2026-10-28)
+
+Previous goal turn is PROGRESS: EA's truthful stock, physically seated task light,70tests,37native frames and exact build are checked in locally; original timing acceptance remains OPEN. Current start42a88dd5 clean,53GiB available. Nell correctly identifies removed middle cabbages. Root owns this bounded restoration inline; reuse one read-only visual leaf only if final crop spacing needs independent challenge. No overlapping production write lanes.
+
+The goal is two FULL four-by-four beds with the improved rounded64-triangle plants, no missing centre columns and no reduction of crown/leaf/texture quality. The previous1024croptriangle allocation was root's own over-strict sub-allocation, not a measured performance result. Measure the actual total first. Keep the existing39994 whole-village cap, presets, draw/material architecture and actual frame/startup budgets unchanged. If restoring density exceeds that real cap, reconcile useful geometry spending before acceptance rather than remove requested plants or silently relax the cap.
+
+Pre-mortem: full planting might exceed the whole-village cap, mature leaves might cross coping or the gardener's contact/clear aisle, and changed rigid crop geometry invalidates baked lamp visibility. Measure built geometry, preserve the near work-side contact column and test actual plant seats/bounds, then regenerate the actual native-caster bake, never just patch its pins.
+
+### Detailed finite execution list
+
+1. Reconcile current branch/ownership, last EA source/output seal, active goal and4GiB guards.
+2. Confirm prior goal turn's actual progress, preserving its separate timing FAIL.
+3. Reopen Nell's linked final sparse-bed image and actual DY removal diff.
+4. Reconfirm VillageAllotment reaches the production VillageArea assembly; a reachability path through a test alone is insufficient.
+5. Record affected named baseline using existing VillageGardens/allotmentSurface tests, including current whole-village and64-triangle plant contracts.
+6. Measure actual complete village triangles and crown count from real assembled geometry, not duplicated estimates.
+7. Reproduce the missing-centre contract with a concrete full-density regression.
+8. Restore sixteen cabbages per bed, four rows/four columns, without changing the other two crop beds.
+9. Retain current64-triangle round crowns, cupped closed leaves, normals, soil seating and shared atlas/material.
+10. Retain deterministic size/yaw/plant variation; avoid identical oversize heads filling every gap.
+11. Preserve the gardener's nearest work-side column, along-row spacing and real contact target.
+12. Keep outer plants/leaf envelopes within sensible raised-bed coping; allow natural leaf overlap without intersecting hearts.
+13. Preserve the central1.64m walking aisle, bed/shed/fence positions and all actor/animal paths.
+14. Keep homes, hedges, painted graphics, terrain/rail/port/mountain layout and interface unchanged.
+15. Check actual full-density crown vertices and all32root seats, including the formerly empty inner columns.
+16. Check finite normals/UVs, ground contact, silhouette variation and complete village cap with existing tests.
+17. Update only the obsolete16plant assertion/comment; retain the39994 total cap and64-triangle per-plant geometry expectation.
+18. Export the actual changed native rigid caster assembly with original capture/mute/readiness guards and unchanged27lamp sources.
+19. Run the unchanged local Blender radial-visibility baker from that export; retain input/baker/PNG custody and source pins.
+20. Version the paired PNG/JSON URLs together and verify all unchanged home/hedge/GLB pins stay exact.
+21. Run affected crop/surface/civic-shadow tests, repairing any actual bake or spatial failure rather than weakening it.
+22. Run required typecheck, agent:typecheck, lint, format, depth/shader/assets/manifest checks on coherent source.
+23. Build v0.40 under the unchanged capture/disk guard and seal exact final source/output.
+24. Run fresh bundle/reachability/community checks against that build.
+25. Native muted same-camera close cabbages, gardener contact, complete allotment and adjacent crop context at noon/dusk/night andLow.
+26. Root inspect actual centre fullness, readable separate crowns, leaf interlock, coping/aisle clearance and matched lamp shadows; mechanical guards alone do not establish art acceptance.
+27. Retain useful failed/raw evidence, close only task-owned temporary resources, record finite-list disposition/gallery and selective local commits.
+28. Keep recurring goalACTIVE, publicationHELD, pacing/startupOPEN and physical player/device/native input/unmuted checksDEFERRED. No repeated quiet-GPU wait or claim that extra plants cost zero.
+
+Allowed production: VillageGardens.tsx/test, paired civic depthPNG/JSON and its asset version only. Reuse ignored evidence adapters and existing unchanged baker/exporter. No new dependency, UI, crop shader, geometry framework, budget override or actor/inventory manipulation. Working if both beds visibly recover their planted centres with32round detailed cabbages, original total scene/draw/material and navigation constraints hold, matched shadows and exact-build native checks pass, and timing/device evidence remains correctly separated.
+
+EB measured constraint and bounded deviation: actual whole-village39942 triangles leaves52 under the unchanged39994 cap. Full32plants alone would be40966, so the promised restoration needs real reallocation. Full-grid source is implemented and actual32root-seat regression passes. Density reproduction retainedFAIL(2304 vs4608 crown vertices). The first ignored inventory test was outside Vitest's configured include; a task-owned temporary src test then ran, but console output was silenced. An explicit JSON-writing rerun supplies measurements; temporary src test removed. No invisible result is claimed as proof.
+
+Read-only independent geometry advice finds1441 triangles strictly enclosed by other actual axis-aligned opaque box solids across the five home bodies/gardens, with zero glazing changes:1061body+380garden. This is sufficient:39942+1024−1441=39525. Root expands ONLY the allowed VillageGardens construction to remove provably internal faces in body/garden builders, with all retained triangle attributes, exposed silhouettes, colour/materials, source shapes, glass and plot positions exact. Shared PlotGeometry and other assets remain untouched. This supersedes the initial all-home-position-pin hold, because removed internal faces necessarily change those buffers; new pin changes must trace to exact contained faces and a real matched rebake. A whole-opaque-box witness, strict interior margin, unchanged retained attributes, exclusion of rotated/curved/glass occluders and actual rendered comparisons are required. Working if full32planting fits39525totaltriangles, inside the original39994cap, with no visible house/garden simplification.
+
+EB root implementation/proof: only house body/garden builders invoke the local conservative face remover, never glazing, allotment crops or shared PlotGeometry. A triangle is removed only when its three vertices lie strictly inside one OTHER true axis-aligned opaque box with1micrometre margin; rotated/curved bounds and coplanar faces are excluded. Retained attribute buffers stay exact. Focused overlap/interior/coplanar/rotated/curved fixtures exercise that concrete changed contract. All32actual grid centres now ray-hit a real crown above soil. Native source export independently measures39525complete-village triangles, including6824allotment, confirming actual1441reclaimed faces and keeping the original39994cap. No per-plant64triangle reduction.
+
+Source baseline30PASS across VillageGardens/allotmentSurface; expanded final three-file set52PASS includes20additional existing civic-shadow checks plus2newdensity/pruner regressions. Prebake51tests had exactly1FAIL for correctly stale caster pins,50PASS; no cap/spatial failure. Actual source export ready/world/personnel/texture/audio guardsPASS, diagnostics empty. Unchanged local Blender5.2baker consumes180518actual rigid triangles and27unchanged lamps. Input/baker/PNG hashes, unchanged seven GLBs, unchanged glazing positions and hedge verified before matching new caster pins and paired URL version. This is a real atlas regeneration, never a pin-only repair.
+
+Required coherent typecheck,agent:typecheck,lint,format,depth/shaders/assets/manifest all exit0 without a regeneration repair. Source count/full-grid regression and density-failure evidence retained. Task-owned dev browser/server/lock and Blender exit observed. Corrected final build/native acceptance is next; no runtime/art claim from source tests alone.

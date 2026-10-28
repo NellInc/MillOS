@@ -12,6 +12,7 @@ import {
   addVillageClay,
   addVillageFoliage,
   addCivicPrivet,
+  removeEnclosedVillageFaces,
   CIVIC_PRIVET_TEXTURE_URL,
   VILLAGE_HOME_PLOTS,
   VILLAGE_HOMES,
@@ -52,6 +53,39 @@ const hit = (
     0,
     far
   ).intersectObject(mesh(geometry));
+
+it('reclaims strictly enclosed opaque faces with exact retained attributes and conservative solids', () => {
+  const plot = new PlotGeometry();
+  plot.add(new THREE.BoxGeometry(2, 2, 2), '#ffffff');
+  plot.add(new THREE.BoxGeometry(0.5, 0.5, 0.5), '#808080');
+  plot.add(new THREE.BoxGeometry(1, 1, 1).translate(1.2, 0, 0), '#808080');
+  const original = plot.parts.map((g) => ({
+    attributes: Object.fromEntries(Object.entries(g.attributes).map(([k, v]) => [k, [...v.array]])),
+    indices: [...g.index!.array],
+  }));
+  expect(removeEnclosedVillageFaces(plot)).toBe(14);
+  expect(plot.parts[0].index!.count).toBe(36);
+  expect(plot.parts[1].index!.count).toBe(0);
+  expect(plot.parts[2].index!.count).toBe(30);
+  plot.parts.forEach((g, i) => {
+    for (const [key, values] of Object.entries(original[i].attributes))
+      expect([...g.attributes[key].array]).toEqual(values);
+    const ids = new Set(original[i].indices);
+    expect([...g.index!.array].every((id) => ids.has(id))).toBe(true);
+  });
+  for (const occluder of [
+    new THREE.BoxGeometry(2, 0.2, 0.2).rotateY(Math.PI / 4),
+    new THREE.SphereGeometry(2, 8, 4),
+    new THREE.BoxGeometry(0.05, 0.05, 0.05).translate(0.65, 0, 0.65),
+  ]) {
+    const conservative = new PlotGeometry();
+    conservative.add(occluder, '#ffffff');
+    conservative.add(new THREE.BoxGeometry(0.05, 0.05, 0.05).translate(0.65, 0, 0.65), '#ffffff');
+    expect(removeEnclosedVillageFaces(conservative)).toBe(0);
+    conservative.parts.forEach((g) => g.dispose());
+  }
+  plot.parts.forEach((g) => g.dispose());
+});
 
 describe('authored British/Dutch village plots', () => {
   it('seats all compact porch fittings on real walls with clear downward source rays', () => {
@@ -575,68 +609,68 @@ it('softens foliage normals and leaf-age tones while retaining exact civic-baked
 it('pins current shutters, recessed pots and unchanged glazing to the exact civic rebake', () => {
   const expected = [
     [
-      'a533110e0170120455bd18776e8049c42a0bc63d1ea1f19385af6db6d2c4a977',
-      'f5e511a7f3f67a0b10fa40375021f35a3652e4b15d50de6145d8a0a3f29508c8',
+      'cfce6fd22b6eb0248051372e02a1f36610a96bb82d10a0d7e309f217685bc115',
+      '38f6da3556680fd820739e004e9674fae9cdb0ae700272c20621704aa9fc911d',
     ],
     [
       '58878f3dbe581bc21eefe9f8176f21b6352b7abcb3d35fde50c083fc48c318f6',
       'd46b61cfe0e50a2d4039e9c7f9b2bd75def0a0955e52a758f8a95d137545d9cf',
     ],
     [
-      'f400d2c0684f399f781493365b568861172f3f172ec86e30aea73a4184426399',
-      'da3e5520b045fef4e84ab2c8778ec32929adf4a71e5e9297f2db94089e9e9854',
+      '42dda835e1fb6db156bb81a79f2974b27e42796b03cc85f480d5325758914266',
+      '2687f9f045afcbbcafb2c512c7c2d5694c2083e6cac34677dcf6d1bf016bba53',
     ],
     [
-      'd621111d5d3be9a8f038f68ea851c99b32631e1e09238d04672e882d45fc7168',
-      'f7ab2155046dae87c3500f8ae83e22e61e06039663c24efdcef19a2f27682586',
+      '897093d75cdb3d3c97fc505e89826e0d77d8f1722a3db90c35702bb5b4c672ea',
+      '5d39fb5a8ce415ae9608349aeea78d39c2717141e1ad87c26e586e1106af02af',
     ],
     [
       '32c990fd18097bb1d80eb7c4306ae2e14aaf7f387c8178fe686298adcf132870',
       '6455719f5952f307a0a0d7a1692d99413267045e76e00bfe6aa5dd8375379d67',
     ],
     [
-      'e2193ae270a1a236cbee537812889ff4d24b04b3d2d78636cfa87a96fb193d2b',
-      '01b8a72dd28d270ca2e293c672b254b00cd8a2c1e4839443c98d8fcf6ab3aa38',
+      'a63ecfa88e4cf44238456736edaba66338b4553b9936780f61f98f704d092148',
+      '43c5a68ddf448ae4a4c4c781d68c6472f0b2d1d6a7270b4ca212764a5d5166d6',
     ],
     [
-      'ece4d58c66ad6fdd8c92060eb256b018bd812d11f959889495f647a4504526af',
-      '7c3a6c31101c7ea867b63fe12fad7cb4edb8459218cb9a0136314fc7e0923b5b',
+      '58a078423f0bdd1a765ace6c7f9906875c1a658b6f2842dd18e147b22372e212',
+      '70bff328c3c1f20b8238823a1089f5cd0f77e85d52c74aff685228d85b08e8e7',
     ],
     [
       '0e3b36611bb21694e2937379c8e732e2e66e39e141ab598c3c38a966b7f95464',
       'd46b61cfe0e50a2d4039e9c7f9b2bd75def0a0955e52a758f8a95d137545d9cf',
     ],
     [
-      '03179ff6800a2e7193737208441301e0e031fbeddda46d8886eb248826b38eab',
-      '0fdaeb147223bf56d588c737566bd69bb27cbb65df22b3d8e514cafc66382628',
+      'c7f96e8bd0261bf67d06cd3a25585e0b44d6da28a54d3d9c5383f6019f453343',
+      '5b1675ba6fa5d829f3317a9a2b74434118fd9744bf2b04167eb2030cc1bd0f2a',
     ],
     [
-      '210b446a4bcb30ba6aea0147d9bfaeaed79ba8bdb4235f32aeaf852bf9601792',
-      '48bc407053b849ac99ea1bad4cdce062a2ffb9972314f37025ef58074b4b6453',
+      '4589064b24e052faa99bd27e6a80486b8480f2add488caf122862cc5cca42c50',
+      '2771c68c22077d2a330f8d91272cea33ca3f2341d860c7810ae27d70404391ed',
     ],
     [
       '3a3cda642438e77b89ba59ef0987d54b2a38addcd790cedeaea68540459954c7',
       '6455719f5952f307a0a0d7a1692d99413267045e76e00bfe6aa5dd8375379d67',
     ],
     [
-      '3d88a15819d6baf6341e308013f5e3eac290ecbab41ce0301f5148b6c379e898',
-      'f0d1f4d1974df09e5070d29786e41a0642dd5b1e013c24d9211b20a4da9900bf',
+      'e0f42fa5c157bdba273fbbb5478ae9440931bc02b66000b061384b26277026d4',
+      '3fcd9f04d3411bf8a9c91bdb889de78189d9ac65ad579b63712e38325f31c545',
     ],
     [
-      'eea7e6ffc263141d4ce5c3bc76745e45b21a58ca69931c636eb8f669f95ae36d',
-      'dbd2fa46969da1d6bb21c9fadcc11f9d8e43c2939b3de900833d3551753c91e9',
+      '5c042acb730bd16d1889d3cd0cd5d542640fdabe1edc2cba16b956db0c466a51',
+      '55611897fa0e013db6c254a6489f44b5937c6acb8fcb1c9d650866ce796830e6',
     ],
     [
       '5ade559333214fe102d81f90fe82dfef11824c3545aea0765960062ff1911664',
       'fd07c976a3b0b02d8768c6fba203cf1c2f4d1eb3e350eac0a5043b7e3116ebb6',
     ],
     [
-      '822d0395204a3c5282d61ab5abec8fb96f9a057c1d4a3317ee123aaa1456009e',
-      'b9cad670050dfd3dfdb6e83f576b6d356ee72c5a2bcabe50098e877f48509e92',
+      'b9fa42f2a8140de5880fcb9b75def343402d72202a75857bd0da3ae738268612',
+      '0f7b9b8f929d9c330ea450dac00d18fbc58fea041daf90337995978a0d0ff700',
     ],
     [
-      '83953e6845433315e391151a9afd30147637d2602d78fb5006f6920dd62eaa4c',
-      '9182749e49e2186b8f5f5135998f401901879cb2a35007d3d8e0e8caf2e49404',
+      'e4e6adc351b460e2bb37f89e0b52cace9dbff25e3afcc1cf7fe019d74e409904',
+      '8439007ff747331542835af32a4d7b0966ce65cf177c8534730699b8c1d31fa3',
     ],
   ];
   const actual = [
@@ -878,7 +912,21 @@ it('varies allotment crops deterministically without spending more village geome
       y = uv.getY(i) * 256 - 0.5;
     if (x >= left && x <= right && y >= bottom && y <= top) crownVertices++;
   }
-  expect(crownVertices).toBe(16 * 48 * 3);
+  expect(crownVertices, `Full planted centres, actual whole-village triangles: ${triangles}`).toBe(
+    32 * 48 * 3
+  );
+});
+
+it('plants every centre and edge cell in both four-by-four cabbage beds', () => {
+  for (const bedZ of [-0.35, 3.65])
+    for (let row = 0; row < 4; row++)
+      for (let column = 0; column < 4; column++) {
+        const x = -3.875 + column * 0.675,
+          z = bedZ - 1.02 + row * 0.68;
+        const crown = hit(VILLAGE_ALLOTMENT_GEOMETRY, [x, 1, z], [0, -1, 0], 1)[0];
+        expect(crown?.point.y).toBeGreaterThan(0.3);
+        expect(crown?.point.y).toBeLessThan(0.63);
+      }
 });
 
 it('attaches every runner-bean node and both end caps to its actual climbing stem', () => {
