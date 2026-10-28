@@ -1,3 +1,5 @@
+import { useProcessInspectionStore } from '../../stores/processInspectionStore';
+import { ProcessInspectionCard } from '../ui-new/widgets/ProcessInspectionCard';
 import { useWindmillLearningStore } from '../../stores/windmillLearningStore';
 import { WindmillLearningCard } from '../ui-new/widgets/WindmillLearningCard';
 import React from 'react';
@@ -237,6 +239,7 @@ const OverviewContent: React.FC = () => {
     <div className="space-y-3">
       <OperationsPlayCard />
       <WindmillLearningCard />
+      <ProcessInspectionCard />
       <ShiftDebrief />
       <button
         onClick={() => window.dispatchEvent(new Event('millos:open-layout-planner'))}
@@ -828,8 +831,18 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
   // Close world inspection on hide, before the panel's exit animation unmounts.
   // Working if no cutaway survives behind a closed compact panel.
   React.useEffect(() => {
-    if (!isVisible) useWindmillLearningStore.getState().close();
+    if (!isVisible) {
+      useWindmillLearningStore.getState().close();
+      useProcessInspectionStore.getState().close();
+    }
   }, [isVisible]);
+  React.useEffect(
+    () => () => {
+      useWindmillLearningStore.getState().close();
+      useProcessInspectionStore.getState().close();
+    },
+    []
+  );
   const panelRef = React.useRef<HTMLElement>(null);
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   const reducedMotion = useReducedMotion();

@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MachineData } from '../../../types';
+import { MachineData, MachineType } from '../../../types';
+import { ProcessInspectionCard } from '../widgets/ProcessInspectionCard';
+import { useProcessInspectionStore } from '../../../stores/processInspectionStore';
 import { RotateCcw, FileText, CheckCircle, Loader2, Wrench, Focus } from 'lucide-react';
 import {
   getWearConfig,
@@ -46,6 +48,9 @@ export const MachineInspector: React.FC<{
   // Maintenance). The snapshot stands in when the id is not in the store.
   const machine =
     useProductionStore((state) => state.machines.find((m) => m.id === selected.id)) ?? selected;
+  const inspectionAvailable = useProcessInspectionStore((state) =>
+    Boolean(state.available[machine.id])
+  );
   const metrics = machine.metrics;
   const flowTag = getTagsByMachine(machine.id).find((tag) => tag.group === 'FLOW');
   const scadaEnabled = useGraphicsStore((state) => state.graphics.enableSCADA);
@@ -370,6 +375,13 @@ export const MachineInspector: React.FC<{
           </p>
         )}
       </section>
+      {inspectionAvailable &&
+        [
+          MachineType.ROLLER_MILL,
+          MachineType.PLANSIFTER,
+          MachineType.PACKER,
+          MachineType.SILO,
+        ].includes(machine.type) && <ProcessInspectionCard subjectId={machine.id} />}
       <details className="group">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between border border-cyan-300 px-4 text-base text-cyan-200 hover:bg-cyan-300/10">
           {t('inspect')}{' '}

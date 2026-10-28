@@ -1,3 +1,4 @@
+import { useProcessInspectionStore } from '../../../stores/processInspectionStore';
 import { useEffect, useId, useRef } from 'react';
 import { useT } from '../../../i18n';
 import { useWindmillLearningStore } from '../../../stores/windmillLearningStore';
@@ -17,6 +18,11 @@ export function WindmillLearningCard() {
   }, [open, stage]);
   useEffect(() => () => useWindmillLearningStore.getState().close(), []);
   const question = stage === 'power' || stage === 'grind';
+  const startLesson = () => {
+    if (!ready) return;
+    useProcessInspectionStore.getState().close();
+    start();
+  };
 
   return (
     <div className="rounded-xl border border-white/10 bg-slate-900/40 p-3 text-slate-200">
@@ -31,7 +37,7 @@ export function WindmillLearningCard() {
           onClick={(event) => {
             event.preventDefault();
             if (open) close();
-            else start();
+            else startLesson();
           }}
         >
           {t('title')}
@@ -84,7 +90,7 @@ export function WindmillLearningCard() {
         )}
       </details>
       {!open && (
-        <button className={`${buttonClass} mt-2`} disabled={!ready} onClick={start}>
+        <button className={`${buttonClass} mt-2`} disabled={!ready} onClick={startLesson}>
           {t('start')}
         </button>
       )}

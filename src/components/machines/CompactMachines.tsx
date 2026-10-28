@@ -62,6 +62,10 @@ import {
 } from './machineDecals';
 import { MILL_LOUVRE_FACE_X, MILL_LOUVRE_THICKNESS } from '../flow/ventPlume';
 import { SIFTER_SUSPENSION } from './sifterSuspension';
+import { useProcessInspectionStore } from '../../stores/processInspectionStore';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { MachineInspectionInterior, type MachineInspectionPose } from './MachineInspectionInterior';
+import { machineInspectionKind } from './machineInspectionGeometry';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 /**
@@ -700,7 +704,7 @@ type MachineSubset = {
   readonly packers: MachineData[];
 };
 
-const setInstanceMatrix = (
+export const setInstanceMatrix = (
   mesh: THREE.InstancedMesh | null,
   index: number,
   object: THREE.Object3D,
@@ -726,6 +730,9 @@ const setInstanceMatrix = (
     object.scale.set(...scale);
   }
   object.rotation.set(...rotation);
+  // The canonical writer also owns suppression, so animated rewrites cannot
+  // resurrect a selected shell. Close recomputes today's pose, never an old copy.
+  if (mesh.userData.inspectionHiddenIndices?.has(index)) object.scale.setScalar(0);
   object.updateMatrix();
   mesh.setMatrixAt(index, object.matrix);
 };
@@ -847,13 +854,23 @@ function InteractiveInstances({
     [machines, onSelect]
   );
 
+  const sectionRaycast = useCallback(
+    function (this: THREE.InstancedMesh, caster: THREE.Raycaster, hits: THREE.Intersection[]) {
+      const first = hits.length;
+      (raycast ?? THREE.InstancedMesh.prototype.raycast).call(this, caster, hits);
+      for (let i = hits.length - 1; i >= first; i--) {
+        if (this.userData.inspectionHiddenIndices?.has(hits[i].instanceId)) hits.splice(i, 1);
+      }
+    },
+    [raycast]
+  );
   return (
     <instancedMesh
       ref={meshRef}
       args={[geometry, material, count]}
       castShadow={castShadow}
       receiveShadow={receiveShadow}
-      {...(raycast ? { raycast } : {})}
+      raycast={sectionRaycast}
       onClick={selectInstance}
       onPointerOver={(event) => {
         event.stopPropagation();
@@ -870,6 +887,15 @@ function InteractiveInstances({
       )}
     </instancedMesh>
   );
+}
+
+function InspectionSubject({ machine }: { machine: MachineData }) {
+  const { id, name, type } = machine;
+  useEffect(() => {
+    const kind = machineInspectionKind(type);
+    if (kind) return useProcessInspectionStore.getState().register({ id, name, kind });
+  }, [id, name, type]);
+  return null;
 }
 
 function CompactMachineSet({
@@ -970,6 +996,16 @@ function CompactMachineSet({
   const objectRef = useRef(new THREE.Object3D());
   const flowVisualFrameRef = useRef(0);
   const visualClocks = useRef(new Map<string, MachineVisualClock>());
+  const inspectionId = useProcessInspectionStore((state) => state.active?.id ?? null);
+  const inspected = allMachines.find((machine) => machine.id === inspectionId);
+  const reducedMotion = useReducedMotion();
+  const inspectionPose = useRef<MachineInspectionPose>({
+    phase: null,
+    offset: [0, 0, 0],
+    state: 'stopped',
+    fill: 0,
+    cycle: 0,
+  });
 
   /**
    * `enableMachineColorVariation` is true on medium and above but had no effect
@@ -997,6 +1033,71 @@ function CompactMachineSet({
   }, [composerActive]);
 
   const decals = useMemo(() => planMachineDecals(subsets), [subsets]);
+
+  useLayoutEffect(() => {
+    const owned: THREE.InstancedMesh[] = [];
+    const hide = (ref: React.RefObject<THREE.InstancedMesh | null>, indices: number[]) => {
+      const mesh = ref.current;
+      if (mesh && indices.length) {
+        mesh.userData.inspectionHiddenIndices = new Set(indices);
+        owned.push(mesh);
+      }
+    };
+    const select = (list: MachineData[]) =>
+      list.findIndex((machine) => machine.id === inspectionId);
+    const si = select(subsets.silos),
+      mi = select(subsets.mills),
+      fi = select(subsets.sifters),
+      pi = select(subsets.packers);
+    if (si >= 0)
+      [siloBodyRef, siloRoofRef, siloFillRef, siloOutletRef, siloHatchRef, siloHardwareRef].forEach(
+        (ref) => hide(ref, [si])
+      );
+    if (mi >= 0) {
+      [
+        millBodyRef,
+        millHopperRef,
+        millPanelRef,
+        millRecessRef,
+        millScreenRef,
+        millGuardRef,
+        millHardwareRef,
+        millAccentRef,
+      ].forEach((ref) => hide(ref, [mi]));
+      hide(millRollerRef, [mi * 2, mi * 2 + 1]);
+    }
+    if (fi >= 0) {
+      [
+        sifterBodyRef,
+        sifterCapRef,
+        sifterServicePanelRef,
+        sifterScreenRef,
+        sifterAccentRef,
+        sifterHardwareRef,
+      ].forEach((ref) => hide(ref, [fi]));
+      hide(
+        sifterTrayRef,
+        Array.from({ length: 7 }, (_, k) => fi * 7 + k)
+      );
+    }
+    if (pi >= 0)
+      [
+        packerBodyRef,
+        packerHopperRef,
+        packerPanelRef,
+        packerScreenRef,
+        packerAccentRef,
+        packerCoversRef,
+        packerHardwareRef,
+      ].forEach((ref) => hide(ref, [pi]));
+    hide(
+      decalRef,
+      decals.flatMap((decal, i) => (decal.machineId === inspectionId ? [i] : []))
+    );
+    return () => {
+      for (const mesh of owned) delete mesh.userData.inspectionHiddenIndices;
+    };
+  }, [inspectionId, subsets, decals, enableMachineDetail, enableMachineGuard, enableMachineFinish]);
 
   useLayoutEffect(() => {
     const object = objectRef.current;
@@ -1632,6 +1733,7 @@ function CompactMachineSet({
     enableMachineGuard,
     enableMachineFinish,
     tintAmount,
+    inspectionId,
   ]);
 
   // Meshes whose matrices the frame loop rewrites. Built once: refs are stable.
@@ -1684,7 +1786,7 @@ function CompactMachineSet({
         clock,
         time,
         getMachineOperationalState(machine.status, flowState.machineBuffers.get(machine.id)) ===
-          'operating'
+          'operating' && !reducedMotion
       );
     };
 
@@ -1692,6 +1794,12 @@ function CompactMachineSet({
       const [x, y, z] = machine.position;
       const phase = machinePhase(machine);
       const vibration = phase === null ? 0 : Math.sin(phase * 28 + index) * 0.012;
+      if (machine.id === inspectionId) {
+        inspectionPose.current.phase = phase;
+        inspectionPose.current.offset[0] = 0;
+        inspectionPose.current.offset[1] = vibration;
+        inspectionPose.current.offset[2] = 0;
+      }
       // Installed about the vibrating anchor, so the shake keeps its real amplitude.
       const frame = {
         origin: [x, y + vibration, z] as Vec3Tuple,
@@ -1784,6 +1892,12 @@ function CompactMachineSet({
       const phase = machinePhase(machine);
       const offsetX = phase === null ? 0 : Math.sin(phase * 10 + index * 1.7) * 0.055;
       const offsetZ = phase === null ? 0 : Math.cos(phase * 10 + index * 1.7) * 0.055;
+      if (machine.id === inspectionId) {
+        inspectionPose.current.phase = phase;
+        inspectionPose.current.offset[0] = offsetX;
+        inspectionPose.current.offset[1] = 0;
+        inspectionPose.current.offset[2] = offsetZ;
+      }
       // Installed about the orbiting anchor, so the gyration keeps its real radius.
       const frame = {
         origin: [x + offsetX, y, z + offsetZ] as Vec3Tuple,
@@ -1874,6 +1988,11 @@ function CompactMachineSet({
     subsets.packers.forEach((machine, index) => {
       const phase = machinePhase(machine);
       const cycle = phase === null ? 0 : (Math.sin(phase * 3.2 + index) + 1) * 0.5;
+      if (machine.id === inspectionId) {
+        inspectionPose.current.phase = phase;
+        inspectionPose.current.cycle = cycle;
+        inspectionPose.current.offset.fill(0);
+      }
       setInstanceMatrix(
         packerHeadRef.current,
         index,
@@ -1891,6 +2010,20 @@ function CompactMachineSet({
       bagPrintRef.current?.setMatrixAt(index, object.matrix);
     });
 
+    if (inspected) {
+      const buffer = flowState.machineBuffers.get(inspected.id);
+      inspectionPose.current.state = getMachineOperationalState(inspected.status, buffer);
+      inspectionPose.current.fill = THREE.MathUtils.clamp(
+        (buffer?.outputBuffer.reduce((sum, material) => sum + material.amount, 0) ?? 0) /
+          Math.max(1, buffer?.outputCapacity ?? 50000),
+        0,
+        1
+      );
+      if (inspected.type === MachineType.SILO) {
+        inspectionPose.current.phase = null;
+        inspectionPose.current.offset.fill(0);
+      }
+    }
     flowVisualFrameRef.current += 1;
     if (flowVisualFrameRef.current % 12 === 0) {
       subsets.silos.forEach((machine, index) => {
@@ -1925,10 +2058,21 @@ function CompactMachineSet({
     for (let i = 0; i < animatedMeshRefs.length; i += 1) {
       finishMatrixUpdate(animatedMeshRefs[i].current);
     }
-  });
+  }, -1);
 
   return (
     <group name="compact-machines" dispose={null}>
+      {allMachines.map((machine) => (
+        <InspectionSubject key={machine.id} machine={machine} />
+      ))}
+      {inspected && (
+        <MachineInspectionInterior
+          key={inspected.id}
+          machine={inspected}
+          pose={inspectionPose}
+          onSelect={onSelect}
+        />
+      )}
       <InteractiveInstances
         meshRef={siloBodyRef}
         geometry={SILO_SHELL}

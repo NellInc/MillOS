@@ -6,6 +6,7 @@ import { useMaterialFlowStore, type MachineBuffer } from '../../../stores/materi
 import { useProductionStore } from '../../../stores/productionStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
 import { useUIStore } from '../../../stores/uiStore';
+import { useProcessInspectionStore } from '../../../stores/processInspectionStore';
 import { unifiedGameTick } from '../../../systems/UnifiedGameTick';
 
 const machine: MachineData = {
@@ -387,5 +388,27 @@ describe('MachineInspector evidence', () => {
     expect(screen.getAllByText('--')).toHaveLength(2);
     expect(screen.queryByText('NaN')).not.toBeInTheDocument();
     expect(screen.queryByText('Infinity')).not.toBeInTheDocument();
+  });
+});
+
+// New inline lesson must coexist with the incumbent Inspect/service controls.
+describe('registered machine section entry', () => {
+  it('opens only a mounted subject and closes without changing production', () => {
+    const release = useProcessInspectionStore
+      .getState()
+      .register({ id: machine.id, name: machine.name, kind: 'mill' });
+    const before = useProductionStore.getState().machines;
+    const view = renderComponent(<MachineInspector machine={machine} />);
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'View inside' }));
+      expect(screen.getByRole('heading', { name: 'Review mill: Grain feed' })).toBeVisible();
+      expect(screen.getByText('Inspect').closest('summary')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      expect(useProcessInspectionStore.getState().active).toBeNull();
+      expect(useProductionStore.getState().machines).toBe(before);
+    } finally {
+      view.unmount();
+      release();
+    }
   });
 });

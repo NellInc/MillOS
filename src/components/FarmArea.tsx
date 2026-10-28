@@ -36,6 +36,8 @@ import {
   instanceYaw,
 } from './models/GeneratedModel';
 import { GeneratedWindmillBody } from './models/GeneratedWindmill';
+import { HenhouseInspection } from './models/HenhouseInspection';
+import { useProcessInspectionStore } from '../stores/processInspectionStore';
 import { useWindmillLearningStore } from '../stores/windmillLearningStore';
 import {
   InstancedTreeField,
@@ -988,8 +990,20 @@ const ChickenCoopPrimitiveBody = React.memo(() => (
 ChickenCoopPrimitiveBody.displayName = 'ChickenCoopPrimitiveBody';
 
 const ChickenCoop = React.memo<{ position: [number, number, number] }>(({ position }) => (
-  <group position={position}>
-    <GeneratedBody asset="coop" fallback={<ChickenCoopPrimitiveBody />} />
+  <group
+    name="farm-henhouse"
+    position={position}
+    userData={{ noStaticBatch: true }}
+    onClick={(event) => {
+      if (event.delta > 4 || !useProcessInspectionStore.getState().available.henhouse) return;
+      event.stopPropagation();
+      window.dispatchEvent(
+        new CustomEvent('millos:open-operations-workspace', { detail: 'overview' })
+      );
+      useProcessInspectionStore.getState().start('henhouse');
+    }}
+  >
+    <HenhouseInspection fallback={<ChickenCoopPrimitiveBody />} />
   </group>
 ));
 ChickenCoop.displayName = 'ChickenCoop';
@@ -1717,6 +1731,7 @@ export const WindmillComp: React.FC<{
       window.dispatchEvent(
         new CustomEvent('millos:open-operations-workspace', { detail: 'overview' })
       );
+      useProcessInspectionStore.getState().close();
       useWindmillLearningStore.getState().start();
     }}
   >

@@ -1,3 +1,4 @@
+import { useProcessInspectionStore } from '../../../stores/processInspectionStore';
 import React, { Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -69,8 +70,18 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   // rather than leaving a cutaway alive until the spring finally unmounts it.
   // Working if the exterior returns while the sidebar is still exiting.
   React.useEffect(() => {
-    if (!isVisible) useWindmillLearningStore.getState().close();
+    if (!isVisible) {
+      useWindmillLearningStore.getState().close();
+      useProcessInspectionStore.getState().close();
+    }
   }, [isVisible]);
+  React.useEffect(
+    () => () => {
+      useWindmillLearningStore.getState().close();
+      useProcessInspectionStore.getState().close();
+    },
+    []
+  );
   const t = useT(contextSidebarMessages);
   const locale = useLocale();
   React.useEffect(() => {

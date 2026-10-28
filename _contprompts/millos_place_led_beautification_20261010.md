@@ -9605,3 +9605,23 @@ Final143affected tests/12files plus3shader-contract tests PASS (146total;118/7fi
 Original farmMedium timing gate once, terminal1:59.58FPS,1%low34.8,p9518.8ms,p9919.9ms,first392.1ms. Load4.17/core contended. Expected/effectiveDPR1.20matches; world/page/community/checkpoints pass. Pacing remainsOPEN separately, no waiver, quiet-machine wait or inferred regression/improvement. Device/manual first-person, unmuted and independent player checks DEFERRED; publicationHELD/local only. Optional Impeccable executable unavailable; no dependency installed.
 
 All20items disposed in test-results/eg-windmill-grain-20261028/DISPOSITION.md, records/failed controls/source seals/raw images retained, gallery.html is the recap. Owned native/probe/browser/server/build/check jobs terminal, capture lock and preview listener absent. No foreign cleanup and no unsupported helper-disposal/RAM claim. Finish the acceptance-only local check-in and final custody check, then apply the requested supported goalPAUSED and stop. The broader world-polish programme is unfinished; do not start another rotation.
+
+### EH machines and henhouse cutaway, authorized 2026-10-28
+
+Nell: “Proceed please. And the Henhouse, sod it.” Finite extension of EG to roller mills, plansifters, packers, silos and henhouse. Starting clean d9d64e31. Local and muted only; preserve interface and installed geometry, no remote upload/publication. Defer player/device checks and keep pacing OPEN separately. Finish this batch, then pause. Existing goal is paused in the goal API, direct human authorization releases only this batch.
+
+Plan and acceptance:
+1. Reconcile real live machine instances, installed scales, motion owner, source hens/coops and existing inspector hosts. Baseline 55 tests in 6 files passed, no failures.
+2. Open only the selected enclosure, retain other instances and original closed rendering. Hide through the common matrix writer, including animated writes; exclude hidden instances from picking. Restore canonical current transforms on exit.
+3. Fit paired opposed mill rollers, feeder and outlet; seven fine sieve decks and separated outlets; packer weigh hopper/gate aligned with the retained real-size filling station; silo section with actual zero-to-full stored column. Illustrative internal engineering, no exact manufacturer reconstruction claim.
+4. Use the current machine phase, genuine operational state and installed frame. Paused, hidden, reduced-motion, stopped, starved, blocked and faulted holds consume time without catch-up. No new production, stock, rewards or clock authority.
+5. Section the genuine henhouse geometry, preserve floor/supports, fit dry nests, perch, feed and water, two existing licensed hens and restrained nocturnal illumination. No new egg inventory.
+6. Register mounted inspection subjects, close on final release. One mutual-exclusive inspection, fixed machine inspector or compact existing Overview selector. Four manual bilingual stages, predictions/retry/back/finish/close/reset. No new HUD or navigation.
+7. Fit explicit stage cameras through installed transforms, ordinary distance guards, identity-owned cancellation. Close never resumes play or steals a newer camera flight.
+8. Dispose owned resources, preserve cached assets/materials, opt interactive interiors out of static batching. No global clipping, added scene lights, shadow maps, quality changes or guard waivers.
+9. Run focused changed-contract checks and required integrated source gates. Build actual production output, seal source/output and run fresh compiled gates.
+10. Native local silent checks of all families/henhouse, switching, stage completion, restoring exterior and another instance, motion/holds, day/night/Low plus windmill regression. Retain clean page/network/world/personnel/texture/audio guards. Inspect actual images.
+11. Original affected-scene timing once, unchanged budgets; retain misses separately, no quiet-GPU wait.
+12. Retain gallery/receipts/failures and source custody. Check in only owned local changes, close owned temporary resources, pause goal and stop.
+
+Working if: all five actual installed subjects expose coherent optional interiors with usable lessons, original exteriors and unrelated instances recover cleanly, source/build/runtime checks have terminal evidence, no production authority is changed and the finite local batch ends paused.
