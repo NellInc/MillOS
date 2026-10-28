@@ -11,7 +11,8 @@ vi.mock('../agent/client/executeAgentCommand', () => ({
 }));
 vi.mock('./webgpuClient', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./webgpuClient')>()),
-  webgpuClient: { isConnected: mocks.isConnected },
+  // onEngineLost: aiConfigStore subscribes to it when it loads.
+  webgpuClient: { isConnected: mocks.isConnected, onEngineLost: () => () => undefined },
 }));
 
 import {

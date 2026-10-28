@@ -755,13 +755,11 @@ export const VALLEY_HOLLOWS = [
 ] as const;
 const MEADOW_RELIEF = [...VALLEY_HILLS, ...VALLEY_HOLLOWS];
 
-// The castle carries its own rock, so the meadow rise at its v0.30 site is
-// flattened under it rather than lifting the rock's foot off the ground.
-const LANDMARK_RELIEF_PADS = [
-  SITE_LAYOUT.landmarks.village,
-  SITE_LAYOUT.landmarks.farm,
-  SITE_LAYOUT.landmarks.castle,
-].map((anchor) => getLandmarkBounds(anchor));
+// The castle is not padded: it stands on the foothills, beyond the point where
+// this meadow relief has faded out, so its v0.30 site keeps its meadow rise.
+const LANDMARK_RELIEF_PADS = [SITE_LAYOUT.landmarks.village, SITE_LAYOUT.landmarks.farm].map(
+  (anchor) => getLandmarkBounds(anchor)
+);
 
 // Align the occupied plateau to the coarsest terrain grid. Both quality meshes
 // then contain complete, level triangles under the plaza and every building.

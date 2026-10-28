@@ -729,6 +729,27 @@ export const useAIConfigStore = create<AIConfigState>()(
   )
 );
 
+// A lost WebGPU device leaves no model (see isEngineGoneError). Mark the core
+// down so the strategic layer and the lights-out operator stand down, and
+// reload it from the browser cache. At most once in ten minutes: a device that
+// keeps losing memory is left for the player to reload.
+const AUTO_RELOAD_GAP_MS = 10 * 60_000;
+let lastAutoReload = -Infinity;
+webgpuClient.onEngineLost(() => {
+  const now = Date.now();
+  const retry = now - lastAutoReload >= AUTO_RELOAD_GAP_MS;
+  useAIConfigStore.setState({
+    webgpuModelReady: false,
+    webgpuStatus: retry ? 'idle' : 'error',
+    webgpuProgress: 0,
+    webgpuMessage: retry ? translate(aiConfigStoreMessages, 'modelLostReloading') : '',
+    webgpuError: retry ? null : translate(aiConfigStoreMessages, 'modelLostAgain'),
+  });
+  if (!retry) return;
+  lastAutoReload = now;
+  void useAIConfigStore.getState().loadWebGPUModel(false);
+});
+
 spendBudget.subscribe(() => {
   const snapshot = spendBudget.getSnapshot();
   useAIConfigStore.setState({
