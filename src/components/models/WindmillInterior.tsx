@@ -105,7 +105,8 @@ export function createWindmillInteriorGeometry(scale: number) {
   }
   for (const y of [-0.428, -0.22]) {
     // Full circular galleries surround the machinery opening, supported below.
-    ring(wood, [CX, y, CZ], 0.115, y < -0.3 ? 0.211 : 0.187, 0.009);
+    if (y < -0.3) cylinder(wood, [CX, y, CZ], 0.211, 0.009);
+    else ring(wood, [CX, y, CZ], 0.115, 0.187, 0.009);
     for (const z of [-0.13, 0.115]) box(wood, [CX, y - 0.014, z], [0.3, 0.02, 0.018]);
   }
   for (const x of [-0.16, 0.12]) {
@@ -173,6 +174,8 @@ export function createWindmillInteriorGeometry(scale: number) {
     const a = (i * Math.PI * 2) / 16;
     box(nut, [Math.cos(a) * 0.016, 0, Math.sin(a) * 0.016], [0.005, 0.016, 0.003], [0, -a, 0]);
   }
+  // Bed-stone bearers bridge the upper gallery and meet the actual underside.
+  for (const z of [-0.018, 0.08]) box(wood, [0.02, -0.224, z], [0.29, 0.016, 0.018]);
   // Two separate annular stones, an open eye, a visible inter-stone gap.
   ring(stone, [0.02, -0.207, 0.031], 0.009, 0.072, 0.018);
   ring(runner, [0, 0, 0], 0.009, 0.071, 0.012);
@@ -211,8 +214,8 @@ export function createWindmillInteriorGeometry(scale: number) {
   // Meal chute has a rear panel and two sides; its front is genuinely open.
   box(wood, [0.087, -0.285, 0.088], [0.022, 0.14, 0.004]);
   for (const x of [0.075, 0.099]) box(wood, [x, -0.285, 0.096], [0.004, 0.14, 0.02]);
-  cylinder(cloth, [0.087, -0.386, 0.098], 0.029, 0.064, undefined, 0.021, 16);
-  ring(cloth, [0.087, -0.353, 0.098], 0.014, 0.022, 0.005);
+  cylinder(cloth, [0.087, -0.3915, 0.098], 0.029, 0.064, undefined, 0.021, 16);
+  ring(cloth, [0.087, -0.3585, 0.098], 0.014, 0.022, 0.005);
   const lists = { wood, stone, iron, cream, cloth, crown, upright, nut, runner };
   return Object.fromEntries(
     Object.entries(lists).map(([name, parts]) => {

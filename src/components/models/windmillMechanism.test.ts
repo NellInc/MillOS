@@ -65,6 +65,17 @@ describe('owned interior geometry budget', () => {
     // Nine merged meshes plus one instanced grain draw. Kernels add 24 * 20 triangles.
     expect(Object.keys(geometries)).toHaveLength(9);
     expect(triangles + 480).toBeLessThan(9000);
+    // The sack stands on the full base floor; bed stone has real cross-bearers.
+    geometries.cloth.computeBoundingBox();
+    geometries.stone.computeBoundingBox();
+    const wood = geometries.wood.getAttribute('position');
+    for (const y of [geometries.cloth.boundingBox!.min.y, geometries.stone.boundingBox!.min.y]) {
+      expect(
+        Array.from({ length: wood.count }, (_, i) => wood.getY(i)).some(
+          (value) => Math.abs(value - y) < 1e-6
+        )
+      ).toBe(true);
+    }
     Object.values(geometries).forEach((geometry) => {
       expect(geometry.boundingSphere?.radius).toBeGreaterThan(0);
       expect(Number.isFinite(geometry.boundingSphere?.radius)).toBe(true);
