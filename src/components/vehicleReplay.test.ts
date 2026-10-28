@@ -47,7 +47,15 @@ vi.mock('../hooks/useReducedMotion', () => ({ useReducedMotion: () => harness.re
 vi.mock('zustand/react/shallow', () => ({ useShallow: (selector: unknown) => selector }));
 vi.mock('@react-three/fiber', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@react-three/fiber')>()),
-  useFrame: (frame: (typeof harness.frames)[number]) => harness.frames.push(frame),
+  useFrame: (frame: (typeof harness.frames)[number]) =>
+    harness.frames.push((state, delta) => {
+      const frameState = {
+        size: { width: 1920, height: 1080, top: 0, left: 0 },
+        viewport: { dpr: 1 },
+        ...state,
+      };
+      frame(frameState, delta);
+    }),
 }));
 vi.mock('../simulation/workplaceReplayRuntime', () => ({
   isWorkplaceReplayRestoring: () => harness.restoring,
