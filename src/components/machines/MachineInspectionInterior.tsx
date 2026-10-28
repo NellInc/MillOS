@@ -145,7 +145,15 @@ export function MachineInspectionInterior({
     const distance = Math.max(15.5, size * 1.5);
     const eye = target
       .clone()
-      .add(new THREE.Vector3(0.19, 0.14, 1).normalize().multiplyScalar(distance));
+      .add(
+        new THREE.Vector3(
+          ...(kind === 'mill' && (stage === 1 || stage === 2)
+            ? ([0.6, 1.7, 1] as const)
+            : ([0.19, 0.14, 1] as const))
+        )
+          .normalize()
+          .multiplyScalar(distance)
+      );
     useCameraStore.getState().focusOn(eye.toArray(), target.toArray());
     useCameraStore.setState({
       targetFov: THREE.MathUtils.radToDeg(2 * Math.atan(size / (2 * distance))),
