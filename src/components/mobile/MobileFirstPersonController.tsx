@@ -7,11 +7,12 @@ import {
   createConveyorObstacles,
   DOCK_PLATFORM_OBSTACLES,
 } from '../../constants/factoryObstacles';
-import { WORLD_RADIUS } from '../../constants/siteLayout';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import {
   sampleWalkingGroundHeight,
+  isWithinWalkingDomain,
+  clampWalkingSpawn,
   moveWalkingPosition,
   walkingBlocks,
   isDryWalkingGround,
@@ -43,7 +44,7 @@ const COLLISION_BOXES = [
 
 /** True when a player standing at (x, z) would overlap the world edge or an obstacle. */
 const collides = (x: number, z: number): boolean => {
-  if (Math.sqrt(x * x + z * z) > WORLD_RADIUS - PLAYER_RADIUS) return true;
+  if (!isWithinWalkingDomain(x, z, PLAYER_RADIUS)) return true;
   for (const box of COLLISION_BOXES) {
     if (
       x + PLAYER_RADIUS > box.minX &&
@@ -112,16 +113,7 @@ export const MobileFirstPersonController: React.FC = () => {
 
     const currentX = camera.position.x;
     const currentZ = camera.position.z;
-    const distanceFromCenter = Math.sqrt(currentX * currentX + currentZ * currentZ);
-
-    let spawnX = currentX;
-    let spawnZ = currentZ;
-
-    if (distanceFromCenter > WORLD_RADIUS - PLAYER_RADIUS) {
-      const scale = (WORLD_RADIUS - PLAYER_RADIUS - 1) / distanceFromCenter;
-      spawnX = currentX * scale;
-      spawnZ = currentZ * scale;
-    }
+    let [spawnX, spawnZ] = clampWalkingSpawn(currentX, currentZ, PLAYER_RADIUS);
     [spawnX, spawnZ] = findFreeSpawn(spawnX, spawnZ);
 
     const groundY = sampleWalkingGroundHeight(

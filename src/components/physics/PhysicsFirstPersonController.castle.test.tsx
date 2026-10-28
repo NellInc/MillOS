@@ -62,13 +62,21 @@ beforeEach(() => {
   h.camera.position.set(...castleWorldPosition(7.2, 5, 26));
 });
 afterEach(cleanup);
-it('spawns a walker placed at the foothill castle back inside the valley', () => {
-  // The castle stands beyond WORLD_RADIUS; the spawn clamp keeps the body in
-  // the playable disc, on ordinary ground, rather than on the castle's steps.
+it('resolves Rapier displacement up and down both flights without vertical input', () => {
   render(<PhysicsFirstPersonController />);
   h.lock();
   h.frame({}, 1 / 60);
-  expect(Math.hypot(h.position.x, h.position.z)).toBeLessThanOrEqual(WORLD_RADIUS);
+  const from = new THREE.Vector3(...castleWorldPosition(7.2, 0.2, 26));
+  const toward = new THREE.Vector3(...castleWorldPosition(7.2, 0.2, 0)).sub(from).normalize();
+  const move = (sign: number) => {
+    h.position.x += toward.x * 0.2 * sign;
+    h.position.z += toward.z * 0.2 * sign;
+    h.frame({}, 1 / 60);
+  };
+  for (let i = 0; i < 150; i++) move(1);
+  expect(castleLocalPosition(h.position.x, h.position.z)[1]).toBeLessThan(8);
+  expect(h.camera.position.y).toBeCloseTo(castleWorldPosition(7.2, 3.2, 0)[1] + 1.7, 4);
+  for (let i = 0; i < 170; i++) move(-1);
   expect(castleLocalPosition(h.position.x, h.position.z)[1]).toBeGreaterThan(25);
   expect(h.camera.position.y).toBeCloseTo(
     sampleWalkingGroundHeight(h.position.x, h.position.z, 64) + 1.7,
@@ -141,4 +149,14 @@ it('relocates the optional physics spawn out of the bench and sweeps upward disp
 it('uses the same handled admission path for optional physics walking', () => {
   render(<PhysicsFirstPersonController />);
   expect(h.selector).toBe(':not(*)');
+});
+
+it('bounds optional physics displacement even without solid world-wall colliders', () => {
+  h.camera.position.set(WORLD_RADIUS - 2, 20, 0);
+  render(<PhysicsFirstPersonController />);
+  h.lock();
+  h.frame({}, 1 / 60);
+  h.position.x += 30;
+  h.frame({}, 1 / 60);
+  expect(Math.hypot(h.position.x, h.position.z)).toBeLessThanOrEqual(WORLD_RADIUS - 0.4);
 });

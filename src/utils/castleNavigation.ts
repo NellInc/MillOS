@@ -6,6 +6,9 @@ import {
 } from '../constants/publicRealmLayout';
 import {
   SITE_LAYOUT,
+  WORLD_RADIUS,
+  RIVER_FOOTBRIDGE_DECK,
+  RIVER_FOOTBRIDGE_LANDINGS,
   riverFootbridgeWalkingHeight,
   nearRiverFootbridge,
 } from '../constants/siteLayout';
@@ -45,6 +48,51 @@ export function castleWorldPosition(x: number, y: number, z: number): [number, n
 export function nearCastle(x: number, z: number): boolean {
   return Math.abs(x - site.position[0]) < 65 && Math.abs(z - site.position[2]) < 65;
 }
+
+/** A bounded dry-bank approach preserves the distant castle without moving
+ * the world-radius-driven ridge meshes. River access stays on the real bridge.
+ * Working if all controllers can reach the stairs and reject the corridor sides.
+ */
+export const CASTLE_WALKING_ROUTE = {
+  start: [
+    RIVER_FOOTBRIDGE_DECK.centre[0],
+    Math.min(...RIVER_FOOTBRIDGE_LANDINGS.map((p) => p.minZ)) - 12,
+  ] as const,
+  end: castleWorldPosition(CASTLE_STAIR_X, CASTLE_ROCK_SINK, CASTLE_APPROACH.maxZ + 1),
+  halfWidth: 6,
+} as const;
+const routeDX = CASTLE_WALKING_ROUTE.end[0] - CASTLE_WALKING_ROUTE.start[0];
+const routeDZ = CASTLE_WALKING_ROUTE.end[2] - CASTLE_WALKING_ROUTE.start[1];
+const routeLengthSquared = routeDX * routeDX + routeDZ * routeDZ;
+function inCastleCorridor(x: number, z: number, radius = 0): boolean {
+  const dx = x - CASTLE_WALKING_ROUTE.start[0],
+    dz = z - CASTLE_WALKING_ROUTE.start[1];
+  const t = Math.max(0, Math.min(1, (dx * routeDX + dz * routeDZ) / routeLengthSquared));
+  const edge = CASTLE_WALKING_ROUTE.halfWidth - radius;
+  return edge >= 0 && (dx - t * routeDX) ** 2 + (dz - t * routeDZ) ** 2 <= edge * edge;
+}
+export function isWithinWalkingDomain(x: number, z: number, radius = 0.4): boolean {
+  if (!Number.isFinite(x) || !Number.isFinite(z) || !Number.isFinite(radius) || radius < 0)
+    return false;
+  if (x * x + z * z <= (WORLD_RADIUS - radius) ** 2) return true;
+  if (inCastleCorridor(x, z, radius)) return true;
+  const dx = (x - site.position[0]) / site.scale,
+    dz = (z - site.position[2]) / site.scale;
+  const lx = dx * c - dz * s,
+    lz = dx * s + dz * c,
+    r = radius / site.scale;
+  return Math.abs(lx) <= 22 - r && lz >= -22 + r && lz <= 30 - r;
+}
+/** Preserve a valid corridor/court spawn; unrelated exterior cameras retain
+ * the old valley clamp before the existing free-ground search.
+ */
+export function clampWalkingSpawn(x: number, z: number, radius = 0.4): [number, number] {
+  if (isWithinWalkingDomain(x, z, radius)) return [x, z];
+  const distance = Math.hypot(x, z);
+  const scale = distance > 0 ? (WORLD_RADIUS - radius - 1) / distance : 0;
+  return [x * scale, z * scale];
+}
+
 function stairHeight(x: number, z: number): number | null {
   if (Math.abs(x - CASTLE_STAIR_X) > CASTLE_STAIR_WIDTH / 2 || z > CASTLE_STAIR_END || z < 15.7)
     return null;
@@ -84,7 +132,9 @@ function approachHeight(x: number, z: number, segments: number): number | null {
     : h11 * (tx + tz - 1) + h01 * (1 - tx) + h10 * (1 - tz);
 }
 export function sampleWalkingGroundHeight(x: number, z: number, segments: number): number {
-  const terrain = SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(x, z, segments);
+  const terrain = inCastleCorridor(x, z)
+    ? sampleSceneryGroundHeight(x, z, segments)
+    : SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(x, z, segments);
   // The actual concrete factory slab remains at y=0; outdoor grounds use their
   // rendered -0.02 m datum. No universal invisible plane covers the river.
   const pad = SITE_LAYOUT.factory.bounds;
@@ -102,9 +152,8 @@ export function sampleWalkingGroundHeight(x: number, z: number, segments: number
   if (stair !== null) return Math.max(terrain, floorY(stair));
   if (Math.abs(lx) <= 15.925 && Math.abs(lz) <= 15.925)
     return Math.max(terrain, floorY(CASTLE_COURT_HEIGHT));
-  // The castle stands out on the foothills, beyond WORLD_RADIUS, where every
-  // controller clamps the player. Its stairs and court are its own floors; the
-  // approach and the ground around it are the ridge where that covers the valley.
+  // The stairs and court retain their authored floors; the bounded route and
+  // surrounding footing use the same ridge triangles as the visible scenery.
   return sampleSceneryGroundHeight(x, z, segments);
 }
 /** Grounded exploration stays on dry banks or explicit bridges. Q/E retains
@@ -196,7 +245,11 @@ export function moveWalkingPosition(
       const x = position.x + (axis === 'x' ? dx / count : 0);
       const z = position.z + (axis === 'z' ? dz / count : 0);
       const floor = sampleWalkingGroundHeight(x, z, segments);
-      if (grounded && floor < MILLOS_RIVER_CONFIG.waterLevel + 0.08) continue;
+      if (
+        !isWithinWalkingDomain(x, z) ||
+        (grounded && floor < MILLOS_RIVER_CONFIG.waterLevel + 0.08)
+      )
+        continue;
       if (
         blocked(x, z) ||
         walkingBlocks(x, z, Math.max(feet, grounded ? floor : feet), 0.4, bodyHeight)
@@ -204,7 +257,9 @@ export function moveWalkingPosition(
         continue;
       if (
         grounded &&
-        (nearCastle(x, z) ||
+        (inCastleCorridor(x, z) ||
+          inCastleCorridor(position.x, position.z) ||
+          nearCastle(x, z) ||
           nearCastle(position.x, position.z) ||
           nearCanalBridge(x, z) ||
           nearCanalBridge(position.x, position.z) ||

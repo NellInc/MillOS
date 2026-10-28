@@ -16,6 +16,8 @@ import { useUIStore } from '../../stores/uiStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import {
   sampleWalkingGroundHeight,
+  isWithinWalkingDomain,
+  clampWalkingSpawn,
   walkingBlocks,
   isDryWalkingGround,
   moveWalkingPosition,
@@ -25,7 +27,6 @@ import {
   PHYSICS_CONFIG,
   COLLISION_FILTERS,
   createCollisionGroups,
-  WORLD_RADIUS,
 } from '../../physics/PhysicsConfig';
 import {
   clampNavigationDelta,
@@ -89,17 +90,7 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
   const spawnPosition = useMemo((): [number, number, number] => {
     const currentX = camera.position.x;
     const currentZ = camera.position.z;
-    const distanceFromCenter = Math.sqrt(currentX * currentX + currentZ * currentZ);
-
-    let spawnX = currentX;
-    let spawnZ = currentZ;
-
-    // If outside world bounds, clamp to edge
-    if (distanceFromCenter > WORLD_RADIUS - PLAYER_RADIUS) {
-      const scale = (WORLD_RADIUS - PLAYER_RADIUS - 1) / distanceFromCenter;
-      spawnX = currentX * scale;
-      spawnZ = currentZ * scale;
-    }
+    let [spawnX, spawnZ] = clampWalkingSpawn(currentX, currentZ, PLAYER_RADIUS);
 
     const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
     if (
@@ -111,7 +102,7 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
           const x = spawnX + radius * Math.cos((i * Math.PI) / 8);
           const z = spawnZ + radius * Math.sin((i * Math.PI) / 8);
           if (
-            Math.hypot(x, z) < WORLD_RADIUS - PLAYER_RADIUS &&
+            isWithinWalkingDomain(x, z, PLAYER_RADIUS) &&
             isDryWalkingGround(x, z, segments) &&
             !walkingBlocks(x, z, sampleWalkingGroundHeight(x, z, segments))
           ) {

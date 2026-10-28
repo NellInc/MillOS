@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { clampShelterVerticalMovement } from '../constants/publicRealmLayout';
 import {
   sampleWalkingGroundHeight,
+  isWithinWalkingDomain,
+  clampWalkingSpawn,
   moveWalkingPosition,
   walkingBlocks,
   isDryWalkingGround,
@@ -16,7 +18,7 @@ import {
   createConveyorObstacles,
   DOCK_PLATFORM_OBSTACLES,
 } from '../constants/factoryObstacles';
-import { WORLD_RADIUS, SITE_LAYOUT, getSiloAssemblyScale } from '../constants/siteLayout';
+import { SITE_LAYOUT, getSiloAssemblyScale } from '../constants/siteLayout';
 import { useUIStore } from '../stores/uiStore';
 import { useT } from '../i18n';
 import { fpsInstructionsMessages } from './FirstPersonController.messages';
@@ -45,8 +47,8 @@ const COLLISION_BOXES = [
 
 /** True when a player standing at (x, z) would overlap the world edge or an obstacle. */
 const collides = (x: number, z: number): boolean => {
-  // Circular world boundary (mountains)
-  if (Math.sqrt(x * x + z * z) > WORLD_RADIUS - PLAYER_RADIUS) return true;
+  // Valley boundary plus the shared, bounded castle approach.
+  if (!isWithinWalkingDomain(x, z, PLAYER_RADIUS)) return true;
   for (const box of COLLISION_BOXES) {
     if (
       x + PLAYER_RADIUS > box.minX &&
@@ -135,20 +137,10 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     const prevPosition = camera.position.clone();
 
     // Spawn at current camera XZ position, projected to ground level
-    // Clamp to within world bounds (circular boundary at mountains)
+    // Preserve valid castle access; unrelated exterior cameras retain valley bounds.
     const currentX = camera.position.x;
     const currentZ = camera.position.z;
-    const distanceFromCenter = Math.sqrt(currentX * currentX + currentZ * currentZ);
-
-    let spawnX = currentX;
-    let spawnZ = currentZ;
-
-    // If outside world bounds, clamp to edge
-    if (distanceFromCenter > WORLD_RADIUS - PLAYER_RADIUS) {
-      const scale = (WORLD_RADIUS - PLAYER_RADIUS - 1) / distanceFromCenter;
-      spawnX = currentX * scale;
-      spawnZ = currentZ * scale;
-    }
+    let [spawnX, spawnZ] = clampWalkingSpawn(currentX, currentZ, PLAYER_RADIUS);
     [spawnX, spawnZ] = findFreeSpawn(spawnX, spawnZ);
 
     const groundY = sampleWalkingGroundHeight(

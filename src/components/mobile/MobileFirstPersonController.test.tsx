@@ -105,7 +105,7 @@ it('restores the orbit FOV and position when leaving first-person', () => {
   expect(harness.camera.position.toArray()).toEqual([-190, 50, -104]);
 });
 
-it('keeps the foothill castle a landmark for the touch-look and D-pad walker', async () => {
+it('walks the castle stairs and returns using the touch-look and D-pad controls', async () => {
   const { castleWorldPosition, castleLocalPosition } = await import('../../utils/castleNavigation');
   harness.camera.position.set(...castleWorldPosition(7.2, 5, 26));
   render(<MobileFirstPersonController />);
@@ -123,14 +123,14 @@ it('keeps the foothill castle a landmark for the touch-look and D-pad walker', a
   touch('touchstart', 0, 0);
   touch('touchmove', (initial.y - end.y) / 0.006, (initial.x - end.x) / 0.006);
   for (let i = 0; i < 100; i++) harness.frame({}, 1 / 60);
-  // The castle stands on the foothills beyond WORLD_RADIUS, so the D-pad walker
-  // is clamped back into the valley rather than climbing it.
   useMobileControlStore.getState().setDpadDirection({ x: 0, y: -1 });
-  for (let i = 0; i < 30; i++) harness.frame({}, 1 / 60);
-  useMobileControlStore.getState().setDpadDirection({ x: 0, y: 0 });
-  expect(Math.hypot(harness.camera.position.x, harness.camera.position.z)).toBeLessThanOrEqual(
-    WORLD_RADIUS
+  for (let i = 0; i < 150; i++) harness.frame({}, 1 / 60);
+  expect(castleLocalPosition(harness.camera.position.x, harness.camera.position.z)[1]).toBeLessThan(
+    8
   );
+  expect(harness.camera.position.y).toBeCloseTo(castleWorldPosition(7.2, 3.2, 0)[1] + 1.7, 4);
+  useMobileControlStore.getState().setDpadDirection({ x: 0, y: 1 });
+  for (let i = 0; i < 170; i++) harness.frame({}, 1 / 60);
   expect(
     castleLocalPosition(harness.camera.position.x, harness.camera.position.z)[1]
   ).toBeGreaterThan(25);
@@ -188,4 +188,12 @@ it('relocates a touch spawn inside the bench and keeps held movement out of its 
   expect(walkingBlocks(c.position.x, c.position.z, c.position.y - 1.7)).toBe(false);
   expect(c.position.x).toBeGreaterThan(28.3);
   expect(c.position.x + 0.4).toBeLessThanOrEqual(29.356 + 1e-6);
+});
+
+it('keeps touch spawns outside the castle approach inside the valley boundary', () => {
+  harness.camera.position.set(WORLD_RADIUS + 80, 20, 100);
+  render(<MobileFirstPersonController />);
+  expect(Math.hypot(harness.camera.position.x, harness.camera.position.z)).toBeLessThan(
+    WORLD_RADIUS
+  );
 });

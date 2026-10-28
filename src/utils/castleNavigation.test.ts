@@ -21,6 +21,9 @@ import {
   CASTLE_STAIR_WIDTH,
 } from '../constants/castleAccess';
 import {
+  CASTLE_WALKING_ROUTE,
+  isWithinWalkingDomain,
+  clampWalkingSpawn,
   castleBlocks,
   walkingBlocks,
   castleLocalPosition,
@@ -300,4 +303,61 @@ it('keeps the single access light inside the upper optic and within range of bot
     const target = new Vector3(...castleWorldPosition(x, y, z));
     expect(at.distanceTo(target)).toBeLessThan(CASTLE_ACCESS_LIGHT.distance);
   }
+});
+
+describe('bounded access to the relocated castle', () => {
+  it.each([64, 128])(
+    'walks from the dry bridge bank to the approach and back at terrain %s',
+    (segments) => {
+      const { start, end } = CASTLE_WALKING_ROUTE;
+      const p = new Vector3(start[0], 0, start[1]);
+      p.y = sampleWalkingGroundHeight(p.x, p.z, segments) + 1.7;
+      const direction = new Vector3(end[0] - p.x, 0, end[2] - p.z).normalize();
+      const steps = Math.floor(Math.hypot(end[0] - p.x, end[2] - p.z) / 0.2);
+      for (let i = 0; i < steps; i++)
+        moveWalkingPosition(
+          p,
+          direction.x * 0.2,
+          direction.z * 0.2,
+          segments,
+          true,
+          1.7,
+          () => false
+        );
+      expect(Math.hypot(p.x - end[0], p.z - end[2])).toBeLessThan(0.21);
+      expect(p.y).toBeGreaterThan(9);
+      expect(p.y).toBeCloseTo(sampleWalkingGroundHeight(p.x, p.z, segments) + 1.7, 6);
+      for (let i = 0; i < steps; i++)
+        moveWalkingPosition(
+          p,
+          -direction.x * 0.2,
+          -direction.z * 0.2,
+          segments,
+          true,
+          1.7,
+          () => false
+        );
+      expect(Math.hypot(p.x - start[0], p.z - start[1])).toBeLessThan(0.01);
+    }
+  );
+  it('contains the corridor and keeps the unrelated outer world closed, even without a collider callback', () => {
+    const { start, end, halfWidth } = CASTLE_WALKING_ROUTE;
+    const x = start[0] * 0.25 + end[0] * 0.75,
+      z = start[1] * 0.25 + end[2] * 0.75;
+    const dx = end[0] - start[0],
+      dz = end[2] - start[1],
+      length = Math.hypot(dx, dz);
+    const nx = -dz / length,
+      nz = dx / length;
+    expect(isWithinWalkingDomain(x, z)).toBe(true);
+    expect(isWithinWalkingDomain(x + nx * (halfWidth + 1), z + nz * (halfWidth + 1))).toBe(false);
+    const p = new Vector3(x, sampleWalkingGroundHeight(x, z, 128) + 1.7, z);
+    moveWalkingPosition(p, nx * 30, nz * 30, 128, true, 1.7, () => false);
+    expect(isWithinWalkingDomain(p.x, p.z)).toBe(true);
+    expect((p.x - x) * nx + (p.z - z) * nz).toBeLessThanOrEqual(halfWidth - 0.4);
+    expect(isWithinWalkingDomain(400, 100)).toBe(false);
+    expect(clampWalkingSpawn(end[0], end[2])).toEqual([end[0], end[2]]);
+    const outside = clampWalkingSpawn(400, 100);
+    expect(Math.hypot(...outside)).toBeLessThan(255);
+  });
 });

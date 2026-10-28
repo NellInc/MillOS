@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { CastleAccessTrail } from './CastleAccessTrail';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { addVillageFlower } from './VillageGardens';
@@ -739,5 +740,10 @@ export function WorldPublicRealm() {
     },
     [geometry]
   );
-  return <Realm name="world-public-realm" geometry={geometry} />;
+  return (
+    <>
+      <Realm name="world-public-realm" geometry={geometry} />
+      <CastleAccessTrail segments={segments} />
+    </>
+  );
 }
