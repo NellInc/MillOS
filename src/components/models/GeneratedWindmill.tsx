@@ -281,11 +281,19 @@ export const GeneratedWindmillModel: React.FC = () => {
     if (!open || !frame) return;
     const mesh = frame.part.mesh;
     mesh.updateWorldMatrix(true, false);
-    const targetY = stage === 'power' ? 0.015 : stage === 'collect' ? -0.25 : -0.15;
-    const eye = mesh.localToWorld(new THREE.Vector3(0.75, 0.12, 1.65));
-    const target = mesh.localToWorld(new THREE.Vector3(-0.03, targetY, 0.006));
+    const targets = {
+      power: [-0.03, 0.015, 0.006],
+      feed: [0.02, -0.12, 0.031],
+      grind: [0.02, -0.195, 0.031],
+      collect: [0.087, -0.285, 0.098],
+    } as const;
+    // Detail framing uses the lens, never a bypass of the ordinary 15m orbit limit.
+    const eye = mesh.localToWorld(
+      stage === 'power' ? new THREE.Vector3(0.75, 0.12, 1.65) : new THREE.Vector3(0.45, -0.02, 1.65)
+    );
+    const target = mesh.localToWorld(new THREE.Vector3(...targets[stage]));
     useCameraStore.getState().focusOn(eye.toArray(), target.toArray());
-    useCameraStore.setState({ targetFov: 45 });
+    useCameraStore.setState({ targetFov: stage === 'power' ? 45 : 20 });
     const ownedTarget = useCameraStore.getState().targetPosition;
     return () => {
       const camera = useCameraStore.getState();

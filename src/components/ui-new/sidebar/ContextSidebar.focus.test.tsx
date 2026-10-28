@@ -1,5 +1,6 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { useWindmillLearningStore as lesson } from '../../../stores/windmillLearningStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { ContextSidebar } from './ContextSidebar';
 import { setLocale } from '../../../i18n';
@@ -57,4 +58,22 @@ it('translates the Chronicle heading and panel name on a live language change', 
   expect(
     screen.getByRole('complementary', { name: 'Painel lateral: Crônica do moinho' })
   ).toBeVisible();
+});
+
+it('closes inspection on hide before AnimatePresence releases its exiting subtree', () => {
+  const release = lesson.getState().registerModel();
+  const props = {
+    mode: 'management' as const,
+    onClose: vi.fn(),
+    selectedMachine: null,
+    productionSpeed: 1,
+    setProductionSpeed: vi.fn(),
+  };
+  const view = render(<ContextSidebar {...props} isVisible />);
+  act(() => {
+    lesson.getState().start();
+  });
+  view.rerender(<ContextSidebar {...props} isVisible={false} />);
+  expect(lesson.getState().open).toBe(false);
+  release();
 });

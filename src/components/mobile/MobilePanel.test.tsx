@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useWindmillLearningStore as lesson } from '../../stores/windmillLearningStore';
 import { MobilePanel } from './MobilePanel';
 import { requestJevAdvice } from '../../utils/jevClient';
 vi.mock('../../hooks/useReducedMotion', () => ({ useReducedMotion: () => false }));
@@ -77,4 +78,15 @@ describe('Mobile AI advisory wiring', () => {
     rerender(<MobilePanel isVisible={false} content="ai" onClose={onClose} />);
     expect(signal.aborted).toBe(true);
   });
+});
+
+it('ends world inspection as the compact host hides, before its exit finishes', () => {
+  const release = lesson.getState().registerModel();
+  const view = render(<MobilePanel isVisible content="ai" onClose={vi.fn()} />);
+  act(() => {
+    lesson.getState().start();
+  });
+  view.rerender(<MobilePanel isVisible={false} content="ai" onClose={vi.fn()} />);
+  expect(lesson.getState().open).toBe(false);
+  release();
 });

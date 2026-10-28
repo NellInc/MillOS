@@ -22,6 +22,7 @@ import { CURRENT_RELEASE_VERSION, SELECTABLE_RELEASES } from '../../../config/re
 import { capitalizeIn, useLocale, useT } from '../../../i18n';
 import { contextSidebarMessages } from './ContextSidebar.messages';
 import { useUIStore } from '../../../stores/uiStore';
+import { useWindmillLearningStore } from '../../../stores/windmillLearningStore';
 
 // Lazy load the heavy panels
 const AICommandCenter = recoverableLazy(() =>
@@ -64,6 +65,12 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
   setShowZones,
   onFocusMachine,
 }) => {
+  // AnimatePresence retains the exiting subtree. End inspection on hide,
+  // rather than leaving a cutaway alive until the spring finally unmounts it.
+  // Working if the exterior returns while the sidebar is still exiting.
+  React.useEffect(() => {
+    if (!isVisible) useWindmillLearningStore.getState().close();
+  }, [isVisible]);
   const t = useT(contextSidebarMessages);
   const locale = useLocale();
   React.useEffect(() => {
