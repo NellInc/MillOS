@@ -626,7 +626,7 @@
     },
     {
       "name": "",
-      "vertices": 17352,
+      "vertices": 17400,
       "instances": 1
     },
     {
@@ -719,12 +719,12 @@
     "alphaOrMoving": 41
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "e14384c5f4d086e261adc2671d8b44dfb08ded65d54eb8608ff13c1da7a47bc3",
-  "atlasSha256": "e9a0ab7c0265e7a15fd2afb4a880ae894085d766e3ebc8452ba5d6c7a3e5dad2",
+  "inputSha256": "82886215e34700da877dfee321ee3290fe8980eebba06306db57333e7ec0a650",
+  "atlasSha256": "006824f9329b126b5aa936e717957f110c9b1febcd06620b59b0aeb21379ea49",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 420646,
-  "triangles": 180392,
-  "elapsedSeconds": 9.01,
+  "vertices": 420694,
+  "triangles": 180408,
+  "elapsedSeconds": 8.98,
   "sourceReceipts": [
     {
       "id": "hall-west",
@@ -748,22 +748,22 @@
     },
     {
       "id": "post-fountain",
-      "blockedRays": 75504,
+      "blockedRays": 75503,
       "rays": 98304
     },
     {
       "id": "post-garden",
-      "blockedRays": 55074,
+      "blockedRays": 55073,
       "rays": 98304
     },
     {
       "id": "post-right",
-      "blockedRays": 56846,
+      "blockedRays": 56834,
       "rays": 98304
     },
     {
       "id": "shed-wall",
-      "blockedRays": 61101,
+      "blockedRays": 61088,
       "rays": 98304
     },
     {
@@ -803,22 +803,22 @@
     },
     {
       "id": "gate-inner",
-      "blockedRays": 38846,
+      "blockedRays": 38808,
       "rays": 98304
     },
     {
       "id": "gate-outer",
-      "blockedRays": 39075,
+      "blockedRays": 39072,
       "rays": 98304
     },
     {
       "id": "shed-bed-west",
-      "blockedRays": 40860,
+      "blockedRays": 40786,
       "rays": 98304
     },
     {
       "id": "shed-bed-east",
-      "blockedRays": 34319,
+      "blockedRays": 34330,
       "rays": 98304
     },
     {
@@ -888,7 +888,7 @@
       "eea7e6ffc263141d4ce5c3bc76745e45b21a58ca69931c636eb8f669f95ae36d",
       "5ade559333214fe102d81f90fe82dfef11824c3545aea0765960062ff1911664",
       "822d0395204a3c5282d61ab5abec8fb96f9a057c1d4a3317ee123aaa1456009e",
-      "daae4a36248bd70096d57c6e8d3d1ec9db4b12f3dc22a5f6190cf6111cec67ff"
+      "83953e6845433315e391151a9afd30147637d2602d78fb5006f6920dd62eaa4c"
     ],
     "townHallHedgePositions": "2ffd894b9cca542118f871dd706a846c96820db18db5c541dcba1412873ccb6c"
   }

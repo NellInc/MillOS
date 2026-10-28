@@ -635,8 +635,8 @@ it('pins current shutters, recessed pots and unchanged glazing to the exact civi
       'b9cad670050dfd3dfdb6e83f576b6d356ee72c5a2bcabe50098e877f48509e92',
     ],
     [
-      'daae4a36248bd70096d57c6e8d3d1ec9db4b12f3dc22a5f6190cf6111cec67ff',
-      '7aa24804f71f1d7edde370790e8327faa4f779403b2c8453d8e918dffacf9ced',
+      '83953e6845433315e391151a9afd30147637d2602d78fb5006f6920dd62eaa4c',
+      '9182749e49e2186b8f5f5135998f401901879cb2a35007d3d8e0e8caf2e49404',
     ],
   ];
   const actual = [
@@ -777,7 +777,7 @@ it('gives clay only deterministic kiln tones, retaining exact cylinder geometry 
 
 it('gives allotment crops closed cupped leaves, actual roots and distinct low-cost silhouettes', () => {
   const crops = [
-    [addAllotmentCabbage, 56, 0.39, 0.63],
+    [addAllotmentCabbage, 64, 0.39, 0.63],
     [addAllotmentLeafCrop, 24, 0.22, 0.69],
     [addAllotmentBeanLeaves, 24, 0.23, 0.31],
   ] as const;
@@ -814,8 +814,8 @@ it('gives allotment crops closed cupped leaves, actual roots and distinct low-co
       expect([...edges.values()].every((n) => n === 2)).toBe(true);
     }
     if (add === addAllotmentCabbage) {
-      const heart = plot.parts[3];
-      expect(heart.index!.count / 3).toBe(32);
+      const heart = plot.parts[2];
+      expect(heart.index!.count / 3).toBe(48);
       heart.computeBoundingBox();
       expect(heart.boundingBox!.min.y).toBeLessThan(0.26);
       expect(heart.boundingBox!.max.y).toBeLessThan(0.61);
@@ -878,7 +878,7 @@ it('varies allotment crops deterministically without spending more village geome
       y = uv.getY(i) * 256 - 0.5;
     if (x >= left && x <= right && y >= bottom && y <= top) crownVertices++;
   }
-  expect(crownVertices).toBe(18 * 32 * 3);
+  expect(crownVertices).toBe(16 * 48 * 3);
 });
 
 it('attaches every runner-bean node and both end caps to its actual climbing stem', () => {

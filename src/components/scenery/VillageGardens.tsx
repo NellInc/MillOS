@@ -867,15 +867,15 @@ function allotmentLeaf(
   finishAllotmentSurface(geometry, 'leaf');
 }
 
-/** Three broad cupped leaves nest a softly lobed closed heart, 56 triangles.
- * Nine mature plants replace sixteen tiny ones per bed: 1,008 triangles total,
- * below the former 1,024. Working if the crown reads as layered living leaves
+/** Two broad cupped leaves nest a softly lobed closed heart, 64 triangles.
+ * Eight mature plants replace sixteen tiny ones per bed: 1,024 triangles total,
+ * exactly the former allocation. Working if the crown reads as rounded leaves
  * at gardener distance, with the same soil contact and clear bed/aisle edges.
  */
 export function addAllotmentCabbage(b: PlotGeometry, at: Point, seed: number) {
   const size = 1 + Math.sin(seed * 1.7) * 0.055;
-  for (let leaf = 0; leaf < 3; leaf++) {
-    const phase = seed + leaf * ((Math.PI * 2) / 3);
+  for (let leaf = 0; leaf < 2; leaf++) {
+    const phase = seed + leaf * Math.PI;
     allotmentLeaf(
       b,
       at,
@@ -883,11 +883,11 @@ export function addAllotmentCabbage(b: PlotGeometry, at: Point, seed: number) {
       (0.34 + Math.sin(phase) * 0.018) * size,
       (0.195 + Math.cos(phase * 1.7) * 0.012) * size,
       (0.2 + Math.sin(phase * 2.1) * 0.02) * size,
-      0.065 * size,
+      0.115 * size,
       leaf === 1 ? '#688b61' : '#79946b'
     );
   }
-  const heart = new THREE.SphereGeometry(1, 8, 3);
+  const heart = new THREE.SphereGeometry(1, 8, 4);
   const p = heart.getAttribute('position'),
     n = heart.getAttribute('normal'),
     normal = new THREE.Vector3();
@@ -896,7 +896,12 @@ export function addAllotmentCabbage(b: PlotGeometry, at: Point, seed: number) {
       y = p.getY(i),
       z = p.getZ(i),
       lobe = 1 + Math.sin(Math.atan2(z, x) * 3 + y * 2 + seed) * 0.035;
-    p.setXYZ(i, x * 0.22 * size * lobe, y * 0.175 * size, z * 0.22 * size * lobe);
+    p.setXYZ(
+      i,
+      x * 0.22 * size * lobe,
+      y * (y > 0.9 ? 0.15 : 0.175) * size,
+      z * 0.22 * size * lobe
+    );
     normal.set(x / 0.22, y / 0.175, z / 0.22).normalize();
     n.setXYZ(i, normal.x, normal.y, normal.z);
   }
@@ -1026,11 +1031,14 @@ function allotment() {
         b.box([2.98, 0.25, 0.11], [x, 0.125, z + side * 1.45], WOOD);
         b.box([0.11, 0.25, 2.92], [x + side * 1.45, 0.125, z], WOOD);
       }
-      const rows = x < 0 ? 3 : 4;
+      const rows = 4,
+        columns = x < 0 ? 2 : 4;
       for (let row = 0; row < rows; row++)
-        for (let col = 0; col < rows; col++) {
-          const px = x - 1.05 + col * (x < 0 ? 1.05 : 0.69),
-            pz = z - 1.02 + row * (x < 0 ? 1.02 : 0.68);
+        for (let col = 0; col < columns; col++) {
+          // Retain the near work-side row at -1.85m. The inner column has space
+          // for mature hearts, rather than another narrow row of little stones.
+          const px = x - (x < 0 ? 0.75 : 1.05) + col * (x < 0 ? 1.8 : 0.69),
+            pz = z - 1.02 + row * 0.68;
           const seed = px * 7.13 + pz * 3.71;
           if (x < 0)
             addAllotmentCabbage(
