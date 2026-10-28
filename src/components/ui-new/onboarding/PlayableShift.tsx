@@ -642,6 +642,16 @@ function WorkingAgreementSummary({
         {trial.remainingKg !== null && (
           <p>{t('trialRemaining', { kg: formatFixed(trial.remainingKg, 0) })}</p>
         )}
+        <button
+          className={BUTTON}
+          onClick={() =>
+            window.dispatchEvent(
+              new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
+            )
+          }
+        >
+          {t('reviewAgreement')}
+        </button>
       </div>
     );
   if (!state.campaign?.mission) return null;
@@ -873,7 +883,7 @@ export function OperationsPlayCard() {
             {snapshot.activeChallenge
               ? t('switchChallengeHint')
               : reviewPending
-                ? t('switchReviewHint')
+                ? t(workplace.improvement ? 'switchHandoffHint' : 'switchReviewHint')
                 : t('switchHint')}
           </span>
         </label>

@@ -38,7 +38,6 @@ import {
   createWorkerFaceColours,
   softenWorkerFaceNormals,
   dressWorkerHands,
-  softenWorkerFaceNormals,
   retainWorkerBrows,
   shareWorkerSkin,
   createBakerApron,
@@ -4551,7 +4550,13 @@ it.each(['masculine', 'feminine'] as const)(
   }
 );
 
-it.each(['mill-operator-west', 'mill-operator-east', 'mill-engineer'])(
+it.each([
+  'mill-operator-west',
+  'mill-operator-east',
+  'mill-engineer',
+  'mill-packer',
+  'mill-quality',
+])(
   '%s keeps original and fitted boots out of the real raised pads during work and gait turns',
   (id) => {
     const person = COMMUNITY_ROSTER.find((p) => p.id === id)!;
@@ -4594,7 +4599,10 @@ it.each(['mill-operator-west', 'mill-operator-east', 'mill-engineer'])(
         let buried = 0,
           nonfinite = 0,
           measured = 0;
-        for (const name of ['worker-inspect', 'worker-walk']) {
+        const dutyClip =
+          asset.animations.find((clip) => clip.name === `worker-${appearance.workAction}`)?.name ??
+          'worker-inspect';
+        for (const name of [dutyClip, 'worker-walk']) {
           mixer.stopAllAction();
           const clip = asset.animations.find((c) => c.name === name)!;
           mixer.clipAction(clip).play();
@@ -4603,7 +4611,7 @@ it.each(['mill-operator-west', 'mill-operator-east', 'mill-engineer'])(
               controller.restore();
               mixer.setTime(clip.duration * fraction);
               root.rotation.y = yaw;
-              if (name === 'worker-inspect')
+              if (name === dutyClip)
                 controller.applyDuty(
                   appearance.workAction,
                   sampleWorkerGesture(

@@ -104,6 +104,8 @@ export const playableShiftMessages = defineMessages({
     switchChallengeHint: 'Finish or abandon the challenge before switching customers.',
     switchReviewHint:
       'Finish the linked working agreement season and owed recovery before switching customers. Review working agreement opens Autonomy, where you can finish the remaining shifts or let the fictional demo run them. Leave this season, below, ends it early and keeps what was earned.',
+    switchHandoffHint:
+      'Finish the handoff review and owed recovery before switching customers. Review working agreement opens Handoff in Autonomy.',
     switchHint:
       'Changing customer changes the scheduled recipe. Existing stock and shipping receipts remain unchanged.',
     rushChoice:
@@ -242,6 +244,8 @@ export const playableShiftMessages = defineMessages({
     switchChallengeHint: 'Conclua ou abandone o desafio antes de trocar de cliente.',
     switchReviewHint:
       'Conclua a temporada do acordo de trabalho vinculado e a recuperação devida antes de trocar de cliente. O botão Revisar o acordo de trabalho abre Autonomia, onde você pode concluir os turnos restantes ou deixar a demonstração fictícia executá-los. Sair desta temporada, abaixo, a encerra antes do fim e mantém o que foi conquistado.',
+    switchHandoffHint:
+      'Conclua a revisão da passagem de turno e a recuperação devida antes de trocar de cliente. Revisar o acordo de trabalho abre Passagem de turno em Autonomia.',
     switchHint:
       'Trocar de cliente muda a receita programada. O estoque existente e os comprovantes de expedição permanecem inalterados.',
     rushChoice:

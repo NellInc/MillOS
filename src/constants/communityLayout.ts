@@ -25,8 +25,12 @@ function village(local: Vec3Tuple, rotation = 0, seatHeight?: number): Community
 }
 
 export const COMMUNITY_ANCHORS = Object.freeze({
-  millInspection: anchor([8, 0, -8.8], Math.PI),
-  millPacking: anchor([-8, 0, -8.8], Math.PI),
+  // Ground-level workposts face the packing equipment from its apron. The
+  // raised pad ends at z -7.5; keep the same 0.55m boot/turn clearance used by
+  // the milling posts instead of placing Y0 feet inside the 0.16m slab.
+  // Working if both original and fitted shoes clear the pad in work and gait.
+  millInspection: anchor([8, 0, -6.95], Math.PI),
+  millPacking: anchor([-8, 0, -6.95], Math.PI),
   millReceiving: anchor([-33, 0, 8], Math.PI / 2),
   millRestNorth: anchor([-34, 0, -12], Math.PI / 2, 0.46),
   millRestSouth: anchor([-34, 0, -8], Math.PI / 2, 0.46),

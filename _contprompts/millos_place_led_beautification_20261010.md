@@ -9217,3 +9217,52 @@ Final source/buildf3ca9229,52affected testsPASS, required source gates0, product
 First native adapter completed4cleanframes then failed its additional house camera lookup because static batching legitimately consumed the body node. Retained failure/raw frames under `candidate/first-art-adapter`; final adapter anchors the same views to actual retained glazing. No production workaround, quality override or filtered error. Final dev/export/native/Blender tool results report resources closed/terminal; capture lock released. Source/runtime/art passes are separate from timing: original village gate exits1,60.00FPS and1%low58.71PASS, p9516.8ms>16.7FAIL, firstframe631.8ms>350FAIL, load3.15/core>3.0. No long tasks or frames>25ms; remaining budget/world/personnel/page/checkpoint checksPASS. This stays OPEN pacing/startup, neither a causal regression nor improvement claim. No quiet-GPU wait or relaxed budget.
 
 Only owned local source/assets/programme committed. Parent recurring goalACTIVE, LOCAL/MUTED, publicationHELD, physical player/device/native input/unmuted checksDEFERRED. Nell's cabbage-density feedback is now actioned and visually checked, superseding EA's pending-restoration note. Exact hand/body contact acceptance and other unchanged garden vegetables remain separate future work, not hidden inside this completion claim.
+
+## EC: grounded packing staff and an actionable handoff review (2026-10-28)
+
+Previous turn is PROGRESS: EB restores32detailed cabbages, reclaims strictly hidden faces, retains39994village cap, passes52tests/build/23native frames and commitsf3ca9229/1418f125 locally. Current1418f125 clean,52GiB available. Recurring goalACTIVE; local/muted, publicationheld, pacing/startupseparate, physical devices/native mouse/player checksdeferred.
+
+Two independent read-only scouts identify grounded gaps. Root's retained DX packer image appears to hide its shoes beneath a raised workstation slab. Actual sources put both packer and quality anchors atY0,Z−8.8 inside the packing pad topY.16. Existing real-skin boot/pad regression tests only three milling staff, omitting these two. Fresh native reproduction precedes the fix. The handoff summary returns before rendering Review working agreement, while the disabled customer selector promises campaign/demo/Leave this season controls that do not exist for handoffs. The same summary is used by Operations and ShiftDebrief. Global BAS dock is a workaround, not a reason to retain the misleading path.
+
+Pre-mortem: shifting entire routes would break established clearance, raising roots over flat ground would create new floating feet, and an added navigation button could accidentally bypass recovery/consent gates. Use only two terminal ground-level workpost anchors just outside the real pad, retaining via lanes/seats/rotations/counts and route period; test original/fitted feet over gait/work/yaws and actual separation. Reuse the existing localized Autonomy navigation action and correct only its misleading handoff hint; never alter linkedReviewPending or domain obligations.
+
+### Finite detailed execution list
+
+1. Reconcile source/output custody, clean branch, ownership, prior progress and4GiB/capture guards; no new worktree.
+2. Reopen actual people imagery and production CommunityLife/WorkerModel callers; treat the reachability helper's test-root path as insufficient alone.
+3. Read current packing pad builder, full skin/footwear test and all consumers of both shared anchors.
+4. Confirm actual handoff summary callers, disabled-selector/debrief gate and promised navigation mismatch.
+5. Record named affected test baselines independently for root's people/layout surface and delegated PlayableShift surface.
+6. Fresh silent exact-old-build packer/quality/engineer frames and deformed visible-foot/world-pad data reproduce the contact defect without actor/pose/inventory overrides.
+7. Extend the existing real-skin boot/pad regression to both omitted staff; retain actual pad geometry and original/fitted foot cases.
+8. Reproduce the new two-ID failure before changing anchors, preserving original three staff cases.
+9. Move ONLY packing and quality terminal workposts fromZ−8.8 to the existing ground-level apron approachZ−6.95, retainingX/Y/rotation and all via/rest/corridor points.
+10. Keep the actual machine/equipment/pad, body/skin/garment/footwear geometry, tool mounts, clip data, clock/pause/gait/adaptation and actor counts unchanged.
+11. Verify both bodies/actual sole envelopes remain outside the pad throughout working/gait yaws and sampled clip phases.
+12. Verify route/seat separation and shared-anchor consumers, retaining period and protected rest semantics. Historical captured replay poses remain historical; no schema or receipt rewriting.
+13. Keep ordinary working, walking, rest and safety-stop transitions live; no decorative animation that suggests unearned production or changes inventory.
+14. Delegated UI lane reproduces a real handoff through its existing guarded domain action and failing DOM assertion for the missing review control.
+15. Render the existing Review working agreement action in the handoff summary, using the same Autonomy navigation event and existing button style/name.
+16. Keep the campaign review/Leave-season controls unchanged; do not invent a handoff autoplay or leave-season action.
+17. Replace campaign-only handoff guidance with concise accurate EN/pt-BR copy in the co-located catalogue; no new panel/helper prose or interface redesign.
+18. Exercise navigation and still-disabled customer/programme controls in both existing summary hosts, including recovery obligations and translations.
+19. Root inspect actual delegated diff and rerun the affected integrated checks, fixing in-scope failures.
+20. Required typecheck,agent:typecheck,lint,format,depth/shader/assets/manifest gates on coherent source.
+21. Build exactv0.40 under unchanged disk/capture guards, seal source/output and run fresh bundle/reachability/community checks.
+22. Native old/new packing and quality full-body/boot close views at noon/dusk/night, with engineer control,Low and real short motion/pause/resume samples.
+23. Check actual deformed shoe support relative to the pad and floor; do not infer visible clearance from root coordinates alone or accept hidden-source geometry as visible evidence.
+24. Native handoff navigation in EN/pt-BR using existing ordinary UI/domain commands, no forged verdict, stock, consent or recovery; source/DOM fixtures remain separately labelled.
+25. Root review physical contact, workpost framing, transitions, localized actual button/hint and resulting Autonomy workspace; preserve original runtime/audio/diagnostic guards.
+26. Run original affected frame/startup gate once where the changed assembly requires it. Keep any missOPEN without relaxed limits, GPU-idle waiting or unrelated work stoppage.
+27. Retain raw reproductions, failed attempts, exact build/seal, motion/art/DOM evidence and accepted local recap.
+28. Close only task-owned browsers/servers/jobs/locks through owning APIs; no foreign process or shared-cache sweeps.
+29. Record all finite item outcomes and real limits, selective local commits; keep the parent goalACTIVE.
+30. Preserve LOCAL/MUTED publication hold, interface structure, actual stock/dispatch/consent, world/rail-port-mountain placement, quality/budgets/readiness and deferred physical checks.
+
+Root ownership: communityLayout.ts, its focused tests, existing workerPose.test.ts, programme and ignored render adapters/evidence. Delegated write ownership: PlayableShift.tsx/messages/test only. No overlapping production writes. The two terminal-anchor translations are the smallest necessary placement correction; through-routes, seats and world layout remain untouched. Working if both omitted workers visibly stand and animate on the ground clear of the slab, actual handoffs have the promised review route without weakening any gate, relevant source/native checks finish, and pacing/device/publication limits remain explicit.
+
+EC source checkpoint: exact-old-buildf3ca9229 native reproduction completes6clean frames and measures actual visible deformed footwear against the actual packing-pad instance (top.159999996m). Packer1328buried vertices and quality1454; engineer control0. Root reviewed the actual boot close-up: trouser hems sit above the slab while shoes disappear below it. No pose, actor or inventory override. Existing three-staff real-skin pad baseline3PASS; adding omitted packer/quality produces exactly2FAIL/3PASS. New layout baseline69PASS across2files, delegated PlayableShift baseline63PASS; its missing review route reproduces4DOM failures across two hosts/locales.
+
+Only the two terminal anchors move1.85m outward toZ−6.95, retainingX/Y/yaw, all via/rest points, schedules' fixed period and protected rest. Historical recorded poses are not rewritten. Existing boot regression now covers all five staff and their role's actual duty clip (sample/repair where present, existing inspect fallback), original/fitted footwear, four yaws and four clip phases. Removed one pre-existing duplicate softenWorkerFaceNormals import in that same test file. No runtime model/clip/geometry/clock changes. Root independently passes309checks across workerPose/layout/communityLife/PlayableShift plus11existing debrief and21real machine-part/shared-anchor consumer checks:341distinct checks across6files, no failures.
+
+Root inspected the delegated three-file UI diff. Both existing summary hosts get the same styled localized review button and existing Autonomy event, and handoff-specific copy replaces its false campaign/demo/Leave-season hint. Campaign branch, actual obligations and all domain guards remain unchanged. The owed-recovery DOM fixture is explicitly synthetic/completed-customer isolation, not evidence of earned shipment, real consent or natural recovered debt. Required source gates all0except correctly stale ignored manifest; standard agent:manifest then check0, original failure retained. Optional Impeccable unavailable, no installation. Final native UI acceptance uses actual ordinary controls, with no setState/forged verdict/consent/stock.

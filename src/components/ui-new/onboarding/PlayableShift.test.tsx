@@ -1211,3 +1211,107 @@ describe('the guided delivery without a pointer', () => {
     }
   });
 });
+
+it.each([
+  [
+    'card',
+    'en',
+    'Review working agreement',
+    'Active customer commitment',
+    'Finish the handoff review and owed recovery before switching customers.',
+  ],
+  ['debrief', 'en', 'Review working agreement', 'Accept next delivery programme', null],
+  [
+    'card',
+    'pt-BR',
+    'Revisar o acordo de trabalho',
+    'Compromisso ativo com o cliente',
+    'Conclua a revisão da passagem de turno e a recuperação devida antes de trocar de cliente.',
+  ],
+  [
+    'debrief',
+    'pt-BR',
+    'Revisar o acordo de trabalho',
+    'Aceitar o próximo programa de entregas',
+    null,
+  ],
+] as const)(
+  'routes the unresolved handoff from the %s in %s without granting progress',
+  (host, locale, reviewLabel, guardedLabel, hint) => {
+    setLocale(locale);
+    const handler = vi.fn();
+    window.addEventListener('millos:open-operations-workspace', handler);
+    try {
+      const store = useWorkplaceStore.getState();
+      expect(store.beginImprovement('cooperative', store.workplace.revision).changed).toBe(true);
+      const workplace = useWorkplaceStore.getState().workplace;
+      const operations = useOperationsCampaignStore.getState();
+      const game = useGameSimulationStore.getState();
+      render(host === 'card' ? <OperationsPlayCard /> : <ShiftDebrief />);
+      const control =
+        host === 'card'
+          ? screen.getByLabelText(guardedLabel, { exact: false })
+          : screen.getByRole('button', { name: guardedLabel });
+      expect(control).toBeDisabled();
+      fireEvent.click(screen.getByRole('button', { name: reviewLabel }));
+      expect(handler).toHaveBeenCalledOnce();
+      expect(handler.mock.calls[0][0].detail).toBe('autonomy');
+      expect(useWorkplaceStore.getState().workplace).toBe(workplace);
+      expect(useOperationsCampaignStore.getState()).toBe(operations);
+      expect(useGameSimulationStore.getState()).toBe(game);
+      expect(control).toBeDisabled();
+      if (hint) {
+        expect(screen.getByText(new RegExp(hint.replace('.', '\\.')))).toBeInTheDocument();
+        expect(
+          screen.queryByText(
+            /fictional demo run|Leave this season, below|demonstração fictícia executá-los|Sair desta temporada, abaixo/
+          )
+        ).not.toBeInTheDocument();
+      }
+    } finally {
+      window.removeEventListener('millos:open-operations-workspace', handler);
+      setLocale('en');
+    }
+  }
+);
+
+it('keeps owed handoff recovery blocking the next programme after review navigation', () => {
+  // Completed-customer fixture isolates the handoff gate from order completion.
+  useOperationsCampaignStore.setState((state) => ({
+    orders: state.orders.map((order) => ({
+      ...order,
+      status: 'fulfilled',
+      shippedKg: order.requiredKg,
+    })),
+    activeOrderId: null,
+  }));
+  const store = useWorkplaceStore.getState();
+  expect(store.beginImprovement('cooperative', store.workplace.revision).changed).toBe(true);
+  expect(store.stop().changed).toBe(true);
+  expect(store.acknowledgeImprovementReview().changed).toBe(true);
+  for (const member of useWorkplaceStore.getState().workplace.members)
+    expect(store.voteImprovementReview(member.id, 'amend').changed).toBe(true);
+  expect(
+    store.finishImprovementReview(useWorkplaceStore.getState().workplace.revision).changed
+  ).toBe(true);
+  render(<ShiftDebrief />);
+  const next = screen.getByRole('button', { name: 'Accept next delivery programme' });
+  expect(next).toBeEnabled();
+  // Debt fixture exercises the UI's existing guard, not an earned-work claim.
+  act(() =>
+    useWorkplaceStore.setState((state) => ({
+      workplace: {
+        ...state.workplace,
+        members: state.workplace.members.map((member, index) =>
+          index === 0 ? { ...member, recoveryOwedMinutes: 4 } : member
+        ),
+      },
+    }))
+  );
+  const owed = useWorkplaceStore.getState().workplace;
+  expect(next).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Review working agreement' }));
+  expect(next).toBeDisabled();
+  expect(useWorkplaceStore.getState().workplace).toBe(owed);
+  expect(owed.members[0].recoveryOwedMinutes).toBe(4);
+});
