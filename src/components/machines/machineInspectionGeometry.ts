@@ -203,3 +203,23 @@ export function sampleMachineInspectionGrain(
   if (stage === 2) return out.set(0, 3.05 - u * 0.11, 0);
   return out.set(0, 2.94 - u * (2.94 - 1.72 / 0.6), u * ((1.49 - 0.422625) / 0.6));
 }
+
+/** The lamp's reach is world metres, even for an anisotropically installed silo.
+ * Working if the source stays close to the actual grain surface at any fill.
+ */
+export function machineInspectionLampPosition(
+  kind: string,
+  stage: number,
+  scale: Vec3Tuple,
+  fill: number,
+  out: THREE.Vector3
+) {
+  if (kind === 'silo') {
+    const height =
+      stage <= 1
+        ? (2.55 + THREE.MathUtils.clamp(fill, 0, 1) * 11.9) * scale[1] + 0.65
+        : 1.4 * scale[1];
+    return out.set(0.5, height, 1.5);
+  }
+  return out.set(0.6 * scale[0], (kind === 'sifter' ? 3.8 : 3) * scale[1], 1.4 * scale[2]);
+}

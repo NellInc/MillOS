@@ -13,6 +13,7 @@ import {
   createMachineInspectionGeometry,
   machineInspectionKind,
   sampleMachineInspectionGrain,
+  machineInspectionLampPosition,
 } from './machineInspectionGeometry';
 
 /** Mutated by the incumbent assembly owner before this frame callback. */
@@ -176,8 +177,7 @@ export function MachineInspectionInterior({
       column.current.visible = p.fill > 0;
       column.current.scale.y = p.fill * 11.9;
     }
-    const lampY = kind === 'silo' ? [13, 8.5, 4, 1.4][stage] : kind === 'sifter' ? 3.8 : 3;
-    light.position.value.set(0.6 * scale[0], lampY * scale[1], 1.4 * scale[2]);
+    machineInspectionLampPosition(kind, stage, scale, p.fill, light.position.value);
     root.current.localToWorld(light.position.value);
     light.strength.value = direct ? 2 + EXTERIOR_LAMP_LEVEL.value * 12 : 0;
     root.current.userData.phase = p.phase;

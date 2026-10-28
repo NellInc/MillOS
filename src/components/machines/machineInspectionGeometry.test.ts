@@ -4,6 +4,7 @@ import {
   createMachineInspectionGeometry,
   machineInspectionKind,
   sampleMachineInspectionGrain,
+  machineInspectionLampPosition,
 } from './machineInspectionGeometry';
 import { setInstanceMatrix, writeSiloFillInstance } from './CompactMachines';
 import { getMachineAssemblyScale } from '../../constants/siteLayout';
@@ -92,5 +93,18 @@ describe('installed explanatory machine sections', () => {
           expect(p.length()).toBeLessThan(7);
         }
     expect(machineInspectionKind(MachineType.CONTROL_ROOM)).toBeNull();
+  });
+});
+
+describe('world-metre silo inspection lamp', () => {
+  it('keeps an enlarged silo grain face within the existing local source range', () => {
+    const out = new THREE.Vector3();
+    for (const fill of [0, 0.4, 1])
+      for (const stage of [0, 1]) {
+        machineInspectionLampPosition('silo', stage, [3, 1.5, 3], fill, out);
+        expect(out.distanceTo(new THREE.Vector3(0, (2.55 + fill * 11.9) * 1.5, 0))).toBeLessThan(2);
+      }
+    machineInspectionLampPosition('silo', 3, [3, 1.5, 3], 0.4, out);
+    expect(out.distanceTo(new THREE.Vector3(0, 1.4 * 1.5, 0))).toBeLessThan(2);
   });
 });
