@@ -16,6 +16,7 @@ export const contextSidebarMessages = defineMessages({
     systemSettings: 'System Settings',
     safety: 'Safety & Emergency',
     management: 'Workplace & Autonomy',
+    chronicle: 'Mill Chronicle',
     production: 'Production',
     overview: 'Mill Overview',
     // The machine type enum, shown as words (capitalised by CSS).
@@ -40,6 +41,7 @@ export const contextSidebarMessages = defineMessages({
     systemSettings: 'Configurações do sistema',
     safety: 'Segurança e emergência',
     management: 'Trabalho e autonomia',
+    chronicle: 'Crônica do moinho',
     production: 'Produção',
     overview: 'Visão geral do moinho',
     machineType: (p: { type: string }) =>

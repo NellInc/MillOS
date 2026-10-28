@@ -46,6 +46,9 @@ describe('castle access trail', () => {
     ).toBeGreaterThan(CASTLE_WALKING_ROUTE.halfWidth);
     expect(stations[0].z).toBe(Math.min(...RIVER_FOOTBRIDGE_LANDINGS.map((p) => p.minZ)));
     const last = stations.at(-1)!;
+    // Footprint tangents must remain horizontal. A retained castle elevation
+    // shrinks the final XZ width to a narrow neck before ground clipping.
+    expect(stations.every((station) => station.y === 0)).toBe(true);
     const local = castleLocalPosition(last.x, last.z);
     expect(local[0]).toBeCloseTo(CASTLE_STAIR_X, 8);
     expect(local[1]).toBeCloseTo(CASTLE_APPROACH.maxZ, 8);

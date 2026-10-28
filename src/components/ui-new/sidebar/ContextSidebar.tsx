@@ -166,7 +166,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     HeaderIcon = Cpu;
     content = <AutonomyPanel />;
   } else if (mode === 'chronicle') {
-    headerTitle = 'Mill Chronicle';
+    headerTitle = t('chronicle');
     HeaderIcon = ScrollText;
     content = <ChroniclePanel />;
   } else {

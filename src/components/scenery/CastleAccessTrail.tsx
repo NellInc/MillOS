@@ -68,7 +68,7 @@ export function castleTrailStations(): THREE.Vector3[] {
     new THREE.Vector3(CASTLE_WALKING_ROUTE.end[0], 0, CASTLE_WALKING_ROUTE.end[2]),
     new THREE.Vector3(
       ...castleWorldPosition(CASTLE_STAIR_X, CASTLE_ROCK_SINK, CASTLE_APPROACH.maxZ)
-    ),
+    ).setY(0),
   ];
   const curve = new THREE.CurvePath<THREE.Vector3>();
   let previous = points[0];

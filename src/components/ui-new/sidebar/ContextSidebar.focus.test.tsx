@@ -1,7 +1,8 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useUIStore } from '../../../stores/uiStore';
 import { ContextSidebar } from './ContextSidebar';
+import { setLocale } from '../../../i18n';
 
 vi.mock('../widgets/AutonomyPanel', () => ({ AutonomyPanel: () => <p>Autonomy controls</p> }));
 vi.mock('../panels/OverviewPanel', () => ({ OverviewPanel: () => <p>Overview body</p> }));
@@ -9,14 +10,18 @@ vi.mock('../panels/SafetyPanel', () => ({ SafetyPanel: () => null }));
 vi.mock('../panels/SettingsPanel', () => ({ SettingsPanel: () => null }));
 vi.mock('./MachineInspector', () => ({ MachineInspector: () => null }));
 vi.mock('./panelPreloader', () => ({ preloadPanelsForMode: vi.fn() }));
+vi.mock('../../chronicle/ChroniclePanel', () => ({ ChroniclePanel: () => <p>Chronicle body</p> }));
 
 beforeEach(() => useUIStore.setState(useUIStore.getInitialState(), true));
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setLocale('en');
+});
 
-const renderSidebar = () =>
+const renderSidebar = (mode: 'management' | 'chronicle' = 'management') =>
   render(
     <ContextSidebar
-      mode="management"
+      mode={mode}
       isVisible
       onClose={vi.fn()}
       selectedMachine={null}
@@ -40,4 +45,16 @@ it('leaves focus alone when nothing asked for it', async () => {
   renderSidebar();
   await screen.findByText('Autonomy controls');
   expect(screen.getByRole('heading', { name: 'Workplace & Autonomy' })).not.toHaveFocus();
+});
+
+it('translates the Chronicle heading and panel name on a live language change', async () => {
+  renderSidebar('chronicle');
+  await waitFor(() =>
+    expect(screen.getByRole('heading', { name: 'Mill Chronicle' })).toBeVisible()
+  );
+  act(() => setLocale('pt-BR'));
+  expect(screen.getByRole('heading', { name: 'Crônica do moinho' })).toBeVisible();
+  expect(
+    screen.getByRole('complementary', { name: 'Painel lateral: Crônica do moinho' })
+  ).toBeVisible();
 });
