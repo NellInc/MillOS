@@ -62,8 +62,8 @@ describe('owned interior geometry budget', () => {
       (sum, geometry) => sum + geometry.getAttribute('position').count / 3,
       0
     );
-    // Nine merged meshes plus one instanced grain draw. Kernels add 24 * 20 triangles.
-    expect(Object.keys(geometries)).toHaveLength(9);
+    // Ten merged meshes plus one instanced grain draw. Kernels add 24 * 20 triangles.
+    expect(Object.keys(geometries)).toHaveLength(10);
     expect(triangles + 480).toBeLessThan(9000);
     // The sack stands on the full base floor; bed stone has real cross-bearers.
     geometries.cloth.computeBoundingBox();
@@ -81,6 +81,6 @@ describe('owned interior geometry budget', () => {
       expect(Number.isFinite(geometry.boundingSphere?.radius)).toBe(true);
       geometry.dispose();
     });
-    process.stdout.write(`Interior: 10 draws, ${triangles + 480} triangles including grain\n`);
+    process.stdout.write(`Interior: 11 draws, ${triangles + 480} triangles including grain\n`);
   });
 });

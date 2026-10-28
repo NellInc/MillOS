@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { useGraphicsStore } from '../../stores/graphicsStore';
 import type { WindmillLearningStage } from '../../stores/windmillLearningStore';
+import { ExteriorPointLight, EXTERIOR_LAMP_LENS_MATERIAL } from '../exterior/ExteriorLighting';
 import { applyWorldSurface } from '../../utils/worldSurface';
 import { angularRatios, gearContacts, sampleGrainPath, grainPhase } from './windmillMechanism';
 
@@ -17,7 +19,8 @@ export function createWindmillInteriorGeometry(scale: number) {
     stone: Parts = [],
     iron: Parts = [],
     cream: Parts = [],
-    cloth: Parts = [];
+    cloth: Parts = [],
+    lens: Parts = [];
   const crown: Parts = [],
     upright: Parts = [],
     nut: Parts = [],
@@ -209,6 +212,23 @@ export function createWindmillInteriorGeometry(scale: number) {
     box(wood, [0.02 + side * 0.025, -0.102, 0.031], [0.004, 0.052, 0.056], [0, 0, side * -0.45]);
     box(wood, [0.02, -0.102, 0.031 + side * 0.025], [0.056, 0.052, 0.004], [side * 0.45, 0, 0]);
   }
+  // The hopper seats in cantilever arms from the existing frame, and the
+  // feeding shoe hangs from its lower rim instead of floating in the cutaway.
+  for (const [postZ, rimZ] of [
+    [-0.1, -0.003],
+    [0.09, 0.063],
+  ] as const) {
+    beam(wood, [0.12, -0.075, postZ], [0.056, -0.079, rimZ], 0.008);
+    beam(wood, [-0.16, -0.075, postZ], [-0.016, -0.079, rimZ], 0.008);
+  }
+  for (const z of [0.02, 0.042]) beam(iron, [0.034, -0.125, z], [0.036, -0.14, z], 0.0015);
+  // A bracketed, enclosed task lamp makes night-time inspection legible.
+  // Its one bounded source shares the existing dimmer and has no shadow map.
+  beam(iron, [0.12, -0.037, 0.09], [0.09, -0.037, 0.11], 0.002);
+  cylinder(iron, [0.09, -0.039, 0.11], 0.01, 0.004, undefined, 0.003, 12);
+  cylinder(iron, [0.09, -0.061, 0.11], 0.009, 0.004, undefined, 0.009, 12);
+  cylinder(lens, [0.09, -0.05, 0.11], 0.0075, 0.018, undefined, 0.0075, 12);
+  for (const x of [0.082, 0.098]) box(iron, [x, -0.05, 0.11], [0.0015, 0.02, 0.002]);
   box(wood, [0.025, -0.145, 0.031], [0.035, 0.004, 0.018], [0, 0, -0.22]);
   for (const z of [0.02, 0.042]) box(wood, [0.025, -0.14, z], [0.035, 0.01, 0.003], [0, 0, -0.22]);
   // Meal chute has a rear panel and two sides; its front is genuinely open.
@@ -216,7 +236,7 @@ export function createWindmillInteriorGeometry(scale: number) {
   for (const x of [0.075, 0.099]) box(wood, [x, -0.285, 0.096], [0.004, 0.14, 0.02]);
   cylinder(cloth, [0.087, -0.3915, 0.098], 0.029, 0.064, undefined, 0.021, 16);
   ring(cloth, [0.087, -0.3585, 0.098], 0.014, 0.022, 0.005);
-  const lists = { wood, stone, iron, cream, cloth, crown, upright, nut, runner };
+  const lists = { wood, stone, iron, cream, cloth, lens, crown, upright, nut, runner };
   return Object.fromEntries(
     Object.entries(lists).map(([name, parts]) => {
       const geometry = mergeGeometries(parts, false)!;
@@ -235,6 +255,11 @@ export interface WindmillInteriorProps {
 }
 
 export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: WindmillInteriorProps) {
+  const directLight = useGraphicsStore(
+    (state) =>
+      !state.graphics.perfDebug.disablePunctualLights &&
+      !state.graphics.perfDebug.disableLightingPolish
+  );
   const crown = useRef<THREE.Mesh>(null),
     upright = useRef<THREE.Mesh>(null);
   const nut = useRef<THREE.Mesh>(null),
@@ -335,6 +360,21 @@ export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: Wind
         geometry={geometry.runner}
         material={materials.stone}
       />
+      <mesh
+        name="windmill-inspection-lens"
+        geometry={geometry.lens}
+        material={EXTERIOR_LAMP_LENS_MATERIAL}
+        dispose={null}
+      />
+      {directLight && (
+        <ExteriorPointLight
+          name="windmill-inspection-light"
+          position={p(0.09, -0.05, 0.11)}
+          intensity={40}
+          distance={6.5}
+          color="#ffdda8"
+        />
+      )}
       <instancedMesh
         name="windmill-grain"
         ref={grain}
