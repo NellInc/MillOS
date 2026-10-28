@@ -48,6 +48,30 @@ export interface ActiveShaderContract {
  */
 export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
   {
+    id: 'windmill-inspection-task-light',
+    owner: 'models/WindmillInterior',
+    sources: ['src/components/models/WindmillInterior.tsx'],
+    coordinateSpaces: [
+      'fixed source in world metres, transformed by the current renderer viewMatrix',
+      'perturbed per-fragment view normal including the actual gear rotation',
+      'object-rest metres for the composed surface treatment',
+    ],
+    colorSpace: 'linear incident PBR radiance, display-hex source colour decoded by Three',
+    toneMapping: 'material-pipeline',
+    fog: 'material-pipeline',
+    transparency: 'opaque',
+    depthBehavior: 'unchanged opaque depth test/write; no displacement or new shadow map',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner: 'one world source, colour, dimmer strength and held gain per mounted interior',
+    timeSource: 'none',
+    cacheKey: 'windmill_task_lamp_v1_{world-surface-key}',
+    disposalOwner: 'WindmillInterior disposes its owned materials and geometries on unmount',
+    fallbackMaterial:
+      'the same standard material with task strength zero and normal world lighting',
+    notes:
+      'Unshadowed source is limited to six owned materials, not a scene Light. Shared lens is never disposed. Zero-global-direct-light variants initialise multiscattering before RE_Direct. Existing surface injection is composed rather than replaced.',
+  },
+  {
     id: 'civic-lamp-baked-visibility',
     owner: 'CivicSquareLighting',
     sources: ['src/shaders/civicLampShadows.ts'],
