@@ -415,10 +415,12 @@ Rules that keep it honest:
    event or choice condition, a variant, an echo, an epilogue slide or the long
    night). `steward.test.ts` fails on a mark that is set and never read, and on
    a default choice that costs anything, including a desk point.
-7. **Its own copy is English only so far.** It was written before `src/i18n`
-   landed; its workspace, events, history notes and quiz still need pt-BR
-   catalogues. Its integration points in already-translated surfaces (dock,
-   phone sheet, sidebar, safety panel, emergency overlay) go through `src/i18n`.
+7. **Presentation supports English and Brazilian Portuguese.** Workspace,
+   event, history and quiz copy uses `src/i18n` catalogues and read-time getters.
+   Canonical engine values and saved English records stay unchanged; the guarded
+   presentation adapter translates recognised historical records at display time.
+   Datalinks history and search follow live language changes too. Working if a
+   locale switch changes visible copy without rewriting IDs, outcomes or receipts.
 
 ## Interface Language (English and Brazilian Portuguese)
 
