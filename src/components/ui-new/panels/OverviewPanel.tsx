@@ -1,3 +1,4 @@
+import { WindmillLearningCard } from '../widgets/WindmillLearningCard';
 import React, { useState, useCallback, useEffect, Suspense, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
@@ -657,6 +658,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
   return (
     <div className="p-4 space-y-4 h-full overflow-y-auto custom-scrollbar">
       <OperationsPlayCard />
+      <WindmillLearningCard />
       <ShiftDebrief />
       {/* Production Summary */}
       <section>

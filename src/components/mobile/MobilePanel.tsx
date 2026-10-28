@@ -1,3 +1,4 @@
+import { WindmillLearningCard } from '../ui-new/widgets/WindmillLearningCard';
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -234,6 +235,7 @@ const OverviewContent: React.FC = () => {
   return (
     <div className="space-y-3">
       <OperationsPlayCard />
+      <WindmillLearningCard />
       <ShiftDebrief />
       <button
         onClick={() => window.dispatchEvent(new Event('millos:open-layout-planner'))}

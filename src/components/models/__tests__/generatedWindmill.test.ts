@@ -5,8 +5,16 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
-import { SAIL_HUB_Y, SAIL_HUB_Z, computeSailWeights, sweptBounds } from '../GeneratedWindmill';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  SAIL_HUB_Y,
+  SAIL_HUB_Z,
+  computeSailWeights,
+  sweptBounds,
+  prepareWindmillModel,
+} from '../GeneratedWindmill';
+
+import { createWindmillCutawayGeometry, WINDMILL_SECTION_Z } from '../windmillCutaway';
 
 const GLB = path.resolve(__dirname, '../../../../public/models/farm/windmill.glb');
 
@@ -145,5 +153,141 @@ describe('generated windmill sail split', () => {
     expect(swept.max.z).toBeGreaterThan(rest.max.z);
     expect(swept.containsBox(rest)).toBe(true);
     expect(Number.isFinite(swept.getBoundingSphere(new THREE.Sphere()).radius)).toBe(true);
+  });
+});
+
+describe('actual windmill section and cache ownership', () => {
+  function sourceGeometry() {
+    const { json, bin } = readGlb(GLB);
+    const primitive = json.meshes[0].primitives[0];
+    const geometry = new THREE.BufferGeometry();
+    for (const [name, semantic, size] of [
+      ['position', 'POSITION', 3],
+      ['normal', 'NORMAL', 3],
+      ['uv', 'TEXCOORD_0', 2],
+    ] as const)
+      geometry.setAttribute(
+        name,
+        new THREE.BufferAttribute(readAccessor(json, bin, primitive.attributes[semantic]), size)
+      );
+    geometry.setIndex(Array.from(readAccessor(json, bin, primitive.indices)));
+    geometry.setAttribute(
+      'aSailWeight',
+      new THREE.BufferAttribute(
+        computeSailWeights(geometry.getAttribute('position') as THREE.BufferAttribute),
+        1
+      )
+    );
+    return geometry;
+  }
+  it('clips crossing architecture with unit normals/UVs and retains every exact rotor triangle', () => {
+    const source = sourceGeometry(),
+      original = source.clone();
+    const section = createWindmillCutawayGeometry(source);
+    const plain = source.toNonIndexed();
+    const rotor = (geometry: THREE.BufferGeometry) => {
+      const weights = geometry.getAttribute('aSailWeight'),
+        triangles: string[] = [];
+      for (let i = 0; i < weights.count; i += 3)
+        if (weights.getX(i) === 1)
+          triangles.push(
+            ['position', 'normal', 'uv']
+              .flatMap((name) => {
+                const attribute = geometry.getAttribute(name);
+                return [i, i + 1, i + 2].flatMap((id) =>
+                  Array.from({ length: attribute.itemSize }, (_, k) =>
+                    attribute.getComponent(id, k)
+                  )
+                );
+              })
+              .join(',')
+          );
+      return triangles.sort();
+    };
+    expect(rotor(section)).toEqual(rotor(plain));
+    expect(rotor(section).length).toBeGreaterThan(500);
+    expect(source.index?.array).toEqual(original.index?.array);
+    for (const name of Object.keys(source.attributes))
+      expect(source.getAttribute(name).array).toEqual(original.getAttribute(name).array);
+    const position = section.getAttribute('position'),
+      normal = section.getAttribute('normal'),
+      uv = section.getAttribute('uv'),
+      weights = section.getAttribute('aSailWeight');
+    let intersections = 0,
+      bearing = 0;
+    for (let i = 0; i < position.count; i++) {
+      expect(Number.isFinite(uv.getX(i) + uv.getY(i))).toBe(true);
+      if (weights.getX(i) === 1) continue;
+      const isBearing =
+        position.getX(i) > 0.166 &&
+        Math.hypot(position.getY(i) - SAIL_HUB_Y, position.getZ(i) - SAIL_HUB_Z) < 0.028;
+      if (isBearing) bearing++;
+      else expect(position.getZ(i)).toBeLessThanOrEqual(WINDMILL_SECTION_Z + 1e-8);
+      if (Math.abs(position.getZ(i) - WINDMILL_SECTION_Z) < 1e-8) {
+        intersections++;
+        expect(Math.hypot(normal.getX(i), normal.getY(i), normal.getZ(i))).toBeCloseTo(1, 5);
+      }
+    }
+    expect(intersections).toBeGreaterThan(30);
+    expect(bearing).toBeGreaterThan(50);
+    for (let i = 0; i < position.count; i += 3) {
+      if (weights.getX(i) === 1) continue;
+      expect(
+        [-0.438, 0.075, 0.065, 0.091].some((y) =>
+          [i, i + 1, i + 2].every((id) => Math.abs(position.getY(id) - y) < 1e-6)
+        ),
+        JSON.stringify(
+          [i, i + 1, i + 2].map((id) => [position.getX(id), position.getY(id), position.getZ(id)])
+        )
+      ).toBe(false);
+    }
+    const bounds = sweptBounds(position as THREE.BufferAttribute, weights.array as Float32Array);
+    expect(bounds.getBoundingSphere(new THREE.Sphere()).radius).toBeGreaterThan(0.5);
+    [source, original, plain, section].forEach((item) => item.dispose());
+  });
+  it('owns geometry/material/depth, shares only maps and one angle, and releases no cached resource', () => {
+    const source = sourceGeometry(),
+      map = new THREE.Texture(),
+      material = new THREE.MeshStandardMaterial({ map });
+    const mesh = new THREE.Mesh(source, material);
+    mesh.position.set(0.00235, 3.40025, 0.00139);
+    mesh.scale.setScalar(6.79571);
+    const scene = new THREE.Group();
+    scene.add(mesh);
+    const cached = [source, material, map].map((item) => vi.spyOn(item, 'dispose'));
+    const angle = { value: -0.4 },
+      prepared = prepareWindmillModel(scene, angle),
+      part = prepared.parts[0];
+    expect(prepared.frame?.scale).toBe(6.79571);
+    expect(prepared.frame?.origin).toEqual(mesh.position.toArray());
+    expect(part.geometry).not.toBe(source);
+    expect(part.material).not.toBe(material);
+    expect((part.material as THREE.MeshStandardMaterial).map).toBe(map);
+    const shaders = [part.material, part.depth].map((item) => {
+      const shader = {
+        vertexShader: '#include <common>\n#include <beginnormal_vertex>\n#include <begin_vertex>',
+        uniforms: {},
+      };
+      item.onBeforeCompile(
+        shader as unknown as THREE.WebGLProgramParametersWithUniforms,
+        {} as THREE.WebGLRenderer
+      );
+      return shader as { uniforms: Record<string, THREE.IUniform> };
+    });
+    expect(shaders[0].uniforms.uSailAngle).toBe(angle);
+    expect(shaders[1].uniforms.uSailAngle).toBe(angle);
+    const owned = [part.geometry, part.material, part.depth].map((item) =>
+      vi.spyOn(item, 'dispose')
+    );
+    prepared.dispose();
+    expect(owned.every((spy) => spy.mock.calls.length === 1)).toBe(true);
+    expect(cached.every((spy) => spy.mock.calls.length === 0)).toBe(true);
+    mesh.scale.y = 4;
+    const incompatible = prepareWindmillModel(scene, angle);
+    expect(incompatible.frame).toBeNull();
+    incompatible.dispose();
+    source.dispose();
+    material.dispose();
+    map.dispose();
   });
 });

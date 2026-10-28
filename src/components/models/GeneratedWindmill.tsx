@@ -23,7 +23,7 @@
  * the existing runtime owners. Never silently renormalise this raw contract.
  */
 
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
@@ -33,6 +33,10 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { createAtmosphereState, sampleAtmosphere } from '../../simulation/atmosphere';
 import { getWindmillAngularSpeed } from '../../simulation/ambientWorld';
+import { useWindmillLearningStore } from '../../stores/windmillLearningStore';
+import { useCameraStore } from '../CameraController';
+import { createWindmillCutawayGeometry } from './windmillCutaway';
+import { WindmillInterior } from './WindmillInterior';
 
 /** Mesh-local Y of the sail axis. */
 export const SAIL_HUB_Y = 0.0948;
@@ -173,49 +177,122 @@ function injectSailRotation(
  */
 const SAIL_CACHE_KEY = 'windmill_sails_v1';
 
+/** Owned copies retain shared maps; disposing a lesson never disposes the GLTF cache. */
+export function prepareWindmillModel(scene: THREE.Group, angle: THREE.IUniform<number>) {
+  const model = scene.clone(true);
+  const parts: {
+    mesh: THREE.Mesh;
+    geometry: THREE.BufferGeometry;
+    material: THREE.Material;
+    depth: THREE.MeshDepthMaterial;
+  }[] = [];
+  model.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    const geometry = mesh.geometry.clone();
+    const position = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const weights = computeSailWeights(position);
+    geometry.setAttribute('aSailWeight', new THREE.BufferAttribute(weights, 1));
+    const box = sweptBounds(position, weights);
+    geometry.boundingBox = box;
+    geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+    mesh.geometry = geometry;
+    const material = (mesh.material as THREE.Material).clone();
+    material.onBeforeCompile = (shader) => injectSailRotation(shader, angle);
+    material.customProgramCacheKey = () => SAIL_CACHE_KEY;
+    mesh.material = material;
+    const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+    depth.onBeforeCompile = (shader) => injectSailRotation(shader, angle);
+    depth.customProgramCacheKey = () => `${SAIL_CACHE_KEY}_depth`;
+    mesh.customDepthMaterial = depth;
+    parts.push({ mesh, geometry, material, depth });
+  });
+  model.updateMatrixWorld(true);
+  // The retained asset has one translated, uniformly scaled mesh. Refuse an
+  // instructional transform for a future incompatible asset, leaving it intact.
+  const origin = new THREE.Vector3(),
+    scale = new THREE.Vector3(),
+    q = new THREE.Quaternion();
+  parts[0]?.mesh.matrixWorld.decompose(origin, q, scale);
+  const frame =
+    parts.length === 1 &&
+    scale.x > 0 &&
+    Math.abs(scale.x - scale.y) < 1e-6 &&
+    Math.abs(scale.x - scale.z) < 1e-6 &&
+    q.angleTo(new THREE.Quaternion()) < 1e-6
+      ? { origin: origin.toArray(), scale: scale.x, part: parts[0] }
+      : null;
+  return {
+    model,
+    parts,
+    frame,
+    dispose: () =>
+      parts.forEach(({ geometry, material, depth }) => {
+        geometry.dispose();
+        material.dispose();
+        depth.dispose();
+      }),
+  };
+}
+
 export const GeneratedWindmillModel: React.FC = () => {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS.windmill);
-  const angleRef = useRef<THREE.IUniform>({ value: 0 });
+  const angleRef = useRef<THREE.IUniform<number>>({ value: 0 });
   const atmosphereRef = useRef(createAtmosphereState());
   const reducedMotion = useReducedMotion();
-
-  const model = useMemo(() => {
-    const clone = scene.clone(true);
-    const angle = angleRef.current;
-    clone.traverse((object) => {
-      const mesh = object as THREE.Mesh;
-      if (!mesh.isMesh) return;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-
-      // Cloned, not mutated in place: `useGLTF` caches the source scene, and
-      // both the attribute and the shader hook below would otherwise leak into
-      // every later consumer of this asset - and back into this one on remount.
-      const geometry = mesh.geometry.clone();
-      const position = geometry.getAttribute('position') as THREE.BufferAttribute;
-      const weights = computeSailWeights(position);
-      geometry.setAttribute('aSailWeight', new THREE.BufferAttribute(weights, 1));
-      const box = sweptBounds(position, weights);
-      geometry.boundingBox = box;
-      geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+  const open = useWindmillLearningStore((state) => state.open);
+  const stage = useWindmillLearningStore((state) => state.stage);
+  const prepared = useMemo(() => prepareWindmillModel(scene, angleRef.current), [scene]);
+  const { frame } = prepared;
+  const section = useMemo(() => {
+    if (!open || !frame) return null;
+    const geometry = createWindmillCutawayGeometry(frame.part.geometry);
+    const box = sweptBounds(
+      geometry.getAttribute('position') as THREE.BufferAttribute,
+      (geometry.getAttribute('aSailWeight') as THREE.BufferAttribute).array as Float32Array
+    );
+    geometry.boundingBox = box;
+    geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+    return geometry;
+  }, [open, frame]);
+  useEffect(() => () => prepared.dispose(), [prepared]);
+  useEffect(() => {
+    if (frame) return useWindmillLearningStore.getState().registerModel();
+  }, [frame]);
+  useLayoutEffect(() => {
+    if (!frame || !section) return;
+    const { mesh, geometry, material, depth } = frame.part;
+    const side = material.side,
+      depthSide = depth.side;
+    mesh.geometry = section;
+    material.side = depth.side = THREE.DoubleSide;
+    material.needsUpdate = depth.needsUpdate = true;
+    return () => {
       mesh.geometry = geometry;
-
-      const source = mesh.material as THREE.Material;
-      const material = source.clone();
-      material.onBeforeCompile = (shader) => injectSailRotation(shader, angle);
-      material.customProgramCacheKey = () => SAIL_CACHE_KEY;
-      mesh.material = material;
-
-      // The shadow pass runs its own material, so the turn has to be injected
-      // there too. `MeshDepthMaterial` with RGBA packing is what three uses for
-      // a directional light's shadow map.
-      const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
-      depth.onBeforeCompile = (shader) => injectSailRotation(shader, angle);
-      depth.customProgramCacheKey = () => `${SAIL_CACHE_KEY}_depth`;
-      mesh.customDepthMaterial = depth;
-    });
-    return clone;
-  }, [scene]);
+      material.side = side;
+      depth.side = depthSide;
+      material.needsUpdate = depth.needsUpdate = true;
+      section.dispose();
+    };
+  }, [frame, section]);
+  useEffect(() => {
+    if (!open || !frame) return;
+    const mesh = frame.part.mesh;
+    mesh.updateWorldMatrix(true, false);
+    const targetY = stage === 'power' ? 0.015 : stage === 'collect' ? -0.25 : -0.15;
+    const eye = mesh.localToWorld(new THREE.Vector3(0.75, 0.12, 1.65));
+    const target = mesh.localToWorld(new THREE.Vector3(-0.03, targetY, 0.006));
+    useCameraStore.getState().focusOn(eye.toArray(), target.toArray());
+    useCameraStore.setState({ targetFov: 45 });
+    const ownedTarget = useCameraStore.getState().targetPosition;
+    return () => {
+      const camera = useCameraStore.getState();
+      // Closing never fights a newer player/preset flight or resumes the clock.
+      if (camera.isAnimating && camera.targetPosition === ownedTarget) camera.cancelAnimation();
+    };
+  }, [frame, open, stage]);
 
   // Integrate active time, shared with the primitive's atmospheric speed.
   // Pausing or resuming never jumps to a later wall-clock sail angle.
@@ -229,9 +306,21 @@ export const GeneratedWindmillModel: React.FC = () => {
     angleRef.current.value =
       (angleRef.current.value - Math.min(delta, 0.1) * getWindmillAngularSpeed(atmosphere.wind)) %
       (Math.PI * 2);
-  });
+  }, -1);
 
-  return <primitive object={model} />;
+  return (
+    <>
+      <primitive object={prepared.model} />
+      {open && frame && (
+        <WindmillInterior
+          angle={angleRef.current}
+          stage={stage}
+          modelScale={frame.scale}
+          modelOrigin={frame.origin}
+        />
+      )}
+    </>
+  );
 };
 
 GeneratedWindmillModel.displayName = 'GeneratedWindmillModel';

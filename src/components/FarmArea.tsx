@@ -36,6 +36,7 @@ import {
   instanceYaw,
 } from './models/GeneratedModel';
 import { GeneratedWindmillBody } from './models/GeneratedWindmill';
+import { useWindmillLearningStore } from '../stores/windmillLearningStore';
 import {
   InstancedTreeField,
   InstancedGrassClutter,
@@ -1704,7 +1705,21 @@ export const WindmillComp: React.FC<{
   scale?: number;
   bladesRef: React.RefObject<THREE.Group | null>;
 }> = ({ position, scale = 1, bladesRef }) => (
-  <group position={position} scale={scale}>
+  <group
+    name="farm-windmill"
+    position={position}
+    scale={scale}
+    userData={{ noStaticBatch: true }}
+    onClick={(event) => {
+      if (event.delta > 4) return;
+      event.stopPropagation();
+      if (!useWindmillLearningStore.getState().ready) return;
+      window.dispatchEvent(
+        new CustomEvent('millos:open-operations-workspace', { detail: 'overview' })
+      );
+      useWindmillLearningStore.getState().start();
+    }}
+  >
     <GeneratedWindmillBody fallback={<WindmillPrimitiveBody bladesRef={bladesRef} />} />
   </group>
 );

@@ -9563,3 +9563,31 @@ Integrated candidate ordinary recovery also terminal0 with5actual UI frames and 
 Original millingMedium timing gate once, terminal1:60FPS,1%low56.71,p9517.4ms>16.7,p9917.6ms,first364ms>350; load3.04/core markedcontended. World/page/personnel/checkpoint/DPR checks pass. Pacing/intermittent readiness remainOPEN separately, no waiver, idle-GPU wait or inferred performance improvement/regression. Physical player/device/manual input/unmuted/native-reader/editorial checks remainDEFERRED, publicationHELD. Source-module motion changed without interface styling; optional Impeccable executable is not installed, required ESLint and native checks passed, no dependency installed for it.
 
 All32items disposed in `test-results/ef-people-recovery-20261028/DISPOSITION.md`, bounded machine/art/ordinary-state evidence in acceptance.json, visual recap in gallery.html, raw failures/source projections/receipts/seals retained. Root/team authored and root-reviewed, with a separate bounded source challenge that found the two repaired regressions; no external/player acceptance claim. Owned browser/server/build/check jobs terminal, owning finally blocks complete, capture lock absent. No foreign process/file cleanup; completed leaf jobs have no exposed supported disposal API/authoritative child IDs, so no disposal/RAM claim. Final acceptance-only local commit and custody check precede supported goalPAUSEDupdate. **Stop after that requested pause; no next world rotation.** The recurring whole-world programme remains unfinished.
+
+### EG windmill cutaway and follow-grain, authorized 2026-10-28
+
+Nell: "Excellent, proceed please with the windmill cutaway and follow-the-grain interaction. Keep it local and muted, preserve the interface, defer device checks, keep pacing separate, then pause." Start HEAD2dab47a8, clean. This releases the preceding pause for this finite pass only. No publication, remote compute or device checks. Existing 4GiB build/render guard, quality/budget/readiness safeguards stay intact. Root owns shared integration, source/build/native acceptance and the final goal pause. Three finite read-only/design/UI/interior lanes have disjoint ownership; no worker browser/build/remote/commit. No external source/assets copied.
+
+Finite work and acceptance:
+1. Reconcile actual GLB node normalization, farm placement, source derivation and live import chain before choosing the section plane.
+2. Record named actual-asset/ambient/UI/precision baseline, 118 tests in7files passing, no baseline failures. Retain the initial wrong Node runner failure separately, corrected with Vitest.
+3. Independently challenge transform, batching, readiness, clock, lifecycle and host-exit contracts. Apply the resulting six concrete constraints.
+4. Keep exterior geometry/materials/rotation unchanged whenever the lesson is closed. Preserve every rotor triangle and fixed bearing through the cut.
+5. Clip crossing architecture at rawZ.006, interpolating attributes. Remove closed cylinder lids so shafts can pass; add genuine thickness/lining/section returns.
+6. Add supported galleries, timber frame, bearings and connected windshaft/brake-wheel/wallower/upright/spur/nut/runner drivetrain. Illustrative tooth counts, no exact historical reconstruction claim.
+7. Separate the rotating upper runner and stationary lower bed, with centre eyes and radial furrows. Include hopper, shoe, meal chute and sack.
+8. Derive gears and grain from the existing angle in update order. Preserve pause, reduced-motion and hidden-tab holds, wind and nonzero-speed semantics. Grain moves forward under negative sail rotation and wraps with the same angle.
+9. Exclude the whole interactive subtree from static batching, including a quality-triggered rebatch.
+10. Keep all procedural geometry/materials owned/disposed, source GLTF maps shared and intact. Repeated close restores original geometry and sides.
+11. Mount readiness is a generated-model lease, never a GPU-ready claim. Fallback does not offer an unavailable interior. Last release closes/reset lesson.
+12. Add one compact bilingual card to existing desktop and compact Overview hosts, preserving the existing dock/sidebar/modal structure.
+13. Support real windmill click and existing Overview entry. Drag is not a click; repeat Start is idempotent.
+14. Four manually advanced stages cover power, feed, grinding and collection, two retryable predictions, Back/Finish/Close and restart. No inventory, pay, reward, order or simulation-clock mutation.
+15. Hiding/unmounting the host closes the cutaway. Explicit stage focus transforms through actual matrixWorld and respects ordinary orbit distance. Close does not force a camera return, cancel newer flight or resume play.
+16. Verify actual-asset clipping/rotor/cache ownership, motion/contact/path, store reset/isolation and UI flow with existing test setup.
+17. Run required integrated source gates and actual production build. Seal source and output; run fresh bundle/reachability/community checks.
+18. Inspect exact-build native closed exterior, all stages with sidebar, motion/sail synchronization, pause, reduced motion, quality-change/open/close/reopen, day/dusk/night and Low. Preserve clean console/page/network/world/personnel/texture/audio guards.
+19. Run original affected-scene timing once, unchanged limits, separate OPEN result. No waiting for idle GPU or inferred timing victory.
+20. Retain raw failures/images/receipts, record item disposition and local-only limits, check in owned sources/results only. Close owned temporary jobs, verify custody and capture-lock release, then apply supported goal PAUSED and stop.
+
+Working if: real controls expose a coherent moving historical section, follow-grain learning completes without changing simulation authority, the ordinary exterior returns cleanly, all applicable source/build/runtime evidence is retained, and the pass ends paused with pacing and device limits distinct.
