@@ -23,9 +23,7 @@ import {
   lineMotionRate,
   machineFlowState,
 } from '../simulation/lineFlow';
-import { BAG_WEIGHT_KG, GrainQuality } from '../types';
-import { formatFixed, useT } from '../i18n';
-import { conveyorSystemMessages } from './ConveyorSystem.messages';
+import { ConveyorStockTooltip } from './ConveyorStockTooltip';
 import { SHARED_GEOMETRIES } from '../utils/sharedMaterials';
 // The conveyor branch's surface finish. See `conveyors/conveyorSurfaces.ts` for
 // why these are treated clones of the shared singletons rather than the
@@ -104,22 +102,6 @@ export const registerConveyorAudio = (id: string, position: THREE.Vector3, isRun
 
 export const unregisterConveyorAudio = (id: string) => {
   conveyorAudioRegistry.delete(id);
-};
-
-// Generate batch number in format: YYYYMMDD-XXX
-const generateBatchNumber = (index: number): string => {
-  const date = new Date();
-  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-  const batchNum = String(index + 1).padStart(3, '0');
-  return `${dateStr}-${batchNum}`;
-};
-
-// Quality colors for batch labeling
-const QUALITY_COLORS: Record<GrainQuality, string> = {
-  premium: '#22c55e',
-  standard: '#3b82f6',
-  economy: '#f59e0b',
-  mixed: '#8b5cf6',
 };
 
 // Module-level constants for position arrays to avoid recreating on each render
@@ -529,29 +511,7 @@ interface FlourBag {
   position: [number, number, number];
   speed: number;
   rotation: number;
-  // Batch tracking
-  batchNumber: string;
-  quality: GrainQuality;
-  weight: number; // kg
 }
-
-// Quality distribution (weighted random selection)
-const QUALITY_WEIGHTS: { quality: GrainQuality; weight: number }[] = [
-  { quality: 'premium', weight: 0.3 },
-  { quality: 'standard', weight: 0.5 },
-  { quality: 'economy', weight: 0.15 },
-  { quality: 'mixed', weight: 0.05 },
-];
-
-const getRandomQuality = (): GrainQuality => {
-  const rand = Math.random();
-  let cumulative = 0;
-  for (const { quality, weight } of QUALITY_WEIGHTS) {
-    cumulative += weight;
-    if (rand < cumulative) return quality;
-  }
-  return 'standard';
-};
 
 // Even slots preserve clear space at all three quality counts, including the
 // wrap seam. Random X positions allowed sacks and their printing to intersect.
@@ -591,10 +551,6 @@ export const ConveyorSystem = React.memo<ConveyorSystemProps>(({ productionSpeed
         // Equal speed preserves the initial separation through every wrap.
         speed: BELT_LINEAR_SPEED,
         rotation: (Math.random() - 0.5) * 0.1,
-        // Batch tracking
-        batchNumber: generateBatchNumber(i),
-        quality: getRandomQuality(),
-        weight: BAG_WEIGHT_KG,
       });
     }
     return _bags;
@@ -1471,6 +1427,7 @@ export const BAG_STRIPE_OFFSET = BAG_BODY_OFFSET.clone();
 const BAG_UP = new THREE.Vector3(0, 1, 0);
 const BAG_IDLE_COLOR = new THREE.Color('#ffffff');
 const BAG_HOVER_COLOR = new THREE.Color('#ffd99a');
+const BAG_PRINT_COLOR = new THREE.Color('#245c55');
 
 export function advanceBagPosition(
   currentX: number,
@@ -1521,14 +1478,13 @@ export function nextBagOccupied(
 
 /**
  * Medium previously rendered 30 sacks as 60 individual draws. The body and
- * quality stripe now remain independently shaded, animated and pickable in two
+ * printed brand now remain independently shaded, animated and pickable in two
  * instanced draws. One tooltip follows the selected instance.
  */
 const InstancedFlourBags: React.FC<{
   bags: FlourBag[];
   drive: ConveyorDrive;
 }> = React.memo(({ bags, drive }) => {
-  const t = useT(conveyorSystemMessages);
   const bodiesRef = useRef<THREE.InstancedMesh>(null);
   const stripesRef = useRef<THREE.InstancedMesh>(null);
   const tooltipRef = useRef<THREE.Group>(null);
@@ -1541,11 +1497,6 @@ const InstancedFlourBags: React.FC<{
   const groupRotation = useMemo(() => new THREE.Quaternion(), []);
   const groupMatrix = useMemo(() => new THREE.Matrix4(), []);
   const instanceMatrix = useMemo(() => new THREE.Matrix4(), []);
-  const qualityColours = useMemo(
-    () => bags.map((bag) => new THREE.Color(QUALITY_COLORS[bag.quality]).multiplyScalar(0.12)),
-    [bags]
-  );
-
   const writeMatrices = (): void => {
     const bodies = bodiesRef.current;
     const stripes = stripesRef.current;
@@ -1582,7 +1533,7 @@ const InstancedFlourBags: React.FC<{
     stripes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     for (let index = 0; index < bags.length; index += 1) {
       bodies.setColorAt(index, BAG_IDLE_COLOR);
-      stripes.setColorAt(index, qualityColours[index]);
+      stripes.setColorAt(index, BAG_PRINT_COLOR);
     }
     if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
     if (stripes.instanceColor) stripes.instanceColor.needsUpdate = true;
@@ -1590,7 +1541,7 @@ const InstancedFlourBags: React.FC<{
     bodies.computeBoundingSphere();
     stripes.computeBoundingSphere();
     setHoveredIndex(null);
-  }, [bags, qualityColours, drive]);
+  }, [bags, drive]);
 
   useEffect(() => {
     const bodies = bodiesRef.current;
@@ -1646,7 +1597,7 @@ const InstancedFlourBags: React.FC<{
         receiveShadow
         onPointerOver={(event) => {
           event.stopPropagation();
-          // An empty slot is a sub-centimetre speck; it has no batch to show.
+          // An empty slot is a sub-centimetre speck; it offers no hover target.
           if (event.instanceId !== undefined && occupiedRef.current[event.instanceId]) {
             setHoveredIndex(event.instanceId);
           }
@@ -1670,24 +1621,7 @@ const InstancedFlourBags: React.FC<{
       {hoveredBag && (
         <group ref={tooltipRef}>
           <Html center distanceFactor={10}>
-            <div className="pointer-events-none min-w-[120px] rounded-lg border border-slate-700 bg-slate-900/95 px-3 py-2 shadow-xl backdrop-blur">
-              <div className="text-xs font-mono font-bold text-white">{hoveredBag.batchNumber}</div>
-              <div className="mt-1 text-[10px] text-slate-400">
-                <div className="flex justify-between">
-                  <span>{t('quality')}</span>
-                  <span
-                    style={{ color: QUALITY_COLORS[hoveredBag.quality] }}
-                    className="font-medium capitalize"
-                  >
-                    {t('qualityValue', { quality: hoveredBag.quality })}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>{t('weight')}</span>
-                  <span className="text-white">{formatFixed(hoveredBag.weight, 0)} kg</span>
-                </div>
-              </div>
-            </div>
+            <ConveyorStockTooltip />
           </Html>
         </group>
       )}

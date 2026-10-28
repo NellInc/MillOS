@@ -262,7 +262,9 @@ export const ExteriorDownlight: React.FC<{
   intensity: number;
   distance: number;
   color: THREE.ColorRepresentation;
-}> = ({ name, gain, position, intensity, distance, color }) => {
+  angle?: number;
+  penumbra?: number;
+}> = ({ name, gain, position, intensity, distance, color, angle = 1.24, penumbra = 0.7 }) => {
   const lightRef = useRef<THREE.SpotLight>(null);
   const target = useMemo(() => new THREE.Object3D(), []);
   useLayoutEffect(() => {
@@ -286,8 +288,8 @@ export const ExteriorDownlight: React.FC<{
         intensity={0}
         distance={distance}
         decay={2}
-        angle={1.24}
-        penumbra={0.7}
+        angle={angle}
+        penumbra={penumbra}
         castShadow={false}
       />
     </group>

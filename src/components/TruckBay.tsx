@@ -1,4 +1,9 @@
 import { PalletStaging } from './truckbay/PalletStaging';
+import {
+  SHIPPING_TASK_LIGHT,
+  SHIPPING_TASK_ORIENTATION,
+  SHIPPING_TASK_GAIN,
+} from './truckbay/stagingTaskLighting';
 import { DockYardDressing } from './truckbay/DockYardDressing';
 import {
   PARKED_TRAILER_HALF,
@@ -107,6 +112,7 @@ import {
   EXTERIOR_LAMP_LENS_MATERIAL,
   ExteriorLampPool,
   ExteriorPointLight,
+  ExteriorDownlight,
 } from './exterior/ExteriorLighting';
 // Import animation system functions and TruckAnimationManager
 import {
@@ -3080,6 +3086,12 @@ export const TruckBay: React.FC = () => {
   const audioReady = useAudioInitialized();
   const showDecorativeAnimations = graphicsQuality === 'ultra';
   const yardLampsEnabled = useYardLampsEnabled();
+  const shippingTaskLightEnabled = useGraphicsStore(
+    (state) =>
+      state.graphics.quality !== 'low' &&
+      !state.graphics.perfDebug.disablePunctualLights &&
+      !state.graphics.perfDebug.disableLightingPolish
+  );
   const vehicleSpeedMultiplier = useOperationsCampaignStore(
     (state) => state.getIncidentEffect().vehicleSpeedMultiplier
   );
@@ -3666,27 +3678,54 @@ export const TruckBay: React.FC = () => {
           [30, 35],
           [-30, 55],
           [30, 55],
-        ].map(([x, z], i) => (
-          <group key={i} position={[x, 0, z]}>
-            <ExteriorLampPool radius={YARD_MAST.poolRadius} />
-            {/* Light pole - 14 units tall, centered at y=7, so top is at y=14 */}
-            <mesh position={[0, 7, 0]}>
-              <cylinderGeometry args={[0.12, 0.15, 14, 8]} />
-              <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
-            </mesh>
-            {/* Fixture - positioned at y=14.2 so it sits flush on pole top at y=14 */}
-            <mesh position={[0, 14.2, 0]}>
-              <boxGeometry args={[2, 0.4, 1]} />
-              <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
-            </mesh>
-            <mesh position={[0, 13.97, 0]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
-              <boxGeometry args={[1.55, 0.08, 0.72]} />
-            </mesh>
-            {yardLampsEnabled && (
-              <ExteriorPointLight position={[0, 14, 0]} intensity={30} distance={35} />
-            )}
-          </group>
-        ))}
+        ].map(([x, z], i) => {
+          const isTaskOptic =
+            x === SHIPPING_TASK_LIGHT.mast[0] && z === SHIPPING_TASK_LIGHT.mast[2];
+          return (
+            <group key={i} position={[x, 0, z]}>
+              {(!isTaskOptic || !shippingTaskLightEnabled) && (
+                <ExteriorLampPool radius={YARD_MAST.poolRadius} />
+              )}
+              {/* Light pole - 14 units tall, centered at y=7, so top is at y=14 */}
+              <mesh position={[0, 7, 0]}>
+                <cylinderGeometry args={[0.12, 0.15, 14, 8]} />
+                <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
+              </mesh>
+              {/* One existing optic turns toward the working stock area. The
+                housing, lens and source share a pivot at the actual pole top. */}
+              <group
+                name={isTaskOptic ? 'shipping-staging-task-optic' : `shipping-yard-mast-head-${i}`}
+                position={[0, SHIPPING_TASK_LIGHT.pivotHeight, 0]}
+                quaternion={isTaskOptic ? SHIPPING_TASK_ORIENTATION : undefined}
+                userData={isTaskOptic ? { exteriorLampGain: SHIPPING_TASK_GAIN } : undefined}
+              >
+                <mesh position={[0, 0.2, 0]}>
+                  <boxGeometry args={[2, 0.4, 1]} />
+                  <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
+                </mesh>
+                <mesh position={[0, -0.03, 0]} material={EXTERIOR_LAMP_LENS_MATERIAL}>
+                  <boxGeometry args={[1.55, 0.08, 0.72]} />
+                </mesh>
+                {isTaskOptic
+                  ? shippingTaskLightEnabled && (
+                      <ExteriorDownlight
+                        name="shipping-staging-task-light"
+                        gain={SHIPPING_TASK_GAIN}
+                        position={[0, SHIPPING_TASK_LIGHT.sourceOffset, 0]}
+                        intensity={SHIPPING_TASK_LIGHT.intensity}
+                        distance={SHIPPING_TASK_LIGHT.distance}
+                        angle={SHIPPING_TASK_LIGHT.angle}
+                        penumbra={SHIPPING_TASK_LIGHT.penumbra}
+                        color={SHIPPING_TASK_LIGHT.colour}
+                      />
+                    )
+                  : yardLampsEnabled && (
+                      <ExteriorPointLight position={[0, 0, 0]} intensity={30} distance={35} />
+                    )}
+              </group>
+            </group>
+          );
+        })}
 
         {/* Guard shack porch light, kept out of YardDetailLOD so the point-light
             count never changes with camera distance. */}

@@ -9078,3 +9078,61 @@ Twenty final native Metal captures pass unchanged ready/world/personnel/texture/
 Root-inspected new next-pass finding: `ConveyorSystem.tsx:527-548,585-600` still gives representative bag slots synthetic batch IDs and weighted-random quality, exposed by the existing tooltip despite no tracked lot identity. This remains a genuine gameplay-truthfulness target; current artwork repair does not certify those readouts. Native night staging also remains a lighting review candidate because the unchanged apron patch is relatively dark. Continue those grounded areas rather than another crop/branding micro-pass.
 
 Useful source/raster/seals/failed authoring attempt/cargo-reader corrections/native gallery retained. All task-owned native browser/server/lock resources report closed; producer temporary font cache/environment restored. No unsupported helper disposal or foreign-process control. LOCAL ONLY; recurring goal ACTIVE, pacing OPEN separately, player/device/native mouse/unmuted audio/native Brazilian editorial checks DEFERRED. No push/main merge/upload/deployment.
+
+## EA: truthful stock hover and working shipping-staging light (2026-10-28)
+
+Previous turn is PROGRESS: actual branded packaging implementation,48affected tests,20native frames and source/build custody committed locally. Current start e63789aa clean,69GiB free, active recurring goal. No new worktree. Local/muted only; preserve interface structure, actual stock/dispatch/consent, routes, terrain/rail/port/mountain layout, preset settings/adaptation/readiness and original budgets. Device/player/native input/unmuted audio remain deferred; pacing stays separately open.
+
+Two demonstrated gaps: ConveyorSystem gives untracked visual slots date-based batch numbers and random quality, then presents them as bag telemetry. The current night Medium image of actual shipping staged stock is very dark. Root independently read both source owners. Existing yard decorative point lights are deliberately High/Ultra only; additive ground pools cannot light sacks or timber. A bounded Astra advice pass establishes actual world source positions (shipping dock parent adds50m) and warns against lighting-cost or coverage claims without measurement.
+
+### Decisions and risks
+
+Keep the hover's existing Html/one-header/two-row structure, replacing invented bag data with actual released plant stock totals for flour and semolina. Mount its shallow stock subscription only while hovered; one stable brand ink replaces faux quality colouring. No fabricated per-bag lineage, product switching from current recipe or new inventory writes. The finite producer lane began from its explicit packet while root was finishing the independent lighting contract; its named baseline and reproduction are retained, not retroactively claimed as root's execution.
+
+Preserve all graphics preset values and existing decorative-yard gating. Reuse one existing shipping mast as an operational task fixture, with housing/lens/source aimed together at the authored default staging footprint. Add one fixed Medium task source, replace the same mast's High point rather than double it, retain Low omission. This is an explicit source/cost addition, not free illumination and not enabling High's decorative bank. Reuse ExteriorDownlight/shared exterior dimmer, no extra shadow map, global exposure or material emission disguise. A fixed authored light does not follow moved stock; relocated layouts may leave its pool. No false all-apron/all-layout guarantee.
+
+Pre-mortem: (1) stock held/recalled/shipped could be misreported as released, (2) a wide tilted cone could flood the factory or leave a detached lens, and (3) a new source could add scene-wide cost despite a small local pool. Address with actual batch reducers/dispatch tests and real hover, bounded cone/physical optical seating and rays, same-page contribution controls and original shipping budget with load recorded. A budget miss stays open, never relaxed or silently interpreted as a pass.
+
+### Finite detailed execution list
+
+1. Reconcile branch, dirty ownership, last seals, active goal and4GiB disk/capture guards.
+2. Reopen the current actual dark staging image and synthetic tooltip source. Verify live callers before unfamiliar edits.
+3. Trace released material semantics through ProductionBatch and getDispatchableFinishedGoods; do not relabel a visual slot from current order/recipe.
+4. Record producer's named ConveyorSystem.kinematics baseline23PASS and root's ExteriorLighting/dockApron/palletStaging baseline37PASS across3files, zero failed.
+5. Reproduce synthetic hover data in source regression and, where pointer automation permits, the old native tooltip.
+6. Remove synthetic date-based batch numbers, random GrainQuality metadata and untracked per-bag readout fields from visual sacks.
+7. Preserve actual physical bag mass/constants, motion, spacing, occupancy, hover highlight and geometry.
+8. Replace quality-coded random ink with one consistent existing-brand teal; no quality certificate implied by a decorative colour.
+9. Keep the actual hover event and Html placement; use one compact header and two existing-format numeric rows, without new controls, panels or helper prose.
+10. Show actual released available flour and semolina stock; exclude held, recalled, shipped, negative and non-finite quantities.
+11. Mount a small DOM stock child only on hover, with shallow selector equality; no stock subscription or per-tick React work in the3D parent while hidden.
+12. Localize primary labels and numeric formatting in English/pt-BR. Fit the same tooltip hierarchy with only necessary width adjustment.
+13. Test mixed products/dispositions, zeros, live updates, real semolina dispatch and locale formatting; retain original motion/occupancy/print contracts.
+14. Read actual shipping dock transform, mast aperture, full default50-pallet footprint and movable-layout behavior before placing light.
+15. Keep the authored mast footing and14m height; aim its existing housing/lens/operative source together, with physical contact preserved.
+16. Use a bounded downward task cone and physically meaningful source strength/range, calibrated on real sack/timber/ink receivers.
+17. Reuse the existing ExteriorDownlight registration, exterior weather/dusk smoothing and resource cleanup. Optional cone parameters retain current defaults for every prior caller.
+18. Keep the task source permanently mounted at its eligible tier through day/night, empty stock, camera changes and pause; only its intensity/dimmer varies.
+19. Keep Low's omission and High/Ultra decorative source policy, replacing the selected High point rather than adding a duplicate.
+20. Make the new Medium one-source cost explicit, with no new local shadow map, shader family, global exposure or quality/budget waiver.
+21. Cover all corners/heights of the default full-capacity footprint through geometric cone/range checks and inspect clear paths/outside spill. Do not manufacture50pallets for a photograph.
+22. Preserve fixed physical lighting when players relocate stock; document the authored pool's bounded coverage rather than attaching a floating lamp to stock.
+23. Root inspect integrated worker diffs and run the affected existing checks plus focused new component/optic contracts, fixing real regressions.
+24. Run required typecheck, agent:typecheck, lint, format, assets, depth/shader/manifest gates on the coherent final source.
+25. Build actual v0.40 under the unchanged capture lock/disk guard, seal exact source/output, then run fresh bundle/reachability/community checks.
+26. Native silent day/dusk/night/Low art: actual staged stock, working mast optic and whole shipping context, preserving original readiness/world/personnel/texture/quality/audio guards.
+27. Verify real hovered stock values against actual batch totals without store/actor/inventory overrides. Keep unit/isolated locale fixtures distinct from played/native stock.
+28. Inspect desktop and narrow EN/pt-BR tooltip fit using existing local browser/DOM tools; no physical-device claim or redesigned interface.
+29. Same-page held gain on/off/off/on controls prove the new light contributes to actual stock/timber/apron and stays inert at clear noon; restore default gain.
+30. Check actual source counts and shadow-map policy across day/night, stock and camera conditions. Count stability is not a zero-cost claim.
+31. Run the original shipping frame/startup gate on the same candidate, record load and any pacing miss separately without repeated quiet-GPU waiting or relaxed limits.
+32. Retain raw failures, build/seals, source/DOM/native evidence and accepted recap gallery. Close only this task's own temporary resources using their owning APIs.
+33. Record complete finite-list disposition and selective local commits; keep root/main/foreign files safe, recurring goal active and all publication held.
+
+Allowed producer lane: ConveyorSystem.tsx/messages, focused ConveyorStockTooltip component/test, stale grain tooltip comment only. Root lane: TruckBay, ExteriorLighting optional cone parameters, focused shipping-task optic specification/tests in truckbay/, programme and ignored evidence. No overlapping write ownership, source inventory/dispatch/schema changes, new global lighting framework, new dependencies or generated models. Working if real stock replaces invented hover claims, actual Medium staging becomes legibly and coherently lit from its mounted task optic, fixed sources/preset values/route/stock contracts hold, relevant source/native gates finish, and genuine pacing/device/coverage limits remain explicit.
+
+EA source checkpoint: root's exact old-build native hover reproduces the bogus date ID/Premium/25kg readout while the actual released domain query reports30kg flour/0semolina. No native state writes. Producer removes synthetic metadata/quality colour; only the hover DOM child subscribes to released batch stock. Its six focused regressions include a real domain semolina dispatch and EN/pt-BR formatting; no per-bag lineage invented. Root inspected the actual diff and independently ran the integrated six-file set:69PASS. Updated actual full-stack-height optical check reruns3PASS, using the real pallet geometry rather than a copied height.
+
+Lighting source explicitly adds one fixed operational Medium spot, replaces one High point, keeps all preset values and decorative gates unchanged, and omits it on Low/debug exclusions. The existing nearest shipping mast is atworld[30,14,85], notdock-local[30,14,35]. Housing/lens/source rotate together; source is15mm outside the lens. The old additive circle is removed only when this real task optic is enabled, avoiding a false pool under a tilted beam. Other mast hardware/pools remain unchanged. Default full50pallet footprint, real stack height, cone/range, optical normal/contact and outside controls are tested. Relocated stock is not promised the same pool. No new geometry, shadow map, global exposure, physical inventory or routes.
+
+First integrated check:66PASS plus one failed suite, root used docks.shipping.centre instead of portals.shipping.centre. Correct namespace fixes the actual failure. A subsequent apply_patch rejected stale Prettier context without modifying that block; exact scoped replacement then parses and the69checks pass. Initial whole source gates all0except a correctly stale ignored mutation-inventory manifest. Standard agent:manifest regeneration then check exits0; original failed log retained, no guard removed. Optional Impeccable executable remains absent; no install. Initial producer pt-BR expected grouping was corrected in its test only; production number formatting unchanged. All temporary/native resources from the before capture report closed.

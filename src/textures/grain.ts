@@ -304,8 +304,8 @@ export const getFlourSackMaps = (): GrainMapSet => {
   return { map: make('map'), normal: make('normal'), roughness: make('roughness') };
 };
 
-/** Single ink plate, with transparent cloth between letters. No fixed weight:
- * each bag's actual 25-30 kg value remains in its existing batch tooltip. */
+/** Shared brand ink plate, with transparent cloth between letters. Visual sacks
+ * claim no individual product, batch, quality or weight. */
 export const getFlourSackPrint = (): THREE.DataTexture =>
   getTexture('sack-millos-brand-raster-v2', () => {
     const size = SACK_BRAND_SIZE;
