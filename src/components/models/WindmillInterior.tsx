@@ -401,6 +401,7 @@ export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: Wind
   ];
   return (
     <group
+      ref={root}
       name="windmill-interior"
       position={modelOrigin}
       userData={{ noStaticBatch: true }}
