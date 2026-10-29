@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import {
   createOrganicLakeBankGeometry,
   createOrganicLakeSurfaceGeometry,
+  createOrganicLakeBedGeometry,
+  LAKE_BED_RIM,
 } from './organicLakeGeometry';
 
 function expectFiniteGeometry(geometry: ReturnType<typeof createOrganicLakeSurfaceGeometry>) {
@@ -15,6 +18,33 @@ function expectFiniteGeometry(geometry: ReturnType<typeof createOrganicLakeSurfa
 }
 
 describe('organic lake geometry', () => {
+  it('seats the actual visible water boundary on the five-row bank', () => {
+    const water = createOrganicLakeSurfaceGeometry(19, 14);
+    const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
+    const mesh = new THREE.Mesh(bank, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.y = 0.08;
+    mesh.updateMatrixWorld();
+    const p = water.getAttribute('position');
+    const start = p.count - 73;
+    let maximumGap = 0;
+    for (let segment = 0; segment < 72; segment++) {
+      for (const t of [0.1, 0.35, 0.6, 0.85]) {
+        const x = THREE.MathUtils.lerp(p.getX(start + segment), p.getX(start + segment + 1), t);
+        const z = -THREE.MathUtils.lerp(p.getY(start + segment), p.getY(start + segment + 1), t);
+        const hit = new THREE.Raycaster(
+          new THREE.Vector3(x, 3, z),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObject(mesh)[0];
+        expect(hit).toBeDefined();
+        maximumGap = Math.max(maximumGap, Math.abs(hit.point.y - 0.15));
+      }
+    }
+    expect(maximumGap).toBeLessThan(0.001);
+    water.dispose();
+    bank.dispose();
+    mesh.material.dispose();
+  });
   it('creates finite subdivided water and non-overlapping bank meshes', () => {
     const water = createOrganicLakeSurfaceGeometry(19, 13, 72);
     const bank = createOrganicLakeBankGeometry(19, 13, 22, 16, 72);
@@ -88,9 +118,11 @@ describe('lake bank width and surface contract', () => {
     for (let segment = 0; segment <= 72; segment++) {
       const inner = segment * 5;
       const rim = 1 + 5 * 73 + segment;
-      // Existing 1.5% overlap follows the actual rendered water outline.
-      expect(p.getX(inner)).toBeCloseTo(w.getX(rim) * 0.985, 5);
-      expect(p.getY(inner)).toBeCloseTo(w.getY(rim) * 0.985, 5);
+      // Submerged row0 meets the basin; row1 IS the actual water boundary.
+      expect(p.getX(inner)).toBeCloseTo(w.getX(rim) * LAKE_BED_RIM, 5);
+      expect(p.getY(inner)).toBeCloseTo(w.getY(rim) * LAKE_BED_RIM, 5);
+      expect(p.getX(inner + 1)).toBeCloseTo(w.getX(rim), 5);
+      expect(p.getY(inner + 1)).toBeCloseTo(w.getY(rim), 5);
       widths.push(Math.hypot(p.getX(inner + 4) - p.getX(inner), p.getY(inner + 4) - p.getY(inner)));
       for (let row = 1; row < 5; row++) {
         expect(Math.hypot(p.getX(inner + row), p.getY(inner + row))).toBeGreaterThan(
@@ -112,4 +144,21 @@ describe('lake bank width and surface contract', () => {
     water.dispose();
     bank.dispose();
   });
+});
+
+it('joins the real basin to the submerged bank rim with safe wave separation', () => {
+  const bed = createOrganicLakeBedGeometry(19, 14),
+    bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
+  const p = bed.getAttribute('position'),
+    b = bank.getAttribute('position');
+  expect(p.getZ(0)).toBeCloseTo(-0.5, 6);
+  const start = p.count - 73;
+  for (let i = 0; i <= 72; i++) {
+    expect(p.getX(start + i)).toBeCloseTo(b.getX(i * 5), 5);
+    expect(p.getY(start + i)).toBeCloseTo(b.getY(i * 5), 5);
+    expect(p.getZ(start + i) + 0.15).toBeCloseTo(b.getZ(i * 5) + 0.08, 6);
+  }
+  for (let i = 0; i < p.count; i++) expect(p.getZ(i)).toBeLessThan(-0.11);
+  bed.dispose();
+  bank.dispose();
 });

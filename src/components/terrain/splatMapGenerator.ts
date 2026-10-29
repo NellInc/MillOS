@@ -12,6 +12,7 @@
  */
 
 import * as THREE from 'three';
+import { sampleLakeBasinHeight, sampleLakeBankHeight } from './lakeBasin';
 import {
   TerrainChannel,
   TerrainRegion,
@@ -932,6 +933,22 @@ export function sampleValleyReliefAtGridVertex(
  * Working if a tree rooted by this meets the rendered terrain on a bank.
  */
 export function sampleTerrainGroundHeight(
+  x: number,
+  z: number,
+  segments: number,
+  config: RiverChannelConfig = MILLOS_RIVER_CONFIG
+): number {
+  const basin = sampleLakeBasinHeight(x, z);
+  if (basin !== undefined) return basin - SITE_LAYOUT.datum.terrain;
+  const grid = sampleTerrainGridHeight(x, z, segments, config);
+  const bank = sampleLakeBankHeight(x, z);
+  return bank === undefined ? grid : Math.max(grid, bank - SITE_LAYOUT.datum.terrain);
+}
+
+/** Original raw grid, also used by the river. The basin is a local assembly
+ * cutout; outside it the world sampler remains bit-identical to this grid.
+ */
+export function sampleTerrainGridHeight(
   x: number,
   z: number,
   segments: number,

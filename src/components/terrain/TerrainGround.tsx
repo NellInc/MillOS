@@ -30,6 +30,7 @@ import {
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import { cutLakeBasinFromTerrain } from './lakeBasin';
 
 interface TerrainGroundProps {
   debug?: boolean;
@@ -255,14 +256,16 @@ export const TerrainGround = React.memo(function TerrainGround({
   // Create geometry with CPU-side displacement
   const geometry = useMemo(
     () =>
-      createDisplacedGeometry(
-        width,
-        height,
-        segments,
-        heightmapData?.data ?? null,
-        heightmapData?.resolution ?? 1,
-        riverConfig.depth,
-        TERRAIN_BOUNDS
+      cutLakeBasinFromTerrain(
+        createDisplacedGeometry(
+          width,
+          height,
+          segments,
+          heightmapData?.data ?? null,
+          heightmapData?.resolution ?? 1,
+          riverConfig.depth,
+          TERRAIN_BOUNDS
+        )
       ),
     [width, height, segments, heightmapData, riverConfig.depth]
   );

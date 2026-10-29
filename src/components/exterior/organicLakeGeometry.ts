@@ -1,6 +1,17 @@
 import * as THREE from 'three';
 
 const DEFAULT_SEGMENTS = 72;
+export const LAKE_BED_RIM = 0.94;
+export const LAKE_SHALLOW_DEPTH = 0.12;
+
+/** Shared optical/physical profile, metres below the .15m water datum. */
+export function lakeBedDepth(radius: number, depth: number): number {
+  return THREE.MathUtils.lerp(
+    LAKE_SHALLOW_DEPTH,
+    depth,
+    1 - THREE.MathUtils.smoothstep(radius, 0.42, 1)
+  );
+}
 
 function shorelineFactor(angle: number, seed: number): number {
   return (
@@ -102,7 +113,7 @@ export function createOrganicLakeBankGeometry(
   // ground datum (-0.02), rather than leaving a raised cut edge above the lawn.
   // A shallow gravel shoulder rises above the .15m water line. The old .175m
   // maximum left only 25mm exposed, so the shoreline read as submerged lawn.
-  const rowHeights = [-0.05, 0.11, 0.19, 0.075, -0.12] as const;
+  const rowHeights = [-0.05, 0.07, 0.19, 0.075, -0.12] as const;
   const grassEdge = rowColors[4];
   const colour = new THREE.Color();
 
@@ -125,14 +136,18 @@ export function createOrganicLakeBankGeometry(
       // Vary the width of each band without moving either boundary or adding
       // vertices. The bounded derivative stays positive, so rows cannot fold.
       const sweep = Math.sin(angle * 3 + seed) * 0.08 + Math.sin(angle * 7 - seed) * 0.035;
-      const ratio = baseRatio + sweep * Math.sin(Math.PI * baseRatio);
-      const radiusX = THREE.MathUtils.lerp(waterRadiusX * 0.985, bankRadiusX, ratio);
-      const radiusZ = THREE.MathUtils.lerp(waterRadiusZ * 0.985, bankRadiusZ, ratio);
+      // Row1 IS the rendered water boundary, pinned at world .15m. Row0
+      // continues below it into the basin. Five rows retain reed-root sampling.
+      const ratio = row < 2 ? 0 : (row - 1) / 3 + sweep * Math.sin((Math.PI * (row - 1)) / 3);
+      const innerScale = row === 0 ? LAKE_BED_RIM : 1;
+      const radiusX = THREE.MathUtils.lerp(waterRadiusX * innerScale, bankRadiusX, ratio);
+      const radiusZ = THREE.MathUtils.lerp(waterRadiusZ * innerScale, bankRadiusZ, ratio);
       const factor = THREE.MathUtils.lerp(innerFactor, outerFactor, ratio);
       positions.push(
         Math.cos(angle) * radiusX * factor,
         Math.sin(angle) * radiusZ * factor,
-        rowHeights[row] + Math.sin(angle * 5 + seed) * 0.018 * Math.sin(Math.PI * baseRatio)
+        rowHeights[row] +
+          (row > 1 ? Math.sin(angle * 5 + seed) * 0.018 * Math.sin(Math.PI * baseRatio) : 0)
       );
       // World-metre grain density follows the bank, independent of ring width.
       uvs.push((Math.cos(angle) * radiusX * factor) / 2, (Math.sin(angle) * radiusZ * factor) / 2);
@@ -158,6 +173,33 @@ export function createOrganicLakeBankGeometry(
   geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/** Lit mineral basin, physically below all wave troughs. Its outer vertices
+ * meet bank row0 exactly, with a half-metre centre and a .12m shallow shelf.
+ */
+export function createOrganicLakeBedGeometry(radiusX: number, radiusZ: number, depth = 0.5) {
+  const geometry = createOrganicLakeSurfaceGeometry(radiusX, radiusZ, DEFAULT_SEGMENTS, 0.74, 12);
+  const p = geometry.getAttribute('position'),
+    uv = geometry.getAttribute('uv');
+  const colors: number[] = [];
+  const silt = new THREE.Color('#869581'),
+    gravel = new THREE.Color('#d1c19c'),
+    c = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    const r = Math.min(1, Math.hypot(uv.getX(i) - 0.5, uv.getY(i) - 0.5) * 2);
+    p.setXYZ(i, p.getX(i) * LAKE_BED_RIM, p.getY(i) * LAKE_BED_RIM, -lakeBedDepth(r, depth));
+    uv.setXY(i, p.getX(i) / 1.7, p.getY(i) / 1.7);
+    c.copy(silt).lerp(gravel, THREE.MathUtils.smoothstep(r, 0.45, 0.95));
+    const shade = 0.94 + 0.06 * Math.sin(p.getX(i) * 0.8 + p.getY(i) * 0.47);
+    colors.push(c.r * shade, c.g * shade, c.b * shade);
+  }
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.name = 'lake-mineral-basin';
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
 }

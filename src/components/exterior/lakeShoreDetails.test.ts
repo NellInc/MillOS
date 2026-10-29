@@ -18,8 +18,8 @@ describe('concept lake shore details', () => {
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.y = 0.08;
     mesh.updateMatrixWorld();
-    expect(details.roots).toHaveLength(28);
-    for (const root of details.roots) {
+    expect(details.roots).toHaveLength(44);
+    for (const root of [...details.roots, ...details.brushRoots]) {
       const ray = new THREE.Raycaster(
         new THREE.Vector3(root.x, 4, root.z),
         new THREE.Vector3(0, -1, 0)
@@ -28,27 +28,38 @@ describe('concept lake shore details', () => {
       expect(hit).toBeDefined();
       expect(hit.point.y - root.y).toBeCloseTo(0.015, 5);
     }
-    for (const seat of details.stoneSeats) {
+    for (const seat of [...details.stoneSeats, ...details.gravelSeats]) {
       const ray = new THREE.Raycaster(
         new THREE.Vector3(seat.x, 4, seat.z),
         new THREE.Vector3(0, -1, 0)
       );
       expect(ray.intersectObject(mesh)[0].point.y).toBeCloseTo(seat.y, 5);
     }
+    // Shrub foliage stays inside the existing bank footprint, clear of paths.
+    const brush = details.brush.getAttribute('position');
+    for (let i = 0; i < brush.count; i++) {
+      const ray = new THREE.Raycaster(
+        new THREE.Vector3(brush.getX(i), 4, brush.getZ(i)),
+        new THREE.Vector3(0, -1, 0)
+      );
+      expect(ray.intersectObject(mesh).length).toBeGreaterThan(0);
+    }
     bank.dispose();
     material.dispose();
     details.vegetation.dispose();
     details.stones.dispose();
+    details.brush.dispose();
+    details.gravel.dispose();
   });
 
-  it('uses four separated short reaches and two finite bounded prototype surfaces', () => {
+  it('uses four separated habitat pockets and four finite bounded surfaces', () => {
     const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
     const details = createLakeShoreDetails(bank);
     expect(LAKE_REED_REACHES).toHaveLength(4);
-    // 0.18 rad root spread plus 0.1 rad of overhanging leaves per reach.
-    expect((4 * 0.28) / (Math.PI * 2)).toBeLessThan(0.3);
+    // 0.35 rad mineral/plant spread plus 0.1 rad of overhanging leaves per reach.
+    expect((4 * 0.45) / (Math.PI * 2)).toBeLessThan(0.3);
     let triangles = 0;
-    for (const geometry of [details.vegetation, details.stones]) {
+    for (const geometry of [details.vegetation, details.stones, details.brush, details.gravel]) {
       const p = geometry.getAttribute('position');
       const n = geometry.getAttribute('normal');
       for (let i = 0; i < p.count; i++) {
@@ -60,7 +71,7 @@ describe('concept lake shore details', () => {
       triangles += geometry.index!.count / 3;
       geometry.dispose();
     }
-    expect(triangles).toBeLessThan(5200);
+    expect(triangles).toBeLessThan(17000);
     bank.dispose();
   });
 
@@ -69,18 +80,24 @@ describe('concept lake shore details', () => {
     expect(sampleLakeBank(bank, 0).distanceTo(sampleLakeBank(bank, Math.PI * 2))).toBe(0);
     const first = createLakeShoreDetails(bank);
     const second = createLakeShoreDetails(bank);
-    expect(first.vegetation.getAttribute('position').array).toEqual(
-      second.vegetation.getAttribute('position').array
-    );
+    for (const key of ['vegetation', 'stones', 'brush', 'gravel'] as const) {
+      expect(first[key].getAttribute('position').array).toEqual(
+        second[key].getAttribute('position').array
+      );
+    }
+    expect(first.brushRoots).toHaveLength(8);
+    expect(first.gravelSeats).toHaveLength(48);
     for (const details of [first, second]) {
       details.vegetation.dispose();
       details.stones.dispose();
+      details.brush.dispose();
+      details.gravel.dispose();
     }
     bank.dispose();
   });
 });
 
-it('folds reed blades gently and keeps attached seed heads rounded without extra shore draws', () => {
+it('folds reed blades gently and keeps attached seed heads rounded within the reed batch', () => {
   const leaf = createLakeReedLeaf(new THREE.Vector3(), 0, 1, 0.3);
   const p = leaf.getAttribute('position');
   expect(p.count).toBe(15);
@@ -94,11 +111,13 @@ it('folds reed blades gently and keeps attached seed heads rounded without extra
   const colours = details.vegetation.getAttribute('color');
   expect(new Set(Array.from(colours.array)).size).toBeGreaterThan(30);
   // Existing merged geometry includes capped seed heads and rooted stem ends.
-  expect(details.vegetation.index!.count / 3).toBeLessThan(4600);
+  expect(details.vegetation.index!.count / 3).toBeLessThan(10000);
   leaf.dispose();
   bank.dispose();
   details.vegetation.dispose();
   details.stones.dispose();
+  details.brush.dispose();
+  details.gravel.dispose();
 });
 it('gives mineral stones asymmetry and actual bank contact rather than a floating spherical belt', () => {
   const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
@@ -111,19 +130,24 @@ it('gives mineral stones asymmetry and actual bank contact rather than a floatin
   const stone = createLakeShoreStone(0.35, 0.28, 0);
   const original = new THREE.SphereGeometry(1, 8, 5).scale(0.35, 0.22, 0.28);
   expect(stone.getAttribute('position').array).not.toEqual(original.getAttribute('position').array);
-  const p = details.stones.getAttribute('position');
   const count = stone.getAttribute('position').count;
-  expect(p.count).toBe(count * 8);
-  for (let rock = 0; rock < 8; rock++) {
-    let deepest = Infinity;
-    for (let i = rock * count; i < (rock + 1) * count; i++) {
-      const hit = new THREE.Raycaster(
-        new THREE.Vector3(p.getX(i), 3, p.getZ(i)),
-        new THREE.Vector3(0, -1, 0)
-      ).intersectObject(ground)[0];
-      if (hit) deepest = Math.min(deepest, p.getY(i) - hit.point.y);
+  for (const [geometry, rockCount, burial] of [
+    [details.stones, 12, 0.025],
+    [details.gravel, 48, 0.008],
+  ] as const) {
+    const p = geometry.getAttribute('position');
+    expect(p.count).toBe(count * rockCount);
+    for (let rock = 0; rock < rockCount; rock++) {
+      let deepest = Infinity;
+      for (let i = rock * count; i < (rock + 1) * count; i++) {
+        const hit = new THREE.Raycaster(
+          new THREE.Vector3(p.getX(i), 3, p.getZ(i)),
+          new THREE.Vector3(0, -1, 0)
+        ).intersectObject(ground)[0];
+        if (hit) deepest = Math.min(deepest, p.getY(i) - hit.point.y);
+      }
+      expect(deepest).toBeCloseTo(-burial, 5);
     }
-    expect(deepest).toBeCloseTo(-0.025, 5);
   }
   stone.dispose();
   original.dispose();
@@ -131,4 +155,6 @@ it('gives mineral stones asymmetry and actual bank contact rather than a floatin
   material.dispose();
   details.vegetation.dispose();
   details.stones.dispose();
+  details.brush.dispose();
+  details.gravel.dispose();
 });

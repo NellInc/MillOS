@@ -31,7 +31,7 @@ function goldenPoints(): Array<[number, number]> {
 }
 
 const heights = (generator: Generator, points: Array<[number, number]>, segments: number) =>
-  new Float64Array(points.map(([x, z]) => generator.sampleTerrainGroundHeight(x, z, segments)));
+  new Float64Array(points.map(([x, z]) => generator.sampleTerrainGridHeight(x, z, segments)));
 
 /**
  * NaN is hashed as one canonical pattern. An arithmetic NaN carries the sign

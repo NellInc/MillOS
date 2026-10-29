@@ -63,6 +63,7 @@ import {
 } from './exterior/stationAccessGeometry';
 import { createDisplacedGeometry } from './terrain/TerrainGround';
 import { getTerrainGridSegments, TERRAIN_BOUNDS } from './terrain/terrainTypes';
+import { LAKE_BASIN } from './terrain/lakeBasin';
 import {
   getRiverCenterZ,
   getRiverHeightfield,
@@ -196,6 +197,7 @@ import {
 import { createLakeShoreDetails } from './exterior/lakeShoreDetails';
 import {
   createOrganicLakeBankGeometry,
+  createOrganicLakeBedGeometry,
   createOrganicLakeSurfaceGeometry,
 } from './exterior/organicLakeGeometry';
 
@@ -2046,6 +2048,12 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
               float transmitted = .68 * (1.0-opticalFoam);
             #else
               float actualDepth = uBedDepth;
+              if (uRadial > 0.5) {
+                float basinRadius = clamp(length(vUv - .5) * 2.0, 0.0, 1.0);
+                float innerRadius = min(1.0,basinRadius/.94);
+                actualDepth = mix(.12,uBedDepth,1.0-smoothstep(.42,1.0,innerRadius));
+                if (basinRadius > .94) actualDepth = .12*(1.0-basinRadius)/.06;
+              }
               #ifdef MILLOS_WEIR_IMPACT
                 actualDepth *= clamp(vUv.x*2.0,0.0,1.0);
               #endif
@@ -2077,7 +2085,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v34';
+    value.customProgramCacheKey = () => 'millos-unified-water-v35';
     value.userData.actualWaterBed = actualBed;
     if (weirImpact)
       value.onBeforeRender = (renderer, scene, camera) =>
@@ -2730,8 +2738,7 @@ const SHORE_MINERAL_MAP = generateConcrete(512, 512, false, false);
 const Lake: React.FC<{
   position: readonly [number, number, number];
   size: [number, number];
-  depth?: number;
-}> = ({ position, size, depth: _depth = 0.5 }) => {
+}> = ({ position, size }) => {
   // CRITICAL: Guard against NaN/undefined/zero dimensions which cause
   // "computeBoundingSphere(): Computed radius is NaN" errors in THREE.js
   const safeW = Number.isFinite(size?.[0]) && size[0] > 0 ? size[0] : 20;
@@ -2748,20 +2755,27 @@ const Lake: React.FC<{
     () => createOrganicLakeBankGeometry(mainRadiusX, mainRadiusZ, shoreRadiusX, shoreRadiusZ),
     [mainRadiusX, mainRadiusZ, shoreRadiusX, shoreRadiusZ]
   );
+  const bedGeometry = useMemo(
+    () => createOrganicLakeBedGeometry(mainRadiusX, mainRadiusZ, LAKE_BASIN.depth),
+    [mainRadiusX, mainRadiusZ]
+  );
   const shoreDetails = useMemo(() => createLakeShoreDetails(bankGeometry), [bankGeometry]);
   useEffect(
     () => () => {
       waterGeometry.dispose();
       bankGeometry.dispose();
+      bedGeometry.dispose();
       shoreDetails.vegetation.dispose();
       shoreDetails.stones.dispose();
+      shoreDetails.brush.dispose();
+      shoreDetails.gravel.dispose();
     },
-    [bankGeometry, waterGeometry, shoreDetails]
+    [bankGeometry, bedGeometry, waterGeometry, shoreDetails]
   );
   // grassRadius removed - grass now handled by TerrainGround system
 
   return (
-    <group position={[position[0], position[1], position[2]]}>
+    <group name="organic-lake" position={[position[0], position[1], position[2]]}>
       {/* Grass around lake - REMOVED: now handled by TerrainGround system */}
       {/* One organic bank mesh replaces the exposed concentric shoreline disc. */}
       <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -2774,15 +2788,20 @@ const Lake: React.FC<{
           metalness={0}
         />
       </mesh>
-      {/* The opaque water shader carries its own depth gradient. Keeping a
-          second disc directly beneath its animated wave troughs caused the
-          two surfaces to cross and flash dark triangles at dusk. */}
-      {/* Main water surface. KEPT AT 0.15 for the reason the note above gives:
-          the opaque water shader carries its own depth gradient and its wave
-          troughs cut below the surface, so this is set by what the waves do,
-          not by where the terrain is. */}
+      {/* Real excavated basin, at least12cm below the surface, safely beyond
+          the lake's5.8mm maximum wave trough. Terrain is cut to its rim. */}
       <mesh
-        position={[0, 0.15, 0]}
+        name="lake-mineral-basin"
+        position={[0, LAKE_BASIN.waterLevel, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        geometry={bedGeometry}
+        receiveShadow
+      >
+        <meshStandardMaterial vertexColors map={SHORE_MINERAL_MAP} roughness={0.88} />
+      </mesh>
+      <mesh
+        name="lake-translucent-water"
+        position={[0, LAKE_BASIN.waterLevel, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         receiveShadow
         renderOrder={RENDER_ORDER.waterSurface}
@@ -2793,6 +2812,7 @@ const Lake: React.FC<{
           shallow="#4a8790"
           reflection="#c4e0e4"
           kind="lake"
+          bedDepth={LAKE_BASIN.depth}
           opacity={0.85}
           radial
           bankRadii={[mainRadiusX, mainRadiusZ]}
@@ -2809,6 +2829,20 @@ const Lake: React.FC<{
       <mesh
         name="lake-shore-stones"
         geometry={shoreDetails.stones}
+        material={LAKE_STONE_MATERIAL}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="lake-shore-brush"
+        geometry={shoreDetails.brush}
+        material={LAKE_REED_MATERIAL}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="lake-shore-gravel"
+        geometry={shoreDetails.gravel}
         material={LAKE_STONE_MATERIAL}
         castShadow
         receiveShadow
@@ -9345,7 +9379,6 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <Lake
         position={SITE_LAYOUT.exteriorFeatures.lake.position}
         size={[...SITE_LAYOUT.exteriorFeatures.lake.size]}
-        depth={0.5}
       />
 
       {/* Food truck (taco truck) parked next to the parking lot, on its own
