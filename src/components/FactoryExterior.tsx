@@ -196,6 +196,7 @@ import {
 } from './exterior/canalOutletGeometry';
 import { createLakeShoreDetails } from './exterior/lakeShoreDetails';
 import { LakeAquaticLife } from './exterior/LakeAquaticLife';
+import { LakeDragonflies } from './exterior/LakeDragonflies';
 import {
   createOrganicLakeBankGeometry,
   createOrganicLakeBedGeometry,
@@ -2867,6 +2868,7 @@ const Lake: React.FC<{
         />
       </mesh>
       <LakeAquaticLife />
+      <LakeDragonflies vegetation={shoreDetails.vegetation} />
       {/* Willow trees by lake */}
       {/* Off the beach, clear of the victorian lamp at (-safeW / 2 - 2, 0) that
           this willow's trunk used to stand against, and of the LAKE sign at

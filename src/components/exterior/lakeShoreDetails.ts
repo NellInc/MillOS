@@ -273,33 +273,36 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
       (patch < 2 ? fernRoots : groundcoverRoots).push(root);
       if (patch < 2) {
         for (let frond = 0; frond < 3; frond++) {
-          const yaw = frond * 2.399 + reach + patch;
-          const height = 0.23 + (frond % 2) * 0.07;
-          const bend = 0.19;
-          groundcover.push(
-            tint(
-              createLakeReedLeaf(new THREE.Vector3(), yaw, height, bend)
-                .scale(0.17, 1, 0.17)
-                .translate(...root.toArray()),
-              '#4d7043'
-            )
-          );
+          const yaw = frond * 2.399 + reach + patch + Math.sin(reach + frond) * 0.16;
+          const height = 0.2 + ((frond + reach + patch) % 4) * 0.045;
+          const bend = 0.13 + ((frond * 3 + reach) % 5) * 0.025;
+          const spine = createLakeReedLeaf(new THREE.Vector3(), yaw, height, bend);
+          const spinePositions = spine.getAttribute('position');
+          for (let vertex = 0; vertex < spinePositions.count; vertex++) {
+            const t = Math.floor(vertex / 3) / 4;
+            const x = Math.sin(yaw) * bend * t * t,
+              z = Math.cos(yaw) * bend * t * t;
+            spinePositions.setX(vertex, x + (spinePositions.getX(vertex) - x) * 0.17);
+            spinePositions.setZ(vertex, z + (spinePositions.getZ(vertex) - z) * 0.17);
+          }
+          spine.computeVertexNormals();
+          groundcover.push(tint(spine.translate(...root.toArray()), '#4d7043'));
           for (let pair = 0; pair < 4; pair++) {
             const t = 0.22 + pair * 0.18;
             // Same curved spine as createLakeReedLeaf, with paired tapering pinnae.
             const origin = new THREE.Vector3(
-              root.x + Math.sin(yaw) * bend * t * t * 0.17,
+              root.x + Math.sin(yaw) * bend * t * t,
               root.y + height * (t - 0.16 * t * t),
-              root.z + Math.cos(yaw) * bend * t * t * 0.17
+              root.z + Math.cos(yaw) * bend * t * t
             );
             for (const side of [-1, 1]) {
               const leaf = createLakeReedLeaf(
                 new THREE.Vector3(),
-                yaw + side * 1.05,
-                0.07,
-                0.12 * (1 - t * 0.7)
+                yaw + side * (0.9 + pair * 0.055),
+                0.045 + (1 - t) * 0.045,
+                (0.12 + (frond % 2) * 0.025) * (1 - t * 0.7)
               )
-                .scale(0.7, 1, 0.7)
+                .scale(0.55 + (1 - t) * 0.25, 1, 0.55 + (1 - t) * 0.25)
                 .translate(...origin.toArray());
               groundcover.push(tint(leaf, pair % 2 ? '#6a864c' : '#426a43'));
             }
@@ -307,13 +310,62 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
         }
       } else {
         for (let leaf = 0; leaf < 6; leaf++) {
-          const yaw = leaf * 2.399 + patch + reach;
+          const yaw = leaf * 2.399 + patch + reach + Math.sin(leaf * 3 + reach) * 0.18;
+          const spread = patch % 3 === 0 ? 0.8 : 1.25;
           groundcover.push(
             tint(
-              createLakeReedLeaf(root, yaw, 0.11 + (leaf % 2) * 0.025, 0.12),
+              createLakeReedLeaf(
+                new THREE.Vector3(),
+                yaw,
+                0.08 + ((leaf + patch + reach) % 4) * 0.025,
+                0.1 + (leaf % 3) * 0.018
+              )
+                .scale(spread, patch % 3 === 0 ? 1.2 : 0.8, spread)
+                .translate(...root.toArray()),
               ['#456b3c', '#71804b', '#597a40'][(patch + leaf) % 3]
             )
           );
+        }
+        // Two subdued five-petalled blooms on one existing root per habitat.
+        if (patch === 4) {
+          for (let bloom = 0; bloom < 2; bloom++) {
+            const top = root
+              .clone()
+              .add(
+                new THREE.Vector3(
+                  (bloom ? 1 : -1) * 0.055,
+                  0.21 + bloom * 0.045,
+                  Math.sin(reach + bloom) * 0.04
+                )
+              );
+            const curve = new THREE.QuadraticBezierCurve3(
+              root,
+              root
+                .clone()
+                .lerp(top, 0.55)
+                .add(new THREE.Vector3(0.02, 0, 0)),
+              top
+            );
+            groundcover.push(tint(new THREE.TubeGeometry(curve, 3, 0.004, 3, false), '#61714a'));
+            for (let petal = 0; petal < 5; petal++) {
+              const geometry = new THREE.BufferGeometry();
+              geometry.setAttribute(
+                'position',
+                new THREE.Float32BufferAttribute(
+                  [0, 0, 0, -0.018, 0.005, 0.025, 0, 0.012, 0.046, 0.018, 0.005, 0.025],
+                  3
+                )
+              );
+              geometry.setAttribute(
+                'uv',
+                new THREE.Float32BufferAttribute([0.5, 0, 0, 0.5, 0.5, 1, 1, 0.5], 2)
+              );
+              geometry.setIndex([0, 1, 2, 0, 2, 3]);
+              geometry.computeVertexNormals();
+              geometry.rotateY((petal * Math.PI * 2) / 5 + reach).translate(...top.toArray());
+              groundcover.push(tint(geometry, reach % 2 ? '#a4a7ac' : '#8b9caa'));
+            }
+          }
         }
       }
     }
@@ -332,7 +384,7 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
       const p = stone.getAttribute('position');
       // Rest the lowest contacting part on real triangles, then bury 25 mm.
       seatMineral(stone, seat, 0.025);
-      tint(stone, index ? '#817e6b' : '#6b7065');
+      tint(stone, ['#797d72', '#858071', '#73766d', '#8a8172'][(index + reach) % 4]);
       const colours = stone.getAttribute('color'),
         normals = stone.getAttribute('normal');
       for (let vertex = 0; vertex < p.count; vertex++) {
@@ -340,11 +392,13 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
           0.9 +
           0.1 * Math.max(0, normals.getY(vertex)) +
           0.045 * Math.sin(p.getX(vertex) * 9 + p.getZ(vertex) * 7);
+        const seam =
+          0.5 + 0.5 * Math.sin(p.getX(vertex) * 18 + p.getY(vertex) * 7 + p.getZ(vertex) * 11);
         colours.setXYZ(
           vertex,
-          colours.getX(vertex) * shade,
-          colours.getY(vertex) * shade,
-          colours.getZ(vertex) * shade
+          colours.getX(vertex) * shade * (0.94 + seam * 0.09),
+          colours.getY(vertex) * shade * (0.96 + seam * 0.035),
+          colours.getZ(vertex) * shade * (0.96 - seam * 0.04)
         );
       }
       // Ragged, rounded moss lobes sit strictly inside real seated stone facets.
@@ -370,11 +424,15 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
         if (normal.y < 0.12 || towardWater < -0.18 || centre.y < 0.17 || phase < 0.22) continue;
         candidates.push({ faceIndex: face, triangle, normal, centre, phase });
       }
-      // Three disjoint facets per stone, never a blanket triangular coating.
+      // Unequal colonies per stone, with rounded lobes and rock-coloured edges.
       candidates.sort((a, b) => b.phase - a.phase);
       const mossTint = new THREE.Color(),
-        paleMoss = new THREE.Color('#6b7049');
-      for (const { faceIndex, triangle, normal, centre, phase } of candidates.slice(0, 3)) {
+        paleMoss = new THREE.Color('#626546');
+      const stoneTint = new THREE.Color();
+      for (const { faceIndex, triangle, normal, centre, phase } of candidates.slice(
+        0,
+        2 + ((reach + index) % 3)
+      )) {
         const edges = [
           [triangle.a, triangle.b],
           [triangle.b, triangle.c],
@@ -389,21 +447,41 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
         );
         const u = triangle.b.clone().sub(triangle.a).normalize();
         const v = new THREE.Vector3().crossVectors(normal, u);
-        const ring = Array.from({ length: 8 }, (_, lobe) => {
-          const angle = (lobe * Math.PI) / 4 + phase * 2;
-          const radius = inradius * (0.57 + 0.22 * (0.5 + 0.5 * Math.sin(lobe * 2.7 + faceIndex)));
+        centre
+          .addScaledVector(u, inradius * Math.sin(faceIndex) * 0.08)
+          .addScaledVector(v, inradius * Math.cos(faceIndex * 2) * 0.08);
+        const patchSize = 0.4 + 0.34 * (0.5 + 0.5 * Math.sin(faceIndex * 3.5 + reach));
+        const ring = Array.from({ length: 12 }, (_, lobe) => {
+          const angle = (lobe * Math.PI) / 6 + phase * 2;
+          const radius =
+            inradius *
+            patchSize *
+            (0.84 + 0.1 * Math.sin(angle * 3 + faceIndex) + 0.06 * Math.sin(angle * 5 - index));
           return centre
             .clone()
             .addScaledVector(u, Math.cos(angle) * radius)
-            .addScaledVector(v, Math.sin(angle) * radius * (0.76 + phase * 0.16));
+            .addScaledVector(
+              v,
+              Math.sin(angle) * radius * (0.6 + 0.35 * (0.5 + 0.5 * Math.sin(faceIndex + reach)))
+            );
         });
-        for (let lobe = 0; lobe < 8; lobe++) {
-          for (const point of [centre, ring[lobe], ring[(lobe + 1) % 8]]) {
+        for (let lobe = 0; lobe < 12; lobe++) {
+          for (const point of [centre, ring[lobe], ring[(lobe + 1) % 12]]) {
             mossPositions.push(point.x, point.y, point.z);
             mossNormals.push(normal.x, normal.y, normal.z);
             mossUVs.push(point.x * 4, point.z * 4);
             const speckle = 0.5 + 0.5 * Math.sin(point.x * 83 + point.z * 61 + faceIndex);
-            mossTint.set('#3f5738').lerp(paleMoss, speckle);
+            mossTint.set('#42523a').lerp(paleMoss, speckle);
+            const weights = triangle.getBarycoord(point, new THREE.Vector3())!;
+            stoneTint.setRGB(0, 0, 0);
+            for (let corner = 0; corner < 3; corner++) {
+              const source = indices.getX(faceIndex * 3 + corner),
+                weight = [weights.x, weights.y, weights.z][corner];
+              stoneTint.r += colours.getX(source) * weight;
+              stoneTint.g += colours.getY(source) * weight;
+              stoneTint.b += colours.getZ(source) * weight;
+            }
+            mossTint.lerp(stoneTint, point === centre ? 0.1 : 0.65);
             mossColors.push(mossTint.r, mossTint.g, mossTint.b);
           }
           mossAttachments.push({ stoneIndex: stones.length, faceIndex });

@@ -89,9 +89,9 @@ describe('concept lake shore details', () => {
       [details.vegetation, details.stones, details.brush, details.gravel, details.groundcover].map(
         (g) => g.index!.count / 3
       )
-    ).toEqual([10240, 1024, 4032, 4096, 5376]);
-    expect(details.moss.index!.count / 3).toBeLessThanOrEqual(512);
-    expect(triangles).toBeLessThanOrEqual(25280);
+    ).toEqual([10240, 1024, 4032, 4096, 5600]);
+    expect(details.moss.index!.count / 3).toBeLessThanOrEqual(768);
+    expect(triangles).toBeLessThanOrEqual(32000);
     bank.dispose();
   });
 
@@ -193,14 +193,16 @@ it('attaches mottled moss to the actual sheltered stone facets and keeps damp gr
   const indexStride = prototype.index!.count;
   const stonePositions = details.stones.getAttribute('position');
   const moss = details.moss.getAttribute('position');
-  expect(details.mossAttachments).toHaveLength(384);
+  expect(details.mossAttachments).toHaveLength(564);
   expect(
     new Set(
       details.mossAttachments.map(({ stoneIndex, faceIndex }) => `${stoneIndex}:${faceIndex}`)
     ).size
-  ).toBe(48);
+  ).toBe(47);
   expect(moss.count).toBe(details.mossAttachments.length * 3);
   const triangle = new THREE.Triangle();
+  const patchAreas: number[] = [];
+  const patchesPerStone = new Map<number, number>();
   details.mossAttachments.forEach(({ stoneIndex, faceIndex }, patch) => {
     const points = [triangle.a, triangle.b, triangle.c];
     for (let corner = 0; corner < 3; corner++) {
@@ -209,10 +211,10 @@ it('attaches mottled moss to the actual sheltered stone facets and keeps damp gr
       points[corner].fromBufferAttribute(stonePositions, index);
     }
     expect(triangle.getNormal(new THREE.Vector3()).y).toBeGreaterThan(0.12);
-    if (patch % 8 === 0) {
+    if (patch % 12 === 0) {
       const unique = new Set<string>();
       let area = 0;
-      for (let lobe = 0; lobe < 8; lobe++) {
+      for (let lobe = 0; lobe < 12; lobe++) {
         expect(details.mossAttachments[patch + lobe]).toEqual({ stoneIndex, faceIndex });
         const points = [0, 1, 2].map((corner) =>
           new THREE.Vector3().fromBufferAttribute(moss, (patch + lobe) * 3 + corner)
@@ -220,9 +222,11 @@ it('attaches mottled moss to the actual sheltered stone facets and keeps damp gr
         points.forEach((point) => unique.add(point.toArray().join(',')));
         area += new THREE.Triangle(points[0], points[1], points[2]).getArea();
       }
-      // An eight-lobed patch plus centre, small enough to leave exposed rock.
-      expect(unique.size).toBe(9);
+      // A twelve-lobed patch plus centre, small enough to leave exposed rock.
+      expect(unique.size).toBe(13);
       expect(area).toBeLessThan(triangle.getArea() * 0.45);
+      patchAreas.push(area);
+      patchesPerStone.set(stoneIndex, (patchesPerStone.get(stoneIndex) ?? 0) + 1);
     }
     for (let corner = 0; corner < 3; corner++) {
       const point = new THREE.Vector3().fromBufferAttribute(moss, patch * 3 + corner);
@@ -231,6 +235,8 @@ it('attaches mottled moss to the actual sheltered stone facets and keeps damp gr
       expect(Math.min(weights.x, weights.y, weights.z)).toBeGreaterThan(0);
     }
   });
+  expect(new Set(patchesPerStone.values())).toEqual(new Set([2, 3, 4]));
+  expect(Math.max(...patchAreas) / Math.min(...patchAreas)).toBeGreaterThan(2);
   expect(new Set(Array.from(details.moss.getAttribute('color').array)).size).toBeGreaterThan(100);
   expect(details.fernRoots).toHaveLength(8);
   expect(details.groundcoverRoots).toHaveLength(20);
