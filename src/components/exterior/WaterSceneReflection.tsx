@@ -94,6 +94,7 @@ export function selectWaterReflectionObjects(scene: THREE.Scene, layers?: THREE.
 export function WaterSceneReflection() {
   const { gl, scene, camera } = useThree();
   const marker = useRef<THREE.Group>(null);
+  const data = useRef({ noStaticBatch: true });
   useEffect(() => {
     let reflector: Reflector | null = null,
       active = false,
@@ -278,7 +279,5 @@ export function WaterSceneReflection() {
       reset();
     };
   }, [gl, scene, camera]);
-  return (
-    <group ref={marker} name="junction-reflection-capture" userData={{ noStaticBatch: true }} />
-  );
+  return <group ref={marker} name="junction-reflection-capture" userData={data.current} />;
 }
