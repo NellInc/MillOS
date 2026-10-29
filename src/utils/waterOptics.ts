@@ -49,7 +49,8 @@ float millosJunctionFroth(vec2 world, vec4 impact, float time, float speed, floa
   // their edges instead of covering the entire runout in equal-sized spots.
   vec2 raft = flow + vec2(sin(flow.y*.56)*.45, sin(flow.x*.8)*.25);
   float pockets = millosWaterNoise(raft*1.25 + 3.8);
-  float raftBody = smoothstep(.38,.68,macro*.6+pockets*.4);
+  float raftWidth = max(.022,footprint*1.25);
+  float raftBody = smoothstep(.52-raftWidth,.52+raftWidth,macro*.6+pockets*.4);
   float bubbleField = millosWaterNoise(raft*7.5);
   float rimWidth = max(.045,footprint*7.5);
   float rims = 1.0-smoothstep(rimWidth,rimWidth+.10,abs(bubbleField-.51));
@@ -58,7 +59,7 @@ float millosJunctionFroth(vec2 world, vec4 impact, float time, float speed, floa
   float tornMargin = 1.0-smoothstep(width-.45,width+.3,
     abs(across)+(pockets-.5)*.9);
   float freshAir = impactAir * (.72+.28*laceRims);
-  float trailing = raftBody * (.24+laceRims*.58) * smoothstep(.15,1.2,run);
+  float trailing = raftBody * (.08+laceRims*.68) * smoothstep(.15,1.2,run);
   float refined = clamp((freshAir+trailing)*tornMargin*life,0.0,.94);
   return mix(previous,refined,craft);
 }

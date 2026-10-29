@@ -2036,7 +2036,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v32';
+    value.customProgramCacheKey = () => 'millos-unified-water-v33';
     value.userData.actualWaterBed = actualBed;
     if (weirImpact)
       value.onBeforeRender = (renderer, scene, camera) =>
