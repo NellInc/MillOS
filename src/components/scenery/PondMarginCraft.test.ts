@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
-  attachPondCopingLife,
   createPondMarginDetails,
   POND_FROG_REST_Y,
   samplePondFrogPose,
@@ -65,29 +64,6 @@ describe('pond margin craft', () => {
       d.plants.dispose();
       d.stones.dispose();
     }
-  });
-
-  it('samples the actual delivered support and leaves its geometry/material untouched', () => {
-    const geometry = new THREE.RingGeometry(4.55, 5.2, 64)
-      .rotateX(-Math.PI / 2)
-      .translate(0, 1.12, 0);
-    const material = new THREE.MeshStandardMaterial({ side: THREE.DoubleSide });
-    const support = new THREE.Group();
-    const mesh = new THREE.Mesh(geometry, material);
-    support.add(mesh);
-    const before = Array.from(geometry.getAttribute('position').array);
-    const d = attachPondCopingLife(support);
-    expect(d.roots).toHaveLength(12);
-    expect(d.roots.every((p) => Math.abs(p.y - 1.114) < 1e-6)).toBe(true);
-    expect(support.children).toHaveLength(2);
-    expect(mesh.geometry).toBe(geometry);
-    expect(mesh.material).toBe(material);
-    expect(Array.from(geometry.getAttribute('position').array)).toEqual(before);
-    expect(d.stones.getAttribute('position').count).toBe(0);
-    d.plants.dispose();
-    d.stones.dispose();
-    geometry.dispose();
-    material.dispose();
   });
 
   it('is deterministic and emits no floating cover when support is absent', () => {

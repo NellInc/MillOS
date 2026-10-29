@@ -129,7 +129,6 @@ const STARTUP_GENERATED_MODELS: readonly GeneratedAssetId[] = [
   'foodTruck',
   'brickCarport',
   'picnicTable',
-  'frogAuthoredBody',
   'cupidAuthoredBody',
   'kioskCafe',
   'pathLampVictorian',

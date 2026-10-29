@@ -199,6 +199,7 @@ import { createLakeShoreDetails } from './exterior/lakeShoreDetails';
 import { LakeAquaticLife } from './exterior/LakeAquaticLife';
 import { LakeDragonflies } from './exterior/LakeDragonflies';
 import { MineralFinish } from './scenery/MineralFinish';
+import { PondFrogModel } from './scenery/PondFrogModel';
 import { POND_LILY_GEOMETRIES, POND_LILY_MATERIAL } from './scenery/PondLilies';
 import { BROADLEAF_DEPTH } from './scenery/InstancedFoliage';
 import {
@@ -3258,56 +3259,7 @@ const AnimatedFrog: React.FC<{
       }}
     >
       <group ref={frogRef} name={`pond-frog-motion-${hopOffset}`}>
-        <GeneratedBoundary
-          fallback={
-            <>
-              <mesh castShadow>
-                <sphereGeometry args={[0.12, 12, 8]} />
-                <meshStandardMaterial color="#4a7c3f" roughness={0.8} />
-              </mesh>
-              <mesh position={[0.1, 0.04, 0]} castShadow>
-                <sphereGeometry args={[0.08, 10, 8]} />
-                <meshStandardMaterial color="#5a8c4f" roughness={0.8} />
-              </mesh>
-              <mesh position={[0.14, 0.1, 0.04]} castShadow>
-                <sphereGeometry args={[0.03, 8, 6]} />
-                <meshStandardMaterial color="#2d4a2a" roughness={0.6} />
-              </mesh>
-              <mesh position={[0.14, 0.1, -0.04]} castShadow>
-                <sphereGeometry args={[0.03, 8, 6]} />
-                <meshStandardMaterial color="#2d4a2a" roughness={0.6} />
-              </mesh>
-              <mesh position={[-0.1, -0.04, 0.08]} rotation={[0, 0, 0.5]} castShadow>
-                <capsuleGeometry args={[0.025, 0.1, 4, 6]} />
-                <meshStandardMaterial color="#3d6b35" roughness={0.8} />
-              </mesh>
-              <mesh position={[-0.1, -0.04, -0.08]} rotation={[0, 0, 0.5]} castShadow>
-                <capsuleGeometry args={[0.025, 0.1, 4, 6]} />
-                <meshStandardMaterial color="#3d6b35" roughness={0.8} />
-              </mesh>
-              <mesh position={[0.06, -0.06, 0.06]} castShadow>
-                <capsuleGeometry args={[0.02, 0.05, 4, 6]} />
-                <meshStandardMaterial color="#3d6b35" roughness={0.8} />
-              </mesh>
-              <mesh position={[0.06, -0.06, -0.06]} castShadow>
-                <capsuleGeometry args={[0.02, 0.05, 4, 6]} />
-                <meshStandardMaterial color="#3d6b35" roughness={0.8} />
-              </mesh>
-            </>
-          }
-        >
-          <group position={[0.0155862, -0.11999997, 3e-8]}>
-            <GeneratedModel asset="frogAuthoredBody" />
-          </group>
-        </GeneratedBoundary>
-        <mesh position={[0.16, 0.11, 0.04]}>
-          <sphereGeometry args={[0.015, 6, 6]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.4} />
-        </mesh>
-        <mesh position={[0.16, 0.11, -0.04]}>
-          <sphereGeometry args={[0.015, 6, 6]} />
-          <meshStandardMaterial color="#ffffff" roughness={0.4} />
-        </mesh>
+        <PondFrogModel />
       </group>
 
       {hearts.map((h: { id: number; pos: [number, number, number] }) => (
@@ -3412,11 +3364,11 @@ const Pond: React.FC<{
   // Fixed lily pad positions and rotations (avoid Math.random in render)
   const lilyPads = useMemo(
     () => [
-      { x: -radius * 0.3, z: radius * 0.2, rot: 0.5, frogRot: Math.PI * 0.3, hopOffset: 0 },
-      { x: radius * 0.4, z: -radius * 0.1, rot: 2.1, frogRot: -Math.PI * 0.5, hopOffset: 1.2 },
-      { x: -radius * 0.1, z: -radius * 0.4, rot: 4.2, frogRot: Math.PI * 0.8, hopOffset: 2.5 },
-      { x: radius * 0.2, z: radius * 0.35, rot: 1.0, frogRot: -Math.PI * 0.2, hopOffset: 0.7 },
-      { x: -radius * 0.45, z: -radius * 0.15, rot: 3.5, frogRot: Math.PI * 0.6, hopOffset: 1.8 },
+      { x: -radius * 0.3, z: radius * 0.2, frogRot: Math.PI * 0.3, hopOffset: 0 },
+      { x: radius * 0.4, z: -radius * 0.1, frogRot: -Math.PI * 0.5, hopOffset: 1.2 },
+      { x: -radius * 0.1, z: -radius * 0.4, frogRot: Math.PI * 0.8, hopOffset: 2.5 },
+      { x: radius * 0.2, z: radius * 0.35, frogRot: -Math.PI * 0.2, hopOffset: 0.7 },
+      { x: -radius * 0.45, z: -radius * 0.15, frogRot: Math.PI * 0.6, hopOffset: 1.8 },
     ],
     [radius]
   );
@@ -3486,7 +3438,7 @@ const Pond: React.FC<{
           {/* Lily pad - floating on water surface */}
           <mesh
             position={[pad.x, 0.16, pad.z]}
-            rotation={[0, pad.rot, 0]}
+            rotation={[0, pad.frogRot, 0]}
             scale={1.2}
             geometry={POND_LILY_GEOMETRIES[1]}
             material={POND_LILY_MATERIAL}

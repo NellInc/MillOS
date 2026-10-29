@@ -20,8 +20,8 @@ const MINERAL_MATERIAL = new THREE.MeshStandardMaterial({
 });
 
 /** Three broken pockets, confined to the existing coping rather than a new
- * ring over the paths. Supports are actual delivered coping hits or the
- * decorative pond's retained flat kerb. No new terrain/water/depth layer.
+ * ring over the paths. The decorative pond's retained flat
+ * kerb supplies support; the village brick pond remains clean. No new terrain/water/depth layer.
  */
 export function createPondMarginDetails(
   radius: number,
@@ -121,29 +121,6 @@ export function createPondMarginDetails(
     return empty;
   };
   return { plants: finish(plants), stones: finish(stones), roots, seats };
-}
-
-/** One-time support rays use the actual loaded brick/limestone model. New
- * planting joins that model only after its existing water material is cloned.
- */
-export function attachPondCopingLife(model: THREE.Object3D) {
-  model.updateMatrixWorld(true);
-  const ray = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
-  const details = createPondMarginDetails(
-    4.98,
-    (x, z) => {
-      ray.ray.origin.set(x, 3, z);
-      return ray.intersectObject(model, true)[0]?.point.y;
-    },
-    false
-  );
-  if (details.plants.getAttribute('position').count) {
-    const mesh = new THREE.Mesh(details.plants, PLANT_MATERIAL);
-    mesh.name = 'duckpond-coping-crevice-plants';
-    mesh.receiveShadow = true;
-    model.add(mesh);
-  }
-  return details;
 }
 
 export function PondMarginCraft({ radius }: { radius: number }) {

@@ -57,6 +57,13 @@ describe('startup world asset preload', () => {
     expect(new Set(urls).size).toBe(urls.length);
   });
 
+  it('does not download the retired frog body now authored as shared scene geometry', () => {
+    for (const quality of ['low', 'medium'] as const)
+      expect(startupAssetManifest(quality).models).not.toContain(
+        GENERATED_ASSET_PATHS.frogAuthoredBody
+      );
+  });
+
   it('covers the late village waves the cold-load trace discovered one re-render at a time', () => {
     const manifest = startupAssetManifest('medium');
     for (const id of [

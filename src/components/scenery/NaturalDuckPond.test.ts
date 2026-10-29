@@ -106,7 +106,7 @@ describe('authored pond water finish', () => {
   });
 });
 
-it('freezes pond ripples and cleans up owned coping growth without disposing delivered resources', () => {
+it('keeps masonry clean and freezes pond ripples while retaining delivered resources', () => {
   const geometry = new THREE.PlaneGeometry();
   const map = new THREE.Texture();
   const material = new THREE.MeshStandardMaterial({ map });
@@ -153,17 +153,12 @@ it('freezes pond ripples and cleans up owned coping growth without disposing del
   driver.frame?.({}, 0.1);
   expect(clock.value).toBeCloseTo(0.06, 10);
   const ownDispose = vi.spyOn(clone.material, 'dispose');
-  const growth = (
-    driver.memo as { growth: { plants: THREE.BufferGeometry; stones: THREE.BufferGeometry } }
-  ).growth;
-  const plantsDispose = vi.spyOn(growth.plants, 'dispose');
-  const stonesDispose = vi.spyOn(growth.stones, 'dispose');
   driver.cleanup!();
   driver.cleanup = null;
   expect(ownDispose).toHaveBeenCalledOnce();
   expect(sharedDispose).not.toHaveBeenCalled();
-  expect(plantsDispose).toHaveBeenCalledOnce();
-  expect(stonesDispose).toHaveBeenCalledOnce();
+  expect(element.props.object.children).toHaveLength(1);
+  expect(element.props.object.getObjectByName('duckpond-coping-crevice-plants')).toBeUndefined();
   material.dispose();
   map.dispose();
   geometry.dispose();
