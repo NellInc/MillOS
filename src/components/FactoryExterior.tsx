@@ -195,6 +195,7 @@ import {
   createOutletStoneGeometry,
 } from './exterior/canalOutletGeometry';
 import { createLakeShoreDetails } from './exterior/lakeShoreDetails';
+import { LakeAquaticLife } from './exterior/LakeAquaticLife';
 import {
   createOrganicLakeBankGeometry,
   createOrganicLakeBedGeometry,
@@ -2769,6 +2770,8 @@ const Lake: React.FC<{
       shoreDetails.stones.dispose();
       shoreDetails.brush.dispose();
       shoreDetails.gravel.dispose();
+      shoreDetails.moss.dispose();
+      shoreDetails.groundcover.dispose();
     },
     [bankGeometry, bedGeometry, waterGeometry, shoreDetails]
   );
@@ -2847,6 +2850,23 @@ const Lake: React.FC<{
         castShadow
         receiveShadow
       />
+      <mesh
+        name="lake-shore-groundcover"
+        geometry={shoreDetails.groundcover}
+        material={LAKE_REED_MATERIAL}
+        castShadow
+        receiveShadow
+      />
+      <mesh name="lake-rock-moss" geometry={shoreDetails.moss} receiveShadow>
+        <meshStandardMaterial
+          vertexColors
+          roughness={0.98}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
+        />
+      </mesh>
+      <LakeAquaticLife />
       {/* Willow trees by lake */}
       {/* Off the beach, clear of the victorian lamp at (-safeW / 2 - 2, 0) that
           this willow's trunk used to stand against, and of the LAKE sign at

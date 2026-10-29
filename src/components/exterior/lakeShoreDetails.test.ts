@@ -18,8 +18,13 @@ describe('concept lake shore details', () => {
     mesh.rotation.x = -Math.PI / 2;
     mesh.position.y = 0.08;
     mesh.updateMatrixWorld();
-    expect(details.roots).toHaveLength(44);
-    for (const root of [...details.roots, ...details.brushRoots]) {
+    expect(details.roots).toHaveLength(60);
+    for (const root of [
+      ...details.roots,
+      ...details.brushRoots,
+      ...details.groundcoverRoots,
+      ...details.fernRoots,
+    ]) {
       const ray = new THREE.Raycaster(
         new THREE.Vector3(root.x, 4, root.z),
         new THREE.Vector3(0, -1, 0)
@@ -50,16 +55,25 @@ describe('concept lake shore details', () => {
     details.stones.dispose();
     details.brush.dispose();
     details.gravel.dispose();
+    details.moss.dispose();
+    details.groundcover.dispose();
   });
 
-  it('uses four separated habitat pockets and four finite bounded surfaces', () => {
+  it('uses four separated habitat pockets and six finite bounded surfaces', () => {
     const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
     const details = createLakeShoreDetails(bank);
     expect(LAKE_REED_REACHES).toHaveLength(4);
     // 0.35 rad mineral/plant spread plus 0.1 rad of overhanging leaves per reach.
     expect((4 * 0.45) / (Math.PI * 2)).toBeLessThan(0.3);
     let triangles = 0;
-    for (const geometry of [details.vegetation, details.stones, details.brush, details.gravel]) {
+    for (const geometry of [
+      details.vegetation,
+      details.stones,
+      details.brush,
+      details.gravel,
+      details.moss,
+      details.groundcover,
+    ]) {
       const p = geometry.getAttribute('position');
       const n = geometry.getAttribute('normal');
       for (let i = 0; i < p.count; i++) {
@@ -71,7 +85,13 @@ describe('concept lake shore details', () => {
       triangles += geometry.index!.count / 3;
       geometry.dispose();
     }
-    expect(triangles).toBeLessThan(17000);
+    expect(
+      [details.vegetation, details.stones, details.brush, details.gravel, details.groundcover].map(
+        (g) => g.index!.count / 3
+      )
+    ).toEqual([10240, 1024, 4032, 4096, 5376]);
+    expect(details.moss.index!.count / 3).toBeLessThanOrEqual(512);
+    expect(triangles).toBeLessThanOrEqual(25280);
     bank.dispose();
   });
 
@@ -80,18 +100,20 @@ describe('concept lake shore details', () => {
     expect(sampleLakeBank(bank, 0).distanceTo(sampleLakeBank(bank, Math.PI * 2))).toBe(0);
     const first = createLakeShoreDetails(bank);
     const second = createLakeShoreDetails(bank);
-    for (const key of ['vegetation', 'stones', 'brush', 'gravel'] as const) {
+    for (const key of ['vegetation', 'stones', 'brush', 'gravel', 'moss', 'groundcover'] as const) {
       expect(first[key].getAttribute('position').array).toEqual(
         second[key].getAttribute('position').array
       );
     }
-    expect(first.brushRoots).toHaveLength(8);
-    expect(first.gravelSeats).toHaveLength(48);
+    expect(first.brushRoots).toHaveLength(12);
+    expect(first.gravelSeats).toHaveLength(64);
     for (const details of [first, second]) {
       details.vegetation.dispose();
       details.stones.dispose();
       details.brush.dispose();
       details.gravel.dispose();
+      details.moss.dispose();
+      details.groundcover.dispose();
     }
     bank.dispose();
   });
@@ -111,13 +133,15 @@ it('folds reed blades gently and keeps attached seed heads rounded within the re
   const colours = details.vegetation.getAttribute('color');
   expect(new Set(Array.from(colours.array)).size).toBeGreaterThan(30);
   // Existing merged geometry includes capped seed heads and rooted stem ends.
-  expect(details.vegetation.index!.count / 3).toBeLessThan(10000);
+  expect(details.vegetation.index!.count / 3).toBeLessThan(12000);
   leaf.dispose();
   bank.dispose();
   details.vegetation.dispose();
   details.stones.dispose();
   details.brush.dispose();
   details.gravel.dispose();
+  details.moss.dispose();
+  details.groundcover.dispose();
 });
 it('gives mineral stones asymmetry and actual bank contact rather than a floating spherical belt', () => {
   const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
@@ -132,8 +156,8 @@ it('gives mineral stones asymmetry and actual bank contact rather than a floatin
   expect(stone.getAttribute('position').array).not.toEqual(original.getAttribute('position').array);
   const count = stone.getAttribute('position').count;
   for (const [geometry, rockCount, burial] of [
-    [details.stones, 12, 0.025],
-    [details.gravel, 48, 0.008],
+    [details.stones, 16, 0.025],
+    [details.gravel, 64, 0.008],
   ] as const) {
     const p = geometry.getAttribute('position');
     expect(p.count).toBe(count * rockCount);
@@ -157,4 +181,61 @@ it('gives mineral stones asymmetry and actual bank contact rather than a floatin
   details.stones.dispose();
   details.brush.dispose();
   details.gravel.dispose();
+  details.moss.dispose();
+  details.groundcover.dispose();
+});
+
+it('attaches mottled moss to the actual sheltered stone facets and keeps damp groundcover rooted', () => {
+  const bank = createOrganicLakeBankGeometry(19, 14, 21.2, 16.2);
+  const details = createLakeShoreDetails(bank);
+  const prototype = createLakeShoreStone(1, 1, 0);
+  const vertexStride = prototype.getAttribute('position').count;
+  const indexStride = prototype.index!.count;
+  const stonePositions = details.stones.getAttribute('position');
+  const moss = details.moss.getAttribute('position');
+  expect(details.mossAttachments).toHaveLength(384);
+  expect(
+    new Set(
+      details.mossAttachments.map(({ stoneIndex, faceIndex }) => `${stoneIndex}:${faceIndex}`)
+    ).size
+  ).toBe(48);
+  expect(moss.count).toBe(details.mossAttachments.length * 3);
+  const triangle = new THREE.Triangle();
+  details.mossAttachments.forEach(({ stoneIndex, faceIndex }, patch) => {
+    const points = [triangle.a, triangle.b, triangle.c];
+    for (let corner = 0; corner < 3; corner++) {
+      const index = details.stones.index!.getX(stoneIndex * indexStride + faceIndex * 3 + corner);
+      expect(index).toBeGreaterThanOrEqual(stoneIndex * vertexStride);
+      points[corner].fromBufferAttribute(stonePositions, index);
+    }
+    expect(triangle.getNormal(new THREE.Vector3()).y).toBeGreaterThan(0.12);
+    if (patch % 8 === 0) {
+      const unique = new Set<string>();
+      let area = 0;
+      for (let lobe = 0; lobe < 8; lobe++) {
+        expect(details.mossAttachments[patch + lobe]).toEqual({ stoneIndex, faceIndex });
+        const points = [0, 1, 2].map((corner) =>
+          new THREE.Vector3().fromBufferAttribute(moss, (patch + lobe) * 3 + corner)
+        );
+        points.forEach((point) => unique.add(point.toArray().join(',')));
+        area += new THREE.Triangle(points[0], points[1], points[2]).getArea();
+      }
+      // An eight-lobed patch plus centre, small enough to leave exposed rock.
+      expect(unique.size).toBe(9);
+      expect(area).toBeLessThan(triangle.getArea() * 0.45);
+    }
+    for (let corner = 0; corner < 3; corner++) {
+      const point = new THREE.Vector3().fromBufferAttribute(moss, patch * 3 + corner);
+      expect(triangle.getPlane(new THREE.Plane()).distanceToPoint(point)).toBeCloseTo(0, 5);
+      const weights = triangle.getBarycoord(point, new THREE.Vector3())!;
+      expect(Math.min(weights.x, weights.y, weights.z)).toBeGreaterThan(0);
+    }
+  });
+  expect(new Set(Array.from(details.moss.getAttribute('color').array)).size).toBeGreaterThan(100);
+  expect(details.fernRoots).toHaveLength(8);
+  expect(details.groundcoverRoots).toHaveLength(20);
+  prototype.dispose();
+  bank.dispose();
+  for (const key of ['vegetation', 'stones', 'brush', 'gravel', 'moss', 'groundcover'] as const)
+    details[key].dispose();
 });

@@ -120,7 +120,7 @@ export function createLakeShoreStone(width: number, depth: number, phase: number
   return stone;
 }
 
-/** Four irregular habitat pockets, merged into four static material surfaces.
+/** Four irregular habitat pockets, merged into six static material surfaces.
  * Open reaches preserve access and views. Every planting samples the bank itself.
  * Working if roots and minerals contact that bank, with over 70% of shore open.
  */
@@ -129,6 +129,14 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
   const stones: THREE.BufferGeometry[] = [];
   const brush: THREE.BufferGeometry[] = [];
   const gravel: THREE.BufferGeometry[] = [];
+  const groundcover: THREE.BufferGeometry[] = [];
+  const mossPositions: number[] = [],
+    mossColors: number[] = [],
+    mossNormals: number[] = [],
+    mossUVs: number[] = [];
+  const mossAttachments: { stoneIndex: number; faceIndex: number }[] = [];
+  const groundcoverRoots: THREE.Vector3[] = [];
+  const fernRoots: THREE.Vector3[] = [];
   const brushRoots: THREE.Vector3[] = [];
   const gravelSeats: THREE.Vector3[] = [];
   const roots: THREE.Vector3[] = [];
@@ -141,7 +149,8 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
   const ray = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
   // Uneven spacing and bank-depth offsets make sheaves rather than a planted row.
   const offsets = [
-    -0.116, -0.103, -0.081, -0.049, -0.022, -0.009, 0.006, 0.039, 0.057, 0.086, 0.109,
+    -0.116, -0.103, -0.081, -0.068, -0.049, -0.036, -0.022, -0.009, 0.006, 0.023, 0.039, 0.057,
+    0.072, 0.086, 0.109,
   ];
   const rows = [2.55, 1.7, 2.85, 2.1, 1.65, 2.55, 1.85, 2.3, 1.9, 2.65, 2.05];
   const seatMineral = (stone: THREE.BufferGeometry, seat: THREE.Vector3, burial: number) => {
@@ -208,8 +217,8 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
       }
     }
     // Short woody fans sit behind the reeds, well inside the gravel shoulder.
-    for (let shrub = 0; shrub < 2; shrub++) {
-      const angle = centre + (shrub ? 0.065 : -0.058);
+    for (let shrub = 0; shrub < 3; shrub++) {
+      const angle = centre + [-0.058, 0.065, 0.015][shrub];
       const root = sampleLakeBank(bank, angle, 2.1);
       root.y -= 0.015;
       brushRoots.push(root);
@@ -240,7 +249,7 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
       }
     }
     // Discontinuous mineral pockets between root fans, never a uniform ring.
-    for (let pebble = 0; pebble < 12; pebble++) {
+    for (let pebble = 0; pebble < 16; pebble++) {
       const phase = pebble * 2.399 + reach;
       const angle = centre + (pebble % 2 ? 0.14 : -0.14) + Math.sin(phase) * 0.025;
       const seat = sampleLakeBank(bank, angle, 1.8 + (pebble % 4) * 0.27);
@@ -253,12 +262,71 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
         tint(seatMineral(stone, seat, 0.008), ['#a69e84', '#777e70', '#8c897c'][pebble % 3])
       );
     }
-    for (let index = 0; index < 3; index++) {
-      const seat = sampleLakeBank(bank, centre + [-0.15, 0.145, 0.175][index], 2.5 - index * 0.2);
+    // Low divided fern fronds and creeping rosettes fill damp gaps within each pocket.
+    for (let patch = 0; patch < 7; patch++) {
+      const root = sampleLakeBank(
+        bank,
+        centre + [-0.09, 0.082, -0.042, 0.018, 0.048, -0.012, 0.102][patch],
+        2.15 + (patch % 3) * 0.2
+      );
+      root.y -= 0.015;
+      (patch < 2 ? fernRoots : groundcoverRoots).push(root);
+      if (patch < 2) {
+        for (let frond = 0; frond < 3; frond++) {
+          const yaw = frond * 2.399 + reach + patch;
+          const height = 0.23 + (frond % 2) * 0.07;
+          const bend = 0.19;
+          groundcover.push(
+            tint(
+              createLakeReedLeaf(new THREE.Vector3(), yaw, height, bend)
+                .scale(0.17, 1, 0.17)
+                .translate(...root.toArray()),
+              '#4d7043'
+            )
+          );
+          for (let pair = 0; pair < 4; pair++) {
+            const t = 0.22 + pair * 0.18;
+            // Same curved spine as createLakeReedLeaf, with paired tapering pinnae.
+            const origin = new THREE.Vector3(
+              root.x + Math.sin(yaw) * bend * t * t * 0.17,
+              root.y + height * (t - 0.16 * t * t),
+              root.z + Math.cos(yaw) * bend * t * t * 0.17
+            );
+            for (const side of [-1, 1]) {
+              const leaf = createLakeReedLeaf(
+                new THREE.Vector3(),
+                yaw + side * 1.05,
+                0.07,
+                0.12 * (1 - t * 0.7)
+              )
+                .scale(0.7, 1, 0.7)
+                .translate(...origin.toArray());
+              groundcover.push(tint(leaf, pair % 2 ? '#6a864c' : '#426a43'));
+            }
+          }
+        }
+      } else {
+        for (let leaf = 0; leaf < 6; leaf++) {
+          const yaw = leaf * 2.399 + patch + reach;
+          groundcover.push(
+            tint(
+              createLakeReedLeaf(root, yaw, 0.11 + (leaf % 2) * 0.025, 0.12),
+              ['#456b3c', '#71804b', '#597a40'][(patch + leaf) % 3]
+            )
+          );
+        }
+      }
+    }
+    for (let index = 0; index < 4; index++) {
+      const seat = sampleLakeBank(
+        bank,
+        centre + [-0.15, 0.145, 0.175, -0.13][index],
+        2.5 - index * 0.2
+      );
       stoneSeats.push(seat);
       const stone = createLakeShoreStone(
-        0.35 + index * 0.13,
-        0.28 + reach * 0.025,
+        [0.35, 0.48, 0.61, 0.23][index],
+        (0.28 + reach * 0.025) * (index === 3 ? 0.7 : 1),
         reach + index
       ).rotateY(centre + index);
       const p = stone.getAttribute('position');
@@ -279,15 +347,91 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
           colours.getZ(vertex) * shade
         );
       }
+      // Ragged, rounded moss lobes sit strictly inside real seated stone facets.
+      // The consumer supplies polygonOffset; the patches have zero geometric lift.
+      const indices = stone.getIndex()!;
+      const candidates: {
+        faceIndex: number;
+        triangle: THREE.Triangle;
+        normal: THREE.Vector3;
+        centre: THREE.Vector3;
+        phase: number;
+      }[] = [];
+      for (let face = 0; face < indices.count / 3; face++) {
+        const triangle = new THREE.Triangle(
+          ...([0, 1, 2].map((corner) =>
+            new THREE.Vector3().fromBufferAttribute(p, indices.getX(face * 3 + corner))
+          ) as [THREE.Vector3, THREE.Vector3, THREE.Vector3])
+        );
+        const normal = triangle.getNormal(new THREE.Vector3());
+        const centre = triangle.getMidpoint(new THREE.Vector3());
+        const towardWater = -(normal.x * seat.x + normal.z * seat.z) / Math.hypot(seat.x, seat.z);
+        const phase = Math.sin(face * 17.13 + reach * 7.7 + index * 2.4) * 0.5 + 0.5;
+        if (normal.y < 0.12 || towardWater < -0.18 || centre.y < 0.17 || phase < 0.22) continue;
+        candidates.push({ faceIndex: face, triangle, normal, centre, phase });
+      }
+      // Three disjoint facets per stone, never a blanket triangular coating.
+      candidates.sort((a, b) => b.phase - a.phase);
+      const mossTint = new THREE.Color(),
+        paleMoss = new THREE.Color('#6b7049');
+      for (const { faceIndex, triangle, normal, centre, phase } of candidates.slice(0, 3)) {
+        const edges = [
+          [triangle.a, triangle.b],
+          [triangle.b, triangle.c],
+          [triangle.c, triangle.a],
+        ] as const;
+        const inradius = Math.min(
+          ...edges.map(([a, b]) =>
+            new THREE.Line3(a, b)
+              .closestPointToPoint(centre, true, new THREE.Vector3())
+              .distanceTo(centre)
+          )
+        );
+        const u = triangle.b.clone().sub(triangle.a).normalize();
+        const v = new THREE.Vector3().crossVectors(normal, u);
+        const ring = Array.from({ length: 8 }, (_, lobe) => {
+          const angle = (lobe * Math.PI) / 4 + phase * 2;
+          const radius = inradius * (0.57 + 0.22 * (0.5 + 0.5 * Math.sin(lobe * 2.7 + faceIndex)));
+          return centre
+            .clone()
+            .addScaledVector(u, Math.cos(angle) * radius)
+            .addScaledVector(v, Math.sin(angle) * radius * (0.76 + phase * 0.16));
+        });
+        for (let lobe = 0; lobe < 8; lobe++) {
+          for (const point of [centre, ring[lobe], ring[(lobe + 1) % 8]]) {
+            mossPositions.push(point.x, point.y, point.z);
+            mossNormals.push(normal.x, normal.y, normal.z);
+            mossUVs.push(point.x * 4, point.z * 4);
+            const speckle = 0.5 + 0.5 * Math.sin(point.x * 83 + point.z * 61 + faceIndex);
+            mossTint.set('#3f5738').lerp(paleMoss, speckle);
+            mossColors.push(mossTint.r, mossTint.g, mossTint.b);
+          }
+          mossAttachments.push({ stoneIndex: stones.length, faceIndex });
+        }
+      }
       stones.push(stone);
     }
   });
   supportMaterial.dispose();
+  const moss = new THREE.BufferGeometry();
+  moss.name = 'lake-rock-facet-moss';
+  moss.setAttribute('position', new THREE.Float32BufferAttribute(mossPositions, 3));
+  moss.setAttribute('normal', new THREE.Float32BufferAttribute(mossNormals, 3));
+  moss.setAttribute('color', new THREE.Float32BufferAttribute(mossColors, 3));
+  moss.setAttribute('uv', new THREE.Float32BufferAttribute(mossUVs, 2));
+  moss.setIndex(Array.from({ length: mossPositions.length / 3 }, (_, i) => i));
+  moss.computeBoundingBox();
+  moss.computeBoundingSphere();
   return {
     vegetation: assemble(vegetation, 'lake-shore-reeds'),
     stones: assemble(stones, 'lake-shore-stones'),
     brush: assemble(brush, 'lake-shore-brush'),
     gravel: assemble(gravel, 'lake-shore-gravel'),
+    moss,
+    groundcover: assemble(groundcover, 'lake-damp-groundcover'),
+    mossAttachments,
+    groundcoverRoots,
+    fernRoots,
     roots,
     stoneSeats,
     brushRoots,
