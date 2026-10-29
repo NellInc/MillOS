@@ -1,4 +1,9 @@
-import { WATER_ABSORPTION, WATER_POLISH_GAIN, JUNCTION_FROTH_GLSL } from '../utils/waterOptics';
+import {
+  WATER_ABSORPTION,
+  WATER_POLISH_GAIN,
+  WATER_CRAFT_GAIN,
+  JUNCTION_FROTH_GLSL,
+} from '../utils/waterOptics';
 import {
   WaterSceneReflection,
   WATER_SCENE_REFLECTION,
@@ -1360,6 +1365,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
       },
       uniforms: {
         uWaterFinish: WATER_POLISH_GAIN,
+        uWaterCraft: WATER_CRAFT_GAIN,
         uBedDepth: { value: actualBedDepth },
         uTransmission: { value: actualBed ? 1 : 0 },
         uAbsorption: { value: new THREE.Vector3(...WATER_ABSORPTION) },
@@ -1472,6 +1478,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
       fragmentShader: `
         #include <fog_pars_fragment>
         uniform float uWaterFinish;
+        uniform float uWaterCraft;
         uniform float uBedDepth;
         uniform float uTransmission;
         uniform vec3 uAbsorption;
@@ -1554,6 +1561,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           float opticalFoam = 0.0;
           float opticalFacing = 1.0;
           float opticalReflectance = 0.0;
+          float filmCoverage = 1.0;
           #ifdef MILLOS_FALLING_WATER
           // Fine vertical filaments stay quiet at the crest and aerate toward
           // the foot. Pixel filtering prevents distant white pinpricks. The
@@ -1580,6 +1588,24 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             colour = mix(colour, uReflection, filament * (0.04 + drop * 0.15)
               + aeration * 0.24 + foot * (0.20 + air * 0.16));
             opticalFoam = clamp(aeration*.6 + foot*.4 + filament*.2,0.0,.96);
+            if (uWaterCraft > 0.0 && uWaterFinish > 0.0) {
+              // Broad clear ribbons carry finer lit threads down the face.
+              // Coverage only softens the outer centimetres inside the mesh;
+              // the crest, wall attachment and supported fall stay unchanged.
+              float ribbon = millosWaterNoise(vec2(across*1.6,
+                vWorldPosition.y*.65+travel*2.1));
+              float threads = filament * smoothstep(.24,.74,ribbon);
+              vec3 ribbonColour = mix(uDeep,uShallow,.35+ribbon*.35);
+              ribbonColour = mix(ribbonColour,uReflection,
+                threads*(.12+drop*.20)+aeration*.18+foot*.22);
+              colour = mix(colour,ribbonColour,uWaterCraft*uWaterFinish*.72);
+              float side = uWeirImpact.z-abs(across);
+              float edgeSoftness = .025+drop*.085;
+              filmCoverage = mix(1.0,smoothstep(0.0,edgeSoftness,side),
+                uWaterCraft*uWaterFinish);
+              opticalFoam = mix(opticalFoam,
+                clamp(aeration*.65+foot*.48+threads*.28,0.0,.96),uWaterCraft*uWaterFinish);
+            }
             colour *= bodyLight;
           } else {
             // A vertical weir has no useful XZ phase gradient down its face.
@@ -1758,8 +1784,20 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           #endif
           #ifdef MILLOS_WEIR_IMPACT
           if (uRippleDetail > 0.0 && uWaterFinish > 0.0) {
-            float gathered = millosJunctionFroth(waterCoord,uWeirImpact,uTime,uFlowSpeed);
+            float gathered = millosJunctionFroth(waterCoord,uWeirImpact,uTime,uFlowSpeed,uWaterCraft);
             weirFoam = mix(weirFoam,max(weirFoam,gathered),uWaterFinish);
+            // Restrained spreading wake, bounded to the actual receiving pool.
+            // Filter derivatives outside the spatial branch above, never from
+            // fragments which may have returned before their neighbours.
+            vec2 wake = vec2(waterCoord.x-uWeirImpact.x,
+              uWeirImpact.y-waterCoord.y);
+            float wakeRadius = length(wake*vec2(.65,1.0));
+            float wakeMask = smoothstep(.0,.5,wake.y)
+              * (1.0-smoothstep(2.0,uWeirImpact.w*2.4,wakeRadius));
+            float wakeFilter = 1.0-smoothstep(.7,2.4,length(hydraulicFootprint)*8.0);
+            vec2 wakeNormal = wake*vec2(.4225,1.0)/max(.1,wakeRadius);
+            slope += wakeNormal*cos(wakeRadius*8.0-uTime*uFlowSpeed*2.2)
+              * .012*wakeMask*wakeFilter*uWaterCraft*uWaterFinish;
           }
           #endif
           float rainSlope = rainRipple * (0.003 + uRippleStrength * 0.015);
@@ -1976,7 +2014,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             #endif
             surfaceAlpha = 1.0-transmitted*uWaterFinish;
           }
-          gl_FragColor = vec4(colour, surfaceAlpha);
+          gl_FragColor = vec4(colour, surfaceAlpha * filmCoverage);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
           #include <fog_fragment>
@@ -1998,7 +2036,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v31';
+    value.customProgramCacheKey = () => 'millos-unified-water-v32';
     value.userData.actualWaterBed = actualBed;
     if (weirImpact)
       value.onBeforeRender = (renderer, scene, camera) =>
@@ -2183,12 +2221,14 @@ const OUTLET_STONE = new THREE.MeshStandardMaterial({
   color: '#a5aaa5',
   map: PROCEDURAL_TEXTURES.concreteColor,
   roughnessMap: PROCEDURAL_TEXTURES.concreteRoughness,
-  roughness: 0.94,
+  roughness: 0.82,
+  vertexColors: true,
 });
 const OUTLET_COPING = new THREE.MeshStandardMaterial({
   color: '#c7c4b6',
   map: PROCEDURAL_TEXTURES.concreteColor,
   roughness: 0.84,
+  vertexColors: true,
 });
 function OutletStone({
   position,
@@ -2201,8 +2241,8 @@ function OutletStone({
 }) {
   const [width, height, depth] = size;
   const geometry = useMemo(
-    () => createOutletStoneGeometry(width, height, depth),
-    [width, height, depth]
+    () => createOutletStoneGeometry(width, height, depth, position, coping),
+    [width, height, depth, position, coping]
   );
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (

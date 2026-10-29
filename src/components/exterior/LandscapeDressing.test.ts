@@ -234,6 +234,30 @@ describe('continuous canal-to-river overflow', () => {
       g.dispose();
     }
   });
+  it('bakes a bounded lit damp waterline without moving the stone silhouette', () => {
+    const origin = [CANAL_OUTLET.east, -1.725, CANAL_OUTLET.north + 4] as const;
+    const g = createOutletStoneGeometry(0.8, 5.55, 20, origin);
+    const p = g.getAttribute('position'),
+      c = g.getAttribute('color');
+    expect(c.count).toBe(p.count);
+    expect([...c.array].every((v) => Number.isFinite(v) && v >= 0 && v <= 1)).toBe(true);
+    expect(g.index!.count / 3).toBeLessThan(1600);
+    const top: number[] = [],
+      bottom: number[] = [];
+    for (let i = 0; i < p.count; i++) {
+      if (p.getY(i) + origin[1] > CANAL_OUTLET.upperLevel + 0.5) top.push(c.getX(i));
+      if (p.getY(i) + origin[1] < CANAL_OUTLET.upperLevel - 0.4) bottom.push(c.getX(i));
+    }
+    expect(Math.min(...top)).toBe(1);
+    expect(Math.max(...bottom)).toBeLessThan(0.7);
+    g.computeBoundingBox();
+    expect(g.boundingBox!.max.y).toBeCloseTo(5.55 / 2);
+    expect(g.boundingBox!.max.z).toBe(10);
+    const coping = createOutletStoneGeometry(20, 0.18, 0.92, [0, 1.14, 0], true);
+    expect([...coping.getAttribute('color').array].every((v) => v === 1)).toBe(true);
+    g.dispose();
+    coping.dispose();
+  });
 });
 
 describe('clustered rough-grass margins', () => {

@@ -14,5 +14,10 @@ describe('water thickness and aeration', () => {
     expect(JUNCTION_FROTH_GLSL).toContain('world.x - impact.x');
     expect(JUNCTION_FROTH_GLSL).toContain('fwidth(world.x)');
     expect(JUNCTION_FROTH_GLSL).not.toMatch(/sampler|sin\(time\)/);
+    expect(JUNCTION_FROTH_GLSL).toContain('if (craft <= 0.0) return previous');
+    expect(JUNCTION_FROTH_GLSL).toContain('max(.045,footprint*7.5)');
+    expect(JUNCTION_FROTH_GLSL.indexOf('fwidth(world.x)')).toBeLessThan(
+      JUNCTION_FROTH_GLSL.indexOf('if (run')
+    );
   });
 });

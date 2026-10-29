@@ -289,7 +289,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     uniformOwner:
       'UnifiedWaterSurfaceMaterial owns bed/film optics; WaterAnimationManager owns shared admitted phase; High/Ultra junction service owns cached incident reflection',
     timeSource: 'simulation',
-    cacheKey: 'millos-unified-water-v31',
+    cacheKey: 'millos-unified-water-v32',
     disposalOwner: 'AnimatedWater cleanup effect disposes and deregisters',
     fallbackMaterial: 'flat calibrated deep-water colour',
   },

@@ -9682,3 +9682,25 @@ Exact-candidate native acceptance passes 26 views: three junction framings throu
 Pacing remains separately OPEN. Original river/water Medium timing gate ran once with unchanged budgets, terminal 1. River: 60.01 FPS, 1% low 56.60, p95 17.5 ms, p99 17.6 ms, first frame 700 ms, 170 draws, load 5.37/core; first-frame and p95 limits miss. Water: 60.06 FPS, 1% low 56.63, p95 17.1 ms, p99 17.5 ms, first frame 321.2 ms, 1,060 draws, load 3.93/core; p95 misses. Both samples report host contention; no regression/improvement inference, quiet-GPU wait, rerun or quality waiver. These misses do not reopen unrelated polish.
 
 All 12 finite items are disposed in `test-results/ei-water-junction-20261028/DISPOSITION.md`; `acceptance.json` retains boundaries and `gallery.html` presents real captures. Useful source, logs, images, controls and immutable build pins remain. Owned browser/server/build/check jobs have terminal results and graceful finally cleanup; capture lock and preview port 4312 listener are absent. Completed internal helpers lack a supported exposed exact-ID disposal control, so no signal or RAM-release claim. Finish the documentation-only local check-in, final custody check and supported goal PAUSED reaffirmation, then stop. Publication is held, player/device/manual first-person and unmuted checks are deferred. The broader world-polish programme remains unfinished and paused; no next rotation begins.
+
+
+### EJ water craft, authorized 2026-10-29
+
+Nell requests another local, muted river/canal-junction polish pass, interface preserved, device checks deferred, pacing separate, then pause. This releases the pause for this finite pass only. Clean base `c099497e`; baseline 72 tests across 7 files pass, no failing names. Current compiled FactoryExterior and existing reachability/import evidence confirm the edited assembly is live. Root owns the bounded shader/stone changes and final acceptance; no new rendering architecture, UI, simulation authority, remote work or publication.
+
+Observed opportunities, same-root review of the root-authored EI images: broad mottled foam clumps, straight curtain edges, little damp separation on outlet stone. Three failure modes to control: fine foam can alias at distance, a softened curtain can expose a gap at the wall, and unlit or unsupported stone detail can disappear during batching. Use derivative-filtered metre-space detail, restrained in-mesh coverage, and standard lit vertex colour with real assembly/native checks.
+
+1. Reconcile the current shader, apron, water elevations, bed, old consumers and existing native helper; preserve all prior optical/capture contracts.
+2. Keep the named baseline and a finite acceptance plan before edits.
+3. Refine aeration into irregular connected rafts, small bubble/lace rims and thinner dispersing trails; keep the old finite footprint and existing water phase.
+4. Add restrained spill-edge softness, varied falling ribbons and a fine light-catching foot without particles or glowing night water.
+5. Add a subtle filtered impact/wake normal, locally bounded; no global river roughness increase or new time source.
+6. Craft a grounded damp-stone waterline using deterministic linear vertex colour and bounded geometry refinement. Retain surface UV scale, silhouettes, attachment, batching compatibility and existing maps/lights.
+7. Keep exact Low water behavior and supported transparency only. Use one shared gain to isolate this pass's water finish in held native controls; this is appearance proof, no performance baseline claim.
+8. Add only focused changed-contract checks for foam filtering, material wiring and stone bounds/colour/UV behavior. Run existing affected tests and required integrated source gates.
+9. Build and seal actual production output; run fresh compiled reachability/bundle/community gates.
+10. Silent exact-candidate native day/dusk/night, close spill/bed/wide views, Low fallback and ordinary motion/pause/reduced/quality transitions. Keep original page, world, personnel, texture, quality and audio guards. Inspect actual images and held on/off controls.
+11. Run original affected-scene timing once with unchanged budgets, retain misses separately without quiet-GPU waits or unrelated repairs.
+12. Save gallery, results and raw failures, rehash custody, check in owned local work, close owned temporary resources, reaffirm goal PAUSED and stop.
+
+Working if the junction gains finer coherent froth, a less cut-out falling sheet and damp grounded stone, actual silent native images show those changes, all required functional/source/build gates have terminal evidence, Low/interface/authority remain intact and the finite pass ends paused.

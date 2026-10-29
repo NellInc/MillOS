@@ -49,17 +49,49 @@ export function createCanalOutletSurface() {
   return geometry;
 }
 
-/** Meter-scaled UVs keep the long foundation and the coping at the same grain. */
-export function createOutletStoneGeometry(width: number, height: number, depth: number) {
-  const geometry = new THREE.BoxGeometry(width, height, depth);
+/** Meter-scaled UVs and lit linear vertex colour survive the ordinary batcher.
+ * Working if the actual waterline is damp, coping stays dry and bounds do not move.
+ */
+export function createOutletStoneGeometry(
+  width: number,
+  height: number,
+  depth: number,
+  origin: readonly [number, number, number] = [0, 0, 0],
+  coping = false
+) {
+  const geometry = new THREE.BoxGeometry(
+    width,
+    height,
+    depth,
+    Math.min(24, Math.max(1, Math.ceil(width / 3))),
+    Math.min(18, Math.max(1, Math.ceil(height / 0.35))),
+    Math.min(24, Math.max(1, Math.ceil(depth / 3)))
+  );
   const p = geometry.getAttribute('position');
   const n = geometry.getAttribute('normal');
   const uv = geometry.getAttribute('uv');
+  const colour = new Float32Array(p.count * 3);
   for (let i = 0; i < p.count; i++) {
     const u = Math.abs(n.getX(i)) > 0.5 ? p.getZ(i) : p.getX(i);
     const v = Math.abs(n.getY(i)) > 0.5 ? p.getZ(i) : p.getY(i);
     uv.setXY(i, u / 2, v / 2);
+    const x = p.getX(i) + origin[0];
+    const y = p.getY(i) + origin[1];
+    const z = p.getZ(i) + origin[2];
+    const uneven = Math.sin(x * 1.3 + Math.sin(z * 0.6)) * Math.cos(z * 0.91) * 0.08;
+    const level = CANAL_OUTLET.upperLevel + uneven;
+    const damp = coping ? 0 : 1 - THREE.MathUtils.smoothstep(y, level - 0.22, level + 0.42);
+    const moss = coping
+      ? 0
+      : (1 - THREE.MathUtils.smoothstep(Math.abs(y - level - 0.09), 0.03, 0.24)) *
+        (1 - Math.abs(n.getY(i)));
+    // Linear RGB multiplier on the retained sRGB stone map, no emissive decal.
+    colour.set(
+      [1 - damp * 0.34 - moss * 0.07, 1 - damp * 0.32, 1 - damp * 0.36 - moss * 0.05],
+      i * 3
+    );
   }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colour, 3));
   return geometry;
 }
 
