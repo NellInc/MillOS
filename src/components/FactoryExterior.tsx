@@ -76,6 +76,8 @@ import {
   createRiverFootbridgeFrameGeometry,
   createRoadRiverBridgeFrameGeometry,
   createRiverSurfaceGeometry,
+  createRiverShoreGeometry,
+  createRiverShoreDetails,
   fitRiverCulvertBank,
 } from './exterior/riverGeometry';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
@@ -112,6 +114,7 @@ import {
 } from '../simulation/atmosphere';
 import { positionRegistry } from '../utils/positionRegistry';
 import { PROCEDURAL_TEXTURES, TREE_MATERIALS } from '../utils/sharedMaterials';
+import { generateConcrete } from '../textures/concrete';
 import {
   BUS_SHELTER_SITE,
   BUS_SHELTER_LIGHT,
@@ -568,7 +571,10 @@ GroundBlob.displayName = 'GroundBlob';
 const SimpleTree: React.FC<{ position: [number, number, number]; scale?: number }> = React.memo(
   ({ position, scale = 1 }) => {
     // Deterministic per-tree variant, rotation and scale jitter from position hash
-    const { variant, rotY, jitter } = useMemo(() => treeJitterFromPosition(position), [position]);
+    const { variant, colorVariant, rotY, jitter } = useMemo(
+      () => treeJitterFromPosition(position),
+      [position]
+    );
     const quality = useGraphicsStore((state) => state.graphics.quality);
     const matrix = useMemo(
       () => createTreeMatrix(groundedTreePosition(position, quality), scale * jitter, rotY),
@@ -602,7 +608,7 @@ const SimpleTree: React.FC<{ position: [number, number, number]; scale?: number 
             (['parkCanopyZeroUnit', 'parkCanopyOneUnit', 'parkCanopyTwoUnit'] as const)[variant]
           }
           geometry={TREE_FOLIAGE_VARIANTS[variant]}
-          material={TREE_FOLIAGE_MATERIALS[variant]}
+          material={TREE_FOLIAGE_MATERIALS[colorVariant]}
           castShadow
         />
       </group>
@@ -2716,6 +2722,9 @@ const LAKE_STONE_MATERIAL = new THREE.MeshStandardMaterial({
   vertexColors: true,
   roughness: 0.97,
 });
+// Reuse the mineral-grain generator with BOTH manufactured features disabled.
+// Existing floorDetailConcrete startup recipe seeds this same unjointed key.
+const SHORE_MINERAL_MAP = generateConcrete(512, 512, false, false);
 
 // Natural Lake component - irregular shape with shoreline
 const Lake: React.FC<{
@@ -2757,7 +2766,13 @@ const Lake: React.FC<{
       {/* One organic bank mesh replaces the exposed concentric shoreline disc. */}
       <mesh position={[0, 0.08, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <primitive object={bankGeometry} attach="geometry" />
-        <meshStandardMaterial vertexColors roughness={0.96} metalness={0} />
+        <meshStandardMaterial
+          vertexColors
+          map={SHORE_MINERAL_MAP}
+          roughnessMap={PROCEDURAL_TEXTURES.concreteRoughness}
+          roughness={0.96}
+          metalness={0}
+        />
       </mesh>
       {/* The opaque water shader carries its own depth gradient. Keeping a
           second disc directly beneath its animated wave troughs caused the
@@ -2930,7 +2945,7 @@ const River: React.FC = React.memo(() => {
   } = config;
   const quality = useGraphicsStore((state) => state.graphics.quality);
   const segments = getTerrainGridSegments(quality);
-  const surface = useMemo(() => {
+  const bankAssembly = useMemo(() => {
     const heightfield = getRiverHeightfield(config);
     const terrain = createDisplacedGeometry(
       TERRAIN_BOUNDS.maxX - TERRAIN_BOUNDS.minX,
@@ -2942,17 +2957,60 @@ const River: React.FC = React.memo(() => {
       TERRAIN_BOUNDS
     );
     try {
-      return createRiverSurfaceGeometry(terrain, config, waterLevel, SITE_LAYOUT.datum.terrain);
+      return {
+        surface: createRiverSurfaceGeometry(terrain, config, waterLevel, SITE_LAYOUT.datum.terrain),
+        shore: createRiverShoreGeometry(terrain, waterLevel, SITE_LAYOUT.datum.terrain),
+        details: createRiverShoreDetails(config, segments, SITE_LAYOUT.datum.terrain),
+      };
     } finally {
       terrain.dispose();
     }
   }, [segments, config, waterLevel]);
-  useEffect(() => () => surface.dispose(), [surface]);
+  useEffect(
+    () => () => {
+      bankAssembly.surface.dispose();
+      bankAssembly.shore.dispose();
+      bankAssembly.details.vegetation.dispose();
+      bankAssembly.details.stones.dispose();
+    },
+    [bankAssembly]
+  );
   const startZ = getRiverCenterZ(riverX - length / 2, config) - riverZ;
   const endZ = getRiverCenterZ(riverX + length / 2, config) - riverZ;
 
   return (
     <group position={[riverX, 0, riverZ]} name="river-channel">
+      {/* Exact ground faces, a feathered sediment margin and sparse rooted
+          plants. No raised ribbon, water outline change or road collider. */}
+      <group position={[-riverX, 0, -riverZ]}>
+        <mesh name="terrain-fitted-river-shore" geometry={bankAssembly.shore} receiveShadow>
+          <meshStandardMaterial
+            vertexColors
+            map={SHORE_MINERAL_MAP}
+            roughnessMap={PROCEDURAL_TEXTURES.concreteRoughness}
+            roughness={0.94}
+            transparent
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
+          />
+        </mesh>
+        <mesh
+          name="river-shore-reeds"
+          geometry={bankAssembly.details.vegetation}
+          material={LAKE_REED_MATERIAL}
+          castShadow
+          receiveShadow
+        />
+        <mesh
+          name="river-shore-stones"
+          geometry={bankAssembly.details.stones}
+          material={LAKE_STONE_MATERIAL}
+          castShadow
+          receiveShadow
+        />
+      </group>
       <mesh
         name="terrain-fitted-river-water"
         position={[0, waterLevel, 0]}
@@ -2960,7 +3018,7 @@ const River: React.FC = React.memo(() => {
         receiveShadow
         renderOrder={RENDER_ORDER.waterSurface}
       >
-        <primitive object={surface} attach="geometry" />
+        <primitive object={bankAssembly.surface} attach="geometry" />
         <UnifiedWaterSurfaceMaterial
           deep="#123746"
           shallow="#3b7d8a"

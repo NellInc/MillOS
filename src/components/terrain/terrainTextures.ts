@@ -8,9 +8,8 @@
  * the packing layout, the height-field centring and the tileability guarantees
  * below only make sense for `TerrainMaterial`. Keeping them local means the
  * terrain can change its packing without re-tuning twenty other materials.
- * The albedo maps the terrain shares with the rest of the site (grass, tarmac)
- * are still consumed from `PROCEDURAL_TEXTURES` - only the terrain-specific
- * surface data is generated here.
+ * The detailed grass and earth pairs are terrain-owned. Low retains the
+ * shared grass and the small earth map; tarmac remains shared on every tier.
  *
  * PACKING (`*Surface` textures, RGBA, linear / NoColorSpace)
  *   R = tangent-space normal X, biased to 0..1
@@ -252,19 +251,73 @@ function buildSurfaceTexture(
   });
 }
 
+/** A leaf in a periodic, jittered cell. Both albedo and relief sample this field.
+ * At 64 cells over 6.5 m, leaves are ~8 cm long, not metre-sized noise clumps.
+ * Bounded support keeps the cell edge continuous; hashed directions avoid comb rows.
+ */
+const grassLeaf = (u: number, v: number) => {
+  const cells = 64;
+  const x = u * cells;
+  const y = v * cells;
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const seed = tileHash(ix, iy, cells);
+  const dx = tileHash(ix + 19, iy + 7, cells) * 2 - 1;
+  const dy = tileHash(ix + 37, iy + 43, cells) * 2 - 1;
+  const inverse = 1 / Math.max(0.001, Math.hypot(dx, dy));
+  const px = x - ix - 0.5 - (seed - 0.5) * 0.12;
+  const py = y - iy - 0.5 - (tileHash(ix + 5, iy, cells) - 0.5) * 0.12;
+  const along = (px * dx + py * dy) * inverse;
+  const across = (py * dx - px * dy) * inverse;
+  const length = 0.31 + seed * 0.09;
+  const taper = Math.max(0, 1 - (along / length) ** 2);
+  const width = (0.07 + seed * 0.025) * taper;
+  const leaf = width > 0 ? clamp01((width - Math.abs(across)) * 35) : 0;
+  const ridge = leaf * (1 - Math.min(1, Math.abs(across) / Math.max(width, 0.001)));
+  return { leaf, ridge, dry: seed > 0.86 ? 1 : 0 };
+};
+
+/** Terrain-only albedo: fine lance-shaped leaves over a quiet meadow understorey.
+ * Working if the worker seeds this exact key and neighbouring lawns stay unchanged.
+ */
+export const generateTerrainGrass = (size = 1024): THREE.DataTexture =>
+  getTexture(`terrain-grass-albedo-v1-${size}`, () => {
+    const data = new Uint8Array(size * size * 4);
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const u = (x + 0.5) / size;
+        const v = (y + 0.5) / size;
+        const tuft = tileFbm(u, v, 10, 3);
+        const fine = tileFbm(u + 0.31, v + 0.17, 32, 2) - 0.5;
+        const { leaf, ridge, dry } = grassLeaf(u, v);
+        const i = (y * size + x) * 4;
+        const light = (tuft - 0.5) * 0.14 + fine * 0.06;
+        data[i] = Math.round(
+          clamp01(0.32 + light + leaf * (0.065 + dry * 0.075) + ridge * 0.035) * 255
+        );
+        data[i + 1] = Math.round(
+          clamp01(0.405 + light + leaf * (0.065 + dry * 0.025) + ridge * 0.025) * 255
+        );
+        data[i + 2] = Math.round(clamp01(0.27 + light * 0.8 + leaf * (0.025 + dry * 0.025)) * 255);
+        data[i + 3] = 255;
+      }
+    }
+    return createColorDataTexture(data, size, size);
+  });
+
 /**
  * Grass relief: tussocks and irregular blade clusters.
  *
- * Feature periods at the default 256px: tussocks ~25.6px, clumps ~8px, blade
- * tufts ~11px - all above the ~4-6px floor below which detail aliases and
- * averages to a flat constant one mip down.
+ * Runtime maps use 512px: tussocks ~51px, clumps ~16px, leaf cells 8px.
+ * The 1024px albedo resolves finer silhouettes while the matching relief
+ * stays filtered and restrained.
  */
 export const generateGrassSurface = (size: number = 256): THREE.DataTexture =>
   // A 0.55 RMS slope made the 20-65 cm tuft field read as broken ground.
   // A same-page normal-only control isolated that coarse lighting pattern.
   // 0.12 keeps centimetre-scale leaf relief without terrain-sized ridges.
-  // Working if the decoded slope stays near 0.12 at both generated resolutions.
-  buildSurfaceTexture(`terrain-grass-surface-v4-${size}`, size, 0.12, (u, v) => {
+  // Working if the decoded slope stays near 0.12 at each tested resolution.
+  buildSurfaceTexture(`terrain-grass-surface-v5-${size}`, size, 0.12, (u, v) => {
     const tussock = tileFbm(u, v, 10, 3);
     const clump = tileFbm(u + 0.31, v + 0.17, 32, 2);
     // A two-dimensional tuft field preserves tileability without long comb rows.
@@ -272,6 +325,8 @@ export const generateGrassSurface = (size: number = 256): THREE.DataTexture =>
     const thin = tileFbm(u + 0.71, v + 0.53, 6, 2);
 
     let height = 0.5 * tussock + 0.3 * clump + 0.2 * tips * (0.35 + 0.65 * tussock);
+    const { leaf, ridge } = grassLeaf(u, v);
+    height += leaf * 0.065 + ridge * 0.045;
     // Worn/thin patches sit lower and pick up more soil.
     height -= Math.max(0, 0.42 - thin) * 0.5;
 
@@ -320,7 +375,7 @@ export const generateTarmacSurface = (size: number = 256): THREE.DataTexture =>
  * Feature periods at the default 256px: pebbles ~5.6px, ruts ~32px.
  */
 export const generateDirtSurface = (size: number = 256): THREE.DataTexture =>
-  buildSurfaceTexture(`terrain-dirt-surface-v2-${size}`, size, 0.45, (u, v) => {
+  buildSurfaceTexture(`terrain-dirt-surface-v3-${size}`, size, 0.45, (u, v) => {
     const pebble = tileVoronoi(u, v, 46);
     const stone = clamp01(1 - pebble.dist * 2.1);
     const earth = tileFbm(u, v, 8, 3);
@@ -329,6 +384,8 @@ export const generateDirtSurface = (size: number = 256): THREE.DataTexture =>
 
     let height = 0.4 + stone * 0.38 + (earth - 0.5) * 0.3 + (grit - 0.5) * 0.1;
     height -= Math.max(0, rut - 0.58) * 0.6;
+    // Fine quartz/soil grains resolve at 512px without enlarging the stones.
+    height += (tileFbm(u + 0.17, v + 0.43, 128, 1) - 0.5) * 0.07;
 
     // Damp ruts are smoother; dry gritty earth is very rough.
     const roughness = 0.94 - Math.max(0, rut - 0.58) * 0.22 + (grit - 0.5) * 0.04;
@@ -347,7 +404,7 @@ export const generateDirtSurface = (size: number = 256): THREE.DataTexture =>
  * makes the GPU decode it, so this must NOT be pre-linearised.
  */
 export const generateDirtGravel = (size: number = 256): THREE.DataTexture =>
-  getTexture(`terrain-dirt-gravel-v3-${size}`, () => {
+  getTexture(`terrain-dirt-gravel-${size > 256 ? 'v4' : 'v3'}-${size}`, () => {
     const data = new Uint8Array(size * size * 4);
 
     for (let y = 0; y < size; y++) {
@@ -361,6 +418,8 @@ export const generateDirtGravel = (size: number = 256): THREE.DataTexture =>
         const damp = tileFbm(u + 0.23, v + 0.87, 5, 2);
         const pebble = tileVoronoi(u, v, 46);
         const stone = clamp01(1 - pebble.dist * 2.1);
+
+        const mineral = size > 256 ? tileFbm(u + 0.17, v + 0.43, 128, 1) - 0.5 : 0;
 
         // Packed umber earth, sRGB. Raise the weak channels to avoid orange
         // saturation, without multiplying a correcting tint in the shader.
@@ -376,6 +435,11 @@ export const generateDirtGravel = (size: number = 256): THREE.DataTexture =>
           g = g * (1 - blend) + stoneTone * 0.97 * blend;
           b = b * (1 - blend) + stoneTone * 0.92 * blend;
         }
+
+        // Subtle mineral facets, registered to the packed relief field.
+        r += mineral * 0.045;
+        g += mineral * 0.045;
+        b += mineral * 0.04;
 
         // Damp ruts read darker and slightly cooler.
         const wet = Math.max(0, damp - 0.58) * 1.6;
@@ -492,16 +556,21 @@ export const generateTerrainMacro = (size: number = 256): THREE.DataTexture =>
   });
 
 /**
- * The maps `TerrainGround` samples, at the sizes it samples them. The startup
- * bake recipes call these same two functions, so the worker lands on exactly
- * the keys the terrain asks for at mount (~0.18 s of main thread otherwise).
+ * The maps `TerrainGround` samples, at the sizes it samples them.
+ * Low keeps its original albedo pair; Medium+ resolves the terrain-owned leaves
+ * and mineral grains without extra shader taps. The startup
+ * bake recipes call these same getters, so the worker lands on exactly
+ * the keys the terrain asks for at mount, with no duplicate main-thread bake.
  */
-export const getTerrainDirtTexture = (): THREE.DataTexture => generateDirtGravel(256);
+export const getTerrainDirtTexture = (detail = false): THREE.DataTexture =>
+  generateDirtGravel(detail ? 512 : 256);
+
+export const getTerrainGrassTexture = (): THREE.DataTexture => generateTerrainGrass(1024);
 
 export const getTerrainSurfaceMaps = () => ({
-  grass: generateGrassSurface(256),
+  grass: generateGrassSurface(512),
   tarmac: generateTarmacSurface(256),
-  dirt: generateDirtSurface(256),
+  dirt: generateDirtSurface(512),
   // 256, not 128: the alpha channel now carries the grass tile break
   // that used to cost its own texture tap, and that channel needs the
   // resolution. See generateTerrainMacro.

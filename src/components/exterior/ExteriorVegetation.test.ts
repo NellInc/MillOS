@@ -213,10 +213,28 @@ describe('tree sites', () => {
 });
 
 describe('natural tree forms', () => {
+  it('decouples leaf palette, crown shape, yaw and size without changing planted sites', () => {
+    const combinations = new Set<string>();
+    const yawsByVariant = [new Set<number>(), new Set<number>(), new Set<number>()];
+    for (let i = 0; i < 120; i++) {
+      const position: [number, number, number] = [i * 3.7, 0, i * -2.3];
+      const appearance = treeJitterFromPosition(position);
+      combinations.add(`${appearance.variant}:${appearance.colorVariant}`);
+      yawsByVariant[appearance.variant].add(Math.floor(appearance.rotY / (Math.PI / 2)));
+      expect(treeJitterFromPosition([position[0], 12, position[2]])).toEqual(appearance);
+      // Existing grove acceptance uses this exact radius channel. Changing it
+      // could silently move the planted population along roads and banks.
+      const h = Math.abs(Math.sin(position[0] * 12.9898 + position[2] * 78.233) * 43758.5453);
+      expect(appearance.jitter).toBe(0.9 + (h - Math.floor(h)) * 0.2);
+    }
+    expect(combinations.size).toBe(9);
+    expect(yawsByVariant.every((quadrants) => quadrants.size === 4)).toBe(true);
+  });
+
   it('varies crown aspect and height independently, stably across terrain quality', () => {
     const forms = MAIN_EXTERIOR_TREES.map(({ position }) => treeFormFromPosition(position));
     const aspects = forms.map(({ scale }) => Math.max(scale.x, scale.z) / scale.y);
-    expect(Math.max(...aspects) / Math.min(...aspects)).toBeGreaterThan(1.7);
+    expect(Math.max(...aspects) / Math.min(...aspects)).toBeGreaterThan(2.2);
     for (const { position } of MAIN_EXTERIOR_TREES) {
       expect(treeFormFromPosition([position[0], 12, position[2]])).toEqual(
         treeFormFromPosition(position)

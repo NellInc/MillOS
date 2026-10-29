@@ -85,9 +85,10 @@ export const TREE_FOLIAGE_VARIANTS = [
 ];
 
 /**
- * Per-variant hue jitter through three shared materials (no per-instance
- * material churn). `color` is a uniform and all three share one
- * `customProgramCacheKey`, so this is still ONE compiled shader program.
+ * Three shared leaf palettes, selected independently of crown shape. Individual
+ * trees select a shared material; instanced crowns use its colour as instanceColor
+ * over the white base material, retaining three geometry batches. All three
+ * materials share one `customProgramCacheKey` and one compiled shader program.
  */
 export const TREE_FOLIAGE_MATERIALS = [
   createFoliageMaterial('broadleaf', '#c9d8b4'),
@@ -114,8 +115,10 @@ export const treeJitterFromPosition = (position: [number, number, number]) => {
   const h = Math.abs(Math.sin(position[0] * 12.9898 + position[2] * 78.233) * 43758.5453);
   const frac = h - Math.floor(h);
   return {
-    variant: Math.floor(frac * 3) % 3,
-    rotY: frac * Math.PI * 2,
+    variant: Math.floor(treeSeed(position, 10) * 3),
+    colorVariant: Math.floor(treeSeed(position, 11) * 3),
+    rotY: treeSeed(position, 12) * Math.PI * 2,
+    // Keep the established size channel: the woodland site filter uses it.
     jitter: 0.9 + frac * 0.2,
   };
 };
@@ -271,6 +274,7 @@ interface InstanceData {
   rotation?: number;
   scale?: number;
   matrix?: THREE.Matrix4;
+  color?: THREE.Color;
 }
 
 const useInstances = (_count: number, data: InstanceData[], localMatrix?: THREE.Matrix4) => {
@@ -291,8 +295,10 @@ const useInstances = (_count: number, data: InstanceData[], localMatrix?: THREE.
       }
       if (localMatrix) tempObject.matrix.multiply(localMatrix);
       meshRef.current!.setMatrixAt(i, tempObject.matrix);
+      if (item.color) meshRef.current!.setColorAt(i, item.color);
     });
     meshRef.current.instanceMatrix.needsUpdate = true;
+    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
     // A quality change moves grounded heights; three never refreshes the
     // cached bounds of an InstancedMesh on its own.
     meshRef.current.computeBoundingBox();
@@ -322,7 +328,7 @@ export const SimpleTreeInstances: React.FC<{
     const all: InstanceData[] = [];
     const buckets: InstanceData[][] = [[], [], []];
     trees.forEach((t) => {
-      const { variant, rotY, jitter } = treeJitterFromPosition(t.position);
+      const { variant, colorVariant, rotY, jitter } = treeJitterFromPosition(t.position);
       const item: InstanceData = {
         position: groundedTreePosition(t.position, quality),
         matrix: createTreeMatrix(
@@ -332,7 +338,8 @@ export const SimpleTreeInstances: React.FC<{
         ),
       };
       all.push(item);
-      buckets[variant].push(item);
+      // Only crowns get instanceColor; wood retains the shared bark material.
+      buckets[variant].push({ ...item, color: TREE_FOLIAGE_MATERIALS[colorVariant].color });
     });
     return { allTrees: all, byVariant: buckets };
   }, [trees, quality]);
@@ -390,7 +397,7 @@ export const SimpleTreeInstances: React.FC<{
             key={variant}
             name="tree-canopies"
             ref={canopyRefs[variant]}
-            args={[TREE_FOLIAGE_VARIANTS[variant], TREE_FOLIAGE_MATERIALS[variant], bucket.length]}
+            args={[TREE_FOLIAGE_VARIANTS[variant], TREE_FOLIAGE_MATERIALS[1], bucket.length]}
             castShadow
           >
             <GeneratedBoundary fallback={null}>

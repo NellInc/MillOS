@@ -55,6 +55,7 @@ import {
 import { getFlourSackMaps, getFlourSackPrint } from '../textures/grain';
 import {
   getTerrainDirtTexture,
+  getTerrainGrassTexture,
   getTerrainSurfaceMaps,
 } from '../components/terrain/terrainTextures';
 
@@ -86,6 +87,8 @@ export const SCENE_TEXTURE_RECIPES = {
   // relief (texturePreloader, ConveyorSystem, SpoutingSystem).
   terrainSurfaceMaps: () => getTerrainSurfaceMaps(),
   terrainDirt: () => getTerrainDirtTexture(),
+  terrainDirtDetail: () => getTerrainDirtTexture(true),
+  terrainGrass: () => getTerrainGrassTexture(),
   flourSackCloth: () => getFlourSackMaps(),
   spoutDetailNormal: () => generateProceduralNormal(256, 0.12, 16),
 } as const;

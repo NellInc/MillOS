@@ -18,6 +18,10 @@ import { readFileSync } from 'node:fs';
 import { generateTarmac } from '../../../textures/tarmac';
 import {
   generateGrassSurface,
+  generateTerrainGrass,
+  getTerrainGrassTexture,
+  getTerrainDirtTexture,
+  getTerrainSurfaceMaps,
   generateTarmacSurface,
   generateDirtSurface,
   generateDirtGravel,
@@ -223,19 +227,22 @@ describe('terrain packed surface textures', () => {
     expect(ny.stdDev).toBeGreaterThan(0.03);
   });
 
-  it.each([128, 256])('grass at %i px carries leaf relief, not ground-sized ridges', (size) => {
-    const data = generateGrassSurface(size).image.data as Uint8Array;
-    let slopeSquared = 0;
-    for (let offset = 0; offset < data.length; offset += 4) {
-      const nx = (data[offset] / 255) * 2 - 1;
-      const ny = (data[offset + 1] / 255) * 2 - 1;
-      const nzSquared = Math.max(0.0001, 1 - nx * nx - ny * ny);
-      slopeSquared += (nx * nx + ny * ny) / nzSquared;
+  it.each([128, 256, 512])(
+    'grass at %i px carries leaf relief, not ground-sized ridges',
+    (size) => {
+      const data = generateGrassSurface(size).image.data as Uint8Array;
+      let slopeSquared = 0;
+      for (let offset = 0; offset < data.length; offset += 4) {
+        const nx = (data[offset] / 255) * 2 - 1;
+        const ny = (data[offset + 1] / 255) * 2 - 1;
+        const nzSquared = Math.max(0.0001, 1 - nx * nx - ny * ny);
+        slopeSquared += (nx * nx + ny * ny) / nzSquared;
+      }
+      const rmsSlope = Math.sqrt(slopeSquared / (size * size));
+      expect(rmsSlope).toBeGreaterThan(0.1);
+      expect(rmsSlope).toBeLessThan(0.14);
     }
-    const rmsSlope = Math.sqrt(slopeSquared / (size * size));
-    expect(rmsSlope).toBeGreaterThan(0.1);
-    expect(rmsSlope).toBeLessThan(0.14);
-  });
+  );
 
   it.each(SURFACES)('%s roughness channel is written and varies', (_name, generate) => {
     const texture = generate(size);
@@ -462,6 +469,55 @@ describe('restrained packed-earth verges', () => {
       const wrapY = rowDelta(data, size, channel, size - 1, 0);
       expect(wrapX).toBeLessThan(columnDelta(data, size, channel, 10, 11) * 3 + 2);
       expect(wrapY).toBeLessThan(rowDelta(data, size, channel, 10, 11) * 3 + 2);
+    }
+  });
+});
+
+describe('terrain-owned close surface detail', () => {
+  it('uses worker-baked high definition pairs while Low keeps its smaller earth map', () => {
+    const grass = getTerrainGrassTexture();
+    const earth = getTerrainDirtTexture(true);
+    const surfaces = getTerrainSurfaceMaps();
+    expect(grass.image.width).toBe(1024);
+    expect(earth.image.width).toBe(512);
+    expect(surfaces.grass.image.width).toBe(512);
+    expect(surfaces.dirt.image.width).toBe(512);
+    expect(getTerrainDirtTexture().image.width).toBe(256);
+    expect(getTerrainGrassTexture()).toBe(grass);
+    expect(getTerrainDirtTexture(true)).toBe(earth);
+    const source = readFileSync('src/components/terrain/TerrainGround.tsx', 'utf8');
+    expect(source).toContain(
+      'surfaceDetail ? getTerrainGrassTexture() : PROCEDURAL_TEXTURES.grassColor'
+    );
+    expect(source).toContain('getTerrainDirtTexture(surfaceDetail)');
+  });
+
+  it('resolves leaf-scale colour variation in a seamless, opaque sRGB meadow', () => {
+    const size = 1024;
+    const texture = generateTerrainGrass(size);
+    const data = texture.image.data as Uint8Array;
+    expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
+    const red = channelStats(data, size, 0);
+    const green = channelStats(data, size, 1);
+    expect(green.mean).toBeGreaterThan(red.mean);
+    expect(green.stdDev).toBeGreaterThan(0.02);
+    let fineEnergy = 0;
+    let transparent = 0;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const i = (y * size + x) * 4;
+        const neighbour = (y * size + ((x + 4) % size)) * 4;
+        fineEnergy += Math.abs(data[i + 1] - data[neighbour + 1]);
+        if (data[i + 3] !== 255) transparent++;
+      }
+    }
+    // Four texels are 2.5 cm. A resolution-only upsample of the old soft turf
+    // cannot carry the blade ridges and shadows at this scale.
+    expect(fineEnergy / (size * size)).toBeGreaterThan(2.5);
+    expect(transparent).toBe(0);
+    for (const channel of [0, 1, 2] as Channel[]) {
+      expect(columnDelta(data, size, channel, size - 1, 0)).toBeLessThan(2);
+      expect(rowDelta(data, size, channel, size - 1, 0)).toBeLessThan(2);
     }
   });
 });

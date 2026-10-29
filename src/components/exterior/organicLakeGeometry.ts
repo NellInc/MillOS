@@ -89,17 +89,20 @@ export function createOrganicLakeBankGeometry(
   const rows = 5;
   const positions: number[] = [];
   const colors: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
   const rowColors = [
-    new THREE.Color('#425750'),
-    new THREE.Color('#657263'),
-    new THREE.Color('#80775f'),
-    new THREE.Color('#657354'),
-    new THREE.Color('#526c49'),
+    new THREE.Color('#8a9a89'),
+    new THREE.Color('#c1b9a1'),
+    new THREE.Color('#ebe0c5'),
+    new THREE.Color('#b3bd94'),
+    new THREE.Color('#a2bd83'),
   ];
   // The bank is placed at world y=0.08. Sink its outside edge through the
   // ground datum (-0.02), rather than leaving a raised cut edge above the lawn.
-  const rowHeights = [-0.05, 0.07, 0.095, 0.025, -0.12] as const;
+  // A shallow gravel shoulder rises above the .15m water line. The old .175m
+  // maximum left only 25mm exposed, so the shoreline read as submerged lawn.
+  const rowHeights = [-0.05, 0.11, 0.19, 0.075, -0.12] as const;
   const grassEdge = rowColors[4];
   const colour = new THREE.Color();
 
@@ -131,6 +134,8 @@ export function createOrganicLakeBankGeometry(
         Math.sin(angle) * radiusZ * factor,
         rowHeights[row] + Math.sin(angle * 5 + seed) * 0.018 * Math.sin(Math.PI * baseRatio)
       );
+      // World-metre grain density follows the bank, independent of ring width.
+      uvs.push((Math.cos(angle) * radiusX * factor) / 2, (Math.sin(angle) * radiusZ * factor) / 2);
       colour.copy(rowColors[row]).lerp(grassEdge, vegetation * Math.sin(Math.PI * baseRatio));
       const shade = 0.94 + 0.06 * Math.sin(angle * 4 + seed + baseRatio * 2);
       colors.push(colour.r * shade, colour.g * shade, colour.b * shade);
@@ -150,6 +155,7 @@ export function createOrganicLakeBankGeometry(
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();

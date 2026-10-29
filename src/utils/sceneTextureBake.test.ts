@@ -51,16 +51,20 @@ const GOLDEN_4DD77779: Record<string, string> = {
   leafRoughness: '256x256::6cf70185b7ea8482',
   grassBlades: '256x256:srgb:96b6c508ee86a2e0',
   mulch: '128x128:srgb:4b1b74ed6c008f1f',
-  flourSackPrint: '128x128:srgb:6cc90ec4656bf16d',
+  // The authored 256px raster replaced the old 128px stencil in 9dc5447e.
+  // grain.test.ts checks these alpha bytes against the retained source PNG.
+  flourSackPrint: '256x256:srgb:8eb7166ad3bad7c4',
 };
 
 /** The mount-time terrain, sack cloth and spout maps, by direct generator call on 0dbb4ed6. */
 const GOLDEN_0DBB4ED6: Record<string, string> = {
-  'terrainSurfaceMaps.grass': '256x256::510e29156b68de2a',
+  'terrainSurfaceMaps.grass': '512x512::ea751c120c4ab22e',
   'terrainSurfaceMaps.tarmac': '256x256::d47e0b6cebee615f',
-  'terrainSurfaceMaps.dirt': '256x256::c1eaab213a2bd7e7',
+  'terrainSurfaceMaps.dirt': '512x512::7ed8608d38e288bf',
   'terrainSurfaceMaps.macro': '256x256::0b30e730098c7b3e',
   terrainDirt: '256x256:srgb:678f35f8c71e0485',
+  terrainDirtDetail: '512x512:srgb:79ea8734e65e8b0d',
+  terrainGrass: '1024x1024:srgb:1a51c08529bfb246',
   'flourSackCloth.map': '256x256:srgb:37ea388885e8abd3',
   'flourSackCloth.normal': '256x256::021ee147dbc6c92c',
   'flourSackCloth.roughness': '256x256::062a86015853c761',
@@ -182,6 +186,8 @@ describe('scene texture startup bake', () => {
     const terrain = await import('../components/terrain/terrainTextures');
     terrain.getTerrainSurfaceMaps();
     terrain.getTerrainDirtTexture();
+    terrain.getTerrainDirtTexture(true);
+    terrain.getTerrainGrassTexture();
     const { preloadGenerativeTextures } = await import('./texturePreloader');
     await preloadGenerativeTextures();
     expect(generatedOnMainThread).toEqual(['v2-srgb:machine-instrument-screen-v1']);

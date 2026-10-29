@@ -22,7 +22,11 @@ import {
   type RiverChannelConfig,
 } from './splatMapGenerator';
 import { TERRAIN_BOUNDS, SPLAT_BOUNDS, TERRAIN_TINTS, type TerrainBounds } from './terrainTypes';
-import { getTerrainDirtTexture, getTerrainSurfaceMaps } from './terrainTextures';
+import {
+  getTerrainDirtTexture,
+  getTerrainGrassTexture,
+  getTerrainSurfaceMaps,
+} from './terrainTextures';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -211,7 +215,11 @@ export const TerrainGround = React.memo(function TerrainGround({
   // Terrain surface data. Generated lazily on first mount and memoised in the
   // shared texture cache, so a quality toggle never regenerates them.
   // Both are also baked off the main thread at startup (sceneTextureRecipes).
-  const dirtTexture = useMemo(() => getTerrainDirtTexture(), []);
+  const dirtTexture = useMemo(() => getTerrainDirtTexture(surfaceDetail), [surfaceDetail]);
+  const grassTexture = useMemo(
+    () => (surfaceDetail ? getTerrainGrassTexture() : PROCEDURAL_TEXTURES.grassColor),
+    [surfaceDetail]
+  );
   const surfaceMaps = useMemo(
     () => (surfaceDetail ? getTerrainSurfaceMaps() : null),
     [surfaceDetail]
@@ -223,14 +231,20 @@ export const TerrainGround = React.memo(function TerrainGround({
   // anisotropy 16 and are deliberately left alone.
   useEffect(() => {
     const level = Math.max(1, anisotropyLevel);
-    const owned = [dirtTexture, surfaceMaps?.grass, surfaceMaps?.tarmac, surfaceMaps?.dirt];
+    const owned = [
+      surfaceDetail ? grassTexture : null,
+      dirtTexture,
+      surfaceMaps?.grass,
+      surfaceMaps?.tarmac,
+      surfaceMaps?.dirt,
+    ];
     for (const texture of owned) {
       if (texture && texture.anisotropy !== level) {
         texture.anisotropy = level;
         texture.needsUpdate = true;
       }
     }
-  }, [anisotropyLevel, dirtTexture, surfaceMaps]);
+  }, [anisotropyLevel, dirtTexture, grassTexture, surfaceDetail, surfaceMaps]);
 
   // Water clips against this same field and quality-tier triangle grid.
   const heightmapData = useMemo(
@@ -285,7 +299,7 @@ export const TerrainGround = React.memo(function TerrainGround({
           asphaltColor={TERRAIN_TINTS.asphalt}
           roadColor={TERRAIN_TINTS.road}
           dirtColor={TERRAIN_TINTS.dirt}
-          grassTexture={PROCEDURAL_TEXTURES.grassColor}
+          grassTexture={grassTexture}
           asphaltTexture={PROCEDURAL_TEXTURES.tarmacColor}
           dirtTexture={dirtTexture}
           grassSurface={surfaceMaps?.grass}

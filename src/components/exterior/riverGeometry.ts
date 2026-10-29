@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { sampleTerrainGroundHeight, type RiverChannelConfig } from '../terrain/splatMapGenerator';
+import {
+  getRiverCenterZ,
+  sampleTerrainGroundHeight,
+  type RiverChannelConfig,
+} from '../terrain/splatMapGenerator';
+import { createLakeReedLeaf, createLakeShoreStone } from './lakeShoreDetails';
 
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import {
@@ -11,6 +16,179 @@ import {
 } from '../../constants/siteLayout';
 
 type ChannelPoint = readonly [number, number, number];
+
+/** A sediment margin clipped from the actual bank faces, never a floating
+ * ribbon. Upper feathering breaks the contour into grass and damp shingle.
+ * Working if every vertex ray-hits the same quality-tier ground within 1 mm.
+ */
+export function createRiverShoreGeometry(
+  terrain: THREE.BufferGeometry,
+  waterLevel: number,
+  datum: number
+): THREE.BufferGeometry {
+  // Carry the upper-bound distance through clipping with the position. That
+  // distance stays exactly zero on the new contour, including sloping faces.
+  type ShorePoint = readonly [number, number, number, number];
+  const p = terrain.getAttribute('position');
+  const index = terrain.getIndex();
+  if (!p || !index) throw new Error('River shore needs the indexed terrain assembly');
+  const lower = waterLevel - datum - 0.22;
+  const positions: number[] = [],
+    colors: number[] = [],
+    uvs: number[] = [];
+  const upper = (a: ChannelPoint) =>
+    waterLevel - datum + 0.68 + 0.14 * Math.sin(a[0] * 0.18 + a[1] * 0.09);
+  const clip = (poly: ShorePoint[], distance: (a: ShorePoint) => number) => {
+    const out: ShorePoint[] = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i],
+        b = poly[(i + 1) % poly.length];
+      const da = distance(a),
+        db = distance(b);
+      if (da >= 0) out.push(a);
+      if (da >= 0 !== db >= 0) {
+        const t = da / (da - db);
+        out.push([
+          a[0] + (b[0] - a[0]) * t,
+          a[1] + (b[1] - a[1]) * t,
+          a[2] + (b[2] - a[2]) * t,
+          a[3] + (b[3] - a[3]) * t,
+        ]);
+      }
+    }
+    return out;
+  };
+  const wet = new THREE.Color('#727c68'),
+    dry = new THREE.Color('#b9ac88'),
+    grass = new THREE.Color('#667d4c');
+  const tint = new THREE.Color();
+  for (let i = 0; i < index.count; i += 3) {
+    const tri: ShorePoint[] = [0, 1, 2].map((c) => {
+      const v = index.getX(i + c);
+      const point: ChannelPoint = [p.getX(v), p.getY(v), p.getZ(v)];
+      return [...point, upper(point) - point[2]];
+    });
+    // No world-edge planes or dry meadow geometry enters this height band.
+    const poly = clip(
+      clip(tri, (a) => a[2] - lower),
+      (a) => a[3]
+    );
+    for (let corner = 1; corner + 1 < poly.length; corner++) {
+      const a = poly[0],
+        b = poly[corner],
+        c = poly[corner + 1];
+      if (Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) < 1e-8) continue;
+      for (const v of [a, b, c]) {
+        const height = v[2] + datum - waterLevel;
+        const dryMix = THREE.MathUtils.smoothstep(height, -0.12, 0.32);
+        const grassMix = THREE.MathUtils.smoothstep(height, 0.27, 0.76);
+        tint.copy(wet).lerp(dry, dryMix).lerp(grass, grassMix);
+        const shade = 0.95 + 0.05 * Math.sin(v[0] * 0.67 + v[1] * 0.41);
+        positions.push(v[0], v[2] + datum, -v[1]);
+        // A lit, feathered top edge merges with the original turf below it.
+        colors.push(
+          tint.r * shade,
+          tint.g * shade,
+          tint.b * shade,
+          THREE.MathUtils.smoothstep(v[3], 0, 0.34)
+        );
+        uvs.push(v[0] / 2, -v[1] / 2);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.name = 'terrain-fitted-river-shore';
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/** Sparse sedge and mineral pockets, sampled on the real banks at each tier.
+ * Roots follow the bank rather than a nominal channel-width offset. All parts
+ * merge into two static draws and stay below the dry paths and bridge landings.
+ */
+export function createRiverShoreDetails(
+  config: RiverChannelConfig,
+  segments: number,
+  datum: number
+) {
+  const leaves: THREE.BufferGeometry[] = [],
+    stones: THREE.BufferGeometry[] = [];
+  const roots: THREE.Vector3[] = [],
+    stoneSeats: THREE.Vector3[] = [];
+  const color = (geometry: THREE.BufferGeometry, hex: string) => {
+    const c = new THREE.Color(hex),
+      data = new Float32Array(geometry.getAttribute('position').count * 3);
+    for (let i = 0; i < data.length; i += 3) data.set([c.r, c.g, c.b], i);
+    geometry.setAttribute('color', new THREE.BufferAttribute(data, 3));
+    return geometry;
+  };
+  const ground = (x: number, z: number) =>
+    datum + sampleTerrainGroundHeight(x, z, segments, config);
+  for (const [reach, x] of [-94, -65, -29, 38, 76, 111].entries()) {
+    const side = reach % 2 ? -1 : 1;
+    // Bracket the damp edge from the centre to dry ground on this side.
+    const centre = getRiverCenterZ(x, config);
+    let inside = config.width / 2,
+      outside = inside + config.bankWidth + 12;
+    for (let i = 0; i < 20; i++) {
+      const d = (inside + outside) / 2;
+      if (ground(x, centre + side * d) < config.waterLevel + 0.28) inside = d;
+      else outside = d;
+    }
+    const edge = (inside + outside) / 2;
+    for (let clump = 0; clump < 4; clump++) {
+      const px = x + (clump - 1.5) * 0.36,
+        pz = centre + side * (edge + Math.sin(clump * 2.4) * 0.23);
+      const root = new THREE.Vector3(px, ground(px, pz) - 0.018, pz);
+      roots.push(root);
+      for (let blade = 0; blade < 6; blade++) {
+        const height = 0.48 + ((blade * 3 + clump + reach) % 7) * 0.065;
+        leaves.push(
+          color(
+            createLakeReedLeaf(root, blade * 2.399 + reach, height, 0.13 + (blade % 3) * 0.09),
+            ['#5d753e', '#809151', '#426442', '#8a8651'][(blade + reach) % 4]
+          )
+        );
+      }
+    }
+    for (let rock = 0; rock < 2; rock++) {
+      const px = x + (rock ? 1.4 : -1.5),
+        pz = centre + side * (edge - 0.3);
+      const seat = new THREE.Vector3(px, ground(px, pz), pz);
+      stoneSeats.push(seat);
+      const geometry = createLakeShoreStone(
+        0.24 + rock * 0.1,
+        0.2 + reach * 0.01,
+        reach + rock
+      ).rotateY(reach * 0.9);
+      const p = geometry.getAttribute('position');
+      let lift = -Infinity;
+      for (let v = 0; v < p.count; v++)
+        lift = Math.max(lift, ground(px + p.getX(v), pz + p.getZ(v)) - p.getY(v));
+      geometry.translate(px, lift - 0.025, pz);
+      stones.push(color(geometry, rock ? '#8e8b78' : '#747d70'));
+    }
+  }
+  const merge = (parts: THREE.BufferGeometry[], name: string) => {
+    const result = mergeGeometries(parts, false);
+    parts.forEach((g) => g.dispose());
+    if (!result) throw new Error(`Cannot assemble ${name}`);
+    result.name = name;
+    result.computeBoundingSphere();
+    return result;
+  };
+  return {
+    vegetation: merge(leaves, 'river-shore-reeds'),
+    stones: merge(stones, 'river-shore-stones'),
+    roots,
+    stoneSeats,
+  };
+}
 
 /** A continuous masonry portal around the finite channel end, in metres.
  * Working if the 20 m arch is backed by a solid spandrel, its bore stays open

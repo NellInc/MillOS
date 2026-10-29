@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import {
   createRiverCulvertGeometries,
   createRiverSurfaceGeometry,
+  createRiverShoreGeometry,
+  createRiverShoreDetails,
   createRiverFootbridgeDeckGeometry,
   createRiverFootbridgeFrameGeometry,
   createRoadRiverBridgeFrameGeometry,
@@ -23,6 +25,101 @@ import { SITE_LAYOUT, RIVER_FOOTBRIDGE_DECK } from '../../constants/siteLayout';
 
 const config = MILLOS_RIVER_CONFIG;
 const datum = SITE_LAYOUT.datum.terrain;
+
+describe('physical river shore margins', () => {
+  it('keeps manufactured joints and wear paths out of the shared mineral map', () => {
+    const source = ts.createSourceFile(
+      'FactoryExterior.tsx',
+      readFileSync('src/components/FactoryExterior.tsx', 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX
+    );
+    let mineral: ts.CallExpression | undefined;
+    const visit = (node: ts.Node) => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        node.name.getText(source) === 'SHORE_MINERAL_MAP' &&
+        node.initializer &&
+        ts.isCallExpression(node.initializer)
+      )
+        mineral = node.initializer;
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    expect(mineral?.expression.getText(source)).toBe('generateConcrete');
+    expect(mineral?.arguments.map((arg) => arg.getText(source))).toEqual([
+      '512',
+      '512',
+      'false',
+      'false',
+    ]);
+  });
+  it.each([64, 128])(
+    'fits sediment, sedge roots and stone seats to the actual %i grid',
+    (segments) => {
+      const { ground, groundAt, dispose } = assembly(segments);
+      const shore = createRiverShoreGeometry(ground, config.waterLevel, datum);
+      const details = createRiverShoreDetails(config, segments, datum);
+      try {
+        const p = shore.getAttribute('position'),
+          c = shore.getAttribute('color');
+        expect(p.count).toBeGreaterThan(50);
+        expect(p.count / 3).toBeLessThan(1200);
+        expect(c.itemSize).toBe(4);
+        expect(shore.getAttribute('uv').count).toBe(p.count);
+        const edges = new Map<string, { count: number; a: number; b: number }>();
+        const key = (i: number) =>
+          [p.getX(i), p.getY(i), p.getZ(i)].map((n) => Math.round(n * 1000)).join(',');
+        for (let i = 0; i < p.count; i += 3) {
+          for (const [a, b] of [
+            [i, i + 1],
+            [i + 1, i + 2],
+            [i + 2, i],
+          ]) {
+            const id = [key(a), key(b)].sort().join('|');
+            const edge = edges.get(id);
+            if (edge) edge.count++;
+            else edges.set(id, { count: 1, a, b });
+          }
+        }
+        let featheredEdges = 0;
+        for (const { count, a, b } of edges.values()) {
+          if (count !== 1 || Math.min(p.getY(a), p.getY(b)) < config.waterLevel + 0.5) continue;
+          expect(c.getW(a)).toBeLessThan(1e-5);
+          expect(c.getW(b)).toBeLessThan(1e-5);
+          featheredEdges++;
+        }
+        expect(featheredEdges).toBeGreaterThan(20);
+        for (let i = 0; i < p.count; i++) {
+          expect(p.getY(i)).toBeGreaterThanOrEqual(config.waterLevel - 0.221);
+          expect(p.getY(i)).toBeLessThan(config.waterLevel + 0.84);
+          expect(Math.abs(groundAt(p.getX(i), p.getZ(i)) - p.getY(i))).toBeLessThan(0.001);
+          expect(c.getW(i)).toBeGreaterThanOrEqual(0);
+          expect(c.getW(i)).toBeLessThanOrEqual(1);
+          expect(shore.getAttribute('normal').getY(i)).toBeGreaterThan(0.8);
+        }
+        expect(details.roots).toHaveLength(24);
+        for (const root of details.roots) {
+          expect(groundAt(root.x, root.z) - root.y).toBeCloseTo(0.018, 5);
+          expect(root.y).toBeGreaterThan(config.waterLevel - 0.05);
+          expect(root.y).toBeLessThan(config.waterLevel + 0.55);
+        }
+        expect(details.stoneSeats).toHaveLength(12);
+        for (const seat of details.stoneSeats)
+          expect(groundAt(seat.x, seat.z)).toBeCloseTo(seat.y, 5);
+        expect(details.vegetation.index!.count / 3 + details.stones.index!.count / 3).toBeLessThan(
+          4000
+        );
+      } finally {
+        shore.dispose();
+        details.vegetation.dispose();
+        details.stones.dispose();
+        dispose();
+      }
+    }
+  );
+});
 
 function assembly(segments: number) {
   const field = getRiverHeightfield(config);

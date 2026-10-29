@@ -23,6 +23,12 @@ describe('organic lake geometry', () => {
     expectFiniteGeometry(bank);
     expect(water.getAttribute('uv').count).toBe(water.getAttribute('position').count);
     expect(bank.getAttribute('color').count).toBe(bank.getAttribute('position').count);
+    const bankUv = bank.getAttribute('uv');
+    expect(bankUv.count).toBe(bank.getAttribute('position').count);
+    for (let i = 0; i < bankUv.count; i++) {
+      expect(bankUv.getX(i)).toBeCloseTo(bank.getAttribute('position').getX(i) / 2, 5);
+      expect(bankUv.getY(i)).toBeCloseTo(bank.getAttribute('position').getY(i) / 2, 5);
+    }
     expect(water.getAttribute('position').count).toBeGreaterThan(72 * 4);
 
     const bankPositions = bank.getAttribute('position');

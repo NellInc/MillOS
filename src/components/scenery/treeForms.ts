@@ -7,12 +7,16 @@ export function treeSeed(position: readonly [number, number, number], channel: n
   return value - Math.floor(value);
 }
 
-// Spreading, upright, oval and full crowns. All stay within the old site envelope.
+// Spreading, columnar, oval, asymmetric, compact and full broadleaf habits.
+// The whole connected tree takes this rest transform, including generated meshes.
+// All stay within the old site envelope; no species adds a wider footprint.
 const BROADLEAF_FORMS = [
-  [0.95, 0.69, 0.88],
-  [0.68, 1.02, 0.75],
-  [0.79, 0.86, 0.95],
-  [0.93, 0.94, 0.91],
+  [0.95, 0.66, 0.88],
+  [0.58, 1.02, 0.63],
+  [0.77, 0.93, 0.81],
+  [0.87, 0.86, 0.64],
+  [0.73, 0.79, 0.76],
+  [0.89, 0.9, 0.94],
 ] as const;
 
 export function treeFormFromPosition(position: readonly [number, number, number], conifer = false) {
