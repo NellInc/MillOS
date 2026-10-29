@@ -102,9 +102,10 @@ describe('authored exterior water material and atmosphere driver', () => {
     expect(water.vertexShader).toContain(
       'displaced.z += vWave * uWaveHeight * windAmplitude * waveEnvelope'
     );
-    expect(water.fragmentShader).toContain('gl_FragColor = vec4(colour, 1.0)');
+    expect(water.fragmentShader).toContain('float surfaceAlpha = 1.0');
+    expect(water.uniforms.uTransmission.value).toBe(0);
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v30');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v31');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -186,7 +187,10 @@ it('uses both chain-rule terms for curved ripple reflections without adding text
   const water = material();
   expect(water.fragmentShader).toContain('gradientC * bendC');
   expect(water.fragmentShader).toContain('gradientA * bendA');
-  expect(water.fragmentShader).not.toContain('sampler2D');
+  expect(water.defines.MILLOS_WEIR_IMPACT).toBeUndefined();
+  expect(water.fragmentShader).toContain(
+    '#ifdef MILLOS_WEIR_IMPACT\n        uniform sampler2D uSceneReflection'
+  );
 });
 
 it('keeps sub-metre counter-crossed ripples bounded and filtered in the actual water material', () => {
@@ -402,7 +406,7 @@ it('keeps a deep-water read on Low, where no metre-scale ripple breaks the refle
   expect(water.fragmentShader).toContain(
     `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v30');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v31');
 });
 
 // final4-med-12 rubric: the pond is a saturated cyan and reflects nothing of
@@ -476,7 +480,7 @@ it('gives still water a natural body and a soft far-bank darkening on Medium onl
   const rise = (camera.y - target.y) / Math.hypot(camera.x - target.x, camera.z - target.z);
   expect(WATER_BANK_PROFILE.bankMetres / rise).toBeGreaterThan(1.5);
   expect(WATER_BANK_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v30');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v31');
 });
 
 // final5-med-22 water: a near-black centre. Steep views reflect the zenith,
@@ -627,7 +631,7 @@ it('mirrors a cloud deck and gust patches across the lake on Medium, exact on Lo
   sky.dispose();
   dome.geometry.dispose();
   expect(WATER_SKY_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v30');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v31');
 });
 
 // final6-med-12 water: a white glare band along the lake's far bank and a dark
@@ -672,7 +676,7 @@ it('keeps mirrored cloud off the far bank and soft across a lake, the canal unch
     make({ kind: 'canal', crossOnly: true, bankRadii: [5.5, 110] }).uniforms.uRadial.value
   ).toBe(0);
   expect(lake.uniforms.uRadial.value).toBe(1);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v30');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v31');
 });
 
 // land7-med-12 water: with the glare softened, the lake centre still reads as a
@@ -723,7 +727,7 @@ it('lifts the still-water deep body toward the shallows on Medium, keeping its h
   expect(hue(after)).toBeGreaterThan(hue(rim));
   expect(deepLift).toBeGreaterThan(0);
   expect(deepLift).toBeLessThanOrEqual(0.3);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v30');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v31');
 });
 
 it('opts only the receiving river into the shared weir landing and local hydraulic finish', () => {
@@ -780,4 +784,62 @@ it('filters hydraulic detail and keeps it on the existing frozen clock and Low b
   } finally {
     useGraphicsStore.setState({ graphics });
   }
+});
+
+describe('real supported-water transmission', () => {
+  it('opts in only the actual bed/apron/film and restores opaque Low state', () => {
+    const river = (
+      UnifiedWaterSurfaceMaterial({
+        kind: 'river',
+        weirImpact: true,
+        bedDepth: 2.02,
+      }) as ReactElement<{ object: THREE.ShaderMaterial }>
+    ).props.object;
+    const canal = (
+      UnifiedWaterSurfaceMaterial({ kind: 'canal' }) as ReactElement<{
+        object: THREE.ShaderMaterial;
+      }>
+    ).props.object;
+    const film = (
+      UnifiedWaterSurfaceMaterial({ kind: 'river', falling: true }) as ReactElement<{
+        object: THREE.ShaderMaterial;
+      }>
+    ).props.object;
+    expect(river.uniforms.uBedDepth.value).toBe(2.02);
+    expect(river.uniforms.uTransmission.value).toBe(1);
+    expect(canal.uniforms.uTransmission.value).toBe(0);
+    expect(film.uniforms.uTransmission.value).toBe(1);
+    const old = useGraphicsStore.getState().graphics;
+    try {
+      useGraphicsStore.setState({ graphics: { ...old, quality: 'medium' } });
+      WaterAnimationManager({});
+      driver.frame!();
+      expect(river.transparent).toBe(true);
+      expect(river.depthWrite).toBe(false);
+      expect(river.forceSinglePass).toBe(true);
+      expect(canal.transparent).toBe(false);
+      useGraphicsStore.setState({ graphics: { ...old, quality: 'low' } });
+      driver.frame!();
+      expect(river.transparent).toBe(false);
+      expect(river.depthWrite).toBe(true);
+      expect(film.transparent).toBe(false);
+    } finally {
+      useGraphicsStore.setState({ graphics: old });
+    }
+  });
+  it('uses actual depth UV and incident linear reflection only on the receiving river', () => {
+    const river = (
+      UnifiedWaterSurfaceMaterial({
+        kind: 'river',
+        weirImpact: true,
+        bedDepth: 2.02,
+      }) as ReactElement<{ object: THREE.ShaderMaterial }>
+    ).props.object;
+    expect(river.fragmentShader).toContain('actualDepth *= clamp(vUv.x*2.0,0.0,1.0)');
+    expect(river.fragmentShader).toContain('exp(-uAbsorption * actualDepth');
+    expect(river.fragmentShader).toContain('millosJunctionFroth');
+    expect(river.fragmentShader).toContain('fwidth(world.x)');
+    expect(river.uniforms.uSceneReflectionReady.value).toBe(0);
+    expect(river.uniforms.uSceneReflection.value).toBeNull();
+  });
 });

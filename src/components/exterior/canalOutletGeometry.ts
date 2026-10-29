@@ -12,6 +12,7 @@ export const CANAL_OUTLET = {
   south: branch.position[2] + branch.length / 2,
   width: 8,
   upperLevel: 0.15,
+  apronLevel: 0.1,
   lowerLevel: MILLOS_RIVER_CONFIG.waterLevel,
   foundation: -4.5,
   wallTop: 1.05,

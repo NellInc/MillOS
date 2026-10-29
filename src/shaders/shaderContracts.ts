@@ -272,7 +272,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     // camera this lands under.
     id: 'authored-exterior-water',
     owner: 'FactoryExterior.AnimatedWater',
-    sources: ['src/components/FactoryExterior.tsx'],
+    sources: ['src/components/FactoryExterior.tsx', 'src/utils/waterOptics.ts'],
     coordinateSpaces: ['object UV', 'world position', 'analytic ripple normal', 'view direction'],
     colorSpace: 'linear uniforms through explicit tonemapping and colorspace chunks',
     // The fragment shader ends with `#include <tonemapping_fragment>`,
@@ -282,13 +282,14 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     // chunk as it does in three's own materials.
     toneMapping: 'three-chunk',
     fog: 'three-chunk',
-    transparency: 'opaque',
+    transparency: 'alpha',
     depthBehavior:
-      'transparent false, depthWrite true, DoubleSide so a first-person eye below the canyon surface still sees water',
+      'opaque on Low/unbacked water, single-pass DoubleSide transparent/depthWrite false on actual river bed/apron/film',
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
-    uniformOwner: 'AnimatedWater memoized material, registered in the module `waterMaterials` set',
+    uniformOwner:
+      'UnifiedWaterSurfaceMaterial owns bed/film optics; WaterAnimationManager owns shared admitted phase; High/Ultra junction service owns cached incident reflection',
     timeSource: 'simulation',
-    cacheKey: 'millos-unified-water-v30',
+    cacheKey: 'millos-unified-water-v31',
     disposalOwner: 'AnimatedWater cleanup effect disposes and deregisters',
     fallbackMaterial: 'flat calibrated deep-water colour',
   },

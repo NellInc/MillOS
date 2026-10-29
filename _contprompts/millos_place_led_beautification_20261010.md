@@ -9641,3 +9641,23 @@ Native evidence has explicit candidate boundaries:36functional views on7955ed04 
 Original closed-scene timing gate once on1d5b96c7, terminal1: milling60.0FPS,1%low54.4,p9517.4ms,p9917.7ms,first416.7ms,load10.91/core; farm57.8FPS,1%low40.9,p9520.6ms,p9923.5ms,first501.9ms,load10.29/core. Both budgets miss; expected/effectiveDPR1.20matches, page/world/community/checkpoint guards pass. Pacing separately OPEN, no rerun, quiet-GPU wait, limit relaxation or inferred regression/improvement. Subsequent silo source runs only inside an open inspection, absent from those timing fixtures. Player/device/manual first-person, unmuted and independent player checks DEFERRED. Publication HELD, no upload/push/deploy/remote compute.
 
 All12items disposed in test-results/eh-machine-henhouse-20261028/DISPOSITION.md. acceptance.json records candidate boundaries; gallery.html presents real captures. Useful raw files retained. Owned build/check/browser/preview jobs terminal, capture lock and port4312listener absent. Completed internal helpers lack an exposed supported exact-ID disposal control, so no process intervention or RAM-release claim. Finish documentation-only local check-in, reaffirm supported goal PAUSED and stop. Broader world-polish programme unfinished, do not start another rotation.
+
+### EI water and river/canal junction, authorized 2026-10-28
+
+Nell: “Proceed please. Let's get the water gorgeous, with reflections, translucency, froth in the river/canal meeting point, etc.” Clean basea73b8de8, baseline62tests/4files PASS. Local/muted, interface/presets/routes/readiness preserved, no publication/remote compute/device checks. Pacing stays separately OPEN. Finite pass, then pause.
+
+Finite acceptance plan:
+1. Reconcile actual water shader, two water elevations, terrain-derived river UV depth and existing apron geometry. Independent read-only contract review before multipass integration.
+2. Preserve the exact Low fallback and shared admitted water phase, pause/reduced-motion/hidden behavior, stable shader cache keys and material ownership.
+3. Add depth/view-dependent attenuation and real blending over the river bed, thin falling film and actual shallow overflow apron. Do not reveal uncarved land through the main canal or claim real refractive image bending.
+4. Retain analytic sky/bank/cloud reflection for every water kind; refine wet-depth colour/readability while keeping sheltered water calm.
+5. Add bounded real scene reflection at the lower river junction under the existing High/Ultra quality choices, correct y=-2 plane and captured projector, analytic fallback elsewhere. Preserve all light participation and renderer/scene state, skip water/recursive surfaces, no positive-priority render owner.
+6. Limit reflection capture content/cadence/resolution and activation by actual view/readiness. Camera movement refreshes even while the water phase is held. Dispose targets/listeners and invalidate on resize/context/quality transitions.
+7. Craft dense aeration at the fall, fine filtered bubble/lace texture, bending advected foam tongues and quieter dispersing eddies downstream. Use the existing impact footprint and time, no particles/lights/additional clock.
+8. Test changed optical/geometry/material/clock/capture-state contracts with existing setup. Required whole-project source and production/compiled gates retain terminal results.
+9. Exact-build native day/dusk/night, river-junction close views, canal/pond regression and Low. Original page/world/personnel/texture/audio guards intact. Same-page reflection/transmission/froth zero controls must change visible, correctly framed pixels.
+10. Inspect motion, pause/reduced hold, camera/quality switches, correct two-level alignment and capture diagnostics/first eligible cost. No fake performance acceptance from compilation.
+11. Original affected-scene timing gate once, unchanged budgets; record misses separately without idle-GPU waits or quality waivers.
+12. Retain source/receipt/gallery/failures, selective local check-in, release owned temporary resources, reaffirm goal PAUSED and stop.
+
+Working if actual bed/stone detail shows through the new clear-water regions, recognizable real reflections appear where enabled, froth has cohesive moving structure at the two-level junction, Low and simulation authority remain intact, accepted native evidence and required gates exist and the finite pass ends paused.

@@ -1,3 +1,9 @@
+import { WATER_ABSORPTION, WATER_POLISH_GAIN, JUNCTION_FROTH_GLSL } from '../utils/waterOptics';
+import {
+  WaterSceneReflection,
+  WATER_SCENE_REFLECTION,
+  captureWaterScene,
+} from './exterior/WaterSceneReflection';
 import { Bicycle as CanalBicycle, Trolley as CanalTrolley } from './scenery/CanalFinds';
 import { getExteriorLampLevel } from './exterior/ExteriorLighting';
 import { WorldPublicRealm } from './scenery/WorldPublicRealm';
@@ -1133,7 +1139,7 @@ const DEFAULT_WATER_FLOW = [0.25, 1] as const;
 
 // Sky palette for the water's analytic reflection. Two stops plus a twilight
 // push is enough: the reflection is a broad, low-frequency term and a real
-// probe would cost a render target this budget does not have.
+// probe is reserved for the bounded High/Ultra junction capture, not every water body.
 const WATER_ZENITH_DAY = new THREE.Color('#3f7fd0');
 const WATER_ZENITH_NIGHT = new THREE.Color('#0a1024');
 const WATER_HORIZON_DAY = new THREE.Color('#cfe3f2');
@@ -1236,6 +1242,13 @@ export const WaterAnimationManager: React.FC = () => {
     WATER_WIND.value = atmosphere.wind;
     waterMaterials.forEach((material) => {
       const uniforms = material.uniforms;
+      const transparent =
+        material.userData.actualWaterBed === true && WATER_RIPPLE_DETAIL.value > 0;
+      if (material.transparent !== transparent) {
+        material.transparent = transparent;
+        material.depthWrite = !transparent;
+        material.needsUpdate = true;
+      }
       uniforms.uTime.value = phase.current.time;
       uniforms.uWetness.value = atmosphere.wetness;
       uniforms.uPrecipitation.value = atmosphere.precipitation;
@@ -1267,6 +1280,8 @@ export const WaterAnimationManager: React.FC = () => {
 
 interface UnifiedWaterSurfaceMaterialProps {
   kind?: WaterKind;
+  /** Real maximum submerged bed depth. Opt-in, main canal remains opaque. */
+  bedDepth?: number;
   deep?: string;
   shallow?: string;
   reflection?: string;
@@ -1296,6 +1311,7 @@ interface UnifiedWaterSurfaceMaterialProps {
 
 export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialProps> = ({
   kind = 'lake',
+  bedDepth = 0,
   deep = '#153747',
   shallow = '#3f7f8c',
   reflection = '#b9dce3',
@@ -1309,6 +1325,8 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
   bankRadii,
 }) => {
   const profile = WATER_PROFILES[kind];
+  const actualBedDepth = Number.isFinite(bedDepth) ? Math.max(0, bedDepth) : 0;
+  const actualBed = falling || actualBedDepth > 0;
   const speed = flowSpeed ?? profile.speed;
   const flowX = flowDirection[0];
   const flowY = flowDirection[1];
@@ -1341,6 +1359,18 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         ...(weirImpact ? { MILLOS_WEIR_IMPACT: 1 } : {}),
       },
       uniforms: {
+        uWaterFinish: WATER_POLISH_GAIN,
+        uBedDepth: { value: actualBedDepth },
+        uTransmission: { value: actualBed ? 1 : 0 },
+        uAbsorption: { value: new THREE.Vector3(...WATER_ABSORPTION) },
+        ...(weirImpact
+          ? {
+              uSceneReflection: WATER_SCENE_REFLECTION.texture,
+              uSceneProjector: WATER_SCENE_REFLECTION.matrix,
+              uSceneReflectionReady: WATER_SCENE_REFLECTION.ready,
+              uSceneReflectionGain: WATER_SCENE_REFLECTION.gain,
+            }
+          : {}),
         uTime: { value: 0 },
         // Same-page zero control; no clocks, geometry or lights are replaced.
         uWeirFinish: { value: falling || weirImpact ? 1 : 0 },
@@ -1441,6 +1471,16 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
       `,
       fragmentShader: `
         #include <fog_pars_fragment>
+        uniform float uWaterFinish;
+        uniform float uBedDepth;
+        uniform float uTransmission;
+        uniform vec3 uAbsorption;
+        #ifdef MILLOS_WEIR_IMPACT
+        uniform sampler2D uSceneReflection;
+        uniform mat4 uSceneProjector;
+        uniform float uSceneReflectionReady;
+        uniform float uSceneReflectionGain;
+        #endif
         uniform vec3 uDeep;
         uniform vec3 uShallow;
         uniform vec3 uReflection;
@@ -1493,6 +1533,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           return mix(mix(millosWaterHash(cell), millosWaterHash(cell + vec2(1.0, 0.0)), f.x),
             mix(millosWaterHash(cell + vec2(0.0, 1.0)), millosWaterHash(cell + vec2(1.0)), f.x), f.y);
         }
+        ${JUNCTION_FROTH_GLSL}
         // Natural body (WATER_NATURAL_PROFILE): the authored cyan read as a
         // saturated swimming-pool tone (final4-med-12 rubric). Same luminance,
         // toward a muted blue-green.
@@ -1510,6 +1551,9 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             clamp(uDaylight * (1.0 + uWetness * 0.08), 0.0, 1.0));
           float bodyLight = mix(1.0, illumination, uSkyRadiance);
           vec3 colour;
+          float opticalFoam = 0.0;
+          float opticalFacing = 1.0;
+          float opticalReflectance = 0.0;
           #ifdef MILLOS_FALLING_WATER
           // Fine vertical filaments stay quiet at the crest and aerate toward
           // the foot. Pixel filtering prevents distant white pinpricks. The
@@ -1535,6 +1579,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             colour = mix(uDeep, uShallow, film);
             colour = mix(colour, uReflection, filament * (0.04 + drop * 0.15)
               + aeration * 0.24 + foot * (0.20 + air * 0.16));
+            opticalFoam = clamp(aeration*.6 + foot*.4 + filament*.2,0.0,.96);
             colour *= bodyLight;
           } else {
             // A vertical weir has no useful XZ phase gradient down its face.
@@ -1711,6 +1756,12 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             }
           }
           #endif
+          #ifdef MILLOS_WEIR_IMPACT
+          if (uRippleDetail > 0.0 && uWaterFinish > 0.0) {
+            float gathered = millosJunctionFroth(waterCoord,uWeirImpact,uTime,uFlowSpeed);
+            weirFoam = mix(weirFoam,max(weirFoam,gathered),uWaterFinish);
+          }
+          #endif
           float rainSlope = rainRipple * (0.003 + uRippleStrength * 0.015);
           vec3 normal = normalize(vWorldNormal + vec3(slope.x + rainSlope, 0.0, slope.y - rainSlope));
 
@@ -1723,7 +1774,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // Reflection without a render target: bounce the view ray off the
           // perturbed normal and read a two-stop analytic sky whose colours are
           // pushed every frame from the same atmosphere sample that drives the
-          // real sky, sun and fog.
+          // real sky, sun and fog. High/Ultra may overlay captured junction scenery.
           vec3 reflected = reflect(-viewDirection, normal);
           // Linear in elevation: the square root reached 60% zenith blue by a
           // 20 degree bounce, so the reflection took the body's own hue.
@@ -1836,6 +1887,25 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
               nightSheen / ${WATER_NIGHT_PROFILE.floor.toFixed(2)} * ${WATER_NIGHT_PROFILE.horizon.toFixed(2)});
             reflectance = max(reflectance, nightSheen);
           }
+          #ifdef MILLOS_WEIR_IMPACT
+          if (uRippleDetail > 0.0 && uSceneReflectionReady > 0.0 && uSceneReflectionGain > 0.0 && uWaterFinish > 0.0) {
+            vec4 projected = uSceneProjector * vec4(vWorldPosition,1.0);
+            vec2 uv = projected.xy / max(projected.w,.001) + normal.xz * .025;
+            float region = 1.0-smoothstep(48.0,70.0,distance(waterCoord,uWeirImpact.xy));
+            if(projected.w>0.0 && all(greaterThan(uv,vec2(.005))) && all(lessThan(uv,vec2(.995))) && region>0.0) {
+              vec2 tap = vec2(1.0/512.0,1.0/256.0)*(0.5+uRoughness*3.0);
+              vec4 reflectedScene = texture2D(uSceneReflection,uv)*.5
+                + texture2D(uSceneReflection,uv+tap)*.25 + texture2D(uSceneReflection,uv-tap)*.25;
+              vec3 incident = reflectedScene.rgb / max(reflectedScene.a,.001);
+              reflectionColour = mix(reflectionColour,incident,clamp(reflectedScene.a,0.0,1.0)*region*uSceneReflectionGain*uWaterFinish);
+            }
+          }
+          #endif
+          opticalFacing = abs(dot(normal,viewDirection));
+          #ifdef MILLOS_WEIR_IMPACT
+          opticalFoam = weirFoam;
+          #endif
+          opticalReflectance = reflectance;
           colour = mix(colour, reflectionColour * bankShade, reflectance);
 
           // Specular sun: a tight glitter lobe plus a broad sheen. Both are
@@ -1871,6 +1941,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // Gathered air is lit matter on this same opaque water surface. It
           // inherits the shared night/day body light, tint and distance fog.
           vec3 weirFoamColour = mix(uShallow, uReflection, 0.72);
+          weirFoamColour = mix(weirFoamColour,vec3(.72,.78,.72),uWaterFinish*.65);
           colour = mix(colour, weirFoamColour * bodyLight * uBodyTint, weirFoam);
           #endif
 
@@ -1889,7 +1960,23 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // In the finish arm, only the body/foam receive this illumination.
           colour *= mix(illumination, 1.0, uSkyRadiance);
 
-          gl_FragColor = vec4(colour, 1.0);
+          float surfaceAlpha = 1.0;
+          if (uTransmission > 0.0 && uRippleDetail > 0.0 && uWaterFinish > 0.0) {
+            #ifdef MILLOS_FALLING_WATER
+              opticalFacing = abs(dot(normalize(vWorldNormal),normalize(cameraPosition-vWorldPosition)));
+              float transmitted = .68 * (1.0-opticalFoam);
+            #else
+              float actualDepth = uBedDepth;
+              #ifdef MILLOS_WEIR_IMPACT
+                actualDepth *= clamp(vUv.x*2.0,0.0,1.0);
+              #endif
+              vec3 throughWater = exp(-uAbsorption * actualDepth / max(.2,opticalFacing));
+              float transmitted = min(.68,dot(throughWater,vec3(.2126,.7152,.0722))*.72)
+                * (1.0-opticalFoam) * (1.0-opticalReflectance);
+            #endif
+            surfaceAlpha = 1.0-transmitted*uWaterFinish;
+          }
+          gl_FragColor = vec4(colour, surfaceAlpha);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
           #include <fog_fragment>
@@ -1898,8 +1985,9 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
       // Opt in to scene fog. Without it the lake, river and canals stayed clear
       // and saturated while every bank around them hazed out with distance.
       fog: true,
-      transparent: false,
-      depthWrite: true,
+      transparent: actualBed && useGraphicsStore.getState().graphics.quality !== 'low',
+      depthWrite: !(actualBed && useGraphicsStore.getState().graphics.quality !== 'low'),
+      forceSinglePass: true,
       // DoubleSide retained. A flat ground quad has no backfacing triangles
       // seen from above, so FrontSide would cull nothing - while
       // the river sits at its declared level inside the terrain channel, where a
@@ -1910,9 +1998,15 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v30';
+    value.customProgramCacheKey = () => 'millos-unified-water-v31';
+    value.userData.actualWaterBed = actualBed;
+    if (weirImpact)
+      value.onBeforeRender = (renderer, scene, camera) =>
+        captureWaterScene(renderer, scene, camera);
     return value;
   }, [
+    actualBed,
+    actualBedDepth,
     bankX,
     bankZ,
     crossOnly,
@@ -2171,7 +2265,7 @@ export const CANAL_OUTLET_STONES = (() => {
     ]),
     // A stone invert supports the raised channel all the way to the lip.
     {
-      position: [(west + east) / 2, -0.05, south - width / 2],
+      position: [(west + east) / 2, CANAL_OUTLET.apronLevel - 0.15, south - width / 2],
       size: [east - west, 0.3, width],
     },
     {
@@ -2182,7 +2276,8 @@ export const CANAL_OUTLET_STONES = (() => {
 })();
 
 /** A supported stone overflow keeps the canal level while joining the lower
- * river. No reflection render, particles, light or additional animation clock.
+ * river. The receiving river owns optional captured scenery; the falling
+ * film uses the same clock without particles or additional lights.
  */
 function CanalRiverOutlet() {
   const { width, upperLevel, lowerLevel } = CANAL_OUTLET;
@@ -2205,6 +2300,7 @@ function CanalRiverOutlet() {
           shallow={WATER_COLORS.shallow}
           reflection="#86aeb5"
           kind="canal"
+          bedDepth={upperLevel - CANAL_OUTLET.apronLevel}
           flowDirection={[1, 0]}
           crossOnly
         />
@@ -2783,6 +2879,7 @@ const River: React.FC = React.memo(() => {
           flowDirection={[1, 0.16]}
           opacity={0.9}
           crossOnly
+          bedDepth={config.depth + waterLevel - SITE_LAYOUT.datum.terrain}
           weirImpact
         />
       </mesh>
@@ -7562,6 +7659,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
     <group>
       <ExteriorLampDriver />
       <WaterAnimationManager />
+      <WaterSceneReflection />
       {/* ========== EXTERIOR GRASS GROUND ========== */}
       {/* DISABLED: Replaced by TerrainGround unified terrain system */}
       {/* This plane at y=-0.2 was occluding the river channel displacement (y=-2.52) */}
