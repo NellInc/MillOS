@@ -13,6 +13,7 @@ import {
   SHARED_TREE_TRUNK,
   TREE_BRANCH_GEOMETRY,
   TREE_FOLIAGE_VARIANTS,
+  TREE_FOLIAGE_SPRAY_VARIANTS,
 } from './ExteriorVegetation';
 import {
   generateHeightmap,
@@ -300,5 +301,34 @@ describe('natural tree forms', () => {
     expect(
       TREE_FOLIAGE_VARIANTS.every((geometry) => geometry.getAttribute('position').count === 96)
     ).toBe(true);
+  });
+});
+
+describe('additive parkland foliage sprays', () => {
+  it('keeps every variant inside its retained generated crown envelope', () => {
+    for (let variant = 0; variant < TREE_FOLIAGE_VARIANTS.length; variant++) {
+      const crown = TREE_FOLIAGE_VARIANTS[variant];
+      const sprays = TREE_FOLIAGE_SPRAY_VARIANTS[variant];
+      crown.computeBoundingBox();
+      expect(crown.boundingBox!.containsBox(sprays.boundingBox!)).toBe(true);
+      expect(sprays.getAttribute('position').count / 3).toBeLessThan(100);
+      expect(Number.isFinite(sprays.boundingSphere!.radius)).toBe(true);
+      const positions = sprays.getAttribute('position');
+      const normals = sprays.getAttribute('normal');
+      const uv = sprays.getAttribute('uv');
+      for (let i = 0; i < positions.count; i++) {
+        expect(
+          new THREE.Vector3().fromBufferAttribute(positions, i).toArray().every(Number.isFinite)
+        ).toBe(true);
+        expect(new THREE.Vector3().fromBufferAttribute(normals, i).length()).toBeCloseTo(1, 5);
+        expect(uv.getX(i)).toBeGreaterThanOrEqual(0);
+        expect(uv.getX(i)).toBeLessThanOrEqual(1);
+        expect(uv.getY(i)).toBeGreaterThanOrEqual(0);
+        expect(uv.getY(i)).toBeLessThanOrEqual(1);
+      }
+    }
+    expect(TREE_FOLIAGE_SPRAY_VARIANTS[0].getAttribute('position').array).not.toEqual(
+      TREE_FOLIAGE_SPRAY_VARIANTS[1].getAttribute('position').array
+    );
   });
 });

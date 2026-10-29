@@ -20,7 +20,7 @@ import {
   MILLOS_RIVER_CONFIG,
   sampleTerrainGroundHeight,
 } from '../terrain/splatMapGenerator';
-import { TERRAIN_BOUNDS } from '../terrain/terrainTypes';
+import { TERRAIN_BOUNDS, getTerrainGridSegments } from '../terrain/terrainTypes';
 import { SITE_LAYOUT, RIVER_FOOTBRIDGE_DECK } from '../../constants/siteLayout';
 
 const config = MILLOS_RIVER_CONFIG;
@@ -55,9 +55,10 @@ describe('physical river shore margins', () => {
       'false',
     ]);
   });
-  it.each([64, 128])(
-    'fits sediment, sedge roots and stone seats to the actual %i grid',
-    (segments) => {
+  it.each(['low', 'medium', 'high'])(
+    'fits sediment, plant roots and mineral seats to the actual %s terrain',
+    (quality) => {
+      const segments = getTerrainGridSegments(quality);
       const { ground, groundAt, dispose } = assembly(segments);
       const shore = createRiverShoreGeometry(ground, config.waterLevel, datum);
       const details = createRiverShoreDetails(config, segments, datum);
@@ -100,21 +101,70 @@ describe('physical river shore margins', () => {
           expect(shore.getAttribute('normal').getY(i)).toBeGreaterThan(0.8);
         }
         expect(details.roots).toHaveLength(24);
-        for (const root of details.roots) {
+        expect(details.groundcoverRoots).toHaveLength(24);
+        for (const root of [...details.roots, ...details.groundcoverRoots]) {
           expect(groundAt(root.x, root.z) - root.y).toBeCloseTo(0.018, 5);
           expect(root.y).toBeGreaterThan(config.waterLevel - 0.05);
           expect(root.y).toBeLessThan(config.waterLevel + 0.55);
         }
-        expect(details.stoneSeats).toHaveLength(12);
+        expect(details.stoneSeats).toHaveLength(48);
         for (const seat of details.stoneSeats)
           expect(groundAt(seat.x, seat.z)).toBeCloseTo(seat.y, 5);
-        expect(details.vegetation.index!.count / 3 + details.stones.index!.count / 3).toBeLessThan(
-          4000
-        );
+        const mineral = details.stones.getAttribute('position');
+        const stride = mineral.count / details.stoneSeats.length;
+        for (let stone = 0; stone < details.stoneSeats.length; stone++) {
+          let deepest = Infinity;
+          for (let v = stone * stride; v < (stone + 1) * stride; v++)
+            deepest = Math.min(
+              deepest,
+              mineral.getY(v) - groundAt(mineral.getX(v), mineral.getZ(v))
+            );
+          expect(deepest).toBeCloseTo(stone % 8 < 3 ? -0.025 : -0.008, 4);
+        }
+        expect(details.vegetation.index!.count / 3).toBe(8136);
+        expect(details.stones.index!.count / 3).toBe(3072);
+        expect(details.mossAttachments.length).toBeGreaterThan(32);
+        expect(details.mossAttachments.length).toBeLessThan(768);
+        const moss = details.moss.getAttribute('position');
+        const triangle = new THREE.Triangle();
+        const faceStride = details.stones.index!.count / details.stoneSeats.length;
+        details.mossAttachments.forEach(({ stoneIndex, faceIndex }, patch) => {
+          expect(stoneIndex % 8).toBeLessThan(3);
+          [triangle.a, triangle.b, triangle.c].forEach((point, corner) =>
+            point.fromBufferAttribute(
+              mineral,
+              details.stones.index!.getX(stoneIndex * faceStride + faceIndex * 3 + corner)
+            )
+          );
+          for (let corner = 0; corner < 3; corner++) {
+            const point = new THREE.Vector3().fromBufferAttribute(moss, patch * 3 + corner);
+            // World coordinates near 170 m have ~15 micrometre Float32 spacing.
+            expect(
+              Math.abs(triangle.getPlane(new THREE.Plane()).distanceToPoint(point))
+            ).toBeLessThan(0.00002);
+            const weights = triangle.getBarycoord(point, new THREE.Vector3())!;
+            expect(Math.min(weights.x, weights.y, weights.z)).toBeGreaterThan(0);
+          }
+        });
+        let triangles = 0;
+        for (const geometry of [details.vegetation, details.stones, details.moss]) {
+          triangles += geometry.index!.count / 3;
+          const position = geometry.getAttribute('position'),
+            normal = geometry.getAttribute('normal');
+          expect(geometry.getAttribute('color').count).toBe(position.count);
+          for (let v = 0; v < position.count; v++) {
+            expect(
+              [position.getX(v), position.getY(v), position.getZ(v)].every(Number.isFinite)
+            ).toBe(true);
+            expect(Math.hypot(normal.getX(v), normal.getY(v), normal.getZ(v))).toBeCloseTo(1, 5);
+          }
+        }
+        expect(triangles).toBeLessThan(14000);
       } finally {
         shore.dispose();
         details.vegetation.dispose();
         details.stones.dispose();
+        details.moss.dispose();
         dispose();
       }
     }

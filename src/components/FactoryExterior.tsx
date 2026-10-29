@@ -167,6 +167,7 @@ import {
   FRONT_PARKLAND_TREES,
   FRONT_PARKLAND_BENCHES,
   TREE_FOLIAGE_VARIANTS,
+  TREE_FOLIAGE_SPRAY_VARIANTS,
   TREE_FOLIAGE_MATERIALS,
   treeJitterFromPosition,
   groundedTreePosition,
@@ -197,6 +198,14 @@ import {
 import { createLakeShoreDetails } from './exterior/lakeShoreDetails';
 import { LakeAquaticLife } from './exterior/LakeAquaticLife';
 import { LakeDragonflies } from './exterior/LakeDragonflies';
+import { POND_LILY_GEOMETRIES, POND_LILY_MATERIAL } from './scenery/PondLilies';
+import { BROADLEAF_DEPTH } from './scenery/InstancedFoliage';
+import {
+  PondMarginCraft,
+  POND_FROG_REST_Y,
+  updatePondFrogMotion,
+  advancePondFrogTime,
+} from './scenery/PondMarginCraft';
 import {
   createOrganicLakeBankGeometry,
   createOrganicLakeBedGeometry,
@@ -614,6 +623,14 @@ const SimpleTree: React.FC<{ position: [number, number, number]; scale?: number 
           geometry={TREE_FOLIAGE_VARIANTS[variant]}
           material={TREE_FOLIAGE_MATERIALS[colorVariant]}
           castShadow
+        />
+        <mesh
+          geometry={TREE_FOLIAGE_SPRAY_VARIANTS[variant]}
+          material={TREE_FOLIAGE_MATERIALS[colorVariant]}
+          customDepthMaterial={BROADLEAF_DEPTH}
+          castShadow
+          receiveShadow
+          dispose={null}
         />
       </group>
     );
@@ -3028,6 +3045,7 @@ const River: React.FC = React.memo(() => {
       bankAssembly.shore.dispose();
       bankAssembly.details.vegetation.dispose();
       bankAssembly.details.stones.dispose();
+      bankAssembly.details.moss.dispose();
     },
     [bankAssembly]
   );
@@ -3066,6 +3084,15 @@ const River: React.FC = React.memo(() => {
           castShadow
           receiveShadow
         />
+        <mesh name="river-rock-moss" geometry={bankAssembly.details.moss} receiveShadow>
+          <meshStandardMaterial
+            vertexColors
+            roughness={0.98}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.subtle.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.subtle.units}
+          />
+        </mesh>
       </group>
       <mesh
         name="terrain-fitted-river-water"
@@ -3155,12 +3182,16 @@ const AnimatedFrog: React.FC<{
   const frogRef = useRef<THREE.Group>(null);
   const heartCounter = useRef(0);
   const hoveredRef = useRef(false);
+  const reducedMotion = useReducedMotion();
+  const pose = useRef({ y: 0, pitch: 0, petPhase: 0, wasExcited: false });
+  const activeTime = useRef(0);
   const [isExcited, setIsExcited] = useState(false);
   const [hearts, setHearts] = useState<{ id: number; pos: [number, number, number] }[]>([]);
 
   const handlePet = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     setIsExcited(true);
+    pose.current.petPhase = 0;
     playCritterSound('frog');
     const id = ++heartCounter.current;
     setHearts((prev: { id: number; pos: [number, number, number] }[]) => [
@@ -3191,31 +3222,29 @@ const AnimatedFrog: React.FC<{
     []
   );
 
-  useFrame((state) => {
+  useFrame((_, delta) => {
+    const { gameSpeed, isTabVisible } = useGameSimulationStore.getState();
+    if (!isTabVisible || reducedMotion) return;
     if (frogRef.current) {
-      if (isExcited) {
-        // Rapid hop / shudder
-        const t = state.clock.elapsedTime * 30;
-        frogRef.current.position.y = position[1] + Math.abs(Math.sin(t)) * 0.1;
-        frogRef.current.rotation.x = 0;
-        return;
-      }
-
-      // Create a hopping animation
-      const time = state.clock.elapsedTime + hopOffset;
-      const hopCycle = time * 0.8; // Slower hop frequency
-      const hopPhase = hopCycle % 3; // Hop every 3 seconds
-
-      if (hopPhase < 0.3) {
-        // Hopping up
-        const hopProgress = hopPhase / 0.3;
-        frogRef.current.position.y = position[1] + Math.sin(hopProgress * Math.PI) * 0.3;
-        frogRef.current.rotation.x = -hopProgress * 0.3; // Lean forward while hopping
-      } else {
-        // Sitting
-        frogRef.current.position.y = position[1];
-        frogRef.current.rotation.x = 0;
-      }
+      // The placed parent already carries the pad datum. Only local motion
+      // belongs here; the old path added position[1] for a second time.
+      activeTime.current = advancePondFrogTime(
+        activeTime.current,
+        delta,
+        gameSpeed,
+        isTabVisible,
+        reducedMotion
+      );
+      updatePondFrogMotion(
+        activeTime.current,
+        hopOffset,
+        delta,
+        isExcited,
+        gameSpeed <= 0,
+        pose.current
+      );
+      frogRef.current.position.y = pose.current.y;
+      frogRef.current.rotation.x = pose.current.pitch;
     }
   });
 
@@ -3234,7 +3263,7 @@ const AnimatedFrog: React.FC<{
         document.body.style.cursor = 'auto';
       }}
     >
-      <group ref={frogRef}>
+      <group ref={frogRef} name={`pond-frog-motion-${hopOffset}`}>
         <GeneratedBoundary
           fallback={
             <>
@@ -3279,11 +3308,11 @@ const AnimatedFrog: React.FC<{
         </GeneratedBoundary>
         <mesh position={[0.16, 0.11, 0.04]}>
           <sphereGeometry args={[0.015, 6, 6]} />
-          <meshBasicMaterial color="#ffffff" />
+          <meshStandardMaterial color="#ffffff" roughness={0.4} />
         </mesh>
         <mesh position={[0.16, 0.11, -0.04]}>
           <sphereGeometry args={[0.015, 6, 6]} />
-          <meshBasicMaterial color="#ffffff" />
+          <meshStandardMaterial color="#ffffff" roughness={0.4} />
         </mesh>
       </group>
 
@@ -3399,7 +3428,7 @@ const Pond: React.FC<{
   );
 
   return (
-    <group position={[position[0], position[1], position[2]]}>
+    <group name="decorative-wildlife-pond" position={[position[0], position[1], position[2]]}>
       {/* Surrounding grass - REMOVED: now handled by TerrainGround system */}
       {/* Stone kerb. KEPT AT 0.08, and no longer as terrain clearance: the
           terrain datum moved from 0.05 to -0.02, so this now stands 10 cm proud
@@ -3456,30 +3485,23 @@ const Pond: React.FC<{
           bankRadii={[radius - 0.5, radius - 0.5]}
         />
       </mesh>
+      <PondMarginCraft radius={radius} />
       {/* Lily pads with frogs */}
       {lilyPads.map((pad, i) => (
         <group key={`lilypad-${i}`}>
           {/* Lily pad - floating on water surface */}
           <mesh
             position={[pad.x, 0.16, pad.z]}
-            rotation={[-Math.PI / 2, pad.rot, 0]}
+            rotation={[0, pad.rot, 0]}
+            scale={1.2}
+            geometry={POND_LILY_GEOMETRIES[1]}
+            material={POND_LILY_MATERIAL}
+            dispose={null}
             renderOrder={RENDER_ORDER.waterFloating}
-          >
-            <circleGeometry args={[0.5, 12]} />
-            <meshStandardMaterial color="#3d6b4f" roughness={0.7} side={THREE.DoubleSide} />
-          </mesh>
-          {/* Lily pad notch effect - darker center */}
-          <mesh
-            position={[pad.x, 0.165, pad.z]}
-            rotation={[-Math.PI / 2, pad.rot, 0]}
-            renderOrder={RENDER_ORDER.waterFloating + 1}
-          >
-            <ringGeometry args={[0.1, 0.25, 12]} />
-            <meshStandardMaterial color="#2d5a3f" roughness={0.8} side={THREE.DoubleSide} />
-          </mesh>
+          />
           {/* Frog on the lily pad */}
           <AnimatedFrog
-            position={[pad.x, 0.21, pad.z]}
+            position={[pad.x, POND_FROG_REST_Y, pad.z]}
             rotation={pad.frogRot}
             hopOffset={pad.hopOffset}
           />

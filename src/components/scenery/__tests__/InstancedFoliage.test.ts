@@ -11,6 +11,8 @@ import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
 import {
   createCanopyCage,
+  createTreeCrownDetails,
+  TREE_CROWN_DETAILS,
   BROADLEAF_MATERIAL,
   BROADLEAF_DEPTH,
   NEEDLE_MATERIAL,
@@ -212,4 +214,126 @@ it('retains leaf alpha and wind-synced depth while restraining broadleaf relief 
     expect(material.map!.mipmaps.length).toBe(9);
     expect(material.map!.generateMipmaps).toBe(false);
   }
+});
+
+describe('additive species crown details', () => {
+  const forms = [
+    ['oak', 1.85, 1.55, 3.3, 2.6, 204],
+    ['birch', 1.25, 1.5, 3.6, 3.1, 236],
+    ['pine', 1.45, 1.9, 3.1, 3, 876],
+  ] as const;
+
+  it.each(forms)(
+    '%s retains finite, atlas-ready geometry within the safe crown',
+    (species, radius, height, centerY, trunkTop, triangles) => {
+      const details = TREE_CROWN_DETAILS[species];
+      let total = 0;
+      for (const geometry of [details.branches, details.sprays]) {
+        const position = geometry.getAttribute('position');
+        const normals = geometry.getAttribute('normal');
+        const uv = geometry.getAttribute('uv');
+        total += (geometry.index?.count ?? position.count) / 3;
+        expect(Number.isFinite(geometry.boundingSphere!.radius)).toBe(true);
+        for (let i = 0; i < position.count; i++) {
+          const point = new THREE.Vector3().fromBufferAttribute(position, i);
+          expect(point.toArray().every(Number.isFinite)).toBe(true);
+          expect(Math.hypot(point.x, point.z)).toBeLessThanOrEqual(radius * 1.12 + 1e-6);
+          expect(point.y).toBeGreaterThan(0);
+          expect(point.y).toBeLessThanOrEqual(centerY + height + 1e-6);
+          expect(new THREE.Vector3().fromBufferAttribute(normals, i).length()).toBeCloseTo(1, 5);
+          expect(uv.getX(i)).toBeGreaterThanOrEqual(0);
+          expect(uv.getX(i)).toBeLessThanOrEqual(1);
+          expect(uv.getY(i)).toBeGreaterThanOrEqual(0);
+          expect(uv.getY(i)).toBeLessThanOrEqual(1);
+        }
+      }
+      expect(details.branches.boundingBox!.min.y).toBeLessThan(trunkTop);
+      expect(total).toBe(triangles);
+      expect(total).toBeLessThan(1000);
+    }
+  );
+
+  it('overlaps six downswept pine whorls along their branches', () => {
+    const sprays = TREE_CROWN_DETAILS.pine.sprays.getAttribute('position');
+    // Six whorls, six arms, three longitudinal fans, both windings.
+    expect(sprays.count).toBe(6 * 6 * 3 * 12);
+    for (let tier = 0; tier < 6; tier++) {
+      const start = tier * 6 * 3 * 12;
+      const ring = new THREE.Box3();
+      for (let i = start; i < start + 6 * 3 * 12; i++) {
+        ring.expandByPoint(new THREE.Vector3().fromBufferAttribute(sprays, i));
+      }
+      if (tier < 5) {
+        const next = new THREE.Box3();
+        for (let i = start + 6 * 3 * 12; i < start + 2 * 6 * 3 * 12; i++) {
+          next.expandByPoint(new THREE.Vector3().fromBufferAttribute(sprays, i));
+        }
+        expect(ring.max.y).toBeGreaterThan(next.min.y);
+        expect(ring.getSize(new THREE.Vector3()).x).toBeGreaterThan(
+          next.getSize(new THREE.Vector3()).x
+        );
+      }
+      // Outer edge falls below the inner edge of every fan.
+      for (let offset = start; offset < start + 6 * 3 * 12; offset += 12) {
+        expect(sprays.getY(offset)).toBeLessThan(sprays.getY(offset + 2));
+      }
+    }
+  });
+
+  it('keeps every spray both-facing with the same atlas and outward normals', () => {
+    for (const { sprays } of Object.values(TREE_CROWN_DETAILS)) {
+      const positions = sprays.getAttribute('position');
+      const normals = sprays.getAttribute('normal');
+      const uv = sprays.getAttribute('uv');
+      for (let offset = 0; offset < positions.count; offset += 12) {
+        for (const [front, back] of [
+          [0, 6],
+          [1, 8],
+          [2, 7],
+          [3, 9],
+          [4, 11],
+          [5, 10],
+        ]) {
+          for (const attr of [positions, normals, uv]) {
+            expect(attr.getX(offset + front)).toBe(attr.getX(offset + back));
+            expect(attr.getY(offset + front)).toBe(attr.getY(offset + back));
+            if (attr.itemSize === 3)
+              expect(attr.getZ(offset + front)).toBe(attr.getZ(offset + back));
+          }
+        }
+      }
+    }
+  });
+
+  it('rebuilds deterministic details and refreshes aggregate culling after a stand moves', () => {
+    const original = TREE_CROWN_DETAILS.birch;
+    const repeated = createTreeCrownDetails(
+      'birch',
+      { radius: 1.25, height: 1.5, centerY: 3.6 },
+      3.1
+    );
+    for (const key of ['branches', 'sprays'] as const) {
+      expect(repeated[key].getAttribute('position').array).toEqual(
+        original[key].getAttribute('position').array
+      );
+      const mesh = new THREE.InstancedMesh(original[key], BROADLEAF_MATERIAL, 2);
+      for (const [x, z] of [
+        [-140, -30],
+        [110, 60],
+      ]) {
+        const matrix = createTreeMatrix([x, 0, z], 1.7, 0.4);
+        mesh.setMatrixAt(0, matrix);
+        mesh.setMatrixAt(1, createTreeMatrix([x + 5, 0, z + 10], 0.8, 1));
+        mesh.computeBoundingBox();
+        mesh.computeBoundingSphere();
+        const point = new THREE.Vector3()
+          .fromBufferAttribute(original[key].getAttribute('position'), 0)
+          .applyMatrix4(matrix);
+        expect(mesh.boundingBox!.containsPoint(point)).toBe(true);
+        expect(mesh.boundingSphere!.containsPoint(point)).toBe(true);
+      }
+      mesh.dispose();
+      repeated[key].dispose();
+    }
+  });
 });

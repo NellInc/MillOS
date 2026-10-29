@@ -6,6 +6,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
+import { attachPondCopingLife } from './PondMarginCraft';
 
 /** At pond speed0.025,8000PI gives63,162,109cycles for the actual micro trains.
  * Working if the existing pause/wrap test verifies each actual shader frequency. */
@@ -68,7 +69,7 @@ export function applyPondWater(material: THREE.MeshStandardMaterial, time: { val
 export function NaturalDuckPond() {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS.duckpond);
   const reducedMotion = useReducedMotion();
-  const { model, materials, time } = useMemo(() => {
+  const { model, materials, time, growth } = useMemo(() => {
     const model = scene.clone(true);
     const time = { value: 0 };
     const materials: THREE.MeshStandardMaterial[] = [];
@@ -85,7 +86,8 @@ export function NaturalDuckPond() {
       object.receiveShadow = true;
       materials.push(material);
     });
-    return { model, materials, time };
+    const growth = attachPondCopingLife(model);
+    return { model, materials, time, growth };
   }, [scene]);
   useFrame((_, delta) => {
     const { gameSpeed, isTabVisible } = useGameSimulationStore.getState();
@@ -95,6 +97,13 @@ export function NaturalDuckPond() {
     if (!reducedMotion && isTabVisible && gameSpeed > 0)
       time.value = (time.value + Math.min(delta, 0.1)) % POND_VISUAL_PERIOD;
   });
-  useEffect(() => () => materials.forEach((material) => material.dispose()), [materials]);
+  useEffect(
+    () => () => {
+      materials.forEach((material) => material.dispose());
+      growth.plants.dispose();
+      growth.stones.dispose();
+    },
+    [materials, growth]
+  );
   return <primitive object={model} position={[0, -0.45, 0]} />;
 }

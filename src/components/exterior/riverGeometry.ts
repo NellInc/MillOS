@@ -109,7 +109,7 @@ export function createRiverShoreGeometry(
 
 /** Sparse sedge and mineral pockets, sampled on the real banks at each tier.
  * Roots follow the bank rather than a nominal channel-width offset. All parts
- * merge into two static draws and stay below the dry paths and bridge landings.
+ * merge into three static draws and stay below the dry paths and bridge landings.
  */
 export function createRiverShoreDetails(
   config: RiverChannelConfig,
@@ -119,7 +119,13 @@ export function createRiverShoreDetails(
   const leaves: THREE.BufferGeometry[] = [],
     stones: THREE.BufferGeometry[] = [];
   const roots: THREE.Vector3[] = [],
-    stoneSeats: THREE.Vector3[] = [];
+    stoneSeats: THREE.Vector3[] = [],
+    groundcoverRoots: THREE.Vector3[] = [];
+  const mossPositions: number[] = [],
+    mossNormals: number[] = [],
+    mossColors: number[] = [],
+    mossUVs: number[] = [];
+  const mossAttachments: { stoneIndex: number; faceIndex: number }[] = [];
   const color = (geometry: THREE.BufferGeometry, hex: string) => {
     const c = new THREE.Color(hex),
       data = new Float32Array(geometry.getAttribute('position').count * 3);
@@ -146,8 +152,9 @@ export function createRiverShoreDetails(
         pz = centre + side * (edge + Math.sin(clump * 2.4) * 0.23);
       const root = new THREE.Vector3(px, ground(px, pz) - 0.018, pz);
       roots.push(root);
-      for (let blade = 0; blade < 6; blade++) {
-        const height = 0.48 + ((blade * 3 + clump + reach) % 7) * 0.065;
+      for (let blade = 0; blade < 7; blade++) {
+        const height =
+          (0.48 + ((blade * 3 + clump + reach) % 7) * 0.065) * (clump % 2 ? 0.76 : 1.18);
         leaves.push(
           color(
             createLakeReedLeaf(root, blade * 2.399 + reach, height, 0.13 + (blade % 3) * 0.09),
@@ -155,23 +162,221 @@ export function createRiverShoreDetails(
           )
         );
       }
+      if (clump % 2 === 0) {
+        const direction = new THREE.Vector3(
+          Math.sin(reach + clump) * 0.07,
+          0.86 + clump * 0.08,
+          Math.cos(reach) * 0.05
+        );
+        const tilt = new THREE.Quaternion().setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          direction.clone().normalize()
+        );
+        leaves.push(
+          color(
+            new THREE.CylinderGeometry(0.012, 0.019, direction.length(), 5)
+              .applyQuaternion(tilt)
+              .translate(...root.clone().addScaledVector(direction, 0.5).toArray()),
+            '#667246'
+          )
+        );
+        leaves.push(
+          color(
+            new THREE.CapsuleGeometry(0.035, 0.1, 2, 6)
+              .applyQuaternion(tilt)
+              .translate(...root.clone().addScaledVector(direction, 0.94).toArray()),
+            '#6d5d46'
+          )
+        );
+      }
     }
-    for (let rock = 0; rock < 2; rock++) {
-      const px = x + (rock ? 1.4 : -1.5),
-        pz = centre + side * (edge - 0.3);
+    for (let patch = 0; patch < 4; patch++) {
+      const px = x + [-0.78, 0.12, 0.68, 1.02][patch],
+        pz = centre + side * (edge + [0.04, 0.16, 0.09, -0.03][patch]);
+      const root = new THREE.Vector3(px, ground(px, pz) - 0.018, pz);
+      groundcoverRoots.push(root);
+      if (patch === 0) {
+        for (let frond = 0; frond < 3; frond++) {
+          const yaw = frond * 2.399 + reach;
+          const height = 0.24 + ((reach + frond) % 3) * 0.035;
+          const bend = 0.15;
+          const spine = createLakeReedLeaf(new THREE.Vector3(), yaw, height, bend);
+          const p = spine.getAttribute('position');
+          for (let v = 0; v < p.count; v++) {
+            const t = Math.floor(v / 3) / 4,
+              sx = Math.sin(yaw) * bend * t * t,
+              sz = Math.cos(yaw) * bend * t * t;
+            p.setX(v, sx + (p.getX(v) - sx) * 0.16);
+            p.setZ(v, sz + (p.getZ(v) - sz) * 0.16);
+          }
+          spine.computeVertexNormals();
+          leaves.push(color(spine.translate(...root.toArray()), '#4b6b43'));
+          for (let pair = 0; pair < 4; pair++) {
+            const t = 0.22 + pair * 0.18;
+            const origin = new THREE.Vector3(
+              root.x + Math.sin(yaw) * bend * t * t,
+              root.y + height * (t - 0.16 * t * t),
+              root.z + Math.cos(yaw) * bend * t * t
+            );
+            for (const side of [-1, 1])
+              leaves.push(
+                color(
+                  createLakeReedLeaf(
+                    new THREE.Vector3(),
+                    yaw + side * (0.9 + pair * 0.05),
+                    0.05 + (1 - t) * 0.04,
+                    0.11 * (1 - t * 0.65)
+                  )
+                    .scale(0.65, 1, 0.65)
+                    .translate(...origin.toArray()),
+                  pair % 2 ? '#69804c' : '#426542'
+                )
+              );
+          }
+        }
+      } else {
+        for (let blade = 0; blade < 6; blade++)
+          leaves.push(
+            color(
+              createLakeReedLeaf(
+                root,
+                blade * 2.399 + reach + patch,
+                0.11 + ((blade + patch) % 3) * 0.035,
+                0.13 + (blade % 2) * 0.04
+              ),
+              ['#5d7847', '#7d8758', '#476b43'][(blade + patch) % 3]
+            )
+          );
+        if (patch === 2) {
+          const top = root.clone().add(new THREE.Vector3(0.025, 0.27, 0.035));
+          const stem = new THREE.QuadraticBezierCurve3(root, root.clone().lerp(top, 0.6), top);
+          leaves.push(color(new THREE.TubeGeometry(stem, 3, 0.004, 3, false), '#62724c'));
+          for (let petal = 0; petal < 5; petal++) {
+            const flower = new THREE.BufferGeometry();
+            flower.setAttribute(
+              'position',
+              new THREE.Float32BufferAttribute(
+                [0, 0, 0, -0.016, 0.005, 0.025, 0, 0.012, 0.042, 0.016, 0.005, 0.025],
+                3
+              )
+            );
+            flower.setAttribute(
+              'uv',
+              new THREE.Float32BufferAttribute([0.5, 0, 0, 0.5, 0.5, 1, 1, 0.5], 2)
+            );
+            flower.setIndex([0, 1, 2, 0, 2, 3]);
+            flower.computeVertexNormals();
+            leaves.push(
+              color(
+                flower.rotateY((petal * Math.PI * 2) / 5 + reach).translate(...top.toArray()),
+                reach % 2 ? '#a0a2a3' : '#8a9ba5'
+              )
+            );
+          }
+        }
+      }
+    }
+    for (let rock = 0; rock < 8; rock++) {
+      const pebble = rock >= 3;
+      const px = x + (pebble ? Math.sin(rock * 2.399 + reach) * 1.25 : [-1.5, 1.4, -0.9][rock]),
+        pz = centre + side * (edge - (pebble ? 0.08 + (rock % 3) * 0.06 : 0.3));
       const seat = new THREE.Vector3(px, ground(px, pz), pz);
       stoneSeats.push(seat);
       const geometry = createLakeShoreStone(
-        0.24 + rock * 0.1,
-        0.2 + reach * 0.01,
+        pebble ? 0.045 + (rock % 4) * 0.016 : [0.24, 0.34, 0.19][rock],
+        pebble ? 0.04 + (rock % 3) * 0.02 : 0.2 + reach * 0.01,
         reach + rock
-      ).rotateY(reach * 0.9);
+      )
+        .scale(1, pebble ? 0.22 : 1, 1)
+        .rotateY(reach * 0.9 + rock * 0.4);
       const p = geometry.getAttribute('position');
       let lift = -Infinity;
       for (let v = 0; v < p.count; v++)
         lift = Math.max(lift, ground(px + p.getX(v), pz + p.getZ(v)) - p.getY(v));
-      geometry.translate(px, lift - 0.025, pz);
-      stones.push(color(geometry, rock ? '#8e8b78' : '#747d70'));
+      geometry.translate(px, lift - (pebble ? 0.008 : 0.025), pz);
+      color(geometry, ['#7d8073', '#8a8374', '#72796f', '#95907e'][(rock + reach) % 4]);
+      const colours = geometry.getAttribute('color'),
+        normals = geometry.getAttribute('normal');
+      for (let v = 0; v < p.count; v++) {
+        const seam = 0.94 + 0.06 * Math.sin(p.getX(v) * 16 + p.getZ(v) * 11 + p.getY(v) * 7);
+        colours.setXYZ(
+          v,
+          colours.getX(v) * seam,
+          colours.getY(v) * (0.97 + 0.03 * normals.getY(v)),
+          colours.getZ(v) * seam
+        );
+      }
+      if (!pebble) {
+        const index = geometry.index!;
+        const candidates: {
+          face: number;
+          triangle: THREE.Triangle;
+          normal: THREE.Vector3;
+          centre: THREE.Vector3;
+          seed: number;
+        }[] = [];
+        for (let face = 0; face < index.count / 3; face++) {
+          const triangle = new THREE.Triangle(
+            ...([0, 1, 2].map((c) =>
+              new THREE.Vector3().fromBufferAttribute(p, index.getX(face * 3 + c))
+            ) as [THREE.Vector3, THREE.Vector3, THREE.Vector3])
+          );
+          const normal = triangle.getNormal(new THREE.Vector3()),
+            centre = triangle.getMidpoint(new THREE.Vector3());
+          const seed = 0.5 + 0.5 * Math.sin(face * 17.1 + reach * 7.3 + rock * 2.4);
+          if (normal.y > 0.15 && normal.z * -side > -0.25 && centre.y > config.waterLevel + 0.02)
+            candidates.push({ face, triangle, normal, centre, seed });
+        }
+        candidates.sort((a, b) => b.seed - a.seed);
+        for (const { face, triangle, normal, centre, seed } of candidates.slice(0, 3)) {
+          const edges = [
+            [triangle.a, triangle.b],
+            [triangle.b, triangle.c],
+            [triangle.c, triangle.a],
+          ] as const;
+          const radius =
+            Math.min(
+              ...edges.map(([a, b]) =>
+                new THREE.Line3(a, b)
+                  .closestPointToPoint(centre, true, new THREE.Vector3())
+                  .distanceTo(centre)
+              )
+            ) *
+            (0.5 + 0.2 * seed);
+          const u = triangle.b.clone().sub(triangle.a).normalize(),
+            v = new THREE.Vector3().crossVectors(normal, u);
+          const ring = Array.from({ length: 8 }, (_, lobe) => {
+            const a = (lobe * Math.PI) / 4 + seed;
+            const r = radius * (0.84 + 0.14 * Math.sin(lobe * 2.3 + face));
+            return centre
+              .clone()
+              .addScaledVector(u, Math.cos(a) * r)
+              .addScaledVector(v, Math.sin(a) * r * 0.78);
+          });
+          for (let lobe = 0; lobe < 8; lobe++) {
+            for (const point of [centre, ring[lobe], ring[(lobe + 1) % 8]]) {
+              mossPositions.push(point.x, point.y, point.z);
+              mossNormals.push(normal.x, normal.y, normal.z);
+              mossUVs.push(point.x * 4, point.z * 4);
+              const weights = triangle.getBarycoord(point, new THREE.Vector3())!;
+              const base = new THREE.Color(0, 0, 0);
+              for (let c = 0; c < 3; c++) {
+                const source = index.getX(face * 3 + c),
+                  weight = [weights.x, weights.y, weights.z][c];
+                base.r += colours.getX(source) * weight;
+                base.g += colours.getY(source) * weight;
+                base.b += colours.getZ(source) * weight;
+              }
+              const tint = new THREE.Color('#42533a')
+                .lerp(new THREE.Color('#68694a'), 0.5 + 0.5 * Math.sin(point.x * 61 + point.z * 83))
+                .lerp(base, point === centre ? 0.12 : 0.65);
+              mossColors.push(tint.r, tint.g, tint.b);
+            }
+            mossAttachments.push({ stoneIndex: stones.length, faceIndex: face });
+          }
+        }
+      }
+      stones.push(geometry);
     }
   }
   const merge = (parts: THREE.BufferGeometry[], name: string) => {
@@ -182,9 +387,21 @@ export function createRiverShoreDetails(
     result.computeBoundingSphere();
     return result;
   };
+  const moss = new THREE.BufferGeometry();
+  moss.name = 'river-stone-facet-moss';
+  moss.setAttribute('position', new THREE.Float32BufferAttribute(mossPositions, 3));
+  moss.setAttribute('normal', new THREE.Float32BufferAttribute(mossNormals, 3));
+  moss.setAttribute('color', new THREE.Float32BufferAttribute(mossColors, 3));
+  moss.setAttribute('uv', new THREE.Float32BufferAttribute(mossUVs, 2));
+  moss.setIndex(Array.from({ length: mossPositions.length / 3 }, (_, i) => i));
+  moss.computeBoundingBox();
+  moss.computeBoundingSphere();
   return {
     vegetation: merge(leaves, 'river-shore-reeds'),
     stones: merge(stones, 'river-shore-stones'),
+    moss,
+    mossAttachments,
+    groundcoverRoots,
     roots,
     stoneSeats,
   };

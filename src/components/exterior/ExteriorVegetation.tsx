@@ -14,6 +14,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { TREE_MATERIALS, BENCH_MATERIALS } from '../../utils/sharedMaterials';
 import {
   createCanopyCage,
+  createTreeCrownDetails,
   createFoliageMaterial,
   BROADLEAF_DEPTH,
 } from '../scenery/InstancedFoliage';
@@ -83,6 +84,20 @@ export const TREE_FOLIAGE_VARIANTS = [
   createCanopyCage({ radius: 2.75, height: 2.25, centerY: 5.7, taper: 0 }),
   createCanopyCage({ radius: 2.2, height: 1.8, centerY: 5.0, taper: 0.12 }),
 ];
+
+/** Peripheral leaf sprays preserve the generated crown's authored topology.
+ * Working if individual and instanced parkland trees share these same variants.
+ */
+export const TREE_FOLIAGE_SPRAY_VARIANTS = [
+  createTreeCrownDetails('oak', { radius: 2.45, height: 1.95, centerY: 5.3 }, 3),
+  createTreeCrownDetails('oak', { radius: 2.75, height: 2.25, centerY: 5.7 }, 3),
+  createTreeCrownDetails('birch', { radius: 2.2, height: 1.8, centerY: 5 }, 3),
+].map(({ branches, sprays }) => {
+  // Parkland already has its own substantial scaffold below. Keep that one
+  // shared draw and discard the small-species scaffold, not the live GLB.
+  branches.dispose();
+  return sprays;
+});
 
 /**
  * Three shared leaf palettes, selected independently of crown shape. Individual
@@ -322,7 +337,8 @@ export const SimpleTreeInstances: React.FC<{
 }> = React.memo(({ trees }) => {
   // Per-tree deterministic variant/rotation/scale jitter, matching SimpleTree.
   // Trees are bucketed by canopy variant: one instancedMesh per variant plus
-  // one for trunks and one for branches (5 draws regardless of tree count).
+  // one for trunks, one for branches and three peripheral spray batches
+  // (8 draws regardless of tree count).
   const quality = useGraphicsStore((state) => state.graphics.quality);
   const { allTrees, byVariant } = useMemo(() => {
     const all: InstanceData[] = [];
@@ -349,6 +365,13 @@ export const SimpleTreeInstances: React.FC<{
   const canopy0Ref = useInstances(byVariant[0].length, byVariant[0]);
   const canopy1Ref = useInstances(byVariant[1].length, byVariant[1]);
   const canopy2Ref = useInstances(byVariant[2].length, byVariant[2]);
+  const spray0Ref = useInstances(byVariant[0].length, byVariant[0]);
+  const spray1Ref = useInstances(byVariant[1].length, byVariant[1]);
+  const spray2Ref = useInstances(byVariant[2].length, byVariant[2]);
+  const sprayRefs = useMemo(
+    () => [spray0Ref, spray1Ref, spray2Ref],
+    [spray0Ref, spray1Ref, spray2Ref]
+  );
   const canopyRefs = useMemo(
     () => [canopy0Ref, canopy1Ref, canopy2Ref],
     [canopy0Ref, canopy1Ref, canopy2Ref]
@@ -357,10 +380,10 @@ export const SimpleTreeInstances: React.FC<{
   // Wind-synced shadows: three copies map/alphaTest onto the depth material by
   // itself, but not the vertex sway, so leaves would move under a rigid shadow.
   useLayoutEffect(() => {
-    canopyRefs.forEach((ref) => {
+    [...canopyRefs, ...sprayRefs].forEach((ref) => {
       if (ref.current) ref.current.customDepthMaterial = BROADLEAF_DEPTH;
     });
-  }, [canopyRefs]);
+  }, [canopyRefs, sprayRefs, byVariant]);
 
   if (trees.length === 0) return null;
 
@@ -391,6 +414,18 @@ export const SimpleTreeInstances: React.FC<{
         castShadow
         receiveShadow
       />
+      {byVariant.map((bucket, variant) =>
+        bucket.length > 0 ? (
+          <instancedMesh
+            key={`sprays-${variant}`}
+            name="parkland-foliage-sprays"
+            ref={sprayRefs[variant]}
+            args={[TREE_FOLIAGE_SPRAY_VARIANTS[variant], TREE_FOLIAGE_MATERIALS[1], bucket.length]}
+            castShadow
+            receiveShadow
+          />
+        ) : null
+      )}
       {byVariant.map((bucket, variant) =>
         bucket.length > 0 ? (
           <instancedMesh

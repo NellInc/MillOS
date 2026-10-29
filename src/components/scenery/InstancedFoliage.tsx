@@ -37,6 +37,7 @@ import { GeneratedGeometrySurface } from '../models/GeneratedGeometrySurface';
 import React, { useMemo, useLayoutEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TREE_MATERIALS } from '../../utils/sharedMaterials';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
 import { useGraphicsStore } from '../../stores/graphicsStore';
@@ -362,6 +363,160 @@ export const createCanopyCage = ({
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2));
   geo.computeBoundingSphere();
   return geo;
+};
+
+/**
+ * Separate crown furniture, never a replacement for an authored GLB attachment.
+ * Oak carries spreading elbows, birch ascending forks with hanging sprays, and
+ * pine horizontal whorls. All tips fit INSIDE the retained crown envelope.
+ * Working if the generated crown remains attached beside these shared meshes.
+ */
+export function createTreeCrownDetails(
+  species: TreeSpecies,
+  { radius, height, centerY }: Pick<CanopyOptions, 'radius' | 'height' | 'centerY'>,
+  trunkTop: number
+): { branches: THREE.BufferGeometry; sprays: THREE.BufferGeometry } {
+  const wood: THREE.BufferGeometry[] = [];
+  const cards: CardBuilder = { position: [], normal: [], uv: [] };
+  const up = new THREE.Vector3(0, 1, 0);
+  const origin = new THREE.Vector3(0, centerY, 0);
+  const branch = (from: THREE.Vector3, to: THREE.Vector3, thickness: number) => {
+    const direction = to.clone().sub(from);
+    const geometry = new THREE.CylinderGeometry(
+      thickness * 0.28,
+      thickness,
+      direction.length(),
+      6,
+      1,
+      true
+    );
+    geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(up, direction.normalize()));
+    geometry.translate(...from.clone().add(to).multiplyScalar(0.5).toArray());
+    wood.push(geometry);
+  };
+  if (species === 'pine') {
+    // Whorls overlap vertically and radially: isolated tip balls leave a bare
+    // ladder of branches. Each arm now wears needles from its inner third
+    // out to its downswept tip; staggered whorls leave a feathered cone.
+    // Working if the live pine reads as one connected evergreen crown.
+    branch(
+      new THREE.Vector3(0, trunkTop * 0.84, 0),
+      new THREE.Vector3(0.015, centerY + height * 0.99, -0.012),
+      0.085
+    );
+    for (let tier = 0; tier < 6; tier++) {
+      const reach = radius * (0.94 - tier * 0.147);
+      const y = centerY + height * (-0.62 + tier * 0.27);
+      for (let arm = 0; arm < 6; arm++) {
+        const angle = (arm * Math.PI) / 3 + tier * 0.63;
+        const outward = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+        const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
+        const start = new THREE.Vector3(0, y + height * 0.15, 0);
+        const tip = outward.clone().multiplyScalar(reach * 0.96);
+        tip.y = y - height * 0.09;
+        branch(start, tip, 0.038 - tier * 0.004);
+        for (let fan = 0; fan < 3; fan++) {
+          const along = 0.26 + fan * 0.28;
+          const halfLength = reach * 0.32;
+          const halfWidth = reach * (0.38 - fan * 0.045);
+          const mid = outward.clone().multiplyScalar(reach * along);
+          mid.y = y + height * (0.12 - along * 0.23);
+          const long = outward.clone().multiplyScalar(halfLength);
+          long.y = -height * 0.16;
+          const corners = [
+            mid.clone().add(long).addScaledVector(tangent, -halfWidth),
+            mid.clone().add(long).addScaledVector(tangent, halfWidth),
+            mid
+              .clone()
+              .sub(long)
+              .addScaledVector(tangent, halfWidth * 0.65),
+            mid
+              .clone()
+              .sub(long)
+              .addScaledVector(tangent, -halfWidth * 0.65),
+          ] as [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3];
+          pushCard(cards, corners, cellUv((tier + arm + fan) % 4, arm % 2 === 1), origin, 0.8, up);
+        }
+      }
+    }
+  } else {
+    branch(
+      new THREE.Vector3(0, trunkTop * 0.88, 0),
+      new THREE.Vector3(0.045, centerY + height * 0.66, -0.025),
+      species === 'birch' ? 0.085 : 0.13
+    );
+    const count = species === 'birch' ? 7 : 6;
+    for (let i = 0; i < count; i++) {
+      const angle = i * 2.3999632297 + (species === 'birch' ? 0.7 : 0.18);
+      const radial = 0.94 + (i % 2) * 0.06;
+      const y = centerY + height * (-0.48 + (i % 3) * 0.43);
+      const tip = new THREE.Vector3(
+        Math.cos(angle) * radius * radial,
+        y,
+        Math.sin(angle) * radius * radial
+      );
+      const start = new THREE.Vector3(0, Math.max(trunkTop * 0.84, y - height * 0.58), 0);
+      const elbow = tip.clone().multiplyScalar(0.52);
+      elbow.y = species === 'birch' ? y + height * 0.2 : (start.y + y) * 0.5 - height * 0.12;
+      const thickness = species === 'birch' ? 0.045 : 0.085;
+      branch(start, elbow, thickness);
+      branch(elbow, tip, thickness * 0.55);
+      // Two intersecting small atlas sprays, rather than another full crown cage.
+      // Both windings preserve outward shading and the existing wind/depth pair.
+      for (let face = 0; face < 2; face++) {
+        const yaw = angle + Math.PI / 2 + face * 1.05;
+        const halfWidth = radius * 0.29;
+        const halfHeight = height * (species === 'birch' ? 0.34 : 0.23);
+        const horizontal = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
+        const corners = [
+          tip.clone().addScaledVector(horizontal, -halfWidth).addScaledVector(up, -halfHeight),
+          tip.clone().addScaledVector(horizontal, halfWidth).addScaledVector(up, -halfHeight),
+          tip
+            .clone()
+            .addScaledVector(horizontal, halfWidth * 0.64)
+            .addScaledVector(up, halfHeight),
+          tip
+            .clone()
+            .addScaledVector(horizontal, -halfWidth * 0.64)
+            .addScaledVector(up, halfHeight),
+        ] as [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3];
+        // Diagonal crossed cards must fit too, not just their radial centres.
+        for (const corner of corners) {
+          const reach = Math.hypot(corner.x, corner.z);
+          if (reach > radius * 1.12) {
+            corner.x *= (radius * 1.12) / reach;
+            corner.z *= (radius * 1.12) / reach;
+          }
+        }
+        pushCard(
+          cards,
+          corners,
+          cellUv(i % 4, face === 1),
+          origin,
+          0.85,
+          new THREE.Vector3(-Math.sin(yaw), 0, Math.cos(yaw))
+        );
+      }
+    }
+  }
+  const branches = mergeGeometries(wood, false);
+  wood.forEach((geometry) => geometry.dispose());
+  if (!branches) throw new Error('Cannot assemble crown branches');
+  const sprays = new THREE.BufferGeometry();
+  sprays.setAttribute('position', new THREE.Float32BufferAttribute(cards.position, 3));
+  sprays.setAttribute('normal', new THREE.Float32BufferAttribute(cards.normal, 3));
+  sprays.setAttribute('uv', new THREE.Float32BufferAttribute(cards.uv, 2));
+  for (const geometry of [branches, sprays]) {
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+  }
+  return { branches, sprays };
+}
+
+export const TREE_CROWN_DETAILS = {
+  oak: createTreeCrownDetails('oak', { radius: 1.85, height: 1.55, centerY: 3.3 }, 2.6),
+  birch: createTreeCrownDetails('birch', { radius: 1.25, height: 1.5, centerY: 3.6 }, 3.1),
+  pine: createTreeCrownDetails('pine', { radius: 1.45, height: 1.9, centerY: 3.1 }, 3),
 };
 
 /** Three crossed vertical quads rooted at y=0, for ground tufts. */
@@ -734,12 +889,17 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
   const def = SPECIES[bucket.species];
   const trunkRef = useRef<THREE.InstancedMesh>(null);
   const canopyRef = useRef<THREE.InstancedMesh>(null);
+  const branchRef = useRef<THREE.InstancedMesh>(null);
+  const sprayRef = useRef<THREE.InstancedMesh>(null);
+  const details = TREE_CROWN_DETAILS[bucket.species];
   const count = bucket.items.length;
 
   useLayoutEffect(() => {
     const trunk = trunkRef.current;
     const canopy = canopyRef.current;
-    if (!trunk || !canopy) return;
+    const branches = branchRef.current;
+    const sprays = sprayRef.current;
+    if (!trunk || !canopy || !branches || !sprays) return;
 
     bucket.items.forEach((item, i) => {
       const jit = foliageJitter(item.position);
@@ -747,14 +907,21 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
       const matrix = createTreeMatrix(item.position, scale, jit.rotY, bucket.species === 'pine');
       trunk.setMatrixAt(i, matrix);
       canopy.setMatrixAt(i, matrix);
+      branches.setMatrixAt(i, matrix);
+      sprays.setMatrixAt(i, matrix);
+      sprays.setColorAt(i, canopyTint(jit.frac, jit.frac2));
       canopy.setColorAt(i, canopyTint(jit.frac, jit.frac2));
     });
 
     trunk.instanceMatrix.needsUpdate = true;
     canopy.instanceMatrix.needsUpdate = true;
     if (canopy.instanceColor) canopy.instanceColor.needsUpdate = true;
-    trunk.computeBoundingSphere();
-    canopy.computeBoundingSphere();
+    for (const mesh of [trunk, canopy, branches, sprays]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      mesh.computeBoundingBox();
+      mesh.computeBoundingSphere();
+    }
   }, [bucket]);
 
   // The alpha-tested canopy needs a matching custom depth material or its
@@ -763,6 +930,7 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
     const canopy = canopyRef.current;
     if (!canopy) return;
     canopy.customDepthMaterial = def.kind === 'needle' ? NEEDLE_DEPTH : BROADLEAF_DEPTH;
+    if (sprayRef.current) sprayRef.current.customDepthMaterial = canopy.customDepthMaterial;
   }, [def.kind]);
 
   if (count === 0) return null;
@@ -789,6 +957,20 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
         </GeneratedBoundary>
       </instancedMesh>
       <instancedMesh
+        name="tree-crown-branches"
+        ref={branchRef}
+        args={[details.branches, def.trunkMaterial, count]}
+        castShadow
+        receiveShadow
+      />
+      <instancedMesh
+        name="tree-foliage-sprays"
+        ref={sprayRef}
+        args={[details.sprays, def.kind === 'needle' ? NEEDLE_MATERIAL : BROADLEAF_MATERIAL, count]}
+        castShadow
+        receiveShadow
+      />
+      <instancedMesh
         name="tree-canopies"
         ref={canopyRef}
         args={[def.canopy, def.kind === 'needle' ? NEEDLE_MATERIAL : BROADLEAF_MATERIAL, count]}
@@ -813,8 +995,8 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
 SpeciesGroup.displayName = 'SpeciesGroup';
 
 /**
- * Renders a whole stand of trees in two draw calls per species (trunks +
- * canopies) regardless of tree count.
+ * Renders a whole stand in four shared draws per species (trunk, generated
+ * crown, branches and peripheral sprays) regardless of tree count.
  */
 export const InstancedTreeField: React.FC<{ trees: readonly TreeInstance[] }> = React.memo(
   ({ trees }) => {
