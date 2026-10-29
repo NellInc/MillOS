@@ -31,7 +31,7 @@ import {
   waterMirroredCloudWeight,
   waterNightSheen,
 } from '../../utils/waterAppearance';
-import { CANAL_OUTLET } from './canalOutletGeometry';
+import { CANAL_OUTLET, CANAL_WEIR_IMPACT } from './canalOutletGeometry';
 import { WATER_CRAFT_GAIN } from '../../utils/waterOptics';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -106,7 +106,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     expect(water.fragmentShader).toContain('float surfaceAlpha = 1.0');
     expect(water.uniforms.uTransmission.value).toBe(0);
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v33');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v34');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -407,7 +407,7 @@ it('keeps a deep-water read on Low, where no metre-scale ripple breaks the refle
   expect(water.fragmentShader).toContain(
     `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v33');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v34');
 });
 
 // final4-med-12 rubric: the pond is a saturated cyan and reflects nothing of
@@ -481,7 +481,7 @@ it('gives still water a natural body and a soft far-bank darkening on Medium onl
   const rise = (camera.y - target.y) / Math.hypot(camera.x - target.x, camera.z - target.z);
   expect(WATER_BANK_PROFILE.bankMetres / rise).toBeGreaterThan(1.5);
   expect(WATER_BANK_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v33');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v34');
 });
 
 // final5-med-22 water: a near-black centre. Steep views reflect the zenith,
@@ -632,7 +632,7 @@ it('mirrors a cloud deck and gust patches across the lake on Medium, exact on Lo
   sky.dispose();
   dome.geometry.dispose();
   expect(WATER_SKY_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v33');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v34');
 });
 
 // final6-med-12 water: a white glare band along the lake's far bank and a dark
@@ -677,7 +677,7 @@ it('keeps mirrored cloud off the far bank and soft across a lake, the canal unch
     make({ kind: 'canal', crossOnly: true, bankRadii: [5.5, 110] }).uniforms.uRadial.value
   ).toBe(0);
   expect(lake.uniforms.uRadial.value).toBe(1);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v33');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v34');
 });
 
 // land7-med-12 water: with the glare softened, the lake centre still reads as a
@@ -728,7 +728,7 @@ it('lifts the still-water deep body toward the shallows on Medium, keeping its h
   expect(hue(after)).toBeGreaterThan(hue(rim));
   expect(deepLift).toBeGreaterThan(0);
   expect(deepLift).toBeLessThanOrEqual(0.3);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v33');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v34');
 });
 
 it('opts only the receiving river into the shared weir landing and local hydraulic finish', () => {
@@ -743,7 +743,7 @@ it('opts only the receiving river into the shared weir landing and local hydraul
   expect(sheet.defines).toEqual({ MILLOS_FALLING_WATER: 1 });
   expect(receiving.uniforms.uWeirImpact.value.toArray()).toEqual([
     CANAL_OUTLET.east - CANAL_OUTLET.width / 2,
-    CANAL_OUTLET.north - 0.035,
+    CANAL_WEIR_IMPACT.position[1],
     CANAL_OUTLET.width / 2,
     5,
   ]);
@@ -788,6 +788,28 @@ it('filters hydraulic detail and keeps it on the existing frozen clock and Low b
 });
 
 describe('real supported-water transmission', () => {
+  it('uses real detailed-film normals for crest sheen with the original Low vertex path', () => {
+    const film = (
+      UnifiedWaterSurfaceMaterial({ kind: 'river', falling: true }) as ReactElement<{
+        object: THREE.ShaderMaterial;
+      }>
+    ).props.object;
+    expect(film.vertexShader).toContain('uniform float uRippleDetail');
+    expect(film.vertexShader).toContain(
+      'if (uRippleDetail > 0.0) {\n            displaced = position;\n            localNormal = normal;'
+    );
+    expect(film.fragmentShader).toContain('filmBounce = reflect(-filmView,filmNormal)');
+    expect(film.fragmentShader).toContain('filmSun*uDaylight*crest');
+    const apron = (
+      UnifiedWaterSurfaceMaterial({
+        kind: 'canal',
+        bedDepth: 0.05,
+        outletApron: true,
+      }) as ReactElement<{ object: THREE.ShaderMaterial }>
+    ).props.object;
+    expect(apron.defines.MILLOS_OUTLET_APRON).toBe(1);
+    expect(apron.vertexShader).toContain('waveEnvelope *= smoothstep(0.0,0.45,');
+  });
   it('opts in only the actual bed/apron/film and restores opaque Low state', () => {
     const river = (
       UnifiedWaterSurfaceMaterial({

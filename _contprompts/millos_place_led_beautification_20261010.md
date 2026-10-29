@@ -9727,3 +9727,25 @@ Browser shutdown is distinct from functional checks: continuation script returne
 Pacing stays separately OPEN. Unchanged original river/water Medium timing gate ran once on final source, terminal 1. River: 60.01 FPS, 1% low 56.63, p95 17.4 ms, p99 17.6 ms, first frame 417.5 ms, 171 draws, load 10.54/core; first-frame and p95 checks miss. Water: 59.72 FPS, 1% low 49.06, p95 18.8 ms, p99 20.1 ms, first frame 448.5 ms, 1,061 draws, load 12.15/core; first-frame, average-FPS and p95 checks miss. Host contention is recorded, no regression/speedup inference, quiet-GPU wait, rerun, quality relaxation or readiness waiver. These misses do not reopen unrelated work.
 
 All 12 finite items are disposed in `test-results/ej-water-craft-20261029/DISPOSITION.md`; acceptance.json records exact report/candidate boundaries and gallery.html shows real captures and controls. Source and useful raw evidence are retained. All owned jobs have terminal results; final source/output custody, selective documentation-only local check-in and supported goal PAUSED reaffirmation close this pass. Publication remains held. Completed internal advisor transcript retained; no supported exact-thread disposal API is exposed, so no helper-process signal or RAM-release claim. Stop after the requested pause; broader world-polish programme remains unfinished and paused.
+
+
+### EK curved water crest and stone contact, authorized 2026-10-29
+
+Nell requests another water/river-canal-junction pass, local/muted, interface preserved, device checks deferred, pacing separate, then pause. This releases the pause for this finite pass only. Clean base `32f8c2e6`; named affected baseline 73 tests/7 files PASS, no failing names. Current reachability and retained compiled/native evidence confirm the live assembly. Root owns geometry, water shader/attachment integration and final checks; no publication, remote work, new renderer, scene lights, particles, interface or simulation authority.
+
+Same-root review of root-authored EJ renders identifies the next concrete gap: a flat rectangular falling sheet at the lip and sharp box coping. Three risks: crest overlap could z-fight, the existing shader could overwrite curved normals, and the new outward fall could detach its impact foam. Keep an edge-only top join, actual geometry normals on the detailed film with original Low vertex path, and derive the landing datum from the same profile used by the curtain. Bounded rounded copings retain their world bounds, UV scale, standard lighting and existing maps.
+
+1. Reconcile live callers, old flat-sheet transform, apron and river elevations, reflection/foam datum consumers and installed rounded geometry implementation.
+2. Preserve the named baseline, finite scope, source ownership and original checks.
+3. Author a small indexed curtain with a quarter-round crest and restrained outward fall, exact top/lower elevations, continuous UVs and correctly oriented smooth normals; no duplicated horizontal water face.
+4. Tie the receiving impact and existing downstream foam to the actual detailed-film landing, retaining the existing quiet runout and reflection limits.
+5. Use actual curved-film normals for detailed vertex/optical shading. Preserve original Low geometry, vertex behavior and opacity/depth contract.
+6. Add restrained real-sky/sun sheen at the curved crest using existing uniforms and shared admitted water phase; no emission or new light.
+7. Round only the stone copings using the installed Three addon, preserve bounds, grain/UV scale, dry cap colour and damp wall finish. Keep triangle cost bounded.
+8. Protect changed geometry/join/normal/UV/quality contracts with focused existing-setup checks, plus required type/lint/format/depth/shader/assets/manifest gates. Inspect the integrated diff and request one bounded source challenge for the shared geometry/shader/impact join.
+9. Build/seal actual production output and run fresh bundle/reachability/community gates.
+10. Silent exact-build day/dusk/night and Low, close lip/bed/wide views and existing sheltered-water regression; ordinary pause/pace/reduced/quality transitions. Retain original world/personnel/texture/audio/quality/readiness and reflection guards. Inspect actual pixels and a held finish control, accurately labelled as the combined water finish with fixed geometry.
+11. Original affected-scene timing once, unchanged budgets; retain misses separately without idle-GPU waits, forcing readiness or changing quality.
+12. Retain useful source, gallery, custody, raw failures and browser lifecycle evidence. Check in only owned local work, close owned temporary resources, reaffirm goal PAUSED and stop.
+
+Working if a coherent curved crest flows into its correctly aligned receiving foam, real normals produce restrained daylight/dusk sheen, stone copings have softly caught edges, Low/interface/authority remain intact, required source/build/native evidence exists and the finite pass ends paused. Browser/startup/pacing warnings remain separately classified; no historical backend fix is implied.

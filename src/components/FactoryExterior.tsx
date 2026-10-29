@@ -182,10 +182,12 @@ import {
 import {
   CANAL_OUTLET,
   CANAL_WEIR_IMPACT,
+  CANAL_WEIR_PROFILE,
   canalEastBankSections,
   canalClosedEndSpec,
   createCanalClosedEndGeometry,
   createCanalOutletSurface,
+  createCanalWeirCurtain,
   createOutletStoneGeometry,
 } from './exterior/canalOutletGeometry';
 import { createLakeShoreDetails } from './exterior/lakeShoreDetails';
@@ -1287,6 +1289,8 @@ interface UnifiedWaterSurfaceMaterialProps {
   kind?: WaterKind;
   /** Real maximum submerged bed depth. Opt-in, main canal remains opaque. */
   bedDepth?: number;
+  /** Pin the supported outlet's northern edge to its curved crest datum. */
+  outletApron?: boolean;
   deep?: string;
   shallow?: string;
   reflection?: string;
@@ -1317,6 +1321,7 @@ interface UnifiedWaterSurfaceMaterialProps {
 export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialProps> = ({
   kind = 'lake',
   bedDepth = 0,
+  outletApron = false,
   deep = '#153747',
   shallow = '#3f7f8c',
   reflection = '#b9dce3',
@@ -1362,6 +1367,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             ? { MILLOS_SHORE_FOAM: 1 }
             : {}),
         ...(weirImpact ? { MILLOS_WEIR_IMPACT: 1 } : {}),
+        ...(outletApron ? { MILLOS_OUTLET_APRON: 1 } : {}),
       },
       uniforms: {
         uWaterFinish: WATER_POLISH_GAIN,
@@ -1440,6 +1446,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform float uFlowSpeed;
         uniform float uWind;
         uniform float uWaveHeight;
+        uniform float uRippleDetail;
         uniform float uRadial;
         uniform float uCrossOnly;
         varying vec2 vUv;
@@ -1464,10 +1471,24 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // Hold the shoreline at its authored datum. Only the interior swell
           // moves, so a lower, uneven bank never exposes a flashing gap.
           float waveEnvelope = smoothstep(0.0, 0.12, edge);
+          #ifdef MILLOS_OUTLET_APRON
+          // Shape XY maps to world X,-Z here. Hold the mouth at the same
+          // datum as the curved film, avoiding a waving gap at the crest.
+          if (uRippleDetail > 0.0) waveEnvelope *= smoothstep(0.0,0.45,
+            -position.y-(${CANAL_OUTLET.north.toFixed(3)}));
+          #endif
           vec2 heightDerivative = waveDerivative * (uWaveHeight * 0.5) * windAmplitude * waveEnvelope;
           vec3 displaced = position;
           displaced.z += vWave * uWaveHeight * windAmplitude * waveEnvelope;
           vec3 localNormal = normalize(vec3(-heightDerivative.x, -heightDerivative.y, 1.0));
+          #ifdef MILLOS_FALLING_WATER
+          // Actual crest curvature, rather than a synthetic flat-plane normal.
+          // Low keeps its original wave displacement and normal exactly.
+          if (uRippleDetail > 0.0) {
+            displaced = position;
+            localNormal = normal;
+          }
+          #endif
           vWorldNormal = normalize(mat3(modelMatrix) * localNormal);
           vWorldPosition = (modelMatrix * vec4(displaced, 1.0)).xyz;
           vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
@@ -1607,6 +1628,20 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
                 clamp(aeration*.65+foot*.48+threads*.28,0.0,.96),uWaterCraft*uWaterFinish);
             }
             colour *= bodyLight;
+            // A rounded crest catches the real sky/sun using its actual normal.
+            // No emissive stripe; the sun term disappears with daylight.
+            vec3 filmNormal = normalize(vWorldNormal);
+            vec3 filmView = normalize(cameraPosition-vWorldPosition);
+            if (dot(filmNormal,filmView)<0.0) filmNormal = -filmNormal;
+            vec3 filmBounce = reflect(-filmView,filmNormal);
+            float crest = smoothstep(.64,.98,vUv.y);
+            float filmFresnel = pow(1.0-max(dot(filmNormal,filmView),0.0),5.0);
+            vec3 filmSky = mix(uSkyHorizon,uSkyZenith,clamp(filmBounce.y,0.0,1.0));
+            float filmRoughness = clamp(.15+length(fwidth(filmNormal)),.15,.4);
+            float filmSun = pow(max(dot(filmBounce,uSunDirection),0.0),
+              2.0/(filmRoughness*filmRoughness)-2.0);
+            colour = mix(colour,filmSky,crest*filmFresnel*.32*uWaterCraft*uWaterFinish);
+            colour += uSunColour*filmSun*uDaylight*crest*.18*uWaterCraft*uWaterFinish;
           } else {
             // A vertical weir has no useful XZ phase gradient down its face.
             // Thin falling ribbons in XY, with downward-travelling breakup,
@@ -2036,7 +2071,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v33';
+    value.customProgramCacheKey = () => 'millos-unified-water-v34';
     value.userData.actualWaterBed = actualBed;
     if (weirImpact)
       value.onBeforeRender = (renderer, scene, camera) =>
@@ -2045,6 +2080,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
   }, [
     actualBed,
     actualBedDepth,
+    outletApron,
     bankX,
     bankZ,
     crossOnly,
@@ -2321,8 +2357,21 @@ export const CANAL_OUTLET_STONES = (() => {
  */
 function CanalRiverOutlet() {
   const { width, upperLevel, lowerLevel } = CANAL_OUTLET;
+  const detailed = useGraphicsStore((state) => state.graphics.quality !== 'low');
   const surface = useMemo(createCanalOutletSurface, []);
-  useEffect(() => () => surface.dispose(), [surface]);
+  const curtain = useMemo(createCanalWeirCurtain, []);
+  const flatCurtain = useMemo(
+    () => new THREE.PlaneGeometry(width, upperLevel - lowerLevel, 8, 8),
+    [width, upperLevel, lowerLevel]
+  );
+  useEffect(
+    () => () => {
+      surface.dispose();
+      curtain.dispose();
+      flatCurtain.dispose();
+    },
+    [surface, curtain, flatCurtain]
+  );
   return (
     <group name="canal-river-overflow">
       {CANAL_OUTLET_STONES.map((stone, i) => (
@@ -2341,6 +2390,7 @@ function CanalRiverOutlet() {
           reflection="#86aeb5"
           kind="canal"
           bedDepth={upperLevel - CANAL_OUTLET.apronLevel}
+          outletApron
           flowDirection={[1, 0]}
           crossOnly
         />
@@ -2350,12 +2400,12 @@ function CanalRiverOutlet() {
         position={[
           CANAL_WEIR_IMPACT.position[0],
           (upperLevel + lowerLevel) / 2,
-          CANAL_WEIR_IMPACT.position[1],
+          CANAL_OUTLET.north - CANAL_WEIR_PROFILE.flatOffset,
         ]}
         rotation={[0, Math.PI, 0]}
+        geometry={detailed ? curtain : flatCurtain}
         renderOrder={RENDER_ORDER.waterSurface}
       >
-        <planeGeometry args={[width, upperLevel - lowerLevel, 8, 8]} />
         <UnifiedWaterSurfaceMaterial
           deep="#2e5962"
           shallow="#6999a1"

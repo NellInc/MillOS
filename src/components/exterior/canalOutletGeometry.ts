@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { MILLOS_RIVER_CONFIG } from '../terrain/splatMapGenerator';
 
@@ -18,14 +19,59 @@ export const CANAL_OUTLET = {
   wallTop: 1.05,
 } as const;
 
-/** Same world landing as the existing vertical sheet, with a five-metre visual runout.
- * Working if the sheet and receiving finish share this datum without moving either surface.
+export const CANAL_WEIR_PROFILE = { radius: 0.28, fallSlope: 0.08, flatOffset: 0.035 } as const;
+const fallHeight = CANAL_OUTLET.upperLevel - CANAL_OUTLET.lowerLevel;
+const landingOffset =
+  CANAL_WEIR_PROFILE.radius +
+  (fallHeight - CANAL_WEIR_PROFILE.radius) * CANAL_WEIR_PROFILE.fallSlope;
+
+/** Detailed-film landing; Low retains its original flat sheet. Both stay in the
+ * carved river. Working if the detailed curtain and receiving froth meet here.
  */
 export const CANAL_WEIR_IMPACT = {
-  position: [CANAL_OUTLET.east - CANAL_OUTLET.width / 2, CANAL_OUTLET.north - 0.035] as const,
+  position: [
+    CANAL_OUTLET.east - CANAL_OUTLET.width / 2,
+    CANAL_OUTLET.north - landingOffset,
+  ] as const,
   halfWidth: CANAL_OUTLET.width / 2,
   runMetres: 5,
 } as const;
+
+/** Local XY curtain under the retained pi-Y placement. Its upper edge alone
+ * meets the apron; the quarter-round falls outside it, with no coplanar strip.
+ */
+export function createCanalWeirCurtain() {
+  const { radius, fallSlope, flatOffset } = CANAL_WEIR_PROFILE;
+  const columns = 24;
+  const rows = 20;
+  const positions = new Float32Array((columns + 1) * (rows + 1) * 3);
+  const uv = new Float32Array((columns + 1) * (rows + 1) * 2);
+  const indices: number[] = [];
+  for (let row = 0; row <= rows; row++) {
+    const angle = (Math.min(row, 6) / 6) * Math.PI * 0.5;
+    const drop =
+      row <= 6 ? radius * (1 - Math.cos(angle)) : radius + ((row - 6) / 14) * (fallHeight - radius);
+    const outward = row <= 6 ? radius * Math.sin(angle) : radius + (drop - radius) * fallSlope;
+    for (let col = 0; col <= columns; col++) {
+      const i = row * (columns + 1) + col;
+      positions.set(
+        [(col / columns - 0.5) * CANAL_OUTLET.width, fallHeight / 2 - drop, outward - flatOffset],
+        i * 3
+      );
+      uv.set([col / columns, 1 - drop / fallHeight], i * 2);
+      if (row < rows && col < columns) {
+        const below = i + columns + 1;
+        indices.push(i, below, i + 1, i + 1, below, below + 1);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 export function createCanalOutletSurface() {
   const { west, east, north, south, width } = CANAL_OUTLET;
@@ -59,21 +105,30 @@ export function createOutletStoneGeometry(
   origin: readonly [number, number, number] = [0, 0, 0],
   coping = false
 ) {
-  const geometry = new THREE.BoxGeometry(
-    width,
-    height,
-    depth,
-    Math.min(24, Math.max(1, Math.ceil(width / 3))),
-    Math.min(18, Math.max(1, Math.ceil(height / 0.35))),
-    Math.min(24, Math.max(1, Math.ceil(depth / 3)))
-  );
+  const geometry = coping
+    ? new RoundedBoxGeometry(width, height, depth, 2, 0.045)
+    : new THREE.BoxGeometry(
+        width,
+        height,
+        depth,
+        Math.min(24, Math.max(1, Math.ceil(width / 3))),
+        Math.min(18, Math.max(1, Math.ceil(height / 0.35))),
+        Math.min(24, Math.max(1, Math.ceil(depth / 3)))
+      );
   const p = geometry.getAttribute('position');
   const n = geometry.getAttribute('normal');
   const uv = geometry.getAttribute('uv');
   const colour = new Float32Array(p.count * 3);
+  let face = 0;
   for (let i = 0; i < p.count; i++) {
-    const u = Math.abs(n.getX(i)) > 0.5 ? p.getZ(i) : p.getX(i);
-    const v = Math.abs(n.getY(i)) > 0.5 ? p.getZ(i) : p.getY(i);
+    // RoundedBox keeps six non-indexed original face groups. Smooth bevel
+    // normals cross axes inside a triangle; they cannot choose its UV plane.
+    while (coping && face + 1 < geometry.groups.length && i >= geometry.groups[face + 1].start)
+      face++;
+    const side = coping ? face < 2 : Math.abs(n.getX(i)) > 0.5;
+    const horizontal = coping ? face === 2 || face === 3 : Math.abs(n.getY(i)) > 0.5;
+    const u = side ? p.getZ(i) : p.getX(i);
+    const v = horizontal ? p.getZ(i) : p.getY(i);
     uv.setXY(i, u / 2, v / 2);
     const x = p.getX(i) + origin[0];
     const y = p.getY(i) + origin[1];

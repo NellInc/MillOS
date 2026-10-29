@@ -22,10 +22,12 @@ import { SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
 import {
   CANAL_OUTLET,
   CANAL_WEIR_IMPACT,
+  CANAL_WEIR_PROFILE,
   canalEastBankSections,
   canalClosedEndSpec,
   createCanalClosedEndGeometry,
   createCanalOutletSurface,
+  createCanalWeirCurtain,
   createOutletStoneGeometry,
 } from './canalOutletGeometry';
 
@@ -255,8 +257,61 @@ describe('continuous canal-to-river overflow', () => {
     expect(g.boundingBox!.max.z).toBe(10);
     const coping = createOutletStoneGeometry(20, 0.18, 0.92, [0, 1.14, 0], true);
     expect([...coping.getAttribute('color').array].every((v) => v === 1)).toBe(true);
+    coping.computeBoundingBox();
+    expect(coping.boundingBox!.max.x).toBeCloseTo(10);
+    expect(coping.boundingBox!.max.y).toBeCloseTo(0.09);
+    expect(coping.getAttribute('position').count / 3).toBeLessThanOrEqual(300);
+    expect([...coping.getAttribute('normal').array].some((v) => v > 0.1 && v < 0.9)).toBe(true);
+    const cp = coping.getAttribute('position'),
+      cuv = coping.getAttribute('uv');
+    let worstUvPerMetre = 0;
+    for (let i = 0; i < cp.count; i += 3)
+      for (let edge = 0; edge < 3; edge++) {
+        const a = i + edge,
+          b = i + ((edge + 1) % 3);
+        const metres = Math.hypot(
+          cp.getX(a) - cp.getX(b),
+          cp.getY(a) - cp.getY(b),
+          cp.getZ(a) - cp.getZ(b)
+        );
+        const texture = Math.hypot(cuv.getX(a) - cuv.getX(b), cuv.getY(a) - cuv.getY(b));
+        if (metres > 1e-7) worstUvPerMetre = Math.max(worstUvPerMetre, texture / metres);
+      }
+    expect(worstUvPerMetre).toBeLessThanOrEqual(0.501);
     g.dispose();
     coping.dispose();
+  });
+  it('joins the apron edge to the actual landing with a bounded, smooth curved curtain', () => {
+    const g = createCanalWeirCurtain();
+    const p = g.getAttribute('position'),
+      n = g.getAttribute('normal'),
+      uv = g.getAttribute('uv');
+    const h = CANAL_OUTLET.upperLevel - CANAL_OUTLET.lowerLevel;
+    const transform = new THREE.Matrix4().makeRotationY(Math.PI);
+    transform.setPosition(
+      CANAL_WEIR_IMPACT.position[0],
+      (CANAL_OUTLET.upperLevel + CANAL_OUTLET.lowerLevel) / 2,
+      CANAL_OUTLET.north - CANAL_WEIR_PROFILE.flatOffset
+    );
+    const top = new THREE.Vector3().fromBufferAttribute(p, 12).applyMatrix4(transform);
+    const bottom = new THREE.Vector3().fromBufferAttribute(p, p.count - 13).applyMatrix4(transform);
+    expect(top.y).toBeCloseTo(CANAL_OUTLET.upperLevel, 6);
+    expect(top.z).toBeCloseTo(CANAL_OUTLET.north, 6);
+    expect(bottom.y).toBeCloseTo(CANAL_OUTLET.lowerLevel, 6);
+    expect(bottom.z).toBeCloseTo(CANAL_WEIR_IMPACT.position[1], 6);
+    expect(CANAL_OUTLET.north - bottom.z).toBeCloseTo(0.4296, 4);
+    expect(n.getY(12)).toBeGreaterThan(0.98);
+    expect(n.getZ(p.count - 13)).toBeGreaterThan(0.99);
+    expect(uv.getY(12)).toBe(1);
+    expect(uv.getY(p.count - 13)).toBeCloseTo(0);
+    expect(g.index!.count / 3).toBe(960);
+    for (let i = 0; i < p.count; i++) {
+      expect(p.getY(i)).toBeLessThanOrEqual(h / 2 + 1e-6);
+      expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 5);
+      if (uv.getY(i) < 0.999) expect(p.getZ(i)).toBeGreaterThan(-CANAL_WEIR_PROFILE.flatOffset);
+    }
+    expect([...p.array, ...n.array, ...uv.array].every(Number.isFinite)).toBe(true);
+    g.dispose();
   });
 });
 
@@ -297,7 +352,10 @@ it.each([64, 128])(
   (segments) => {
     expect(CANAL_WEIR_IMPACT.position).toEqual([
       CANAL_OUTLET.east - CANAL_OUTLET.width / 2,
-      CANAL_OUTLET.north - 0.035,
+      CANAL_OUTLET.north -
+        (CANAL_WEIR_PROFILE.radius +
+          (CANAL_OUTLET.upperLevel - CANAL_OUTLET.lowerLevel - CANAL_WEIR_PROFILE.radius) *
+            CANAL_WEIR_PROFILE.fallSlope),
     ]);
     expect(CANAL_WEIR_IMPACT.halfWidth).toBe(CANAL_OUTLET.width / 2);
     expect(CANAL_WEIR_IMPACT.runMetres).toBe(5);
