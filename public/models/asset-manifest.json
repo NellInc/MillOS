@@ -552,7 +552,8 @@
         "centreTolerance": 0.01
       },
       "requiredNodes": ["TownhallBody"],
-      "requiredAnimations": []
+      "requiredAnimations": [],
+      "requiredExtensions": ["EXT_meshopt_compression"]
     },
     {
       "id": "village-pub",

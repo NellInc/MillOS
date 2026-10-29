@@ -21,6 +21,7 @@
 import { useGLTF } from '@react-three/drei';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import type * as THREE from 'three';
 
@@ -57,6 +58,9 @@ export function getDracoLoader(): DRACOLoader {
 export function createDracoGLTFLoader(): GLTFLoader {
   const loader = new GLTFLoader();
   loader.setDRACOLoader(getDracoLoader());
+  // Match Drei useGLTF, which already enables its bundled meshopt decoder.
+  // Working if both manual and hook paths load the lossless townhall derivative.
+  loader.setMeshoptDecoder(MeshoptDecoder);
   return loader;
 }
 

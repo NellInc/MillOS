@@ -203,12 +203,13 @@
       },
       "runtimeDerivative": {
         "file": "public/models/village/townhall.glb",
-        "sha256": "985538194282d623c972e10c5b271d34b771a75f95206089c6ef41419f8d1e8a",
-        "bytes": 538800
+        "sha256": "75515c40b20fe8978117e7ff5730ae615a4e131a67ee0dd97abba8cfdf699c48",
+        "bytes": 274976
       },
       "normalization": {
         "sizedBy": "length",
         "targetMetres": 14.61,
+        "geometryCodec": "meshopt-lossless",
         "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,

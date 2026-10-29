@@ -1,0 +1,95 @@
+{
+  "tool": "Material Maker1.8",
+  "release": "https://github.com/RodZill4/material-maker/releases/tag/1.8",
+  "releaseSHA256": "2549aa9c18b71550355b752e03a1afd5a199dc7f56eafb371c06b721182ef3d8",
+  "source": "Original MillOS seeded perlin/gradient/normal graphs",
+  "seed": 1729,
+  "graphHashes": {
+    "fieldstone.ptex": "72b0f30979885b8dcf38e4920645608a3daccf08814bc382bc6925c812a09012",
+    "dampstone.ptex": "2ebe6a828b301ea044323c65f08c84c67fedf37012d999d35d05b6f88c518a80",
+    "limestone.ptex": "bb19907b608a58d5b937df395e38651a077d05579e5c4f6be23862b38e03fd7d"
+  },
+  "upstreamLicense": "MIT authoring tool; original MillOS graphs and outputs",
+  "export": "node scripts/export-material-maker.mjs",
+  "pack": "node scripts/pack-material-maker.mjs",
+  "normalConvention": "Blender export, OpenGL tangent-space",
+  "colourSpace": {
+    "albedo": "sRGB",
+    "normal": "linear",
+    "roughness": "linear"
+  },
+  "records": [
+    {
+      "name": "fieldstone",
+      "roughnessRange": [
+        0.750732421875,
+        0.9493408203125
+      ],
+      "files": {
+        "albedo": {
+          "file": "public/textures/material-maker/fieldstone-albedo.png",
+          "bytes": 190683,
+          "sha256": "a39f53d1c0590a6d0f74e30b8890feb8dec65e45fa8dea68f9b4cbe47d7150f8"
+        },
+        "normal": {
+          "file": "public/textures/material-maker/fieldstone-normal.png",
+          "bytes": 516140,
+          "sha256": "469cf7ff4b770b20b9b1d1dcdb807cd18d214e842d890b9735770d32d0124a56"
+        },
+        "roughness": {
+          "file": "public/textures/material-maker/fieldstone-roughness.png",
+          "bytes": 35069,
+          "sha256": "3afa853681f1980431aeb06f763bce28fc721dffc2d8444001e4628e5e0db4b6"
+        }
+      }
+    },
+    {
+      "name": "dampstone",
+      "roughnessRange": [
+        0.750732421875,
+        0.9493408203125
+      ],
+      "files": {
+        "albedo": {
+          "file": "test-results/eq-tool-pilots-20261029/materials/export/packed-preview/dampstone-albedo.png",
+          "bytes": 187522,
+          "sha256": "9f19d70ea60f830dca8931d11e3e930cb809b5a35669d988bf89a536ad5adf9e"
+        },
+        "normal": {
+          "file": "test-results/eq-tool-pilots-20261029/materials/export/packed-preview/dampstone-normal.png",
+          "bytes": 516140,
+          "sha256": "469cf7ff4b770b20b9b1d1dcdb807cd18d214e842d890b9735770d32d0124a56"
+        },
+        "roughness": {
+          "file": "test-results/eq-tool-pilots-20261029/materials/export/packed-preview/dampstone-roughness.png",
+          "bytes": 35069,
+          "sha256": "3afa853681f1980431aeb06f763bce28fc721dffc2d8444001e4628e5e0db4b6"
+        }
+      }
+    },
+    {
+      "name": "limestone",
+      "roughnessRange": [
+        0.750732421875,
+        0.9493408203125
+      ],
+      "files": {
+        "albedo": {
+          "file": "public/textures/material-maker/limestone-albedo.png",
+          "bytes": 183908,
+          "sha256": "dbe27c3c2aecd35b78902e0ccf5bb39a1cdf269c23a53666db0e1b7e9f6ecf4a"
+        },
+        "normal": {
+          "file": "public/textures/material-maker/limestone-normal.png",
+          "bytes": 516140,
+          "sha256": "469cf7ff4b770b20b9b1d1dcdb807cd18d214e842d890b9735770d32d0124a56"
+        },
+        "roughness": {
+          "file": "public/textures/material-maker/limestone-roughness.png",
+          "bytes": 35069,
+          "sha256": "3afa853681f1980431aeb06f763bce28fc721dffc2d8444001e4628e5e0db4b6"
+        }
+      }
+    }
+  ]
+}

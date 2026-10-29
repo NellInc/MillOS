@@ -1,0 +1,167 @@
+{
+  "type": "graph",
+  "name": "fieldstone",
+  "label": "fieldstone",
+  "node_position": {
+    "x": 0,
+    "y": 0
+  },
+  "parameters": {
+    "seed": 1729
+  },
+  "nodes": [
+    {
+      "name": "mineral",
+      "type": "perlin",
+      "node_position": {
+        "x": 0,
+        "y": 0
+      },
+      "seed": 1729,
+      "parameters": {
+        "scale_x": 12,
+        "scale_y": 12,
+        "iterations": 4,
+        "persistence": 0.65
+      }
+    },
+    {
+      "name": "colour",
+      "type": "colorize",
+      "node_position": {
+        "x": 200,
+        "y": 0
+      },
+      "parameters": {
+        "gradient": {
+          "type": "Gradient",
+          "interpolation": 1,
+          "points": [
+            {
+              "pos": 0,
+              "r": 0.7,
+              "g": 0.69,
+              "b": 0.65,
+              "a": 1
+            },
+            {
+              "pos": 0.45,
+              "r": 0.86,
+              "g": 0.85,
+              "b": 0.81,
+              "a": 1
+            },
+            {
+              "pos": 1,
+              "r": 0.99,
+              "g": 0.98,
+              "b": 0.94,
+              "a": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "rough",
+      "type": "colorize",
+      "node_position": {
+        "x": 200,
+        "y": 160
+      },
+      "parameters": {
+        "gradient": {
+          "type": "Gradient",
+          "interpolation": 1,
+          "points": [
+            {
+              "pos": 0,
+              "r": 0.72,
+              "g": 0.72,
+              "b": 0.72,
+              "a": 1
+            },
+            {
+              "pos": 1,
+              "r": 0.97,
+              "g": 0.97,
+              "b": 0.97,
+              "a": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "relief",
+      "type": "normal_map",
+      "node_position": {
+        "x": 200,
+        "y": 320
+      },
+      "parameters": {
+        "amount": 0.035,
+        "size": 2
+      }
+    },
+    {
+      "name": "Material",
+      "type": "material",
+      "node_position": {
+        "x": 460,
+        "y": 0
+      },
+      "parameters": {
+        "size": 9,
+        "metallic": 0,
+        "roughness": 1,
+        "normal_scale": 1,
+        "albedo_color": {
+          "type": "Color",
+          "r": 1,
+          "g": 1,
+          "b": 1,
+          "a": 1
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": "mineral",
+      "from_port": 0,
+      "to": "colour",
+      "to_port": 0
+    },
+    {
+      "from": "mineral",
+      "from_port": 0,
+      "to": "rough",
+      "to_port": 0
+    },
+    {
+      "from": "mineral",
+      "from_port": 0,
+      "to": "relief",
+      "to_port": 0
+    },
+    {
+      "from": "colour",
+      "from_port": 0,
+      "to": "Material",
+      "to_port": 0
+    },
+    {
+      "from": "rough",
+      "from_port": 0,
+      "to": "Material",
+      "to_port": 2
+    },
+    {
+      "from": "relief",
+      "from_port": 0,
+      "to": "Material",
+      "to_port": 4
+    }
+  ]
+}

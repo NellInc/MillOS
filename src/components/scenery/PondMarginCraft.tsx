@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { createLakeReedLeaf, createLakeShoreStone } from '../exterior/lakeShoreDetails';
+import { MineralFinish } from './MineralFinish';
 
 export const POND_MARGIN_ANGLES = [0.72, 2.65, 4.48] as const;
 export const POND_FROG_REST_Y = 0.29;
@@ -157,7 +158,9 @@ export function PondMarginCraft({ radius }: { radius: number }) {
   return (
     <group name="pond-margin-craft" dispose={null}>
       <mesh geometry={details.plants} material={PLANT_MATERIAL} receiveShadow />
-      <mesh geometry={details.stones} material={MINERAL_MATERIAL} receiveShadow castShadow />
+      <mesh geometry={details.stones} receiveShadow castShadow>
+        <MineralFinish base={MINERAL_MATERIAL} kind="limestone" />
+      </mesh>
     </group>
   );
 }

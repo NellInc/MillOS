@@ -12,7 +12,7 @@ import {
   PropertyType,
   VERSION as GLTF_TRANSFORM_VERSION,
 } from '@gltf-transform/core';
-import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { ALL_EXTENSIONS, EXTMeshoptCompression } from '@gltf-transform/extensions';
 import { simplifyPrimitive, textureCompress, weldPrimitive } from '@gltf-transform/functions';
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import draco3d from 'draco3dgltf';
@@ -3294,6 +3294,9 @@ export const GENERATED_ASSETS = [
     preparationScript: 'scripts/blender/rebuild_village_architecture.py',
     preparedSource: 'townhall-crafted.glb',
     id: 'village-townhall',
+    // Codec only: exact decoded attributes/indices, no quantize or reorder transform.
+    // Working if the source-pinned codec trial preserves full decoded contracts.
+    geometryCodec: 'meshopt-lossless',
     slug: 'townhall',
     area: 'village',
     target: 14.61,
@@ -3697,6 +3700,17 @@ export async function normalizeGeneratedAsset(io, spec, precisionCandidate) {
   if (farmInputs) root.getAsset().generator = RECONCILED_FARM_MODELS[spec.id].inputGenerator;
 
   indexGeneratedGeometry(document);
+  if (spec.geometryCodec === 'meshopt-lossless') {
+    await MeshoptEncoder.ready;
+    for (const extension of root.listExtensionsUsed())
+      if (/^(KHR_draco_mesh_compression|EXT_meshopt_compression)$/.test(extension.extensionName))
+        extension.dispose();
+    // QUANTIZE is the encoder mode, not a quantize transform: source float
+    // accessor bytes stay exact, including generated-to-authored UV matching.
+    document.createExtension(EXTMeshoptCompression).setRequired(true).setEncoderOptions({
+      method: EXTMeshoptCompression.EncoderMethod.QUANTIZE,
+    });
+  }
   let geometryRefinement;
   let finalRoot = root;
   let finalBounds;

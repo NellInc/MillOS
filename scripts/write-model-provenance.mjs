@@ -90,6 +90,7 @@ function packFor(spec, result) {
             method: 'meshoptimizer attribute-aware, UV seams retained',
           }
         : undefined,
+      ...(spec.geometryCodec ? { geometryCodec: spec.geometryCodec } : {}),
       scaleFactor: result.scaleFactor,
       // Snapped to the nearest quarter turn from the whole heading vector, for
       // rigged bodies; a fixed yaw for the props whose generated long axis ran

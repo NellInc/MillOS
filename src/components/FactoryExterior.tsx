@@ -198,6 +198,7 @@ import {
 import { createLakeShoreDetails } from './exterior/lakeShoreDetails';
 import { LakeAquaticLife } from './exterior/LakeAquaticLife';
 import { LakeDragonflies } from './exterior/LakeDragonflies';
+import { MineralFinish } from './scenery/MineralFinish';
 import { POND_LILY_GEOMETRIES, POND_LILY_MATERIAL } from './scenery/PondLilies';
 import { BROADLEAF_DEPTH } from './scenery/InstancedFoliage';
 import {
@@ -2847,13 +2848,9 @@ const Lake: React.FC<{
         castShadow
         receiveShadow
       />
-      <mesh
-        name="lake-shore-stones"
-        geometry={shoreDetails.stones}
-        material={LAKE_STONE_MATERIAL}
-        castShadow
-        receiveShadow
-      />
+      <mesh name="lake-shore-stones" geometry={shoreDetails.stones} castShadow receiveShadow>
+        <MineralFinish base={LAKE_STONE_MATERIAL} kind="fieldstone" />
+      </mesh>
       <mesh
         name="lake-shore-brush"
         geometry={shoreDetails.brush}
@@ -2861,13 +2858,9 @@ const Lake: React.FC<{
         castShadow
         receiveShadow
       />
-      <mesh
-        name="lake-shore-gravel"
-        geometry={shoreDetails.gravel}
-        material={LAKE_STONE_MATERIAL}
-        castShadow
-        receiveShadow
-      />
+      <mesh name="lake-shore-gravel" geometry={shoreDetails.gravel} castShadow receiveShadow>
+        <MineralFinish base={LAKE_STONE_MATERIAL} kind="fieldstone" />
+      </mesh>
       <mesh
         name="lake-shore-groundcover"
         geometry={shoreDetails.groundcover}
@@ -3080,10 +3073,11 @@ const River: React.FC = React.memo(() => {
         <mesh
           name="river-shore-stones"
           geometry={bankAssembly.details.stones}
-          material={LAKE_STONE_MATERIAL}
           castShadow
           receiveShadow
-        />
+        >
+          <MineralFinish base={LAKE_STONE_MATERIAL} kind="fieldstone" />
+        </mesh>
         <mesh name="river-rock-moss" geometry={bankAssembly.details.moss} receiveShadow>
           <meshStandardMaterial
             vertexColors

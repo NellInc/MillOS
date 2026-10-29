@@ -102,6 +102,7 @@
     "postcss": "^8.5.23",
     "prettier": "^3.7.4",
     "puppeteer": "^24.34.0",
+    "recast-navigation": "0.43.1",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.65.0",
