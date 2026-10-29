@@ -864,7 +864,7 @@
   ],
   "casterPins": {
     "glb": {
-      "public/models/village/townhall.glb": "985538194282d623c972e10c5b271d34b771a75f95206089c6ef41419f8d1e8a",
+      "public/models/village/townhall.glb": "75515c40b20fe8978117e7ff5730ae615a4e131a67ee0dd97abba8cfdf699c48",
       "public/models/village/pub.glb": "8315e9a61ad10f59ec83df60ac86426fe964a3a6c7907722ec8165cf29e21c97",
       "public/models/village/school.glb": "29ca695121450a5595922af645756acb3669616705a6e63dd9c538632e7bfc6b",
       "public/models/village/shop.glb": "74075f9e5f710fa6d897af30aa880b1b0f8f9cb170fad5069d78a4e4982e9e1e",
@@ -891,5 +891,23 @@
       "e4e6adc351b460e2bb37f89e0b52cace9dbff25e3afcc1cf7fe019d74e409904"
     ],
     "townHallHedgePositions": "2ffd894b9cca542118f871dd706a846c96820db18db5c541dcba1412873ccb6c"
-  }
+  },
+  "codecEquivalence": [
+    {
+      "asset": "public/models/village/townhall.glb",
+      "status": "codec-equivalent substitution; atlas not rebaked",
+      "originalCommit": "9858b5a6123af672838e55c71ed3696c1c7d86c3",
+      "originalCasterSha256": "985538194282d623c972e10c5b271d34b771a75f95206089c6ef41419f8d1e8a",
+      "currentCasterSha256": "75515c40b20fe8978117e7ff5730ae615a4e131a67ee0dd97abba8cfdf699c48",
+      "decodedContractSha256": "8d71bfbf349ddaa249a0e6eb5e07f84a9c6581e9cc04a7558d210c06324cc1f5",
+      "algorithm": "meshopt-trial-decoded-contract-v1",
+      "codec": "EXT_meshopt_compression, no quantization or topology transforms",
+      "verifier": "scripts/verify-civic-codec-rebind.mjs",
+      "verifierSha256": "7169dd868e31a87cce608ec28fbbe78d0f18daf6c98bdc731c495144b5ea4e15",
+      "gltfTransformVersion": "4.5.1",
+      "meshoptimizerVersion": "1.3.0",
+      "originalInputSha256": "c8a136db99372b07298469ef2aa579b871bb76d67aceb44379b0dc3a598e6f15",
+      "originalAtlasSha256": "28d10cf78ff92863682283e6d6b25d18ecbd04fb5dd102952bfec6827c41eb91"
+    }
+  ]
 }

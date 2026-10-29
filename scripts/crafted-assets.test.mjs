@@ -2,6 +2,7 @@
 import { test, expect } from 'vitest';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'meshoptimizer';
 import * as THREE from 'three';
 import { GENERATED_ASSETS } from './normalize-model-assets.mjs';
 import { decodeRGB } from './refine-authored-png.mjs';
@@ -10,7 +11,10 @@ import sharp from 'sharp';
 const civic = GENERATED_ASSETS.filter(
   (s) => s.preparationScript === 'scripts/blender/refine_civic_props.py'
 );
-const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
+await MeshoptDecoder.ready;
+const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+  'meshopt.decoder': MeshoptDecoder,
+});
 async function assembly(id) {
   const spec = GENERATED_ASSETS.find((s) => s.id === id);
   const doc = await io.read(`public/models/${spec.area}/${spec.slug}.glb`);

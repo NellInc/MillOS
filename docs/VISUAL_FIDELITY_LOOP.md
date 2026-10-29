@@ -366,6 +366,14 @@ sequence has actual evidence:
    unmipped; reproject PCF edge taps into the neighboring cube face. Verify
    shader compilation, sampler headroom, thin casters, contacts and stale-input
    rejection on the actual renderer. A missing bake remains explicitly pending.
+
+   A codec-only substitution may retain the original atlas after exact decoded
+   geometry, winding, transforms, materials and image equality is proved against
+   its pinned original asset. Preserve the old hash, original bake/input hashes
+   and verifier identity in `codecEquivalence`; run
+   `node scripts/verify-civic-codec-rebind.mjs`. This is a codec-equivalent
+   substitution, not a rebake. Working if that verifier and the unchanged strict
+   caster-pin/cache-version tests pass; any decoded difference requires rebaking.
 5. Measure shadows on/off/on in one page through the shared isolation uniform.
    Reject animated pixels using the existing surface-measurement pattern, then
    inspect source-by-source illumination, reversed views and noon/night/Low

@@ -15,6 +15,8 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { NodeIO } from '@gltf-transform/core';
+import { EXTMeshoptCompression } from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'meshoptimizer';
 import { restoreGeometryOrigin } from './GeneratedGeometrySurface';
 import { MACHINE_PART_GEOMETRY } from '../machines/CompactMachines';
 import { getFlourSackGeometry } from '../../utils/flourSacks';
@@ -191,7 +193,10 @@ const outcome = (run: () => { geometry: THREE.BufferGeometry }): Outcome => {
   }
 };
 
-const io = new NodeIO();
+await MeshoptDecoder.ready;
+const io = new NodeIO().registerExtensions([EXTMeshoptCompression]).registerDependencies({
+  'meshopt.decoder': MeshoptDecoder,
+});
 const fileOf = (id: keyof typeof GENERATED_ASSET_PATHS) =>
   `public/${GENERATED_ASSET_PATHS[id].replace(/^.*?models\//, 'models/')}`;
 
