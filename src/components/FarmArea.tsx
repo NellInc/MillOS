@@ -1,3 +1,4 @@
+import { FarmFenceRun } from './scenery/FarmFenceRun';
 import { FARM_FURROW_PITCH, FARM_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
 import { FarmPublicRealm } from './scenery/WorldPublicRealm';
 import { ScarecrowCraft } from './scenery/ScarecrowCraft';
@@ -1036,42 +1037,16 @@ const FenceSectionPrimitiveBody = React.memo<{ length: number }>(({ length }) =>
 });
 FenceSectionPrimitiveBody.displayName = 'FenceSectionPrimitiveBody';
 
-/**
- * A run of fence, tiled from one generated panel.
- *
- * The asset is a single 1.636 m panel sized by HEIGHT rather than width: at a
- * 3 m width the generated panel would stand 1.9 m tall, a stockade against the
- * 1.05 m post-and-rail it replaces.
- *
- * Panel count is the nearest whole number of panels to the requested run, and
- * the remainder is taken up by stretching each panel along its own length. That
- * stretch reaches about 22% in the worst case here (a 4 m run becomes two 2 m
- * panels), which reads on the posts at walk-up distance but keeps the run
- * continuous and exactly the length the caller asked for - fences here form
- * closed enclosures, so a run that is short by a panel leaves a corner open.
- */
-const FENCE_PANEL_LENGTH = 1.6359;
-
+/** A run shares one authored post at each bay junction; only its rails stretch. */
 const FenceSection = React.memo<{
   position: [number, number, number];
   rotation?: number;
   length?: number;
 }>(({ position, rotation = 0, length = 4 }) => {
-  const panels = Math.max(1, Math.round(length / FENCE_PANEL_LENGTH));
-  const step = length / panels;
   return (
     <group position={position} rotation={[0, rotation, 0]}>
       <GeneratedBoundary fallback={<FenceSectionPrimitiveBody length={length} />}>
-        {Array.from({ length: panels }, (_, index) => (
-          <group
-            key={`panel-${index}`}
-            position={[-length / 2 + step * (index + 0.5), 0, 0]}
-            scale={[step / FENCE_PANEL_LENGTH, 1, 1]}
-          >
-            <GeneratedModel asset="fence" />
-            <AuthoredPropTrim kind="fence" />
-          </group>
-        ))}
+        <FarmFenceRun length={length} />
       </GeneratedBoundary>
     </group>
   );
@@ -1740,6 +1715,25 @@ export const WindmillComp: React.FC<{
 );
 
 // ===== HORSE (Adapted from VillageArea) =====
+// Keep the fallback's four soles on the current farm ground datum and join
+// each lower leg to its hoof. The loaded, animated horse is unchanged.
+const HORSE_FALLBACK_CONTACT = (() => {
+  const scale = 0.6;
+  const legOriginY = 1.4;
+  const hoofHeight = 0.15;
+  const groundY = EXTERIOR_LAYERS.ground / scale;
+  const lowerBottomY = groundY + hoofHeight;
+  const lower = (oldCenterY: number, oldHeight: number) => {
+    const topY = legOriginY + oldCenterY + oldHeight / 2;
+    return { centerY: (topY + lowerBottomY) / 2 - legOriginY, height: topY - lowerBottomY };
+  };
+  return {
+    hoofY: groundY + hoofHeight / 2 - legOriginY,
+    front: lower(-1.1, 0.7),
+    hind: lower(-1.0, 0.8),
+  };
+})();
+
 const HorsePrimitiveBody = React.memo<{ color?: string; isPaint?: boolean }>(
   ({ color = '#8d6e63', isPaint = false }) => (
     <group scale={0.6}>
@@ -1845,12 +1839,12 @@ const HorsePrimitiveBody = React.memo<{ color?: string; isPaint?: boolean }>(
           <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
           <meshStandardMaterial color={color} />
         </mesh>
-        <mesh position={[0, -1.1, 0]}>
-          <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
+        <mesh position={[0, HORSE_FALLBACK_CONTACT.front.centerY, 0]}>
+          <cylinderGeometry args={[0.1, 0.11, HORSE_FALLBACK_CONTACT.front.height, 8]} />
           <meshStandardMaterial color={isPaint ? '#f5f5f5' : color} />
         </mesh>
         {/* White sock */}
-        <mesh position={[0, -1.5, 0]}>
+        <mesh position={[0, HORSE_FALLBACK_CONTACT.hoofY, 0]}>
           <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
           <meshStandardMaterial color="#1a1110" />
         </mesh>
@@ -1861,11 +1855,11 @@ const HorsePrimitiveBody = React.memo<{ color?: string; isPaint?: boolean }>(
           <cylinderGeometry args={[0.12, 0.15, 0.8, 8]} />
           <meshStandardMaterial color={color} />
         </mesh>
-        <mesh position={[0, -1.1, 0]}>
-          <cylinderGeometry args={[0.1, 0.11, 0.7, 8]} />
+        <mesh position={[0, HORSE_FALLBACK_CONTACT.front.centerY, 0]}>
+          <cylinderGeometry args={[0.1, 0.11, HORSE_FALLBACK_CONTACT.front.height, 8]} />
           <meshStandardMaterial color={color} />
         </mesh>
-        <mesh position={[0, -1.5, 0]}>
+        <mesh position={[0, HORSE_FALLBACK_CONTACT.hoofY, 0]}>
           <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
           <meshStandardMaterial color="#1a1110" />
         </mesh>
@@ -1876,11 +1870,11 @@ const HorsePrimitiveBody = React.memo<{ color?: string; isPaint?: boolean }>(
           <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
           <meshStandardMaterial color={color} />
         </mesh>
-        <mesh position={[0, -1.0, 0]}>
-          <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
+        <mesh position={[0, HORSE_FALLBACK_CONTACT.hind.centerY, 0]}>
+          <cylinderGeometry args={[0.1, 0.12, HORSE_FALLBACK_CONTACT.hind.height, 8]} />
           <meshStandardMaterial color={color} />
         </mesh>
-        <mesh position={[0, -1.5, 0]}>
+        <mesh position={[0, HORSE_FALLBACK_CONTACT.hoofY, 0]}>
           <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
           <meshStandardMaterial color="#1a1110" />
         </mesh>
@@ -1891,12 +1885,12 @@ const HorsePrimitiveBody = React.memo<{ color?: string; isPaint?: boolean }>(
           <cylinderGeometry args={[0.14, 0.18, 0.8, 8]} />
           <meshStandardMaterial color={color} />
         </mesh>
-        <mesh position={[0, -1.0, 0]}>
-          <cylinderGeometry args={[0.1, 0.12, 0.8, 8]} />
+        <mesh position={[0, HORSE_FALLBACK_CONTACT.hind.centerY, 0]}>
+          <cylinderGeometry args={[0.1, 0.12, HORSE_FALLBACK_CONTACT.hind.height, 8]} />
           <meshStandardMaterial color={isPaint ? '#f5f5f5' : color} />
         </mesh>
         {/* White sock */}
-        <mesh position={[0, -1.5, 0]}>
+        <mesh position={[0, HORSE_FALLBACK_CONTACT.hoofY, 0]}>
           <cylinderGeometry args={[0.12, 0.15, 0.15, 8]} />
           <meshStandardMaterial color="#1a1110" />
         </mesh>

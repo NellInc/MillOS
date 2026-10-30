@@ -1778,13 +1778,24 @@
       "maxTextures": 2,
       "maxRenderVertices": 552,
       "bounds": {
-        "width": [0.599, 0.601],
-        "height": [3.324, 3.326],
-        "length": [0.519, 0.521],
+        "width": [
+          0.599,
+          0.601
+        ],
+        "height": [
+          3.249,
+          3.251
+        ],
+        "length": [
+          0.519,
+          0.521
+        ],
         "groundTolerance": 0.001,
         "centreTolerance": 0.001
       },
-      "requiredNodes": ["Yard-air-hose-bodyBody"],
+      "requiredNodes": [
+        "Yard-air-hose-bodyBody"
+      ],
       "requiredAnimations": []
     },
     {
@@ -1976,13 +1987,24 @@
       "maxTextures": 2,
       "maxRenderVertices": 510,
       "bounds": {
-        "width": [0.299, 0.301],
-        "height": [1.549, 1.551],
-        "length": [0.224, 0.226],
+        "width": [
+          0.299,
+          0.301
+        ],
+        "height": [
+          1.549,
+          1.551
+        ],
+        "length": [
+          0.224,
+          0.226
+        ],
         "groundTolerance": 0.001,
         "centreTolerance": 0.001
       },
-      "requiredNodes": ["Yard-intercom-bodyBody"],
+      "requiredNodes": [
+        "Yard-intercom-bodyBody"
+      ],
       "requiredAnimations": []
     },
     {
@@ -2152,13 +2174,24 @@
       "maxTextures": 2,
       "maxRenderVertices": 468,
       "bounds": {
-        "width": [8.599, 8.601],
-        "height": [7.599, 7.601],
-        "length": [6.599, 6.601],
+        "width": [
+          8.599,
+          8.601
+        ],
+        "height": [
+          6.499,
+          6.501
+        ],
+        "length": [
+          6.599,
+          6.601
+        ],
         "groundTolerance": 0.001,
         "centreTolerance": 0.001
       },
-      "requiredNodes": ["Yard-telemetry-bodyBody"],
+      "requiredNodes": [
+        "Yard-telemetry-bodyBody"
+      ],
       "requiredAnimations": []
     },
     {
@@ -2174,13 +2207,24 @@
       "maxTextures": 2,
       "maxRenderVertices": 1032,
       "bounds": {
-        "width": [6.899, 6.901],
-        "height": [2.599, 2.601],
-        "length": [7.999, 8.001],
+        "width": [
+          6.899,
+          6.901
+        ],
+        "height": [
+          2.599,
+          2.601
+        ],
+        "length": [
+          7.999,
+          8.001
+        ],
         "groundTolerance": 0.001,
         "centreTolerance": 0.001
       },
-      "requiredNodes": ["Yard-tire-inspection-bodyBody"],
+      "requiredNodes": [
+        "Yard-tire-inspection-bodyBody"
+      ],
       "requiredAnimations": []
     },
     {
@@ -2196,13 +2240,24 @@
       "maxTextures": 2,
       "maxRenderVertices": 2040,
       "bounds": {
-        "width": [8.549, 8.551],
-        "height": [8.299, 8.301],
-        "length": [11.999, 12.001],
+        "width": [
+          8.549,
+          8.551
+        ],
+        "height": [
+          5.199,
+          5.201
+        ],
+        "length": [
+          11.999,
+          12.001
+        ],
         "groundTolerance": 0.001,
         "centreTolerance": 0.001
       },
-      "requiredNodes": ["Yard-truck-wash-bodyBody"],
+      "requiredNodes": [
+        "Yard-truck-wash-bodyBody"
+      ],
       "requiredAnimations": []
     },
     {

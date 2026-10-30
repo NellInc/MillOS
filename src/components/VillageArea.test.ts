@@ -587,11 +587,14 @@ describe('measured village and farm construction trim', () => {
     expect(village).toMatch(
       /<GeneratedModel asset="fountain" \/>\s*<AuthoredPropTrim kind="fountain" \/>/
     );
-    expect(farm).toMatch(/<GeneratedModel asset="fence" \/>\s*<AuthoredPropTrim kind="fence" \/>/);
+    expect(farm).toContain('<FarmFenceRun length={length} />');
+    const fence = readFileSync('src/components/scenery/FarmFenceRun.tsx', 'utf8');
+    expect(fence).toContain('createFarmFenceRun(source, AUTHORED_PROP_TRIM.fence, length)');
+    expect(fence).toContain('material={AUTHORED_PROP_TRIM_MATERIALS.fence}');
     expect(farm).toMatch(
       /<GeneratedModel asset="watertrough" \/>\s*<AuthoredPropTrim kind="trough" \/>/
     );
-    expect(farm).toContain('scale={[step / FENCE_PANEL_LENGTH, 1, 1]}');
+    expect(farm).not.toContain('scale={[step / FENCE_PANEL_LENGTH, 1, 1]}');
     expect(village).toContain('rotation={[0, rotation + instanceYaw(position), 0]}');
   });
 });

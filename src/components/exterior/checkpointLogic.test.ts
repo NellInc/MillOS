@@ -31,10 +31,12 @@ describe('shouldCheckpointOpen', () => {
         'userData={{ noStaticBatch: true, dynamic: true }}'
       );
     }
-    for (const signalX of ['0.26', '-0.26'])
-      expect(checkpoint).toContain(
-        `<mesh position={[${signalX}, 3.2, 0]} userData={{ noStaticBatch: true, dynamic: true }}>`
+    for (const side of ['inbound', 'outbound']) {
+      const signal = checkpoint.slice(checkpoint.indexOf(`name="checkpoint-${side}-signal"`));
+      expect(signal.slice(0, signal.indexOf('>'))).toContain(
+        'userData={{ noStaticBatch: true, dynamic: true }}'
       );
+    }
   });
   it('opens for the live cab before it reaches the barrier', () => {
     expect(shouldCheckpointOpen(false, checkpoint, { id: 'cab', x: 20, z: 150 }, undefined)).toBe(

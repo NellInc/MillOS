@@ -38,6 +38,11 @@ import {
   PRECISION_FARM_MODELS,
   assertPrecisionFarmNormalization,
 } from './precision-farm-models.mjs';
+import {
+  RECONCILED_YARD_MODELS,
+  assertYardNormalization,
+  replaceYardRecords,
+} from './reconcile-yard-models.mjs';
 
 const ROOT = process.cwd();
 const SOURCE_ROOT = path.join(ROOT, 'assets', 'source', 'models');
@@ -66,7 +71,9 @@ function packFor(spec, result) {
     preservedAs: `${spec.slug}-tripo-original.glb`,
     sha256: result.sourceSha256,
     blenderPreparation: result.blenderPreparation,
-    ...(RECONCILED_FARM_MODELS[spec.id] || PRECISION_FARM_MODELS[spec.id]
+    ...(RECONCILED_FARM_MODELS[spec.id] ||
+    PRECISION_FARM_MODELS[spec.id] ||
+    RECONCILED_YARD_MODELS[spec.id]
       ? { geometryRefinement: result.geometryRefinement }
       : {}),
     runtimeDerivative: {
@@ -129,6 +136,58 @@ const main = async () => {
   const report = JSON.parse(await readFile(NORMALIZATION, 'utf8'));
   const specs = GENERATED_ASSETS;
   const byId = new Map(report.generated.map((entry) => [entry.id, entry]));
+  const only = process.argv
+    .find((arg) => arg.startsWith('--only='))
+    ?.slice(7)
+    .split(',');
+  if (only) {
+    if (
+      !only.length ||
+      new Set(only).size !== only.length ||
+      only.some((id) => !RECONCILED_YARD_MODELS[id])
+    )
+      throw new Error('--only requires unique reconciled yard model IDs');
+    const records = new Map();
+    const manifestPath = path.join(ROOT, 'public/models/asset-manifest.json');
+    const provenancePath = path.join(SOURCE_ROOT, 'world/PROVENANCE.json');
+    const manifestText = await readFile(manifestPath, 'utf8');
+    const manifest = JSON.parse(manifestText);
+    const manifestRecords = new Map();
+    for (const id of only) {
+      const spec = specs.find((entry) => entry.id === id);
+      const result = byId.get(id);
+      if (report.generated.filter((entry) => entry.id === id).length !== 1)
+        throw new Error(`${id}: exactly one normalization row required`);
+      await assertYardNormalization(
+        id,
+        result,
+        await readFile(path.join(ROOT, 'public/models/world', `${spec.slug}.glb`)),
+        await readFile(path.join(ROOT, 'src/test/fixtures', `${spec.slug}.baseline.glb`)),
+        await readFile(path.join(SOURCE_ROOT, 'world', `${spec.slug}-tripo-original.glb`)),
+        await readFile(path.join(SOURCE_ROOT, 'world', spec.preparedSource))
+      );
+      records.set(id, packFor(spec, result));
+      const old = manifest.assets.find((entry) => entry.id === id);
+      if (!old) throw new Error(`${id}: missing asset budget`);
+      const next = structuredClone(old);
+      for (const key of ['width', 'height', 'length'])
+        next.bounds[key] = [-0.001, 0.001].map((delta) =>
+          Number((result.bounds[key] + delta).toFixed(3))
+        );
+      manifestRecords.set(id, next);
+    }
+    // Validate both complete replacements before either file is written.
+    const provenance = replaceYardRecords(
+      await readFile(provenancePath, 'utf8'),
+      'sourcePacks',
+      records
+    );
+    const budgets = replaceYardRecords(manifestText, 'assets', manifestRecords);
+    await writeFile(provenancePath, provenance);
+    await writeFile(manifestPath, budgets);
+    console.log(`Updated only ${only.length} yard provenance and bounds records`);
+    return;
+  }
   const missing = specs.filter((spec) => !byId.has(spec.id));
   if (missing.length > 0) {
     throw new Error(
@@ -171,6 +230,20 @@ const main = async () => {
         await readFile(path.join(SOURCE_ROOT, 'farm', `${spec.slug}-crafted.glb`)),
         await readFile(path.join(ROOT, AUTHORING_SCRIPT)),
         JSON.parse(await readFile(path.join(ROOT, 'public/models/asset-manifest.json'), 'utf8'))
+      );
+    }
+  }
+  if (!areaFlag || areaFlag === 'world') {
+    for (const spec of specs.filter((entry) => RECONCILED_YARD_MODELS[entry.id])) {
+      if (report.generated.filter((entry) => entry.id === spec.id).length !== 1)
+        throw new Error(`${spec.id}: exactly one normalization row required`);
+      await assertYardNormalization(
+        spec.id,
+        byId.get(spec.id),
+        await readFile(path.join(ROOT, 'public/models/world', `${spec.slug}.glb`)),
+        await readFile(path.join(ROOT, 'src/test/fixtures', `${spec.slug}.baseline.glb`)),
+        await readFile(path.join(SOURCE_ROOT, 'world', `${spec.slug}-tripo-original.glb`)),
+        await readFile(path.join(SOURCE_ROOT, 'world', spec.preparedSource))
       );
     }
   }
