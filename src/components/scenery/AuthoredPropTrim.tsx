@@ -1362,6 +1362,150 @@ export const MarketGoods = React.memo<{ dressing: number }>(({ dressing }) => (
 ));
 MarketGoods.displayName = 'MarketGoods';
 
+/** Closed, flat-shaded static hardware. All triangle streams are appended after
+ * the retained leaf joinery; the shared oak/iron atlas is applied once below.
+ */
+function lockTriangleGeometry(vertices: [number, number, number][], triangles: number[][]) {
+  const positions = new Float32Array(triangles.length * 9);
+  triangles.forEach((triangle, face) => {
+    triangle.forEach((index, corner) => positions.set(vertices[index], face * 9 + corner * 3));
+  });
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  const bounds = geometry.boundingBox!;
+  const size = bounds.getSize(new THREE.Vector3());
+  const normal = geometry.getAttribute('normal');
+  const uv = new Float32Array(triangles.length * 6);
+  for (let i = 0; i < normal.count; i++) {
+    const x = positions[i * 3],
+      y = positions[i * 3 + 1],
+      z = positions[i * 3 + 2];
+    const cap = Math.abs(normal.getY(i)) > 0.5;
+    const alongX = Math.abs(normal.getZ(i)) > Math.abs(normal.getX(i));
+    uv[i * 2] = cap || alongX ? (x - bounds.min.x) / size.x : (z - bounds.min.z) / size.z;
+    uv[i * 2 + 1] = cap ? (z - bounds.min.z) / size.z : (y - bounds.min.y) / size.y;
+  }
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  return geometry;
+}
+
+function lockHexPrism(x: number, y: number, radius: number, height: number, bore = 0) {
+  const vertices: [number, number, number][] = [];
+  // Angles increase in XZ. The +/-X vertices set the reviewed polygon phase.
+  for (const r of bore ? [radius, bore] : [radius]) {
+    for (const level of [-1, 1]) {
+      for (let i = 0; i < 6; i++) {
+        const angle = (i * Math.PI) / 3;
+        vertices.push([x + r * Math.cos(angle), y + (level * height) / 2, r * Math.sin(angle)]);
+      }
+    }
+  }
+  const triangles: number[][] = [];
+  for (let i = 0; i < 6; i++) {
+    const j = (i + 1) % 6;
+    triangles.push([i, i + 6, j], [j, i + 6, j + 6]);
+    if (bore) {
+      // The inward-facing bore walls and annular caps leave a real empty hole.
+      triangles.push([i + 12, j + 12, i + 18], [j + 12, j + 18, i + 18]);
+      triangles.push([i, j, i + 12], [j, j + 12, i + 12]);
+      triangles.push([i + 6, i + 18, j + 6], [j + 6, i + 18, j + 18]);
+    }
+  }
+  if (!bore) {
+    // Four triangles per convex hexagonal cap, with no central fan vertex.
+    for (let i = 1; i < 5; i++) triangles.push([0, i, i + 1], [6, i + 7, i + 6]);
+  }
+  return lockTriangleGeometry(vertices, triangles);
+}
+
+function lockLeverPrism(side: number) {
+  const outline = [
+    [4.79, 0],
+    [4.93, 0],
+    [4.93, -0.27],
+    [5.58, -0.27],
+    [5.58, -0.34],
+    [5.65, -0.34],
+    [5.65, -3.92],
+    [5.51, -3.92],
+    [5.51, -0.41],
+    [4.86, -0.41],
+    [4.86, -0.34],
+    [4.79, -0.34],
+  ].map(([x, z]) => new THREE.Vector2(side * x, z));
+  // Mirroring coordinates alone inverts the surface. Reverse the boundary too.
+  if (side < 0) outline.reverse();
+  const vertices: [number, number, number][] = [];
+  for (const y of [1.93, 2.07]) for (const point of outline) vertices.push([point.x, y, point.y]);
+  const triangles: number[][] = [];
+  for (let i = 0; i < 12; i++) {
+    const j = (i + 1) % 12;
+    triangles.push([i, j, i + 12], [j, j + 12, i + 12]);
+  }
+  const caps = THREE.ShapeUtils.triangulateShape(outline, []);
+  if (caps.length !== 10) throw new Error('Lock lever must retain its exact 12-corner union');
+  for (const face of caps) {
+    const [a, b, c] = face.map((index) => outline[index]);
+    const signed = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    const top = signed < 0 ? face : [face[0], face[2], face[1]];
+    triangles.push(
+      [top[2], top[1], top[0]],
+      top.map((index) => index + 12)
+    );
+  }
+  return lockTriangleGeometry(vertices, triangles);
+}
+
+function lockGateClosedParts() {
+  const parts: THREE.BufferGeometry[] = [];
+  const put = (
+    geometry: THREE.BufferGeometry,
+    name: string,
+    owner: 'fixed_post' | 'leaf',
+    board?: number
+  ) => {
+    geometry.name = name;
+    geometry.userData.lockOwner = owner;
+    geometry.userData.board = board;
+    parts.push(colored(geometry, board === undefined ? '#30393b' : '#aa9272'));
+  };
+  for (const side of [-1, 1]) {
+    const name = side < 0 ? 'west' : 'east';
+    for (const [index, height] of [0.35, 1.25].entries()) {
+      const hinge = `${name}-${index === 0 ? 'lower' : 'upper'}`;
+      put(
+        lockHexPrism(side * 4.99, height - 0.125, 0.065, 0.11, 0.0195),
+        `${hinge}-fixed-bearing`,
+        'fixed_post'
+      );
+      put(
+        new THREE.BoxGeometry(0.08, 0.07, 0.07).translate(side * 5.06, height - 0.125, 0),
+        `${hinge}-fixed-mount-tab`,
+        'fixed_post'
+      );
+      put(lockHexPrism(side * 4.99, height - 0.04, 0.02, 0.32), `${hinge}-fixed-pin`, 'fixed_post');
+      put(lockHexPrism(side * 4.99, height, 0.055, 0.14, 0.026), `${hinge}-leaf-sleeve`, 'leaf');
+      put(
+        new THREE.BoxGeometry(0.073, 0.1, 0.07).translate(side * 4.9165, height, 0),
+        `${hinge}-leaf-ear`,
+        'leaf'
+      );
+    }
+    put(
+      new THREE.BoxGeometry(0.12, 2.81, 0.24).translate(side * 4.86, 0.675, 0),
+      `${name}-outer-stile`,
+      'leaf',
+      side < 0 ? 1 : 4
+    );
+  }
+  for (const side of [-1, 1]) {
+    put(lockLeverPrism(side), `${side < 0 ? 'west' : 'east'}-lever-exact-union`, 'leaf');
+  }
+  return parts;
+}
+
 /** Joinery in the delivered lock's live coordinates. The retained GLB has its
  * leaf faces at z=+/-0.15, y=-0.75..1.75 and x=+/-0.1..4.9. Geometry overlays
  * stay clear of the centre seam and the original 3 m-high walkway.
@@ -1431,6 +1575,7 @@ export function createLockGateJoinery() {
       );
     }
   }
+  parts.push(...lockGateClosedParts());
   for (const part of parts) {
     const uv = part.getAttribute('uv');
     const board = part.userData.board as number | undefined;
@@ -1439,7 +1584,28 @@ export function createLockGateJoinery() {
       uv.setXY(i, ((board ?? 7) * 64 + 3 + uv.getX(i) * 57) / 512, (3 + uv.getY(i) * 249) / 256);
     }
   }
-  return joined(parts);
+  // Ranges are diagnostic metadata only, never extra geometry/material groups.
+  let start = 0;
+  const ranges: {
+    name: string;
+    owner: string;
+    start: number;
+    count: number;
+  }[] = [];
+  for (const part of parts) {
+    const count = part.index?.count ?? part.getAttribute('position').count;
+    if (part.userData.lockOwner)
+      ranges.push({
+        name: part.name,
+        owner: part.userData.lockOwner,
+        start,
+        count,
+      });
+    start += count;
+  }
+  const geometry = joined(parts);
+  geometry.userData.lockGateClosedParts = ranges;
+  return geometry;
 }
 export const LOCK_GATE_JOINERY = createLockGateJoinery();
 export const LockGateJoinery = React.memo(() => (
