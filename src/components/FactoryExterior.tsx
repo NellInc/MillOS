@@ -3230,7 +3230,7 @@ const CupidStatue: React.FC<{
             <cylinderGeometry args={[0.5, 0.4, 0.2, 8]} />
             <meshStandardMaterial color="#a8b0b8" roughness={0.75} />
           </mesh>
-          <group position={[0, 1.5, 0]}>
+          <group position={[0, 1.4492506, 0]}>
             {/* Body/torso */}
             <mesh position={[0, 0.3, 0]} castShadow>
               <capsuleGeometry args={[0.15, 0.3, 8, 12]} />
@@ -4689,7 +4689,7 @@ const LockGate: React.FC<{
         </>
       }
     >
-      <group position={[0, -0.75, -1.748748]}>
+      <group position={[0, -0.75, 0]}>
         <GeneratedModel asset="lockGateStructure" receiveShadow={false} />
       </group>
     </GeneratedBoundary>

@@ -64,6 +64,13 @@ export async function assertYardNormalization(id, result, current, baseline, pro
   assert.equal(result.sourceSha256, hash(provider), `${id}: stale source hash`);
   assert.equal(result.blenderPreparation.sha256, hash(prepared), `${id}: stale preparation hash`);
   assert.deepEqual(result.geometryRefinement, expected.receipt, `${id}: stale repair receipt`);
+  await assertModelNormalization(id, result, current);
+}
+
+/** Shared delivery measurements for the yard and the two scenic contact repairs. */
+export async function assertModelNormalization(id, result, current) {
+  assert.equal(result.outputSha256, hash(current), `${id}: stale normalization output`);
+  assert.equal(result.outputBytes, current.length, `${id}: stale byte count`);
   const root = (await new NodeIO().readBinary(current)).getRoot();
   const measured = getBounds(root.listScenes()[0]);
   assert.deepEqual(
