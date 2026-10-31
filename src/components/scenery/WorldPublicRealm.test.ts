@@ -120,7 +120,8 @@ describe('world public realm', () => {
     // The squares and courts laid as flagstone courses, two triangles a stone
     // in the same merged paving mesh, take the total to 17,166 (measured).
     // Keep the preceding realm allowance, plus only this measured static detail.
-    expect(triangles).toBeLessThan(15000 + 1232 + 1200);
+    // Sixty mount boxes (720 triangles) and eight herbs (160) share the same batches.
+    expect(triangles).toBeLessThan(15000 + 1232 + 1200 + 880);
     expect(REALM_PAVING_MATERIAL.depthWrite).toBe(true);
     expect(REALM_PAVING_MATERIAL.transparent).toBe(false);
     expect(REALM_PAVING_MATERIAL.polygonOffsetFactor).toBe(-4);

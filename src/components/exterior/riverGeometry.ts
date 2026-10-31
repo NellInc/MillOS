@@ -453,12 +453,119 @@ export function createRiverCulvertGeometries(): Record<
   const wall = new THREE.Shape();
   wall.moveTo(-18, base);
   wall.lineTo(-18, 0.3);
-  wall.lineTo(-12, 4.5);
-  wall.lineTo(12, 4.5);
+  wall.lineTo(-12, 4.46);
+  wall.lineTo(12, 4.46);
   wall.lineTo(18, 0.3);
   wall.lineTo(18, base);
   finishBore(wall);
-  const face = extrude(wall, 1.6, -0.8);
+  // Keep the original envelope and a continuous structural backing. The front
+  // eight centimetres carry shallow ashlar relief, not separate drawn meshes.
+  const backing = extrude(wall, 1.52, -0.72);
+  const facing: THREE.BufferGeometry[] = [backing];
+  const addFacing = (shape: THREE.Shape) => {
+    const solid = extrude(shape, 0.09, -0.8, 1);
+    // Rear caps sit inside the continuous backing and can never be seen.
+    // Omit them rather than spending the fixed triangle budget on buried faces.
+    const position = solid.getAttribute('position');
+    const keep: number[] = [];
+    for (let i = 0; i < position.count; i += 3) {
+      if ([0, 1, 2].every((offset) => position.getZ(i + offset) > -0.711)) continue;
+      keep.push(i, i + 1, i + 2);
+    }
+    solid.setIndex(keep);
+    const visible = solid.toNonIndexed();
+    solid.dispose();
+    facing.push(visible);
+  };
+  type Point = readonly [number, number];
+  const clip = (polygon: Point[], axis: 0 | 1, boundary: number, keepGreater: boolean) => {
+    const result: Point[] = [];
+    for (let i = 0; i < polygon.length; i++) {
+      const a = polygon[i],
+        b = polygon[(i + 1) % polygon.length];
+      const insideA = keepGreater ? a[axis] >= boundary : a[axis] <= boundary;
+      const insideB = keepGreater ? b[axis] >= boundary : b[axis] <= boundary;
+      if (insideA) result.push(a);
+      if (insideA !== insideB) {
+        const t = (boundary - a[axis]) / (b[axis] - a[axis]);
+        result.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+      }
+    }
+    return result;
+  };
+  // Split at the crown so clipping never connects disjoint banks across the
+  // aperture. The existing voussoir ring owns the curved edge in front of this.
+  const left: Point[] = [
+    [-18, base],
+    [-18, 0.01],
+    [-12, 4.21],
+    [0, 4.21],
+  ];
+  const facingRadius = outerRadius + 0.025;
+  const lastAngle = Math.PI - Math.asin((base - spring) / facingRadius);
+  for (let i = 0; i <= 14; i++) {
+    const angle = Math.PI / 2 + ((lastAngle - Math.PI / 2) * i) / 14;
+    left.push([Math.cos(angle) * facingRadius, spring + Math.sin(angle) * facingRadius]);
+  }
+  const halves = [left, left.map(([x, y]): Point => [-x, y]).reverse()];
+  for (let row = 0; row < 5; row++) {
+    const low = -2.45 + row * 1.34;
+    const high = Math.min(low + 1.3, 4.22);
+    const offset = row % 2 === 0 ? 0 : 3;
+    for (let column = -4; column < 4; column++) {
+      const xmin = column * 6 + offset + 0.025,
+        xmax = xmin + 5.95;
+      for (const half of halves) {
+        let polygon = clip(half, 0, xmin, true);
+        polygon = clip(polygon, 0, xmax, false);
+        polygon = clip(polygon, 1, low, true);
+        polygon = clip(polygon, 1, high, false);
+        if (polygon.length < 3) continue;
+        const area = polygon.reduce((sum, a, i) => {
+          const b = polygon[(i + 1) % polygon.length];
+          return sum + a[0] * b[1] - b[0] * a[1];
+        }, 0);
+        if (Math.abs(area) < 0.005) continue;
+        const shape = new THREE.Shape(polygon.map(([x, y]) => new THREE.Vector2(x, y)));
+        addFacing(shape);
+      }
+    }
+  }
+  // The coping sits INSIDE the old top outline, including both shoulders.
+  // No taller parapet, protruding lip or additional draw call is introduced.
+  const top: Point[] = [
+    [-18, 0.3],
+    [-12, 4.5],
+    [12, 4.5],
+    [18, 0.3],
+  ];
+  for (let segment = 0; segment < top.length - 1; segment++) {
+    const a = top[segment],
+      b = top[segment + 1];
+    const pieces = segment === 1 ? 6 : 2;
+    for (let i = 0; i < pieces; i++) {
+      const jointInset = 0.02 / Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const t0 = i / pieces + jointInset,
+        t1 = (i + 1) / pieces - jointInset;
+      const x0 = a[0] + (b[0] - a[0]) * t0,
+        y0 = a[1] + (b[1] - a[1]) * t0;
+      const x1 = a[0] + (b[0] - a[0]) * t1,
+        y1 = a[1] + (b[1] - a[1]) * t1;
+      const shape = new THREE.Shape([
+        new THREE.Vector2(x0, y0),
+        new THREE.Vector2(x1, y1),
+        new THREE.Vector2(x1, y1 - 0.25),
+        new THREE.Vector2(x0, y0 - 0.25),
+      ]);
+      // Carry each coping stone across the original wall depth. The backing
+      // is only 4 cm lower, so joints reveal solid masonry rather than holes.
+      // Its rear face stays 1 cm inside the backing to avoid coplanar overlap.
+      facing.push(extrude(shape, 1.59, -0.8, 1));
+    }
+  }
+  const face = mergeGeometries(facing);
+  facing.forEach((geometry) => geometry.dispose());
+  if (!face) throw new Error('Could not assemble the river headwall facing');
 
   // The backed ring has 4 cm mortar joints rather than metre-wide gaps.
   // Each of the 25 voussoirs is one wedge, with the central stone at the crown.

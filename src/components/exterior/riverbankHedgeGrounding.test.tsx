@@ -697,8 +697,6 @@ const unchangedSourceHashes = {
   'src/constants/siteLayout.ts': '64faad27fd58ab12ef16cf64c8b281cbc5481abdeef988a662f2e09cc28bdb00',
   'src/constants/renderLayers.ts':
     '9f264d3c17065e5f23cd6f852f46ec72154195904ac508eba4906e49ad9c7107',
-  'src/components/exterior/riverGeometry.ts':
-    'ee78c5c6c6d1015c08172a8883f4b7a241dfdf5fb84a1b83eb5ad3927b8afdb1',
   'src/utils/castleNavigation.ts':
     '745f2f3ee41ba92ac8d9b5185728359613a778175ebfaf0171e98852ca547eba',
   'src/components/TruckBay.tsx': '96535720c39545d1e2cedd0bd3f2617d814a5fea928e356efaf14fdb40cc687f',
@@ -712,4 +710,22 @@ const unchangedSourceHashes = {
 it('preserves shared foliage, atlas, terrain, bridge, navigation, receiving-road and delivered-asset bytes', () => {
   for (const [file, digest] of Object.entries(unchangedSourceHashes))
     expect(createHash('sha256').update(readFileSync(file)).digest('hex'), file).toBe(digest);
+  // PR62 deliberately adds masonry in the headwall-facing block. Keep the
+  // baseline pin for EVERY other byte, including ring, earth, water, shore,
+  // footbridge and navigation geometry, rather than re-pinning the whole file.
+  // The exception has its own aperture/envelope/normal checks in masonryRecovery.
+  const river = source('src/components/exterior/riverGeometry.ts');
+  const owner = river.indexOf('export function createRiverCulvertGeometries');
+  const start = river.indexOf('  const wall = new THREE.Shape();', owner);
+  const end = river.indexOf('  // The backed ring', start);
+  expect(owner).toBeGreaterThanOrEqual(0);
+  expect(start).toBeGreaterThan(owner);
+  expect(end).toBeGreaterThan(start);
+  const retained =
+    river.slice(0, start) +
+    '  /* Reviewed headwall facing; see masonryRecovery.test.ts. */\n\n' +
+    river.slice(end);
+  expect(createHash('sha256').update(retained).digest('hex')).toBe(
+    '2afde6d7c46a8372ece8c1c8cda201f5e7a240ac4737fbfd8acbe169c2aa0ec1'
+  );
 });

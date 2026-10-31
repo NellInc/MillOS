@@ -625,6 +625,36 @@ export function createWorldRealm(segments: number) {
   for (const line of CANAL_MOORING_LINES) {
     solid.parts.push(canalMooringGeometry(line));
   }
+  // The painted sleeves are outboard of the deck and stair cheeks. Retain
+  // all existing joinery, seating their toes on iron shelves tied into stone
+  // or the delivered deck fascia, outside the full walking strip.
+  const mount = (x: number, base: number, side: number) => {
+    solid.box(
+      [0.11, 0.16, 0.03],
+      [x, base - 0.09, bridge.z + side * (bridge.halfWidth + 0.005)],
+      P.iron
+    );
+    solid.box(
+      [0.1, 0.04, 0.18],
+      [x, base - 0.01, bridge.z + side * (bridge.halfWidth + 0.095)],
+      P.iron
+    );
+  };
+  for (const side of [-1, 1]) {
+    for (const x of posts) mount(x, bridge.deckY, side);
+    for (const edge of [bridge.minX, bridge.maxX]) {
+      const outward = edge === bridge.minX ? -1 : 1;
+      const outer = edge + outward * bridge.steps * bridge.going;
+      for (const t of [0, 0.5]) {
+        const x = outer + (edge - outer) * t;
+        const base =
+          CANAL_BRIDGE_STEPS.find((step) => x >= step.minX - 1e-6 && x <= step.maxX + 1e-6)?.top ??
+          bridge.deckY;
+        // The terminal sleeve and iron post share the deck mount.
+        mount(x, base, side);
+      }
+    }
+  }
   return { paving: paving.finish(), solid: finishRealmSurface(solid.finish()) };
 }
 /** A cultivated sheet at the existing ground datum, inside the reserved field.
@@ -679,6 +709,28 @@ function farmRealm() {
   planter(solid, -19.9, 12, 1.1, 3.6);
   planter(solid, -19.9, 18, 1.1, 3.6);
   drain(solid, 8, -27.3, 3.4, Math.PI / 2);
+  // Recover compact herb clusters around the newer flowers, keeping the closed
+  // coping and every existing leaf/stem. The flowers occupy the central station.
+  const unitY = Math.sqrt((5 + Math.sqrt(5)) / 10);
+  const herbs = [
+    [-0.06, -1.22, 0.36, 0.24, 0.42, 0.18],
+    [0.13, -0.63, 0.34, 0.22, 0.36, -0.24],
+    [0.1, 0.62, 0.35, 0.25, 0.39, -0.18],
+    [-0.08, 1.2, 0.36, 0.23, 0.43, 0.27],
+  ] as const;
+  for (const [z, mirror] of [
+    [12, 1],
+    [18, -1],
+  ] as const)
+    for (const [dx, dz, sx, sy, sz, yaw] of herbs)
+      solid.add(
+        new THREE.IcosahedronGeometry(1, 0)
+          .scale(sx, sy, sz)
+          .rotateY(yaw * mirror)
+          .translate(-19.9 + dx, flat(-19.9, z) + 0.282 + unitY * sy, z + dz * mirror),
+        P.leaf
+      );
+
   return {
     paving: paving.finish(),
     solid: finishRealmSurface(solid.finish()),

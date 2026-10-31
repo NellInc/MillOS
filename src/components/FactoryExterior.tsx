@@ -2259,7 +2259,15 @@ function OutletStone({
 }) {
   const [width, height, depth] = size;
   const geometry = useMemo(
-    () => createOutletStoneGeometry(width, height, depth, position, coping),
+    () =>
+      createOutletStoneGeometry(
+        width,
+        height,
+        depth,
+        position,
+        coping,
+        !coping && Math.min(width, depth) < 1
+      ),
     [width, height, depth, position, coping]
   );
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -7290,6 +7298,77 @@ const TunnelEntrance: React.FC<{
   );
 };
 
+/** Finish only the east portal's 4.5 m approach gap. The old connector stays
+ * intact: geometry UVs continue its 12 m axial domain and original dash phase.
+ * The current terrain draws last: opaque tarmac must write depth to survive.
+ * Paint retains its existing biased overlay contract.
+ */
+const EastPortalRoadContinuation: React.FC = () => {
+  const roadGeometry = useMemo(() => {
+    const geometry = new THREE.PlaneGeometry(6, 4.5);
+    const uv = geometry.getAttribute('uv');
+    for (let i = 0; i < uv.count; i += 1) {
+      uv.setY(i, 1 + (uv.getY(i) * 4.5) / 12);
+    }
+    return geometry;
+  }, []);
+  useEffect(() => () => roadGeometry.dispose(), [roadGeometry]);
+
+  return (
+    <group name="east-portal-road-continuation">
+      <mesh
+        position={[149.25, EXTERIOR_LAYERS.ground, 50]}
+        rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+        geometry={roadGeometry}
+        receiveShadow
+      >
+        <meshStandardMaterial
+          color="#ffffff"
+          roughness={0.85}
+          map={TARMAC_ROAD_MAP}
+          roughnessMap={TARMAC_ROAD_ROUGHNESS}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+        />
+      </mesh>
+      {[47.2, 52.8].map((z) => (
+        <mesh
+          key={`portal-edge-${z}`}
+          position={[149.25, EXTERIOR_LAYERS.groundOverlay, z]}
+          rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+          renderOrder={RENDER_ORDER.floorMarkings}
+          receiveShadow
+        >
+          <planeGeometry args={[0.15, 4.5]} />
+          <meshStandardMaterial
+            {...ROAD_PAINT_WHITE}
+            polygonOffset
+            polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
+            polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
+          />
+        </mesh>
+      ))}
+      <mesh
+        position={[149, EXTERIOR_LAYERS.groundOverlay, 50]}
+        rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+        renderOrder={RENDER_ORDER.floorMarkings}
+        receiveShadow
+      >
+        <planeGeometry args={[0.15, 2]} />
+        <meshStandardMaterial
+          {...ROAD_PAINT_YELLOW}
+          depthWrite={false}
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
+        />
+      </mesh>
+    </group>
+  );
+};
+
 // Connecting road segment from tunnel to parking lot
 const ConnectingRoad: React.FC<{
   start: [number, number, number];
@@ -7316,7 +7395,7 @@ const ConnectingRoad: React.FC<{
 
   return (
     <group>
-      {/* Road surface, on the ground datum */}
+      {/* Write the opaque road before the current late terrain pass. */}
       <mesh position={[midX, roadY, midZ]} rotation={[-Math.PI / 2, 0, angle]} receiveShadow>
         <planeGeometry args={[width, length]} />
         <meshStandardMaterial
@@ -7324,7 +7403,7 @@ const ConnectingRoad: React.FC<{
           roughness={0.85}
           map={TARMAC_ROAD_MAP}
           roughnessMap={TARMAC_ROAD_ROUGHNESS}
-          depthWrite={false}
+          depthWrite
           polygonOffset
           polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
           polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
@@ -7339,6 +7418,7 @@ const ConnectingRoad: React.FC<{
           midZ + Math.sin(angle) * (width / 2 - 0.2),
         ]}
         rotation={[-Math.PI / 2, 0, angle]}
+        renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       >
         <planeGeometry args={[0.15, length]} />
@@ -7356,6 +7436,7 @@ const ConnectingRoad: React.FC<{
           midZ - Math.sin(angle) * (width / 2 - 0.2),
         ]}
         rotation={[-Math.PI / 2, 0, angle]}
+        renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       >
         <planeGeometry args={[0.15, length]} />
@@ -7377,6 +7458,7 @@ const ConnectingRoad: React.FC<{
             key={`dash-${i}`}
             position={[x, linesY, z]}
             rotation={[-Math.PI / 2, 0, angle]}
+            renderOrder={RENDER_ORDER.floorMarkings}
             receiveShadow
           >
             <planeGeometry args={[0.15, 2]} />
@@ -9218,6 +9300,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <GroundBlob position={[160, 50]} scale={22} scaleZ={26} />
 
       {/* Connecting road from tunnel exit to parking lot */}
+      <EastPortalRoadContinuation />
       <ConnectingRoad start={[147, 0, 50]} end={[135, 0, 50]} width={6} />
 
       {/* Road from parking lot towards factory gate.
