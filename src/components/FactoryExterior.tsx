@@ -1,3 +1,5 @@
+import { NissenHutFallback } from './exterior/NissenHutFallback';
+import { WasteBinFallback } from './exterior/WasteBinFallback';
 import {
   WATER_ABSORPTION,
   WATER_POLISH_GAIN,
@@ -838,70 +840,9 @@ const NissenHut: React.FC<{
   length?: number;
   rotation?: number;
 }> = ({ position, length = 12, rotation = 0 }) => {
-  const radius = 2.5;
-
-  // Create semi-circular arc shape for extrusion
-  const arcShape = useMemo(() => {
-    const shape = new THREE.Shape();
-    // Start at bottom-left of the semicircle
-    shape.moveTo(-radius, 0);
-    // Draw arc from left to right (bottom half of circle, which curves UP when viewed)
-    shape.absarc(0, 0, radius, Math.PI, 0, true); // counterclockwise from PI to 0
-    shape.lineTo(-radius, 0); // close the shape
-    return shape;
-  }, [radius]);
-
-  const extrudeSettings = useMemo(
-    () => ({
-      steps: 1,
-      depth: length,
-      bevelEnabled: false,
-    }),
-    [length]
-  );
-
   return (
     <group position={[position[0], position[1], position[2]]} rotation={[0, rotation, 0]}>
-      <GeneratedBoundary
-        fallback={
-          <group>
-            {/* Semi-cylindrical roof/walls - corrugated iron using ExtrudeGeometry */}
-            <mesh position={[0, 0, -length / 2]} castShadow receiveShadow>
-              <extrudeGeometry args={[arcShape, extrudeSettings]} />
-              <meshStandardMaterial
-                color="#6b7280"
-                roughness={0.7}
-                metalness={0.4}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
-
-            {/* End walls - semi-circular caps matching the cylinder cross-section */}
-            {[-length / 2, length / 2].map((z, i) => (
-              <group key={`end-${i}`} position={[0, 0, z]}>
-                {/* Semi-circular end wall - rotated to face outward */}
-                <mesh rotation={[0, i === 0 ? Math.PI : 0, 0]} castShadow receiveShadow>
-                  <circleGeometry args={[radius, 16, 0, Math.PI]} />
-                  <meshStandardMaterial color="#5a6268" roughness={0.8} side={THREE.DoubleSide} />
-                </mesh>
-                {/* Door on front end only */}
-                {i === 0 && (
-                  <mesh position={[0, 1, -0.05]} rotation={[0, Math.PI, 0]}>
-                    <planeGeometry args={[1.5, 2]} />
-                    <meshStandardMaterial color="#3e2723" roughness={0.9} />
-                  </mesh>
-                )}
-              </group>
-            ))}
-
-            {/* Foundation/base */}
-            <mesh position={[0, 0.1, 0]} receiveShadow>
-              <boxGeometry args={[radius * 2 + 0.2, 0.2, length + 0.4]} />
-              <meshStandardMaterial color="#4a4a4a" roughness={0.9} />
-            </mesh>
-          </group>
-        }
-      >
+      <GeneratedBoundary fallback={<NissenHutFallback length={length} />}>
         <group scale={[1, 1, (length + 0.4) / 12.4]}>
           <GeneratedModel asset="nissenHut" />
           {/* Tripo mirrored the front door onto the rear. Retain the authored
@@ -4961,21 +4902,7 @@ const WasteBin: React.FC<{
   position: [number, number, number];
 }> = ({ position }) => (
   <group position={position}>
-    <GeneratedBoundary
-      fallback={
-        <group>
-          <mesh position={[0, 0.4, 0]} castShadow>
-            <cylinderGeometry args={[0.25, 0.22, 0.8, 8]} />
-            <meshStandardMaterial color="#374151" roughness={0.6} metalness={0.3} />
-          </mesh>
-          {/* Rim */}
-          <mesh position={[0, 0.82, 0]} castShadow>
-            <torusGeometry args={[0.25, 0.03, 8, 16]} />
-            <meshStandardMaterial color="#1f2937" roughness={0.5} metalness={0.4} />
-          </mesh>
-        </group>
-      }
-    >
+    <GeneratedBoundary fallback={<WasteBinFallback />}>
       <GeneratedModel asset="wasteBin" />
     </GeneratedBoundary>
   </group>
@@ -7646,6 +7573,13 @@ const CheckpointBarrier: React.FC<{
           </mesh>
         ))}
 
+        {/* Fixed uprights seat the sign on the roof without moving its lettering. */}
+        {[-1.2, 1.2].map((x) => (
+          <mesh key={`sign-mount-${x}`} position={[x, boothHeight + 0.75, 0]} castShadow>
+            <boxGeometry args={[0.08, 0.24, 0.08]} />
+            <meshStandardMaterial color="#1f2937" roughness={0.5} />
+          </mesh>
+        ))}
         {/* Checkpoint sign on roof */}
         <mesh position={[0, boothHeight + 1.2, 0]} castShadow>
           <boxGeometry args={[boothWidth + 0.4, 0.7, 0.2]} />
@@ -7686,7 +7620,11 @@ const CheckpointBarrier: React.FC<{
           <boxGeometry args={[0.5, 0.4, 0.5]} />
           <meshStandardMaterial color="#1f2937" roughness={0.5} />
         </mesh>
-        <mesh position={[0.26, 3.2, 0]} userData={{ noStaticBatch: true, dynamic: true }}>
+        <mesh
+          name="checkpoint-inbound-signal"
+          position={[0, 3.2, 0.26]}
+          userData={{ noStaticBatch: true, dynamic: true }}
+        >
           <circleGeometry args={[0.15, 12]} />
           <meshBasicMaterial ref={lightRef} color="#ff0000" />
         </mesh>
@@ -7723,7 +7661,12 @@ const CheckpointBarrier: React.FC<{
           <boxGeometry args={[0.5, 0.4, 0.5]} />
           <meshStandardMaterial color="#1f2937" roughness={0.5} />
         </mesh>
-        <mesh position={[-0.26, 3.2, 0]} userData={{ noStaticBatch: true, dynamic: true }}>
+        <mesh
+          name="checkpoint-outbound-signal"
+          position={[0, 3.2, -0.26]}
+          rotation={[0, Math.PI, 0]}
+          userData={{ noStaticBatch: true, dynamic: true }}
+        >
           <circleGeometry args={[0.15, 12]} />
           <meshBasicMaterial ref={light2Ref} color="#ff0000" />
         </mesh>

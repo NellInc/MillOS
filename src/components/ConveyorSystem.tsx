@@ -638,7 +638,7 @@ const SideRails: React.FC<{ position: [number, number, number]; length: number }
     // Temp objects for matrix calculations
     const tempMatrix = useMemo(() => new THREE.Matrix4(), []);
     const tempPosition = useMemo(() => new THREE.Vector3(), []);
-    const tempScale = useMemo(() => new THREE.Vector3(1, 1, 1), []);
+    const tempScale = useMemo(() => new THREE.Vector3(1, 2.24, 0.75), []);
     const identityQuaternion = useMemo(() => new THREE.Quaternion(), []);
 
     // Initialize bracket positions on mount
@@ -649,11 +649,11 @@ const SideRails: React.FC<{ position: [number, number, number]; length: number }
       for (let i = 0; i < 11; i++) {
         const x = -length / 2 + 2.5 + (i * (length - 5)) / 10;
         // Front bracket
-        tempPosition.set(x, -0.15, -0.9);
+        tempPosition.set(x, -0.28, -1.065);
         tempMatrix.compose(tempPosition, identityQuaternion, tempScale);
         bracketsRef.current.setMatrixAt(instanceIndex++, tempMatrix);
         // Back bracket
-        tempPosition.set(x, -0.15, 0.9);
+        tempPosition.set(x, -0.28, 1.065);
         tempMatrix.compose(tempPosition, identityQuaternion, tempScale);
         bracketsRef.current.setMatrixAt(instanceIndex++, tempMatrix);
       }

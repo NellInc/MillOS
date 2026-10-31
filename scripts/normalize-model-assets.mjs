@@ -29,6 +29,11 @@ import {
   derivePrecisionFarmModel,
   assertPrecisionCurrentOutput,
 } from './precision-farm-models.mjs';
+import {
+  RECONCILED_YARD_MODELS,
+  YARD_INPUT_GENERATOR,
+  deriveYardModel,
+} from './reconcile-yard-models.mjs';
 
 const ROOT = process.cwd();
 const SOURCE_ROOT = path.join(ROOT, 'assets', 'source', 'models');
@@ -3698,6 +3703,7 @@ export async function normalizeGeneratedAsset(io, spec, precisionCandidate) {
   // exports retain today's writer label; every historical byte remains guarded.
   // Working if both full replay hashes stay exact and new headers use VERSION.
   if (farmInputs) root.getAsset().generator = RECONCILED_FARM_MODELS[spec.id].inputGenerator;
+  if (RECONCILED_YARD_MODELS[spec.id]) root.getAsset().generator = YARD_INPUT_GENERATOR;
 
   indexGeneratedGeometry(document);
   if (spec.geometryCodec === 'meshopt-lossless') {
@@ -3718,6 +3724,22 @@ export async function normalizeGeneratedAsset(io, spec, precisionCandidate) {
     // This final stage cannot consume an already-refined or unknown input.
     const result = await deriveFarmModel(spec.id, await io.writeBinary(document), ...farmInputs);
     assertFarmCurrentOutput(spec.id, await readFile(output));
+    finalRoot = (await io.readBinary(result.bytes)).getRoot();
+    finalBounds = getBounds(finalRoot.listScenes()[0]);
+    const temporary = `${output}.tmp.glb`;
+    await writeFile(temporary, result.bytes);
+    await rename(temporary, output);
+    geometryRefinement = result.receipt;
+  } else if (RECONCILED_YARD_MODELS[spec.id]) {
+    // The original sizing still precedes the repair. Resizing to the shorter
+    // final bounds would shrink everything, including the untouched supports.
+    const result = deriveYardModel(
+      spec.id,
+      await io.writeBinary(document),
+      await readFile(source),
+      await readFile(prepared),
+      await readFile(output)
+    );
     finalRoot = (await io.readBinary(result.bytes)).getRoot();
     finalBounds = getBounds(finalRoot.listScenes()[0]);
     const temporary = `${output}.tmp.glb`;

@@ -1226,13 +1226,14 @@ const TruckWashStation: React.FC<{ position: [number, number, number]; rotation?
   rotation = 0,
 }) => {
   const brushRef = useRef<THREE.Group>(null);
+  const brushId = useId();
 
   useEffect(() => {
     if (!brushRef.current) return;
-    const id = `wash-brush-${Math.random()}`;
-    registerAnimation(id, 'rotation', brushRef.current, { axis: 'y', speed: 2 });
+    const id = `wash-brush-${brushId}`;
+    registerAnimation(id, 'rotation', brushRef.current, { axis: 'x', speed: 2 });
     return () => unregisterAnimation(id);
-  }, []);
+  }, [brushId]);
 
   return (
     <group position={position} rotation={[0, rotation, 0]}>
@@ -1268,14 +1269,14 @@ const TruckWashStation: React.FC<{ position: [number, number, number]; rotation?
                 ))}
               </group>
             ))}
-            {[-2, 0, 2].map((z, i) => (
+            {[-2, 1, 2].map((z, i) => (
               <group key={i} position={[0, 4.8, z]}>
-                <mesh>
+                <mesh rotation={[0, 0, Math.PI / 2]}>
                   <cylinderGeometry args={[0.05, 0.05, 7, 8]} />
                   <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
                 </mesh>
                 {[-3, -1.5, 0, 1.5, 3].map((x, j) => (
-                  <mesh key={j} position={[x, -0.1, 0]}>
+                  <mesh key={j} position={[x, -0.08, 0]}>
                     <coneGeometry args={[0.04, 0.1, 8]} />
                     <meshStandardMaterial color="#374151" metalness={0.6} roughness={0.4} />
                   </mesh>
@@ -1295,9 +1296,15 @@ const TruckWashStation: React.FC<{ position: [number, number, number]; rotation?
           <GeneratedModel asset="yardTruckWashBody" />
         </group>
       </GeneratedBoundary>
-      <group ref={brushRef} position={[0, 4.3, 0]}>
+      {/* The shaft meets the rear supports; its complete sweep clears the canopy. */}
+      <group
+        ref={brushRef}
+        name="truck-wash-brush"
+        position={[0, 4.15, 5]}
+        userData={{ dynamic: true, noStaticBatch: true }}
+      >
         <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.5, 0.5, 6, 16]} />
+          <cylinderGeometry args={[0.5, 0.5, 6.6, 16]} />
           <meshStandardMaterial color="#1e40af" roughness={0.8} />
         </mesh>
         {[0, 1, 2, 3, 4, 5].map((j) => (
@@ -1381,7 +1388,7 @@ export const FleetTelemetryHub: React.FC<{
                 </mesh>
               </group>
             ))}
-            <group position={[0, 5.4, 0]}>
+            <group position={[0, 4.3, 0]}>
               <mesh position={[0, 1.1, 0]}>
                 <cylinderGeometry args={[0.08, 0.12, 2.2, 12]} />
                 <meshStandardMaterial color="#94a3b8" roughness={0.28} metalness={0.82} />
@@ -1393,7 +1400,7 @@ export const FleetTelemetryHub: React.FC<{
                 </mesh>
               ))}
             </group>
-            <group position={[0, 3.5, 3.2]}>
+            <group position={[0, 3.5, 3.05]}>
               <mesh>
                 <boxGeometry args={[4.8, 0.65, 0.12]} />
                 <meshStandardMaterial color="#0c4a6e" roughness={0.45} metalness={0.3} />
@@ -1421,12 +1428,12 @@ export const FleetTelemetryHub: React.FC<{
           ))}
         </group>
       ))}
-      <group position={[0, 5.4, 0]}>
+      <group position={[0, 4.3, 0]}>
         {yardLampsEnabled && (
           <pointLight position={[0, 2.2, 0]} intensity={2} distance={8} color="#22d3ee" />
         )}
       </group>
-      <group position={[0, 3.5, 3.2]}>
+      <group position={[0, 3.5, 3.05]}>
         <Text position={[0, 0, 0.07]} fontSize={0.24} color="#ecfeff" anchorX="center">
           FLEET TELEMETRY
         </Text>
@@ -1586,10 +1593,10 @@ const DumpsterArea: React.FC<{ position: [number, number, number]; rotation?: nu
       <meshStandardMaterial color="#6b7280" roughness={0.9} />
     </mesh>
     <group position={[-1.5, 0, 0]}>
-      <Text position={[0, 1.5, 1.27]} fontSize={0.3} color="#fef3c7" anchorX="center">
+      <Text position={[0, 1.26, 1.295]} fontSize={0.3} color="#fef3c7" anchorX="center">
         WASTE
       </Text>
-      <Text position={[0, 1.15, 1.27]} fontSize={0.2} color="#fef3c7" anchorX="center">
+      <Text position={[0, 1.0, 1.295]} fontSize={0.2} color="#fef3c7" anchorX="center">
         SERVICES
       </Text>
     </group>
@@ -1927,7 +1934,7 @@ const WeightScale: React.FC<{
         </group>
       </GeneratedBoundary>
       <group position={[3.5, 0, 0]}>
-        <mesh position={[-1.01, 1.8, 0]}>
+        <mesh position={[-1.01, 1.8, 0]} rotation={[0, -Math.PI / 2, 0]}>
           <planeGeometry args={[1.8, 1.2]} />
           <meshStandardMaterial
             color="#1e3a5f"
@@ -1937,8 +1944,8 @@ const WeightScale: React.FC<{
             opacity={0.8}
           />
         </mesh>
-        <mesh position={[-1.36, 2.5, 0]}>
-          <planeGeometry args={[0.5, 1]} />
+        <mesh position={[-1.36, 2.5, 0]} rotation={[0, -Math.PI / 2, 0]}>
+          <planeGeometry args={[1, 0.5]} />
           <meshStandardMaterial
             ref={displayRef}
             color="#22c55e"
@@ -2146,7 +2153,7 @@ const YardJockey: React.FC<{ position: [number, number, number]; rotation?: numb
             <GeneratedModel asset="yardJockeyBody" />
           </group>
         </GeneratedBoundary>
-        <mesh position={[0, 1.8, 1.1]} rotation={[0.2, 0, 0]}>
+        <mesh position={[0, 1.55, 1.26]} rotation={[0, 0, 0]}>
           <planeGeometry args={[1.7, 1]} />
           <meshStandardMaterial color="#1e3a5f" metalness={0.9} roughness={0.1} />
         </mesh>
@@ -2209,7 +2216,7 @@ const TireInspectionArea: React.FC<{ position: [number, number, number]; rotatio
               <cylinderGeometry args={[0.04, 0.04, 2.4, 8]} />
               <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.4} />
             </mesh>
-            <mesh position={[0, 2.3, 0]}>
+            <mesh position={[0, 2.3, 0.06]}>
               <boxGeometry args={[1.2, 0.6, 0.05]} />
               <meshStandardMaterial color="#1e40af" roughness={0.5} />
             </mesh>
@@ -2229,7 +2236,7 @@ const TireInspectionArea: React.FC<{ position: [number, number, number]; rotatio
     </GeneratedBoundary>
     <group position={[3, 0, 0]}>
       <Text
-        position={[0, 2.35, 0.03]}
+        position={[0, 2.35, 0.09]}
         fontSize={0.12}
         color="#ffffff"
         anchorX="center"
@@ -2238,7 +2245,7 @@ const TireInspectionArea: React.FC<{ position: [number, number, number]; rotatio
         TIRE CHECK
       </Text>
       <Text
-        position={[0, 2.2, 0.03]}
+        position={[0, 2.2, 0.09]}
         fontSize={0.08}
         color="#fef3c7"
         anchorX="center"
@@ -2332,8 +2339,14 @@ const GuardShack: React.FC<{
   rotation?: number;
   gateOpen: boolean;
 }> = ({ position, rotation = 0, gateOpen }) => {
-  const gateRef = useRef<THREE.Mesh>(null);
+  const gateRef = useRef<THREE.Group>(null);
   const guardId = useId();
+  const gateMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+
+  useLayoutEffect(() => {
+    if (gateMaterialRef.current)
+      applyWorldSurface(gateMaterialRef.current, 'painted', { objectSpace: 1 });
+  }, []);
 
   useEffect(() => {
     if (!gateRef.current) return;
@@ -2409,10 +2422,15 @@ const GuardShack: React.FC<{
           here: this component lives inside YardDetailLOD, and a point light that
           mounted with camera distance would change the scene's light count. */}
       <ExteriorLampPool radius={5.5} />
-      <group position={[3, 0, 0]}>
-        <mesh ref={gateRef} position={[2.5, 1.1, 0]}>
+      <group
+        ref={gateRef}
+        name="guard-shack-gate-pivot"
+        position={[3, 1.1, 0]}
+        userData={{ dynamic: true, noStaticBatch: true }}
+      >
+        <mesh position={[2.5, 0, 0]}>
           <boxGeometry args={[5, 0.15, 0.1]} />
-          <meshStandardMaterial color="#dc2626" roughness={0.6} />
+          <meshStandardMaterial ref={gateMaterialRef} color="#dc2626" roughness={0.6} />
         </mesh>
       </group>
       <group position={[-3, 0, 0]}>
@@ -5197,7 +5215,7 @@ const AirHoseStation: React.FC<{ position: [number, number, number]; rotation?: 
               <cylinderGeometry args={[0.15, 0.15, 0.1, 16]} />
               <meshStandardMaterial color="#f97316" roughness={0.6} />
             </mesh>
-            <mesh position={[0, 3.2, 0.05]}>
+            <mesh position={[0, 3.125, 0.05]}>
               <boxGeometry args={[0.5, 0.25, 0.02]} />
               <meshStandardMaterial color="#1e40af" />
             </mesh>
@@ -5220,7 +5238,7 @@ const AirHoseStation: React.FC<{ position: [number, number, number]; rotation?: 
           <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
         </mesh>
       </group>
-      <Text position={[0, 3.2, 0.07]} fontSize={0.08} color="#ffffff" anchorX="center">
+      <Text position={[0, 3.125, 0.07]} fontSize={0.08} color="#ffffff" anchorX="center">
         AIR
       </Text>
     </group>
@@ -6421,7 +6439,7 @@ const CardboardCompactor: React.FC<{ position: [number, number, number]; rotatio
           <meshStandardMaterial color="#a16207" roughness={0.95} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      <Text position={[0, 2.5, 1.02]} fontSize={0.12} color="#ffffff" anchorX="center">
+      <Text position={[0, 2.435, 1.071]} fontSize={0.12} color="#ffffff" anchorX="center">
         CARDBOARD ONLY
       </Text>
       <mesh position={[0, FLOOR_LAYERS.puddle, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -6469,8 +6487,8 @@ const IntercomCallBox: React.FC<{ position: [number, number, number]; rotation?:
               <cylinderGeometry args={[0.05, 0.06, 1.5, 8]} />
               <meshStandardMaterial color="#64748b" metalness={0.7} roughness={0.3} />
             </mesh>
-            <mesh position={[0, 1.3, 0.08]}>
-              <boxGeometry args={[0.3, 0.4, 0.15]} />
+            <mesh position={[0, 1.26625, 0.08]}>
+              <boxGeometry args={[0.3, 0.4675, 0.15]} />
               <meshStandardMaterial color="#1f2937" roughness={0.6} />
             </mesh>
             <mesh position={[0, 1.35, 0.16]}>
