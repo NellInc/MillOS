@@ -95,6 +95,149 @@ export function createCanalOutletSurface() {
   return geometry;
 }
 
+/** Shallow relief inside the existing wall envelope; the caller retains the
+ * rounded copings, wet-colour field and map ownership.
+ */
+function createOutletAshlarGeometry(
+  width: number,
+  height: number,
+  depth: number,
+  treatment: 'wall' = 'wall'
+) {
+  if (![width, height, depth].every((value) => Number.isFinite(value) && value > 0))
+    throw new Error('Outlet stone dimensions must be finite and positive');
+  const length = Math.max(width, depth),
+    thickness = Math.min(width, depth);
+  const recess = 0.018;
+  const rim = recess * 2;
+  if (Math.min(length, height, thickness) <= rim * 2)
+    throw new Error('Outlet stone is too small for its recessed joints');
+  const positions: number[] = [],
+    normals: number[] = [],
+    colors: number[] = [],
+    indices: number[] = [];
+  type Point = [number, number, number];
+  const quad = (points: Point[], expected: Point, color = 1) => {
+    const a = new THREE.Vector3(...points[0]);
+    const normal = new THREE.Vector3(...points[1])
+      .sub(a)
+      .cross(new THREE.Vector3(...points[2]).sub(a))
+      .normalize();
+    if (normal.dot(new THREE.Vector3(...expected)) < 0) {
+      [points[1], points[3]] = [points[3], points[1]];
+      normal.negate();
+    }
+    const start = positions.length / 3;
+    for (const point of points) {
+      positions.push(...point);
+      normals.push(normal.x, normal.y, normal.z);
+      colors.push(color, color, color);
+    }
+    indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
+  };
+  const surface = (axis: 'x' | 'y' | 'z', side: number) => {
+    const transform = ([u, v, n]: Point): Point =>
+      axis === 'x' ? [n, v, -u] : axis === 'y' ? [u, n, -v] : [u, v, n];
+    return (points: Point[], color = 1) =>
+      quad(points.map(transform), transform([0, 0, side]), color);
+  };
+  const rectangle = (u0: number, u1: number, v0: number, v1: number, n: number): Point[] => [
+    [u0, v0, n],
+    [u1, v0, n],
+    [u1, v1, n],
+    [u0, v1, n],
+  ];
+  const pocket = (
+    uSize: number,
+    vSize: number,
+    outside: number,
+    axis: 'x' | 'y' | 'z',
+    side: number
+  ) => {
+    const face = surface(axis, side);
+    const outer = rectangle(-uSize / 2, uSize / 2, -vSize / 2, vSize / 2, outside);
+    const inner = rectangle(
+      -uSize / 2 + rim,
+      uSize / 2 - rim,
+      -vSize / 2 + rim,
+      vSize / 2 - rim,
+      outside - side * recess
+    );
+    face(inner, 0.88);
+    // A rim wider than the recess keeps adjacent corner returns distinct.
+    for (let edge = 0; edge < 4; edge++) {
+      const next = (edge + 1) % 4;
+      face([outer[edge], outer[next], inner[next], inner[edge]], 0.97);
+    }
+  };
+  for (const side of [-1, 1]) {
+    pocket(length, height, (side * thickness) / 2, 'z', side);
+    pocket(thickness, height, (side * length) / 2, 'x', side);
+    surface(
+      'y',
+      side
+    )(rectangle(-length / 2, length / 2, -thickness / 2, thickness / 2, (side * height) / 2));
+  }
+  const backingTriangles = indices.length / 3;
+  let patches = 0;
+  const courses = Math.max(1, Math.ceil(height / 0.8));
+  const module = 2.4,
+    joint = 0.025;
+  const start = -length / 2 + rim,
+    end = length / 2 - rim;
+  for (let row = 0; row < courses; row++) {
+    const low = Math.max(
+      -height / 2 + rim,
+      -height / 2 + (row * height) / courses + (row === 0 ? 0 : joint / 2)
+    );
+    const high = Math.min(
+      height / 2 - rim,
+      -height / 2 + ((row + 1) * height) / courses - (row === courses - 1 ? 0 : joint / 2)
+    );
+    const offset = row % 2 ? module / 2 : 0;
+    for (let column = -1; column <= Math.ceil((end - start) / module); column++) {
+      const edge0 = start + column * module + offset,
+        edge1 = edge0 + module;
+      const left = Math.max(start, edge0 + (edge0 > start ? joint / 2 : 0));
+      const right = Math.min(end, edge1 - (edge1 < end ? joint / 2 : 0));
+      if (right <= left) continue;
+      for (const side of [-1, 1]) {
+        surface('z', side)(rectangle(left, right, low, high, (side * thickness) / 2));
+        patches++;
+      }
+    }
+    for (const side of [-1, 1]) {
+      surface(
+        'x',
+        side
+      )(rectangle(-thickness / 2 + rim, thickness / 2 - rim, low, high, (side * length) / 2));
+      patches++;
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute(
+    'uv',
+    new THREE.Float32BufferAttribute(new Float32Array((positions.length / 3) * 2), 2)
+  );
+  geometry.setIndex(indices);
+  if (depth > width) geometry.rotateY(Math.PI / 2);
+
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  geometry.name = `canal-outlet-${treatment}`;
+  geometry.userData.outletMasonry = {
+    treatment,
+    patches,
+    backingTriangles,
+    courses: courses,
+    recess,
+  };
+  return geometry;
+}
+
 /** Meter-scaled UVs and lit linear vertex colour survive the ordinary batcher.
  * Working if the actual waterline is damp, coping stays dry and bounds do not move.
  */
@@ -103,18 +246,21 @@ export function createOutletStoneGeometry(
   height: number,
   depth: number,
   origin: readonly [number, number, number] = [0, 0, 0],
-  coping = false
+  coping = false,
+  ashlar = false
 ) {
-  const geometry = coping
-    ? new RoundedBoxGeometry(width, height, depth, 2, 0.045)
-    : new THREE.BoxGeometry(
-        width,
-        height,
-        depth,
-        Math.min(24, Math.max(1, Math.ceil(width / 3))),
-        Math.min(18, Math.max(1, Math.ceil(height / 0.35))),
-        Math.min(24, Math.max(1, Math.ceil(depth / 3)))
-      );
+  const geometry = ashlar
+    ? createOutletAshlarGeometry(width, height, depth)
+    : coping
+      ? new RoundedBoxGeometry(width, height, depth, 2, 0.045)
+      : new THREE.BoxGeometry(
+          width,
+          height,
+          depth,
+          Math.min(24, Math.max(1, Math.ceil(width / 3))),
+          Math.min(18, Math.max(1, Math.ceil(height / 0.35))),
+          Math.min(24, Math.max(1, Math.ceil(depth / 3)))
+        );
   const p = geometry.getAttribute('position');
   const n = geometry.getAttribute('normal');
   const uv = geometry.getAttribute('uv');
@@ -141,8 +287,13 @@ export function createOutletStoneGeometry(
       : (1 - THREE.MathUtils.smoothstep(Math.abs(y - level - 0.09), 0.03, 0.24)) *
         (1 - Math.abs(n.getY(i)));
     // Linear RGB multiplier on the retained sRGB stone map, no emissive decal.
+    const reliefShade = ashlar ? geometry.getAttribute('color').getX(i) : 1;
     colour.set(
-      [1 - damp * 0.34 - moss * 0.07, 1 - damp * 0.32, 1 - damp * 0.36 - moss * 0.05],
+      [
+        (1 - damp * 0.34 - moss * 0.07) * reliefShade,
+        (1 - damp * 0.32) * reliefShade,
+        (1 - damp * 0.36 - moss * 0.05) * reliefShade,
+      ],
       i * 3
     );
   }

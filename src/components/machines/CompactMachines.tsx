@@ -789,6 +789,35 @@ const writeSifterHangers = (
   }
 };
 
+/** Follow the orbiting underframe while the lower mouth stays on its spout.
+ * The retained cloth cylinder leans between those endpoints, like the canes;
+ * its lower 10 mm slips over the rigid inlet. No geometry, clock or frame owner
+ * is added. The small cap tilt remains buried inside the casing and pipe.
+ */
+export function writeSifterSockInstance(
+  mesh: THREE.InstancedMesh | null,
+  index: number,
+  object: THREE.Object3D,
+  machine: MachineData,
+  offsetX: number,
+  offsetZ: number
+) {
+  if (!mesh) return;
+  const [x, y, z] = machine.position;
+  const scale = getMachineAssemblyScale(machine);
+  const { sock } = SIFTER_SUSPENSION;
+  const top = y + sock.top * scale[1];
+  const bottom = y + sock.bottom * scale[1] - 0.01;
+  CANE_AXIS.set(offsetX, top - bottom, offsetZ);
+  const length = CANE_AXIS.length();
+  object.position.set(x + offsetX / 2, (top + bottom) / 2, z + offsetZ / 2);
+  object.quaternion.setFromUnitVectors(CANE_UP, CANE_AXIS.divideScalar(length));
+  object.scale.set(sock.radius * scale[0], length, sock.radius * scale[2]);
+  if (mesh.userData.inspectionHiddenIndices?.has(index)) object.scale.setScalar(0);
+  object.updateMatrix();
+  mesh.setMatrixAt(index, object.matrix);
+}
+
 /** Layout and flow updates use the same installed silo frame.
  * Working if a runtime fill update cannot shrink the column to authored size.
  */
@@ -1407,16 +1436,7 @@ function CompactMachineSet({
         0,
         0
       );
-      const { sock } = SIFTER_SUSPENSION;
-      setInstanceMatrix(
-        sifterSockRef.current,
-        index,
-        object,
-        [x, y + (sock.top + sock.bottom) / 2, z],
-        [sock.radius, sock.top - sock.bottom, sock.radius],
-        undefined,
-        frame
-      );
+      writeSifterSockInstance(sifterSockRef.current, index, object, machine, 0, 0);
       setInstanceMatrix(
         sifterBodyRef.current,
         index,
@@ -1734,6 +1754,8 @@ function CompactMachineSet({
       beaconRef,
       beaconBaseRef,
     ].forEach((ref) => finishMatrixUpdate(ref.current, true));
+    // Bound the 55 mm orbit in both axes at every phase, including Float32 writes.
+    if (sifterSockRef.current?.boundingSphere) sifterSockRef.current.boundingSphere.radius += 0.08;
 
     // The beacons above carry plain status colours and the silo fill its seed
     // level. Make the very next frame a flow-visual frame so the starved /
@@ -1769,6 +1791,7 @@ function CompactMachineSet({
       sifterTrayRef,
       sifterBracketRef,
       sifterSuspensionRef,
+      sifterSockRef,
       decalRef,
       packerHeadRef,
       bagRef,
@@ -1918,6 +1941,7 @@ function CompactMachineSet({
         origin: [x + offsetX, y, z + offsetZ] as Vec3Tuple,
         scale: getMachineAssemblyScale(machine),
       };
+      writeSifterSockInstance(sifterSockRef.current, index, object, machine, offsetX, offsetZ);
       writeSifterHangers(
         sifterBracketRef.current,
         sifterSuspensionRef.current,
