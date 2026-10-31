@@ -800,11 +800,11 @@ export function writeSifterSockInstance(
   object: THREE.Object3D,
   machine: MachineData,
   offsetX: number,
-  offsetZ: number
+  offsetZ: number,
+  scale: Vec3Tuple
 ) {
   if (!mesh) return;
   const [x, y, z] = machine.position;
-  const scale = getMachineAssemblyScale(machine);
   const { sock } = SIFTER_SUSPENSION;
   const top = y + sock.top * scale[1];
   const bottom = y + sock.bottom * scale[1] - 0.01;
@@ -1436,7 +1436,7 @@ function CompactMachineSet({
         0,
         0
       );
-      writeSifterSockInstance(sifterSockRef.current, index, object, machine, 0, 0);
+      writeSifterSockInstance(sifterSockRef.current, index, object, machine, 0, 0, frame.scale);
       setInstanceMatrix(
         sifterBodyRef.current,
         index,
@@ -1941,7 +1941,15 @@ function CompactMachineSet({
         origin: [x + offsetX, y, z + offsetZ] as Vec3Tuple,
         scale: getMachineAssemblyScale(machine),
       };
-      writeSifterSockInstance(sifterSockRef.current, index, object, machine, offsetX, offsetZ);
+      writeSifterSockInstance(
+        sifterSockRef.current,
+        index,
+        object,
+        machine,
+        offsetX,
+        offsetZ,
+        frame.scale
+      );
       writeSifterHangers(
         sifterBracketRef.current,
         sifterSuspensionRef.current,

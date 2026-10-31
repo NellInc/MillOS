@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { writeSifterSockInstance } from './CompactMachines';
 import { SIFTER_SUSPENSION } from './sifterSuspension';
-import { SITE_LAYOUT, installMachinePoint } from '../../constants/siteLayout';
+import {
+  SITE_LAYOUT,
+  installMachinePoint,
+  getMachineAssemblyScale,
+} from '../../constants/siteLayout';
 import { MachineType, type MachineData } from '../../types';
 import { buildSpoutRoutes } from '../flow/spoutRoutes';
 import { sampleMachineVisualPhase } from '../../simulation/machineMotion';
@@ -42,7 +46,7 @@ describe('current suspended sifter outlet', () => {
       const phase = (step * Math.PI * 2) / 100,
         dx = Math.sin(phase) * 0.055,
         dz = Math.cos(phase) * 0.055;
-      writeSifterSockInstance(m, 0, object, machine, dx, dz);
+      writeSifterSockInstance(m, 0, object, machine, dx, dz, getMachineAssemblyScale(machine));
       const matrix = read(m);
       expect(
         new THREE.Vector3(0, 0.5, 0)
@@ -79,7 +83,8 @@ describe('current suspended sifter outlet', () => {
         object,
         machine,
         phase === null ? 0 : Math.sin(phase * 10) * 0.055,
-        phase === null ? 0 : Math.cos(phase * 10) * 0.055
+        phase === null ? 0 : Math.cos(phase * 10) * 0.055,
+        getMachineAssemblyScale(machine)
       );
       return [...read(m).elements];
     };
