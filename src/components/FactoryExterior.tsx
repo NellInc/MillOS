@@ -1,3 +1,9 @@
+import { getRiverbankHedgePosition } from './exterior/riverbankHedgeGrounding';
+import {
+  createWestRiverLampGrounding,
+  WEST_RIVER_LAMP_POOL_RADIUS,
+  type WestRiverLampGrounding,
+} from './exterior/westRiverLampGrounding';
 import { NissenHutFallback } from './exterior/NissenHutFallback';
 import { WasteBinFallback } from './exterior/WasteBinFallback';
 import {
@@ -4707,10 +4713,14 @@ const PathLamp: React.FC<{
   position: [number, number, number];
   style?: 'modern' | 'victorian';
   poolRadius?: number;
+  poolGeometry?: THREE.BufferGeometry;
   name?: string;
-}> = React.memo(({ position, style = 'modern', poolRadius, name }) => (
+}> = React.memo(({ position, style = 'modern', poolRadius, poolGeometry, name }) => (
   <group name={name} position={position}>
-    <ExteriorLampPool radius={poolRadius ?? (style === 'victorian' ? 5.5 : 4.8)} />
+    <ExteriorLampPool
+      radius={poolRadius ?? (style === 'victorian' ? 5.5 : 4.8)}
+      geometry={poolGeometry}
+    />
     <GeneratedBoundary
       fallback={
         <group>
@@ -4752,6 +4762,27 @@ const PathLamp: React.FC<{
     </GeneratedBoundary>
   </group>
 ));
+
+/** Whole-body seating and a terrain-parallel pool belong only to this bank lamp. */
+const WestRiverPathLamp: React.FC = () => {
+  const segments = useGraphicsStore((state) => getTerrainGridSegments(state.graphics.quality));
+  const [grounding, setGrounding] = useState<WestRiverLampGrounding | null>(null);
+  useLayoutEffect(() => {
+    // Allocate on commit; abandoned renders must not retain owned geometry.
+    const next = createWestRiverLampGrounding(segments);
+    setGrounding(next);
+    return () => next.poolGeometry.dispose();
+  }, [segments]);
+  if (!grounding || grounding.segments !== segments) return null;
+  return (
+    <PathLamp
+      position={grounding.position}
+      style="modern"
+      poolRadius={WEST_RIVER_LAMP_POOL_RADIUS}
+      poolGeometry={grounding.poolGeometry}
+    />
+  );
+};
 
 // Bollard for paths and waterside
 const Bollard: React.FC<{
@@ -4846,6 +4877,17 @@ export const HedgeRow: React.FC<{
       position={[midX, height / 2, midZ]}
       rotation={[0, angle, 0]}
     />
+  );
+};
+
+/** Move only this row to the dry bank; preserve its foliage and resource owners. */
+const RiverbankHedge: React.FC = () => {
+  const segments = useGraphicsStore((state) => getTerrainGridSegments(state.graphics.quality));
+  const position = useMemo(() => getRiverbankHedgePosition(segments), [segments]);
+  return (
+    <group name="grounded-riverbank-hedge" position={position}>
+      <HedgeRow start={[-10, 0, -128]} end={[10, 0, -128]} height={0.5} width={0.4} />
+    </group>
   );
 };
 
@@ -9492,7 +9534,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <PathLamp position={[120, 0, 142]} style="victorian" />
 
       {/* Lamps along river path - moved back from canyon edge */}
-      <PathLamp position={[-60, 0, -110]} style="modern" />
+      <WestRiverPathLamp />
       <PathLamp position={[0, 0, -110]} style="modern" />
       <PathLamp position={[60, 0, -110]} style="modern" />
 
@@ -9535,7 +9577,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           width={hedge.width}
         />
       ))}
-      <HedgeRow start={[-10, 0, -128]} end={[10, 0, -128]} height={0.5} width={0.4} />
+      <RiverbankHedge />
 
       {/* Trees along waterways, by river, and by lake - now rendered via instanced components above */}
     </group>

@@ -211,10 +211,15 @@ export const ExteriorLampDriver: React.FC = () => {
   return null;
 };
 
-export const ExteriorLampPool: React.FC<{ radius?: number }> = ({ radius = 5 }) => (
+export const ExteriorLampPool: React.FC<{
+  radius?: number;
+  /** Optional source-plane geometry. The caller owns its lifetime. */
+  geometry?: THREE.BufferGeometry;
+}> = ({ radius = 5, geometry }) => (
   <mesh
-    geometry={LAMP_POOL_GEOMETRY}
+    geometry={geometry ?? LAMP_POOL_GEOMETRY}
     material={LAMP_POOL_MATERIAL}
+    dispose={geometry ? null : undefined}
     position={[0, 0.045, 0]}
     rotation={[-Math.PI / 2, 0, 0]}
     scale={[radius, radius, 1]}
