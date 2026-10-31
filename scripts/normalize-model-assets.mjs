@@ -34,6 +34,7 @@ import {
   YARD_INPUT_GENERATOR,
   deriveYardModel,
 } from './reconcile-yard-models.mjs';
+import { RECONCILED_SCENIC_MODELS, deriveScenicModel } from './reconcile-scenic-models.mjs';
 
 const ROOT = process.cwd();
 const SOURCE_ROOT = path.join(ROOT, 'assets', 'source', 'models');
@@ -3699,11 +3700,11 @@ export async function normalizeGeneratedAsset(io, spec, precisionCandidate) {
 
   scene.setName(`MillOS_${titleCase(spec.area)}_${titleCase(spec.slug)}`);
   Object.assign(root.getAsset(), generatedAssetHeader(spec));
-  // Only these two pinned replays reconstruct an old normalized input. Fresh
-  // exports retain today's writer label; every historical byte remains guarded.
-  // Working if both full replay hashes stay exact and new headers use VERSION.
+  // Pinned replays reconstruct their historical normalized inputs. Fresh exports
+  // retain today's writer label; every complete historical stream is guarded.
   if (farmInputs) root.getAsset().generator = RECONCILED_FARM_MODELS[spec.id].inputGenerator;
-  if (RECONCILED_YARD_MODELS[spec.id]) root.getAsset().generator = YARD_INPUT_GENERATOR;
+  if (RECONCILED_YARD_MODELS[spec.id] || RECONCILED_SCENIC_MODELS[spec.id])
+    root.getAsset().generator = YARD_INPUT_GENERATOR;
 
   indexGeneratedGeometry(document);
   if (spec.geometryCodec === 'meshopt-lossless') {
@@ -3730,10 +3731,11 @@ export async function normalizeGeneratedAsset(io, spec, precisionCandidate) {
     await writeFile(temporary, result.bytes);
     await rename(temporary, output);
     geometryRefinement = result.receipt;
-  } else if (RECONCILED_YARD_MODELS[spec.id]) {
+  } else if (RECONCILED_YARD_MODELS[spec.id] || RECONCILED_SCENIC_MODELS[spec.id]) {
     // The original sizing still precedes the repair. Resizing to the shorter
     // final bounds would shrink everything, including the untouched supports.
-    const result = deriveYardModel(
+    const derive = RECONCILED_YARD_MODELS[spec.id] ? deriveYardModel : deriveScenicModel;
+    const result = derive(
       spec.id,
       await io.writeBinary(document),
       await readFile(source),

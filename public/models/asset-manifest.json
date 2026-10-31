@@ -1712,13 +1712,24 @@
       "maxTextures": 2,
       "maxRenderVertices": 216,
       "bounds": {
-        "width": [11.499, 11.501],
-        "height": [3.824, 3.826],
-        "length": [4.4965, 4.4985],
+        "width": [
+          11.499,
+          11.501
+        ],
+        "height": [
+          3.824,
+          3.826
+        ],
+        "length": [
+          0.999,
+          1.001
+        ],
         "groundTolerance": 0.001,
         "centreTolerance": 0.001
       },
-      "requiredNodes": ["Lock-gate-structureBody"],
+      "requiredNodes": [
+        "Lock-gate-structureBody"
+      ],
       "requiredAnimations": []
     },
     {
@@ -2515,13 +2526,24 @@
       "maxTextures": 2,
       "maxRenderVertices": 4668,
       "bounds": {
-        "width": [1.399, 1.401],
-        "height": [2.329, 2.331],
-        "length": [1.399, 1.401],
+        "width": [
+          1.399,
+          1.401
+        ],
+        "height": [
+          2.278,
+          2.28
+        ],
+        "length": [
+          1.399,
+          1.401
+        ],
         "groundTolerance": 0.001,
         "centreTolerance": 0.001
       },
-      "requiredNodes": ["Cupid-authored-bodyBody"],
+      "requiredNodes": [
+        "Cupid-authored-bodyBody"
+      ],
       "requiredAnimations": []
     },
     {

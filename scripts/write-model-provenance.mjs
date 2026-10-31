@@ -43,6 +43,10 @@ import {
   assertYardNormalization,
   replaceYardRecords,
 } from './reconcile-yard-models.mjs';
+import { RECONCILED_SCENIC_MODELS, assertScenicNormalization } from './reconcile-scenic-models.mjs';
+const RECONCILED_WORLD_MODELS = { ...RECONCILED_YARD_MODELS, ...RECONCILED_SCENIC_MODELS };
+const assertWorldNormalization = (id, ...args) =>
+  (RECONCILED_YARD_MODELS[id] ? assertYardNormalization : assertScenicNormalization)(id, ...args);
 
 const ROOT = process.cwd();
 const SOURCE_ROOT = path.join(ROOT, 'assets', 'source', 'models');
@@ -73,7 +77,7 @@ function packFor(spec, result) {
     blenderPreparation: result.blenderPreparation,
     ...(RECONCILED_FARM_MODELS[spec.id] ||
     PRECISION_FARM_MODELS[spec.id] ||
-    RECONCILED_YARD_MODELS[spec.id]
+    RECONCILED_WORLD_MODELS[spec.id]
       ? { geometryRefinement: result.geometryRefinement }
       : {}),
     runtimeDerivative: {
@@ -144,9 +148,9 @@ const main = async () => {
     if (
       !only.length ||
       new Set(only).size !== only.length ||
-      only.some((id) => !RECONCILED_YARD_MODELS[id])
+      only.some((id) => !RECONCILED_WORLD_MODELS[id])
     )
-      throw new Error('--only requires unique reconciled yard model IDs');
+      throw new Error('--only requires unique reconciled world model IDs');
     const records = new Map();
     const manifestPath = path.join(ROOT, 'public/models/asset-manifest.json');
     const provenancePath = path.join(SOURCE_ROOT, 'world/PROVENANCE.json');
@@ -158,7 +162,7 @@ const main = async () => {
       const result = byId.get(id);
       if (report.generated.filter((entry) => entry.id === id).length !== 1)
         throw new Error(`${id}: exactly one normalization row required`);
-      await assertYardNormalization(
+      await assertWorldNormalization(
         id,
         result,
         await readFile(path.join(ROOT, 'public/models/world', `${spec.slug}.glb`)),
@@ -185,7 +189,7 @@ const main = async () => {
     const budgets = replaceYardRecords(manifestText, 'assets', manifestRecords);
     await writeFile(provenancePath, provenance);
     await writeFile(manifestPath, budgets);
-    console.log(`Updated only ${only.length} yard provenance and bounds records`);
+    console.log(`Updated only ${only.length} world provenance and bounds records`);
     return;
   }
   const missing = specs.filter((spec) => !byId.has(spec.id));
@@ -234,10 +238,10 @@ const main = async () => {
     }
   }
   if (!areaFlag || areaFlag === 'world') {
-    for (const spec of specs.filter((entry) => RECONCILED_YARD_MODELS[entry.id])) {
+    for (const spec of specs.filter((entry) => RECONCILED_WORLD_MODELS[entry.id])) {
       if (report.generated.filter((entry) => entry.id === spec.id).length !== 1)
         throw new Error(`${spec.id}: exactly one normalization row required`);
-      await assertYardNormalization(
+      await assertWorldNormalization(
         spec.id,
         byId.get(spec.id),
         await readFile(path.join(ROOT, 'public/models/world', `${spec.slug}.glb`)),
