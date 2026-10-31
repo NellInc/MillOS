@@ -7338,6 +7338,7 @@ const EastPortalRoadContinuation: React.FC = () => {
           key={`portal-edge-${z}`}
           position={[149.25, EXTERIOR_LAYERS.groundOverlay, z]}
           rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+          renderOrder={RENDER_ORDER.floorMarkings}
           receiveShadow
         >
           <planeGeometry args={[0.15, 4.5]} />
@@ -7352,6 +7353,7 @@ const EastPortalRoadContinuation: React.FC = () => {
       <mesh
         position={[149, EXTERIOR_LAYERS.groundOverlay, 50]}
         rotation={[-Math.PI / 2, 0, -Math.PI / 2]}
+        renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       >
         <planeGeometry args={[0.15, 2]} />
@@ -7416,6 +7418,7 @@ const ConnectingRoad: React.FC<{
           midZ + Math.sin(angle) * (width / 2 - 0.2),
         ]}
         rotation={[-Math.PI / 2, 0, angle]}
+        renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       >
         <planeGeometry args={[0.15, length]} />
@@ -7433,6 +7436,7 @@ const ConnectingRoad: React.FC<{
           midZ - Math.sin(angle) * (width / 2 - 0.2),
         ]}
         rotation={[-Math.PI / 2, 0, angle]}
+        renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       >
         <planeGeometry args={[0.15, length]} />
@@ -7454,6 +7458,7 @@ const ConnectingRoad: React.FC<{
             key={`dash-${i}`}
             position={[x, linesY, z]}
             rotation={[-Math.PI / 2, 0, angle]}
+            renderOrder={RENDER_ORDER.floorMarkings}
             receiveShadow
           >
             <planeGeometry args={[0.15, 2]} />

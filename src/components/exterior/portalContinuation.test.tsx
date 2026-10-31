@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { expect, it, vi } from 'vitest';
 import type { Mesh, MeshStandardMaterial, WebGLRenderer } from 'three';
-import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
+import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 
 // Render the current private owners through real React/R3F with a CPU renderer.
@@ -48,9 +48,19 @@ const { EastPortalRoadContinuation: Continuation, ConnectingRoad: Road } = new F
   'THREE',
   'EXTERIOR_LAYERS',
   'POLYGON_OFFSET',
+  'RENDER_ORDER',
   'PROCEDURAL_TEXTURES',
   code + '\nreturn {EastPortalRoadContinuation,ConnectingRoad};'
-)(React, useMemo, useEffect, THREE, EXTERIOR_LAYERS, POLYGON_OFFSET, PROCEDURAL_TEXTURES);
+)(
+  React,
+  useMemo,
+  useEffect,
+  THREE,
+  EXTERIOR_LAYERS,
+  POLYGON_OFFSET,
+  RENDER_ORDER,
+  PROCEDURAL_TEXTURES
+);
 it('closes only the grass gap with continuous texture/dash phase and current depth ownership', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const canvas = document.createElement('canvas');
@@ -104,7 +114,8 @@ it('closes only the grass gap with continuous texture/dash phase and current dep
     expect(uv.getY(i) * 12).toBeCloseTo(world.x - 135, 6);
   }
   expect(material.polygonOffsetFactor).toBe(POLYGON_OFFSET.moderate.factor);
-  for (const m of meshes.slice(1)) {
+  for (const m of [...meshes.slice(1), ...old.slice(1)]) {
+    expect(m.renderOrder).toBe(RENDER_ORDER.floorMarkings);
     expect((m.material as MeshStandardMaterial).polygonOffsetFactor).toBe(
       POLYGON_OFFSET.carriagewayMarking.factor
     );
