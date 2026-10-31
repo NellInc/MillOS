@@ -569,8 +569,6 @@ export function createRiverCulvertGeometries(): Record<
 
   // The backed ring has 4 cm mortar joints rather than metre-wide gaps.
   // Each of the 25 voussoirs is one wedge, with the central stone at the crown.
-  // The backed ring has 4 cm mortar joints rather than metre-wide gaps.
-  // Each of the 25 voussoirs is one wedge, with the central stone at the crown.
   const stones: THREE.BufferGeometry[] = [];
   const count = 25;
   const angle0 = Math.asin((base - spring) / outerRadius);
