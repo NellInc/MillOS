@@ -187,6 +187,7 @@
         text-align: center;
       }
       .loading-text {
+        margin: 0;
         color: #dbe6e2;
         font-size: 17px;
         font-weight: 650;
@@ -197,6 +198,8 @@
         font-size: 13px;
         margin-top: 8px;
         min-height: 20px;
+        max-width: 32rem;
+        margin-bottom: 0;
       }
       .loading-bar {
         width: min(320px, 78vw);
@@ -254,8 +257,8 @@
           width="56"
           height="56"
         />
-        <div class="loading-text">WARMING UP THE ROLLERS</div>
-        <div class="loading-sub">Firing up the mill</div>
+        <h1 class="loading-text">MillOS: WARMING UP THE ROLLERS</h1>
+        <p class="loading-sub">A live 3D grain mill, from wheat intake to flour dispatch.</p>
         <div class="loading-bar"></div>
       </div>
     </div>
@@ -292,9 +295,11 @@
           var screen = document.querySelector('#root .loading-screen');
           if (screen) screen.setAttribute('aria-label', 'Carregando o MillOS');
           var text = document.querySelector('#root .loading-text');
-          if (text) text.textContent = 'AQUECENDO OS ROLOS';
+          if (text) text.textContent = 'MillOS: AQUECENDO OS ROLOS';
           var sub = document.querySelector('#root .loading-sub');
-          if (sub) sub.textContent = 'Ligando o moinho';
+          if (sub)
+            sub.textContent =
+              'Um moinho de grãos 3D ao vivo, da recepção do trigo à expedição da farinha.';
         } catch (e) {}
       })();
     </script>
