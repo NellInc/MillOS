@@ -8,6 +8,8 @@ import {
   LEAD_MIN_FRACTION,
   NORMAL_BIAS_RANGE,
   NORMAL_BIAS_TEXELS,
+  SHADOW_CASTER_CEILING,
+  SHADOW_CASTER_REACH_MAX,
   VERTICAL_SUN_THRESHOLD,
   exteriorHalfExtent,
   factoryOccluderDepth,
@@ -16,9 +18,12 @@ import {
   normalBiasForTexel,
   projectedHalfExtent,
   quantiseExtent,
+  rangeCompensatedBias,
   snapToTexel,
+  upSunCasterReach,
 } from './SunShadowRig';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { SHADOW_CONFIG } from '../../constants/renderLayers';
 
 /**
  * Fit the factory volume the way the rig does, so the assertions below measure
@@ -462,5 +467,79 @@ describe('exterior fit across every authored camera', () => {
     // unfiltered shadow lookup visible.
     expect(worstOverall).toBeLessThanOrEqual(0.3);
     expect(worstOverall).toBeGreaterThan(worstVertical * 1.3);
+  });
+});
+
+describe('up-sun caster depth at a low sun', () => {
+  /**
+   * How far inside the near plane (at `extentZ + reach` up-sun of the box
+   * centre) a full-height caster's top sits, for the overview fit. Negative
+   * means the shadow camera clips it and its shadow vanishes inside the frame.
+   */
+  function upSunSlack(sunDirection: THREE.Vector3, reach: number): number {
+    const [, camera] = EXTERIOR_CAMERAS.find(([name]) => name === 'overview')!;
+    const fit = fitExteriorCamera(camera.position, camera.target);
+    const { halfY, centreY } = EXTERIOR_SHADOW_VOLUME;
+    const extentZ = projectedHalfExtent(
+      sunDirection.x,
+      sunDirection.y,
+      sunDirection.z,
+      fit.half,
+      halfY,
+      fit.half
+    );
+    const centre = new THREE.Vector3(fit.centreX, centreY, fit.centreZ);
+    // The ground receiver deepest toward the sun: the box's up-sun bottom corner.
+    const receiver = new THREE.Vector3(
+      fit.centreX + Math.sign(sunDirection.x) * fit.half,
+      0,
+      fit.centreZ + Math.sign(sunDirection.z) * fit.half
+    );
+    // A full-height caster whose shadow tip lands on that receiver: its top is
+    // CEILING / sin(elevation) up the light ray from the receiver.
+    const casterTop = receiver
+      .clone()
+      .addScaledVector(sunDirection, SHADOW_CASTER_CEILING / sunDirection.y);
+    return extentZ + reach - casterTop.sub(centre).dot(sunDirection);
+  }
+
+  const sunAt = (elevationDeg: number, azimuthDeg: number): THREE.Vector3 => {
+    const e = (elevationDeg * Math.PI) / 180;
+    const a = (azimuthDeg * Math.PI) / 180;
+    return new THREE.Vector3(Math.cos(e) * Math.sin(a), Math.sin(e), Math.cos(e) * Math.cos(a));
+  };
+
+  it('clipped the tallest caster below 30 degrees with the box-only near plane', () => {
+    expect(upSunSlack(sunAt(15, 200), 0)).toBeLessThan(0);
+  });
+
+  it('keeps a full-height caster inside the depth range down to the reach cap', () => {
+    // 10.6 degrees is where 55 / sin(e) meets the 300 m cap.
+    for (let elevation = 11; elevation <= 90; elevation += 1) {
+      for (let azimuth = 0; azimuth < 360; azimuth += 15) {
+        const sun = sunAt(elevation, azimuth);
+        const slack = upSunSlack(sun, upSunCasterReach(sun.y));
+        expect(slack, `${elevation} deg, az ${azimuth}`).toBeGreaterThanOrEqual(-1e-6);
+      }
+    }
+  });
+
+  it('caps the reach and survives a sun at or below the horizon', () => {
+    expect(upSunCasterReach(0)).toBe(SHADOW_CASTER_REACH_MAX);
+    expect(upSunCasterReach(-0.2)).toBe(SHADOW_CASTER_REACH_MAX);
+    expect(upSunCasterReach(Number.NaN)).toBe(SHADOW_CASTER_REACH_MAX);
+    expect(upSunCasterReach(1)).toBeCloseTo(SHADOW_CASTER_CEILING, 8);
+    expect(SHADOW_CASTER_CEILING).toBe(SITE_LAYOUT.bulkStorage.elevator.height);
+  });
+
+  it('holds the world-space bias the box-only range always produced', () => {
+    // bias is normalised depth, so world bias = bias x (far - near).
+    for (const extentZ of [40, 90, 150]) {
+      for (const reach of [0, 55, 140, 300]) {
+        const world = rangeCompensatedBias(extentZ, reach) * (2 * extentZ + reach);
+        expect(world).toBeCloseTo(SHADOW_CONFIG.bias * 2 * extentZ, 10);
+      }
+    }
+    expect(rangeCompensatedBias(90, 0)).toBe(SHADOW_CONFIG.bias);
   });
 });

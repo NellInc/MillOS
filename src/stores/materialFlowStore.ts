@@ -77,16 +77,36 @@ export interface MaterialFlowProductionPlan {
 
 export type MaterialDisposition = 'released' | 'hold' | 'recalled' | 'shipped';
 
+/**
+ * A canned disposition reason kept as a message key beside its text, so Batch
+ * Genealogy renders it in the current language (OverviewPanel). `catalog`
+ * names the message catalogue; a param may itself be a key (a canned note in a
+ * hold reason) or plain text (an operator's note, which stays as written).
+ * Optional: records written before it, or by an agent or operator, carry only
+ * their text.
+ */
+export interface DispositionReasonKey {
+  catalog: 'materialFlow' | 'qcLab' | 'overview';
+  key: string;
+  params?: Record<string, string | number | DispositionReasonKey>;
+}
+
 export interface SourceLot {
   id: string;
   materialType: MaterialType;
   origin: 'opening_stock' | 'receiving';
   sourceManifestId: string | null;
   supplier: string;
+  /**
+   * Set when `supplier` is the canned delivery name, so the trace renders it in
+   * the current language. Opening stock is always the canned opening name.
+   */
+  supplierKey?: 'scheduledFarmIntake';
   receivedKg: number;
   simulationTime: number;
   disposition: Exclude<MaterialDisposition, 'shipped'>;
   dispositionReason: string | null;
+  dispositionReasonKey?: DispositionReasonKey;
   /** Crop-year attributes stamped by a signed Mill Chronicle; absent otherwise. */
   crop?: CropAttributes;
 }
@@ -101,6 +121,7 @@ export interface ProductionBatch {
   sourceContributions: SourceContribution[];
   disposition: MaterialDisposition;
   dispositionReason: string | null;
+  dispositionReasonKey?: DispositionReasonKey;
   qcTestIds: string[];
   dispatchManifestIds: string[];
   sealed: boolean;
@@ -317,18 +338,30 @@ export interface MaterialFlowState {
     batchIds: readonly string[],
     disposition: Exclude<MaterialDisposition, 'shipped'>,
     reason: string,
-    qcTestId?: string
+    qcTestId?: string,
+    /** The canned reason `reason` was rendered from; omit for free text. */
+    reasonKey?: DispositionReasonKey
   ) => string[];
   setLotDisposition: (
     lotIds: readonly string[],
     disposition: Exclude<MaterialDisposition, 'shipped'>,
-    reason: string
+    reason: string,
+    /** Held batches whose own evidence keeps them held when their lots are released. */
+    retainedHolds?: ReadonlySet<string>,
+    /** The canned reason `reason` was rendered from; omit for free text. */
+    reasonKey?: DispositionReasonKey
   ) => string[];
   getBatchTrace: (batchId: string) => BatchTrace | null;
   getDispatchableFinishedGoods: () => number;
   getGenealogyBalance: () => GenealogyBalance;
   getMaterialBalance: () => MaterialBalance;
   getMachineBuffer: (machineId: string) => MachineBuffer | undefined;
+  /**
+   * Mass a machine processed per PLANT second over the last few plant
+   * seconds (FEED_WINDOW_PLANT_SECONDS); zero for a machine that processed
+   * nothing in that window. SCADA feed tags read it.
+   */
+  getMachineFeedRate: (machineId: string) => number;
   getConveyorLoad: (segmentId: string) => number;
   getTotalInputBuffer: (machineId: string) => number;
   getTotalOutputBuffer: (machineId: string) => number;
@@ -377,6 +410,25 @@ export function retainShippedBatchWindow<T extends { disposition: MaterialDispos
     return true;
   });
 }
+// The SCADA mill feed tags average this many plant seconds of processing, so a
+// conveyor parcel arriving between two ticks does not read as a step change.
+// It is held beside the store, not in it: the physical save checks every data
+// key, and the window refills within seconds of a reload.
+export const FEED_WINDOW_PLANT_SECONDS = 10;
+/** A record's reason with `reason` in place of the old one, key and all. */
+function withDispositionReason<T extends { dispositionReasonKey?: DispositionReasonKey }>(
+  record: T,
+  reason: string | null,
+  reasonKey: DispositionReasonKey | undefined
+): T & { dispositionReason: string | null } {
+  const { dispositionReasonKey: _previous, ...rest } = record;
+  return {
+    ...(rest as T),
+    dispositionReason: reason,
+    ...(reasonKey ? { dispositionReasonKey: reasonKey } : {}),
+  };
+}
+
 const newMaterialSessionId = (): string =>
   globalThis.crypto?.randomUUID?.() ?? `flow-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 export const MAX_SOURCE_LOTS = 1000;
@@ -879,6 +931,32 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
     const initialMachineBuffers = createInitialMachineBuffers();
     let transportKey = '';
     let transportRoutes: ReturnType<typeof resolveMaterialTransport> = [];
+    // Ticks of the feed window, oldest first: plant seconds and kg processed
+    // per machine. Keyed to the material session, so a restored or reset run
+    // never reads the previous run's flow.
+    let feedWindow: Array<{ plantSeconds: number; kgByMachine: Map<string, number> }> = [];
+    let feedWindowSession = '';
+    let feedWindowSeconds = 0;
+    const recordFeedWindow = (
+      sessionId: string,
+      plantSeconds: number,
+      kgByMachine: Map<string, number>
+    ) => {
+      if (feedWindowSession !== sessionId) {
+        feedWindow = [];
+        feedWindowSeconds = 0;
+        feedWindowSession = sessionId;
+      }
+      feedWindow.push({ plantSeconds, kgByMachine });
+      feedWindowSeconds += plantSeconds;
+      while (
+        feedWindow.length > 1 &&
+        feedWindowSeconds - feedWindow[0].plantSeconds >= FEED_WINDOW_PLANT_SECONDS
+      ) {
+        feedWindowSeconds -= feedWindow[0].plantSeconds;
+        feedWindow.shift();
+      }
+    };
     return {
       sessionId: newMaterialSessionId(),
       machineBuffers: initialMachineBuffers,
@@ -916,6 +994,8 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
 
         const state = get();
         if (productionSpeed <= 0) {
+          // Stopped production processes nothing for these plant seconds.
+          recordFeedWindow(state.sessionId, deltaSeconds, new Map());
           if (state.currentFlowRate !== 0 || state.currentPackerFlowRate !== 0) {
             set({ currentFlowRate: 0, currentPackerFlowRate: 0 });
           }
@@ -1107,6 +1187,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
 
         let instantFlowRate = 0;
         let instantPackerFlowRate = 0;
+        const processedKgByMachine = new Map<string, number>();
         let flourProducedThisTick = 0;
         let wasteThisTick = 0;
 
@@ -1167,6 +1248,14 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                   disposition === 'released'
                     ? null
                     : translate(materialFlowStoreMessages, 'inheritedDisposition'),
+                ...(disposition === 'released'
+                  ? {}
+                  : {
+                      dispositionReasonKey: {
+                        catalog: 'materialFlow' as const,
+                        key: 'inheritedDisposition',
+                      },
+                    }),
                 qcTestIds: [],
                 dispatchManifestIds: [],
                 sealed: false,
@@ -1351,6 +1440,10 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
 
             // Defensive check: avoid division by zero (early return already guards this,
             // but add explicit check at point of use for safety)
+            processedKgByMachine.set(
+              buffer.machineId,
+              (processedKgByMachine.get(buffer.machineId) ?? 0) + toProcess
+            );
             if (deltaSeconds > 0) {
               instantFlowRate += toProcess / deltaSeconds;
               // Track the final-stage rate separately: only packers represent
@@ -1552,6 +1645,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
         });
 
         const boundedProductionBatches = retainShippedBatchWindow(productionBatches);
+        recordFeedWindow(state.sessionId, deltaSeconds, processedKgByMachine);
 
         set({
           machineBuffers: newBuffers,
@@ -1705,6 +1799,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           supplier:
             details?.supplier?.trim() ||
             translate(materialFlowStoreMessages, 'scheduledFarmIntake'),
+          ...(details?.supplier?.trim() ? {} : { supplierKey: 'scheduledFarmIntake' as const }),
           receivedKg: toAdd,
           simulationTime: state.simulationTime,
           disposition: 'released',
@@ -1787,6 +1882,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 batch.availableKg = 0;
                 batch.disposition = 'shipped';
                 batch.dispositionReason = translate(materialFlowStoreMessages, 'fullyDispatched');
+                batch.dispositionReasonKey = { catalog: 'materialFlow', key: 'fullyDispatched' };
               }
               materials.set(materialType, (materials.get(materialType) ?? 0) + toShip);
               shippedBatchContributions.push({ batchId: batch.id, amount: toShip });
@@ -1854,7 +1950,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
         return actualKg;
       },
 
-      setBatchDisposition: (batchIds, disposition, reason, qcTestId) => {
+      setBatchDisposition: (batchIds, disposition, reason, qcTestId, reasonKey) => {
         const requested = new Set(batchIds);
         const changed: string[] = [];
         set((state) => {
@@ -1869,9 +1965,8 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
             if (disposition === 'recalled' && batch.disposition !== 'recalled')
               newlyRecalled.add(batch.id);
             return {
-              ...batch,
+              ...withDispositionReason(batch, reason, reasonKey),
               disposition,
-              dispositionReason: reason,
               sealed: batch.sealed || disposition !== 'released',
               qcTestIds:
                 qcTestId && !batch.qcTestIds.includes(qcTestId)
@@ -1887,7 +1982,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
         return changed;
       },
 
-      setLotDisposition: (lotIds, disposition, reason) => {
+      setLotDisposition: (lotIds, disposition, reason, retainedHolds, reasonKey) => {
         const requested = new Set(lotIds);
         const affectedBatchIds: string[] = [];
         set((state) => {
@@ -1896,7 +1991,10 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
             const lot = sourceLots.get(lotId);
             if (!lot) continue;
             if (lot.disposition === 'recalled' && disposition !== 'recalled') continue;
-            sourceLots.set(lotId, { ...lot, disposition, dispositionReason: reason });
+            sourceLots.set(lotId, {
+              ...withDispositionReason(lot, reason, reasonKey),
+              disposition,
+            });
           }
 
           const newlyRecalled = new Set<string>();
@@ -1912,12 +2010,19 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               : sourceDispositions.includes('hold')
                 ? 'hold'
                 : disposition;
+            // Releasing a lot does not release a batch held on its own evidence
+            // (a failed test of that batch, or its own open investigation).
+            if (
+              nextDisposition === 'released' &&
+              batch.disposition === 'hold' &&
+              retainedHolds?.has(batch.id)
+            )
+              return batch;
             affectedBatchIds.push(batch.id);
             if (nextDisposition === 'recalled') newlyRecalled.add(batch.id);
             return {
-              ...batch,
+              ...withDispositionReason(batch, reason, reasonKey),
               disposition: nextDisposition,
-              dispositionReason: reason,
               sealed: batch.sealed || nextDisposition !== 'released',
             };
           });
@@ -2027,6 +2132,13 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
         return get().machineBuffers.get(machineId);
       },
 
+      getMachineFeedRate: (machineId: string) => {
+        if (feedWindowSession !== get().sessionId || feedWindowSeconds <= 0) return 0;
+        let kg = 0;
+        for (const entry of feedWindow) kg += entry.kgByMachine.get(machineId) ?? 0;
+        return kg / feedWindowSeconds;
+      },
+
       getConveyorLoad: (segmentId: string) => {
         const segment = get().network.segments.find((s) => s.id === segmentId);
         return segment?.currentLoad ?? 0;
@@ -2045,6 +2157,8 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
       },
 
       resetMaterialFlow: () => {
+        feedWindow = [];
+        feedWindowSeconds = 0;
         const machineBuffers = createInitialMachineBuffers();
         set({
           sessionId: newMaterialSessionId(),

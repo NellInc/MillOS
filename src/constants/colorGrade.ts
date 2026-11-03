@@ -310,10 +310,13 @@ export function vignetteDarknessFor(trebleLevel: number, audioReactive: boolean)
 
 /**
  * `luminanceThreshold` is 1.0 because bloom is only meaningful above the
- * display ceiling. Nothing in the scene currently authors emissive above 1.0
- * (the brightest is the ceiling lens at peak luminance ~0.99), so bloom is a
- * real pass cost with no visual return until the emissive source files are
- * raised. See the phase report for the exact values those files need.
+ * display ceiling. By the authored values, what crosses it is mostly night and
+ * the sun: `ExteriorLampDriver` drives the shared exterior lens emissive
+ * (`#ffd37a`) to 3.46 at full dark, a Rec.709 emissive luminance of about 2.4
+ * (arithmetic, not a measured pixel), and the
+ * solar disc is drawn at a scene-referred radiance of 4 (`SUN_CORE_RADIANCE`).
+ * Saturated status emissives at 1.1-2.0 stay under it: their luminance is a
+ * fraction of their brightest channel.
  *
  * `blendFunction` is SCREEN, not the ADD that the R3F wrapper substitutes for
  * `BloomEffect`'s own default. ADD stacks linearly onto already-bright pixels

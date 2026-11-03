@@ -9,7 +9,9 @@ import {
   beginReplayClock,
   captureReplayParticipants,
   endReplayClock,
+  isWorkplaceReplayActive,
   missingReplayParticipants,
+  notifyReplayRecordChanged,
   replayParticipantsAvailable,
   restoreReplayParticipants,
 } from '../simulation/workplaceReplayRuntime';
@@ -24,7 +26,7 @@ import {
 import { useMaterialFlowStore } from './materialFlowStore';
 import { useOperationsCampaignStore } from './operationsCampaignStore';
 import { useGameSimulationStore, selectSafetyHoldActive } from './gameSimulationStore';
-import { useBreakdownStore } from './breakdownStore';
+import { promoteCoveredOrders, useBreakdownStore } from './breakdownStore';
 import { useTruckScheduleStore } from './truckScheduleStore';
 import { useQCLabStore } from './qcLabStore';
 import { useSafetyStore } from './safetyStore';
@@ -69,12 +71,25 @@ function restorePlant(raw: ReturnType<typeof capturePlant>) {
   resetThrottledBagState();
   useMaterialFlowStore.setState(saved.material);
   useOperationsCampaignStore.setState(saved.operations);
-  useBreakdownStore.setState(saved.breakdown);
+  // Restored paused, before any tick: settle part reservations now.
+  useBreakdownStore.setState({
+    ...saved.breakdown,
+    workOrders: promoteCoveredOrders(saved.breakdown.workOrders, saved.breakdown.partsInventory),
+  });
   useTruckScheduleStore.setState(saved.trucks);
   useQCLabStore.setState(saved.quality);
   useSafetyStore.setState(saved.safety);
   useAchievementsStore.setState(saved.achievements);
-  useAnnouncementsStore.setState(saved.announcements);
+  // Only the plant-time record comes back: the PA mode, caption setting and
+  // live context are the player's, and captions from the checkpoint describe a
+  // plant that is not running, so they return retired, kept in the transcript.
+  useAnnouncementsStore.setState({
+    announcements: saved.announcements.announcements.map((entry) => ({
+      ...entry,
+      dismissed: true,
+    })),
+    lastAnnouncementTime: saved.announcements.lastAnnouncementTime,
+  });
   useUIStore.setState({ alerts: saved.alerts });
   useProductionStore.setState({ ...saved.production, scadaLive: false });
   // A replay restore holds the clock for the workplace step it replays, so the
@@ -100,20 +115,31 @@ const result = (reason: string | null = null): WorkplaceTransitionResult => ({
   changed: reason === null,
   reason,
 });
-function safetyReason() {
+type ReplayReasonKey = Exclude<keyof typeof msg.en, 'seedRange' | 'reportScope' | 'reportLimits'>;
+// A refusal keeps its key, so the replay panel's status follows a language
+// switch. Working if a refused capture reads in Portuguese after one.
+const refuse = (key: ReplayReasonKey, params?: { missing: string }): WorkplaceTransitionResult => ({
+  changed: false,
+  reason: translate(msg, key, params),
+  reasonCopy: { catalog: 'replay', key, ...(params ? { params } : {}) },
+});
+function safetyReason(): ReplayReasonKey | null {
+  // Participant turns, their checks and role commands all refuse while a
+  // replay runs, so a replay under separate turns could never be agreed or run.
+  // Working if separate turns are refused before any checkpoint or restore.
+  if (useWorkplaceStore.getState().participationMode !== 'solo') return 'soloOnly';
   const game = useGameSimulationStore.getState();
-  if (game.gameSpeed !== 0) return translate(msg, 'pauseFirst');
+  if (game.gameSpeed !== 0) return 'pauseFirst';
   if (selectSafetyHoldActive(game) || useSafetyStore.getState().forkliftEmergencyStop)
-    return translate(msg, 'safetyHold');
+    return 'safetyHold';
   const service = peekSCADAService();
-  if (service && service.getState().mode !== 'simulation')
-    return translate(msg, 'localControlOnly');
-  if (useQCLabStore.getState().qcLab.isRunning) return translate(msg, 'labTestRunning');
+  if (service && service.getState().mode !== 'simulation') return 'localControlOnly';
+  if (useQCLabStore.getState().qcLab.isRunning) return 'labTestRunning';
   const state = useWorkplaceStore.getState().workplace;
-  if (state.improvement) return translate(msg, 'improvementActive');
-  if (state.mode !== 'game') return translate(msg, 'gameModeOnly');
+  if (state.improvement) return 'improvementActive';
+  if (state.mode !== 'game') return 'gameModeOnly';
   if (campaignTotals(state).members.some((m) => m.recoveryOwedMinutes > 1e-8))
-    return translate(msg, 'recoveryOwed');
+    return 'recoveryOwed';
   return null;
 }
 
@@ -129,135 +155,18 @@ interface WorkplaceReplayStore {
   setGuided: (guided: boolean) => void;
 }
 
-export const useWorkplaceReplayStore = create<WorkplaceReplayStore>((set, get) => ({
-  checkpoint: null,
-  runs: [],
-  activeRunId: null,
-  guided: false,
-  setGuided: (guided) => set({ guided }),
-  capture: (seed) => {
-    const reason = safetyReason();
-    if (reason) return result(reason);
-    if (!Number.isSafeInteger(seed) || seed < 1 || seed > 2147483647)
-      return result(translate(msg, 'seedRange', { max: formatFixed(2147483647, 0) }));
-    const state = useWorkplaceStore.getState().workplace;
-    if (
-      get().activeRunId ||
-      !['idle', 'deliberating'].includes(state.phase) ||
-      state.minute !== 0 ||
-      state.campaign?.history.length ||
-      state.finance.wagesPaid !== 0 ||
-      state.members.some((m) => m.extraMinutes > 0 || m.earnedPay > 0)
-    )
-      return result(translate(msg, 'untouchedStart'));
-    const missing = missingReplayParticipants();
-    if (missing.length)
-      return result(translate(msg, 'waitForScene', { missing: missing.join(', ') }));
-    const operations = useOperationsCampaignStore.getState();
-    const order = operations.orders.find((o) => o.id === operations.activeOrderId);
-    if (
-      !order ||
-      operations.activeChallenge ||
-      ['fulfilled', 'cancelled'].includes(order.status) ||
-      order.requiredKg <= order.shippedKg ||
-      order.qualityFailureKg !== 0
-    )
-      return result(translate(msg, 'openOrderRequired'));
-    cleanupThrottledBags();
-    const plant = capturePlant();
-    const participants = captureReplayParticipants();
-    const checkpoint: WorkplaceCheckpointInfo = {
-      id: `plant-${++sequence}`,
-      orderId: order.id,
-      customer: order.customer,
-      remainingKg: order.requiredKg - order.shippedKg,
-      seed,
-      gameDay: plant.game.gameDay,
-      gameTime: plant.game.gameTime,
-      sourceKg: [...plant.material.machineBuffers.values()].reduce(
-        (total, buffer) =>
-          total +
-          [...buffer.inputBuffer, ...buffer.outputBuffer].reduce(
-            (n, parcel) =>
-              n +
-              (parcel.type === 'wheat_grain' || parcel.type === 'corn_grain' ? parcel.amount : 0),
-            0
-          ),
-        0
-      ),
-      faults: plant.breakdown.activeBreakdowns.map(
-        (fault) => `${fault.machineName}: ${fault.type}`
-      ),
-      participantIds: participants.map((p) => p.id),
-    };
-    saved = { plant, participants, epoch: Date.now() };
-    set({ checkpoint, runs: [], activeRunId: null });
-    return result();
-  },
-  begin: (profile) => {
-    const reason = safetyReason();
-    if (reason) return result(reason);
-    const checkpoint = get().checkpoint;
-    const raw = saved;
-    if (!checkpoint || !raw) return result(translate(msg, 'captureFirst'));
-    if (!['toe-dip', 'team', 'cooperative'].includes(profile))
-      return result(translate(msg, 'knownCharter'));
-    if (!replayParticipantsAvailable(raw.participants) || missingReplayParticipants().length)
-      return result(translate(msg, 'sceneChanged'));
-    if (useMaterialFlowStore.getState().sessionId !== raw.plant.material.sessionId)
-      return result(translate(msg, 'materialSessionChanged'));
-    const state = useWorkplaceStore.getState().workplace;
-    if (get().activeRunId) {
-      const recorded = get().record();
-      if (!recorded.changed) return recorded;
-    } else if (
-      !['idle', 'deliberating'].includes(state.phase) ||
-      state.minute !== 0 ||
-      state.finance.wagesPaid !== 0
-    )
-      return result(translate(msg, 'finishCurrentShift'));
-    const rollback = capturePlant();
-    const rollbackParticipants = captureReplayParticipants();
-    beginReplayClock(checkpoint.seed, raw.epoch);
-    try {
-      restorePlant(raw.plant);
-      restoreReplayParticipants(raw.participants);
-      const fresh = createWorkplace('game', checkpoint.seed);
-      fresh.revision = state.revision + 1;
-      useWorkplaceStore.setState({ workplace: fresh });
-      const started = useWorkplaceStore.getState().startMission(profile, checkpoint.seed);
-      if (!started.changed) throw new Error(started.reason ?? 'Agreement could not start.');
-      set({ activeRunId: `run-${++sequence}` });
-      return result();
-    } catch {
-      // Internal participant failures fail closed; the prior reviewed receipts survive.
-      let rollbackComplete = true;
-      try {
-        restorePlant(rollback);
-        restoreReplayParticipants(rollbackParticipants);
-      } catch {
-        rollbackComplete = false;
-      }
-      useWorkplaceStore.setState({ workplace: state });
-      endReplayClock();
-      saved = null;
-      set({ checkpoint: null, activeRunId: null, guided: false });
-      return result(
-        rollbackComplete ? translate(msg, 'restorationFailed') : translate(msg, 'rollbackFailed')
-      );
-    }
-  },
-  record: () => {
+export const useWorkplaceReplayStore = create<WorkplaceReplayStore>((set, get) => {
+  /** Builds and keeps the live run's review; whether the replay ends is the caller's. */
+  const recordRun = (): WorkplaceTransitionResult => {
     const checkpoint = get().checkpoint;
     const id = get().activeRunId;
-    if (!checkpoint || !saved || !id) return result(translate(msg, 'startRunFirst'));
+    if (!checkpoint || !saved || !id) return refuse('startRunFirst');
     const service = peekSCADAService();
-    if (service && service.getState().mode !== 'simulation')
-      return result(translate(msg, 'matchedEvidenceLocal'));
+    if (service && service.getState().mode !== 'simulation') return refuse('matchedEvidenceLocal');
     const state = useWorkplaceStore.getState().workplace;
     const totals = campaignTotals(state);
     if (state.phase !== 'review' || totals.members.some((m) => m.recoveryOwedMinutes > 1e-8))
-      return result(translate(msg, 'reviewBeforeRecording'));
+      return refuse('reviewBeforeRecording');
     const mission = state.campaign?.mission;
     const operations = useOperationsCampaignStore.getState();
     const order = operations.orders.find((o) => o.id === checkpoint.orderId);
@@ -268,7 +177,7 @@ export const useWorkplaceReplayStore = create<WorkplaceReplayStore>((set, get) =
       mission.materialSessionId !== saved.plant.material.sessionId ||
       useMaterialFlowStore.getState().sessionId !== saved.plant.material.sessionId
     )
-      return result(translate(msg, 'evidenceChanged'));
+      return refuse('evidenceChanged');
     const startingOrder = saved.plant.operations.orders.find((o) => o.id === checkpoint.orderId)!;
     const accounts = [...(state.campaign?.history.map((h) => h.finance) ?? []), state.finance];
     const sum = (key: 'wagesPaid' | 'compensationPaid' | 'improvementSpend') =>
@@ -325,20 +234,176 @@ export const useWorkplaceReplayStore = create<WorkplaceReplayStore>((set, get) =
     };
     set({ runs: [...get().runs.filter((r) => r.id !== id), run].slice(-12) });
     return result();
-  },
-  forget: () => {
-    const state = useWorkplaceStore.getState().workplace;
-    if (
-      state.phase === 'active' ||
-      campaignTotals(state).members.some((m) => m.recoveryOwedMinutes > 1e-8)
-    )
-      return result(translate(msg, 'finishAgreement'));
-    saved = null;
-    endReplayClock();
-    set({ checkpoint: null, runs: [], activeRunId: null, guided: false });
-    return result();
-  },
-}));
+  };
+  return {
+    checkpoint: null,
+    runs: [],
+    activeRunId: null,
+    guided: false,
+    setGuided: (guided) => set({ guided }),
+    capture: (seed) => {
+      const reason = safetyReason();
+      if (reason) return refuse(reason);
+      if (!Number.isSafeInteger(seed) || seed < 1 || seed > 2147483647)
+        return result(translate(msg, 'seedRange', { max: formatFixed(2147483647, 0) }));
+      const state = useWorkplaceStore.getState().workplace;
+      if (
+        get().activeRunId ||
+        !['idle', 'deliberating'].includes(state.phase) ||
+        state.minute !== 0 ||
+        state.campaign?.history.length ||
+        state.finance.wagesPaid !== 0 ||
+        state.members.some((m) => m.extraMinutes > 0 || m.earnedPay > 0)
+      )
+        return refuse('untouchedStart');
+      const missing = missingReplayParticipants();
+      if (missing.length) return refuse('waitForScene', { missing: missing.join(', ') });
+      const operations = useOperationsCampaignStore.getState();
+      const order = operations.orders.find((o) => o.id === operations.activeOrderId);
+      if (
+        !order ||
+        operations.activeChallenge ||
+        ['fulfilled', 'cancelled'].includes(order.status) ||
+        order.requiredKg <= order.shippedKg ||
+        order.qualityFailureKg !== 0
+      )
+        return refuse('openOrderRequired');
+      cleanupThrottledBags();
+      const plant = capturePlant();
+      const participants = captureReplayParticipants();
+      const checkpoint: WorkplaceCheckpointInfo = {
+        id: `plant-${++sequence}`,
+        orderId: order.id,
+        customer: order.customer,
+        remainingKg: order.requiredKg - order.shippedKg,
+        seed,
+        gameDay: plant.game.gameDay,
+        gameTime: plant.game.gameTime,
+        sourceKg: [...plant.material.machineBuffers.values()].reduce(
+          (total, buffer) =>
+            total +
+            [...buffer.inputBuffer, ...buffer.outputBuffer].reduce(
+              (n, parcel) =>
+                n +
+                (parcel.type === 'wheat_grain' || parcel.type === 'corn_grain' ? parcel.amount : 0),
+              0
+            ),
+          0
+        ),
+        faults: plant.breakdown.activeBreakdowns.map((fault) => ({
+          machineName: fault.machineName,
+          type: fault.type,
+        })),
+        participantIds: participants.map((p) => p.id),
+      };
+      saved = { plant, participants, epoch: Date.now() };
+      set({ checkpoint, runs: [], activeRunId: null });
+      return result();
+    },
+    begin: (profile) => {
+      const reason = safetyReason();
+      if (reason) return refuse(reason);
+      const checkpoint = get().checkpoint;
+      const raw = saved;
+      if (!checkpoint || !raw) return refuse('captureFirst');
+      if (!['toe-dip', 'team', 'cooperative'].includes(profile)) return refuse('knownCharter');
+      if (!replayParticipantsAvailable(raw.participants) || missingReplayParticipants().length)
+        return refuse('sceneChanged');
+      if (useMaterialFlowStore.getState().sessionId !== raw.plant.material.sessionId)
+        return refuse('materialSessionChanged');
+      const state = useWorkplaceStore.getState().workplace;
+      const activeRunId = get().activeRunId;
+      // A retained run is fixed and its season is saved: rewinding never records
+      // it again, and never throws away a shift begun in it since the retain.
+      const retained =
+        activeRunId !== null &&
+        !isWorkplaceReplayActive() &&
+        get().runs.some((run) => run.id === activeRunId);
+      if (retained) {
+        if (state.phase === 'active') return refuse('finishCurrentShift');
+      } else if (activeRunId) {
+        // Retained on the way to the next charter, with the clock still running,
+        // so the disk keeps the pre-replay pair the physical session holds.
+        const recorded = recordRun();
+        if (!recorded.changed) return recorded;
+      } else if (
+        !['idle', 'deliberating'].includes(state.phase) ||
+        state.minute !== 0 ||
+        state.finance.wagesPaid !== 0
+      )
+        return refuse('finishCurrentShift');
+      const rollback = capturePlant();
+      const rollbackParticipants = captureReplayParticipants();
+      beginReplayClock(checkpoint.seed, raw.epoch);
+      try {
+        restorePlant(raw.plant);
+        restoreReplayParticipants(raw.participants);
+        const fresh = createWorkplace('game', checkpoint.seed);
+        fresh.revision = state.revision + 1;
+        useWorkplaceStore.setState({ workplace: fresh });
+        const started = useWorkplaceStore.getState().startMission(profile, checkpoint.seed);
+        if (!started.changed) throw new Error(started.reason ?? 'Agreement could not start.');
+        set({ activeRunId: `run-${++sequence}` });
+        return result();
+      } catch {
+        // Internal participant failures fail closed; the prior reviewed receipts survive.
+        let rollbackComplete = true;
+        try {
+          restorePlant(rollback);
+          restoreReplayParticipants(rollbackParticipants);
+        } catch {
+          rollbackComplete = false;
+        }
+        useWorkplaceStore.setState({ workplace: state });
+        endReplayClock();
+        saved = null;
+        set({ checkpoint: null, activeRunId: null, guided: false });
+        return refuse(rollbackComplete ? 'restorationFailed' : 'rollbackFailed');
+      }
+    },
+    record: () => {
+      const id = get().activeRunId;
+      if (id && !isWorkplaceReplayActive() && get().runs.some((run) => run.id === id))
+        return refuse('alreadyRetained');
+      const recorded = recordRun();
+      if (!recorded.changed) return recorded;
+      // A retained review keeps the replay's plant, so the replay ends here: the
+      // physical session saves again and the season it retained is written, while
+      // the checkpoint stays for further charters (begin restarts the clock).
+      // Working if a reload after retaining returns to the retained review.
+      endReplayClock();
+      useWorkplaceStore.setState({});
+      notifyReplayRecordChanged();
+      return recorded;
+    },
+    forget: () => {
+      const state = useWorkplaceStore.getState().workplace;
+      if (
+        state.phase === 'active' ||
+        campaignTotals(state).members.some((m) => m.recoveryOwedMinutes > 1e-8)
+      )
+        return refuse('finishAgreement');
+      saved = null;
+      endReplayClock();
+      // The replay's plant now stays (the physical session saves again), so the
+      // workplace it left is written too; nothing was written while it ran.
+      useWorkplaceStore.setState({});
+      set({ checkpoint: null, runs: [], activeRunId: null, guided: false });
+      // The plant record is written in the same microtask as the workplace.
+      notifyReplayRecordChanged();
+      return result();
+    },
+  };
+});
+
+/**
+ * A run is live from its start until it is retained. A retained run's season is
+ * the saved one (record ends the replay), so it blocks nothing a replay blocks.
+ */
+export const selectReplayRunLive = (state: {
+  activeRunId: string | null;
+  runs: WorkplaceReplayRun[];
+}) => state.activeRunId !== null && !state.runs.some((run) => run.id === state.activeRunId);
 
 export function exportWorkplaceReplayReport() {
   const { checkpoint, runs } = useWorkplaceReplayStore.getState();

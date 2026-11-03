@@ -24,13 +24,24 @@ export interface Achievement {
    * cannot be reached.
    */
   tracked?: boolean;
+  /**
+   * Bag achievements only: the lifetime bag total when counting began, set by
+   * a Reset. Absent (older saves, a fresh game) means counting from zero. It
+   * lives on the achievement, not the store, because a save is rejected when
+   * a store-level field it lacks is added.
+   */
+  countedFromBags?: number;
 }
+
+/** Achievements whose progress is the number of bags produced. */
+export const BAG_ACHIEVEMENT_IDS: readonly string[] = ['first-bag', 'century', 'thousand'];
 
 export interface AchievementsStore {
   achievements: Achievement[];
   unlockAchievement: (achievementId: string) => void;
   updateAchievementProgress: (achievementId: string, progress: number) => void;
-  resetAchievements: () => void;
+  /** `bagsProducedSoFar` is where bag achievements start counting again. */
+  resetAchievements: (bagsProducedSoFar?: number) => void;
   getAchievement: (achievementId: string) => Achievement | undefined;
   getUnlockedAchievements: () => Achievement[];
   getAchievementsByCategory: (category: Achievement['category']) => Achievement[];
@@ -86,6 +97,14 @@ const achievementCopy = (id: string): { name: string; description: string } | nu
     description: translate(achievementsStoreMessages, keys.description),
   };
 };
+
+/**
+ * An achievement's name and description in the language active now, or null
+ * for an unknown id. Keyed bell notices (useAchievementTracker) read it so an
+ * unlock filed in one language reads in the next.
+ */
+export const achievementCopyNow = (id: string): { name: string; description: string } | null =>
+  achievementCopy(id);
 
 /** Re-resolve copy in the active language; returns the same object when unchanged. */
 const localizeAchievement = (achievement: Achievement): Achievement => {
@@ -292,7 +311,17 @@ export const useAchievementsStore = create<AchievementsStore>()(
         return changed ? { achievements } : state;
       }),
 
-    resetAchievements: () => set({ achievements: createDefaultAchievements() }),
+    resetAchievements: (bagsProducedSoFar = 0) => {
+      const baseline =
+        Number.isFinite(bagsProducedSoFar) && bagsProducedSoFar > 0 ? bagsProducedSoFar : 0;
+      set({
+        achievements: createDefaultAchievements().map((a) =>
+          baseline > 0 && BAG_ACHIEVEMENT_IDS.includes(a.id)
+            ? { ...a, countedFromBags: baseline }
+            : a
+        ),
+      });
+    },
 
     getAchievement: (achievementId: string) =>
       get().achievements.find((a) => a.id === achievementId),
@@ -306,8 +335,7 @@ export const useAchievementsStore = create<AchievementsStore>()(
 
 // Achievements are stored with resolved copy so every reader of `a.name` works
 // unchanged; a language switch re-resolves it in place, keeping progress.
-useLocaleStore.subscribe((state, previous) => {
-  if (state.locale === previous.locale) return;
+const relocalizeAchievements = (): void =>
   useAchievementsStore.setState((current) => {
     let changed = false;
     const achievements = current.achievements.map((achievement) => {
@@ -317,4 +345,13 @@ useLocaleStore.subscribe((state, previous) => {
     });
     return changed ? { achievements } : current;
   });
+
+useLocaleStore.subscribe((state, previous) => {
+  if (state.locale === previous.locale) return;
+  relocalizeAchievements();
 });
+
+// A physical save or a replay checkpoint restores the whole list with the copy
+// it was captured in. Re-resolve it on arrival; an already-current list is
+// returned unchanged, so this settles after one pass.
+useAchievementsStore.subscribe((state) => state.achievements, relocalizeAchievements);

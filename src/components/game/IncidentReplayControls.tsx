@@ -1,11 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { SkipBack, SkipForward, Play, Pause } from 'lucide-react';
-import { useIncidentReplayStore } from '../../stores/incidentReplayStore';
+import { useIncidentReplayStore, type ReplayFrame } from '../../stores/incidentReplayStore';
+import { useProductionStore } from '../../stores/productionStore';
+import { useMobileControlStore } from '../../stores/mobileControlStore';
 import { useShallow } from 'zustand/react/shallow';
 import { formatFixed, useT } from '../../i18n';
 import { formatTime } from '../../utils/timeFormatting';
+import { alertText } from '../../i18n/alertCopy';
 import { incidentReplayControlsMessages } from './IncidentReplayControls.messages';
+
+const LISTED_ITEMS = 3;
+
+/** HH:MM on the plant clock from fractional game hours. */
+const plantClockTime = (hour: number): string => {
+  const minuteOfDay = Math.floor((((hour % 24) + 24) % 24) * 60 + 1e-6);
+  return `${String(Math.floor(minuteOfDay / 60)).padStart(2, '0')}:${String(minuteOfDay % 60).padStart(2, '0')}`;
+};
+
+const hasPlantClock = (
+  clock: ReplayFrame['gameClock']
+): clock is NonNullable<ReplayFrame['gameClock']> =>
+  !!clock && Number.isFinite(clock.day) && Number.isFinite(clock.hour);
 
 export const IncidentReplayControls: React.FC = () => {
   const t = useT(incidentReplayControlsMessages);
@@ -23,6 +39,27 @@ export const IncidentReplayControls: React.FC = () => {
     );
 
   const [isPlaying, setIsPlaying] = useState(false);
+  // Names for the machine ids a frame recorded; ids are the fallback.
+  const machines = useProductionStore((state) => state.machines);
+
+  // Exit unmounts this bar with the focused button in it; hand focus back to
+  // whatever opened the replay (the Settings button) rather than to <body>.
+  const openerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!replayMode) return;
+    const active = document.activeElement;
+    openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    // On a phone, Enter replay is pressed in the Settings sheet, and while a
+    // sheet is open this bar's root is inert and covered. Hand the screen to
+    // the replay, as Replay getting started does for the tour.
+    const mobile = useMobileControlStore.getState();
+    if (mobile.mobilePanelVisible) mobile.closeMobilePanel();
+  }, [replayMode]);
+  const restoreOpenerFocus = useCallback(() => {
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (opener?.isConnected) opener.focus();
+  }, []);
 
   useEffect(() => {
     if (!isPlaying || !replayMode || replayFrames.length === 0) return;
@@ -64,12 +101,56 @@ export const IncidentReplayControls: React.FC = () => {
   const handleExitReplay = useCallback(() => {
     setReplayMode(false);
     setIsPlaying(false);
-  }, [setReplayMode]);
+    restoreOpenerFocus();
+  }, [setReplayMode, restoreOpenerFocus]);
 
   if (!replayMode) return null;
 
-  const frameTime = replayFrames[currentReplayIndex]?.timestamp;
-  const frameLabel = frameTime ? formatTime(frameTime, { seconds: true }) : null;
+  const frame = replayFrames[currentReplayIndex];
+  const frameTime = frame?.timestamp;
+  // Player-facing event times read on the plant clock (as the maintenance log
+  // does); a frame recorded without one falls back to its capture time.
+  const frameLabel = hasPlantClock(frame?.gameClock)
+    ? t('gameStamp', {
+        day: formatFixed(Math.max(0, Math.floor(frame.gameClock.day)) + 1, 0),
+        time: plantClockTime(frame.gameClock.hour),
+      })
+    : frameTime
+      ? formatTime(frameTime, { seconds: true })
+      : null;
+
+  // What the plant looked like in this frame: the status tally, the machines
+  // in a fault, and the alerts standing at the time.
+  const nameOf = (id: string) => machines?.find((machine) => machine.id === id)?.name || id;
+  const listed = (items: string[]) =>
+    items.length > LISTED_ITEMS
+      ? `${items.slice(0, LISTED_ITEMS).join(', ')} ${t('moreItems', {
+          count: formatFixed(items.length - LISTED_ITEMS, 0),
+        })}`
+      : items.join(', ');
+  const idsWith = (status: string) =>
+    (frame?.machineStates ?? []).filter((state) => state.status === status).map((s) => s.id);
+  const running = idsWith('running');
+  const idle = idsWith('idle');
+  const warning = idsWith('warning');
+  const critical = idsWith('critical');
+  const frameStatus = [
+    running.length > 0 ? t('statusRunning', { count: formatFixed(running.length, 0) }) : null,
+    idle.length > 0 ? t('statusIdle', { count: formatFixed(idle.length, 0) }) : null,
+    warning.length > 0
+      ? t('statusMachines', {
+          status: t('statusWarning', { count: formatFixed(warning.length, 0) }),
+          machines: listed(warning.map(nameOf)),
+        })
+      : null,
+    critical.length > 0
+      ? t('statusMachines', {
+          status: t('statusCritical', { count: formatFixed(critical.length, 0) }),
+          machines: listed(critical.map(nameOf)),
+        })
+      : null,
+  ].filter((entry): entry is string => entry !== null);
+  const frameAlerts = frame?.alerts ?? [];
 
   // Sits above the dock (bottom-6, z-50) and the always-present music player
   // (bottom-[6.75rem]). At bottom-4 the play and skip buttons were behind the dock.
@@ -152,6 +233,27 @@ export const IncidentReplayControls: React.FC = () => {
             {t('exitReplay')}
           </button>
         </div>
+        {frameStatus.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-300">
+            {frameStatus.map((entry) => (
+              <span key={entry}>{entry}</span>
+            ))}
+          </div>
+        )}
+        {frameAlerts.length > 0 && (
+          <ul className="mt-1 space-y-0.5 text-[11px] text-slate-400">
+            {frameAlerts.slice(0, LISTED_ITEMS).map((alert) => (
+              <li key={alert.id}>
+                {alertText({ title: '', message: alert.message, copy: alert.copy }).message}
+              </li>
+            ))}
+            {frameAlerts.length > LISTED_ITEMS && (
+              <li>
+                {t('moreItems', { count: formatFixed(frameAlerts.length - LISTED_ITEMS, 0) })}
+              </li>
+            )}
+          </ul>
+        )}
       </div>
     </motion.div>
   );

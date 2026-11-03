@@ -66,9 +66,14 @@ target, not excuses:
 - **Textures are procedurally generated at load**, not authored image files.
   Findings about texture quality should be phrased as generator properties:
   texel density, octave count, feature period, macro variation, channel usage.
-- **Scene geometry is instanced procedural TypeScript**, not imported models,
-  apart from the forklift and three worker meshes. Geometry findings should name
-  a silhouette or profile property, not "use a better model".
+- **The mill itself is instanced procedural TypeScript.** Silos, roller mills,
+  plansifters, packers, conveyors and the shell are code, and a geometry finding
+  on them names a silhouette or profile property, not "use a better model". The
+  world around the mill is mostly imported glTF: some 150 models under
+  `public/models/` (world props, village, farm, the forklift, workers), many of
+  them from image-to-3D generation, with recorded provenance. These two families
+  meet in most exterior frames, which is why axis 8 exists. A finding on an
+  imported model can name the model file.
 - **One shadow-casting directional light.** Multiple shadow casters are a known
   defect class here, not an improvement.
 - The repo has documented systems for depth layering (`polygonOffset` presets,
@@ -92,6 +97,7 @@ eye. **9** = indistinguishable from reference photography at this framing.
 | 5 | **Composition & dressing** | Foreground / midground / background separation. Believable industrial clutter: cabling, conduit, pallets, staging, signage, spill. Placement that implies a working process rather than decoration. No large dead zones, no floating or interpenetrating props. |
 | 6 | **Artefact freedom** | Z-fighting, banding, shadow acne, peter-panning, aliasing on thin geometry, seams, popping, missing geometry, NaN gaps, texture flicker. Judge at full resolution, not from the contact sheet. |
 | 7 | **HUD & UI legibility** | SCADA overlay contrast against the 3D behind it, typographic hierarchy, alignment and rhythm, iconography clarity. The overlay must be readable without fighting the scene. |
+| 8 | **Style coherence** | Does everything in one frame look as if it came from the same game? Check level of detail, stylisation, saturation, edge treatment and material response. A photoreal element next to a miniature-styled one, a richly textured generated model beside a flat procedural box, or water, sky or foliage at a different level of realism from the buildings: each one breaks the frame even when every element scores well alone. The authored village, farm and castle keep their pinned miniature style. The finding is the element that does not match its neighbours, not a request to restyle the whole world toward one of them. Name both elements and the property that differs. A frame showing only one family of assets is still graded, on whether that family is consistent with itself; this axis is never `n/a`. |
 
 ### Verdict
 
@@ -149,6 +155,7 @@ Frames reviewed: <list>
 | 1 Silhouette & form | n/10 | ... |
 ...
 | 7 HUD & UI legibility | n/10 | ... |
+| 8 Style coherence | n/10 | ... |
 
 ## Blocking defects
 1. **<scene> — <one-line title>.** <what, where, likely lever>

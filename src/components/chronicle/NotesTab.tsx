@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   Bookmark,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import type { ChronicleState } from '../../chronicle/engine';
 import { HISTORY_NOTES } from '../../chronicle/history';
-import { markLabel, recordEntries } from '../../chronicle/record';
+import { isFiledOutcome, markLabel, recordEntries } from '../../chronicle/record';
 import { QUIZ_QUESTIONS } from '../../chronicle/quiz';
 import { chronicleStream } from '../../chronicle/rng';
 import type { Actor, NoticeKind } from '../../chronicle/types';
@@ -76,7 +76,10 @@ export function NotesTab({ state }: { state: ChronicleState }) {
                 />
                 <span className="text-white">
                   Shift {entry.shift}: {markLabel(entry.id)}
-                  <span className="text-slate-300"> · {ACTOR_LABEL[entry.actor]}</span>
+                  {/* What the year filed (a return, the reserve) was nobody's ruling, lapsed or not. */}
+                  {!isFiledOutcome(entry) && (
+                    <span className="text-slate-300"> · {ACTOR_LABEL[entry.actor]}</span>
+                  )}
                 </span>
               </li>
             ))}
@@ -148,7 +151,16 @@ function QuizSection({ state }: { state: ChronicleState }) {
       next: s.nextQuizQuestion,
     }))
   );
-  const [round, setRound] = useState(0);
+  const round = useChronicleStore((s) => s.quizRound);
+  // Each step replaces the control that took it; move focus to the next one
+  // so a keyboard player is not dropped at the top of the page.
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const [focusPending, setFocusPending] = useState(false);
+  useEffect(() => {
+    if (!focusPending) return;
+    setFocusPending(false);
+    sectionRef.current?.querySelector<HTMLElement>('[data-quiz-focus]')?.focus();
+  }, [focusPending, quiz]);
   const pool = useMemo(
     () => QUIZ_QUESTIONS.filter((q) => state.unlockedNotes.includes(q.noteId)),
     [state.unlockedNotes]
@@ -166,7 +178,7 @@ function QuizSection({ state }: { state: ChronicleState }) {
     // The round's questions are fixed when it starts, so a note unlocking
     // mid-round never reshuffles them.
     const next = chronicleStream(state.charter?.seed ?? 1, 'quiz', round);
-    setRound((r) => r + 1);
+    setFocusPending(true);
     actions.start(
       [...pool]
         .map((question) => ({ question, key: next() }))
@@ -182,52 +194,67 @@ function QuizSection({ state }: { state: ChronicleState }) {
       : undefined;
   if (!quiz || quiz.finished || !question)
     return (
-      <Section title={`Quiz${best}`}>
-        {quiz?.finished && (
-          <p className="text-white">
-            {quiz.score} / {quiz.questionIds.length} sacks
-          </p>
-        )}
-        <button className={BUTTON_PRIMARY} onClick={begin}>
-          {quiz?.finished ? 'Another round' : 'Start the quiz'}
-        </button>
-      </Section>
+      <div ref={sectionRef}>
+        <Section title={`Quiz${best}`}>
+          {quiz?.finished && (
+            <p className="text-white">
+              {quiz.score} / {quiz.questionIds.length} sacks
+            </p>
+          )}
+          <button className={BUTTON_PRIMARY} onClick={begin} data-quiz-focus>
+            {quiz?.finished ? 'Another round' : 'Start the quiz'}
+          </button>
+        </Section>
+      </div>
     );
 
   const picked = quiz.picked;
   const last = quiz.index + 1 >= quiz.questionIds.length;
   return (
-    <Section title={`Question ${quiz.index + 1} / ${quiz.questionIds.length}`}>
-      <p className="text-white">{question.prompt}</p>
-      <div className="grid gap-2">
-        {question.options.map((option, optionIndex) => {
-          const chosen = picked === optionIndex;
-          const correct = optionIndex === question.correctIndex;
-          return (
-            <button
-              key={optionIndex}
-              disabled={picked !== null}
-              onClick={() => actions.pick(optionIndex, correct)}
-              className={`min-h-11 rounded-lg border px-3 py-2 text-left text-xs ${
-                picked === null
-                  ? 'border-slate-700 hover:border-slate-500'
-                  : correct
-                    ? 'border-emerald-400 text-emerald-200'
-                    : chosen
-                      ? 'border-rose-400 text-rose-200'
-                      : 'border-slate-800 opacity-60'
-              }`}
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-      {picked !== null && (
-        <button className={BUTTON} onClick={actions.next}>
-          {last ? 'See the result' : 'Next question'}
-        </button>
-      )}
-    </Section>
+    <div ref={sectionRef}>
+      <Section title={`Question ${quiz.index + 1} / ${quiz.questionIds.length}`}>
+        <p className="text-white">{question.prompt}</p>
+        <div className="grid gap-2">
+          {question.options.map((option, optionIndex) => {
+            const chosen = picked === optionIndex;
+            const correct = optionIndex === question.correctIndex;
+            return (
+              <button
+                key={optionIndex}
+                disabled={picked !== null}
+                data-quiz-focus={picked === null && optionIndex === 0 ? true : undefined}
+                onClick={() => {
+                  setFocusPending(true);
+                  actions.pick(optionIndex, correct);
+                }}
+                className={`min-h-11 rounded-lg border px-3 py-2 text-left text-xs ${
+                  picked === null
+                    ? 'border-slate-700 hover:border-slate-500'
+                    : correct
+                      ? 'border-emerald-400 text-emerald-200'
+                      : chosen
+                        ? 'border-rose-400 text-rose-200'
+                        : 'border-slate-800 opacity-60'
+                }`}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+        {picked !== null && (
+          <button
+            className={BUTTON}
+            data-quiz-focus
+            onClick={() => {
+              setFocusPending(true);
+              actions.next();
+            }}
+          >
+            {last ? 'See the result' : 'Next question'}
+          </button>
+        )}
+      </Section>
+    </div>
   );
 }

@@ -235,4 +235,52 @@ describe('ProductionTargetWidget', () => {
       screen.queryByRole('button', { name: 'Show production target tracker' })
     ).not.toBeInTheDocument();
   });
+
+  it('keeps keyboard focus on the control that replaces the one just pressed', () => {
+    render(<ProductionTargetWidget />);
+
+    const close = screen.getByRole('button', { name: 'Close production target tracker' });
+    close.focus();
+    fireEvent.click(close);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Show production target tracker' })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show production target tracker' }));
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Close production target tracker' })
+    );
+  });
+
+  it('hands focus to the replacement when the T shortcut removes the focused control', () => {
+    render(<ProductionTargetWidget />);
+    screen.getByRole('button', { name: 'Close production target tracker' }).focus();
+
+    // T pressed while the close button has focus: the card goes, focus must not.
+    act(() => useAIConfigStore.getState().setShowProductionTarget(false));
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Show production target tracker' })
+    );
+
+    act(() => useAIConfigStore.getState().setShowProductionTarget(true));
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Close production target tracker' })
+    );
+  });
+
+  it('does not take focus when the tracker is toggled from elsewhere', () => {
+    render(
+      <>
+        <input aria-label="elsewhere" />
+        <ProductionTargetWidget />
+      </>
+    );
+    const elsewhere = screen.getByRole('textbox', { name: 'elsewhere' });
+    elsewhere.focus();
+
+    // The T shortcut or a settings toggle flips the same preference.
+    act(() => useAIConfigStore.getState().setShowProductionTarget(false));
+    act(() => useAIConfigStore.getState().setShowProductionTarget(true));
+    expect(document.activeElement).toBe(elsewhere);
+  });
 });

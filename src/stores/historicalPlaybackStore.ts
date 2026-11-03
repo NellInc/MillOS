@@ -12,6 +12,7 @@
 
 import { create } from 'zustand';
 import type { AIDecision } from '../types';
+import { useProductionStore } from './productionStore';
 
 // ============================================================================
 // Decision History Ring Buffer
@@ -25,9 +26,53 @@ export interface DecisionHistoryEntry {
   action: string;
   priority: AIDecision['priority'];
   machineId?: string;
+  /** The decision's keyed copy, so the replay list follows the language (decisionCardText). */
+  copy?: AIDecision['copy'];
 }
 
 const MAX_DECISION_HISTORY = 500; // ~50KB max, covers ~8 hours at 1/min
+const RECENT_REPLAY_MS = 60000;
+
+const toEntry = (decision: AIDecision): DecisionHistoryEntry => ({
+  id: decision.id,
+  // new Date(): a restored record may carry its time as a string.
+  timestamp: new Date(decision.timestamp).getTime(),
+  type: decision.type,
+  action: decision.action,
+  priority: decision.priority,
+  machineId: decision.machineId,
+  ...(decision.copy ? { copy: decision.copy } : {}),
+});
+
+/**
+ * The log with the plant's own decisions it never saw added in time order. A
+ * reload restores those (saved with the session) and the SCADA history the
+ * slider spans, but this log starts empty. Read at call time only, so the
+ * import cycle through productionStore is inert.
+ */
+const withPlantDecisions = (history: DecisionHistoryEntry[]): DecisionHistoryEntry[] => {
+  let decisions: AIDecision[];
+  try {
+    decisions = useProductionStore.getState().aiDecisions ?? [];
+  } catch {
+    return history;
+  }
+  const known = new Set(history.map((entry) => entry.id));
+  const missing = decisions
+    .filter((decision) => !known.has(decision.id))
+    .map(toEntry)
+    .filter((entry) => Number.isFinite(entry.timestamp));
+  if (missing.length === 0) return history;
+  return [...history, ...missing]
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .slice(-MAX_DECISION_HISTORY);
+};
+
+/** One minute before the newest recording, never before the oldest. */
+const recentReplayTime = (start: number | null, end: number | null): number => {
+  const latest = (end ?? Date.now()) - RECENT_REPLAY_MS;
+  return start !== null ? Math.max(start, latest) : latest;
+};
 
 // ============================================================================
 // Playback State
@@ -41,6 +86,11 @@ interface HistoricalPlaybackState {
   // Available time range (from HistoryStore)
   availableStart: number | null;
   availableEnd: number | null;
+  /**
+   * Replay was opened at "the most recent minute" and the player has not
+   * scrubbed yet, so a refreshed range moves it to the newest recording.
+   */
+  followLatest: boolean;
 
   // Decision history (ring buffer)
   decisionHistory: DecisionHistoryEntry[];
@@ -63,15 +113,19 @@ export const useHistoricalPlaybackStore = create<HistoricalPlaybackState>((set, 
   playbackTime: null,
   availableStart: null,
   availableEnd: null,
+  followLatest: false,
   decisionHistory: [],
 
-  // Enter replay mode at a specific timestamp (or most recent)
+  // Enter replay mode at a specific timestamp (or most recent). The range held
+  // here may date from when the timeline mounted; useHistoricalMode re-reads it
+  // on entry, and setAvailableRange then moves a "most recent" replay forward.
   enterReplayMode: (timestamp?: number) => {
-    const { availableEnd } = get();
-    const replayTime = timestamp ?? (availableEnd ? availableEnd - 60000 : Date.now() - 60000);
+    const { availableStart, availableEnd, decisionHistory } = get();
     set({
       isReplaying: true,
-      playbackTime: replayTime,
+      playbackTime: timestamp ?? recentReplayTime(availableStart, availableEnd),
+      followLatest: timestamp === undefined,
+      decisionHistory: withPlantDecisions(decisionHistory),
     });
   },
 
@@ -80,6 +134,7 @@ export const useHistoricalPlaybackStore = create<HistoricalPlaybackState>((set, 
     set({
       isReplaying: false,
       playbackTime: null,
+      followLatest: false,
     });
   },
 
@@ -93,27 +148,22 @@ export const useHistoricalPlaybackStore = create<HistoricalPlaybackState>((set, 
     if (availableStart !== null) clamped = Math.max(clamped, availableStart);
     if (availableEnd !== null) clamped = Math.min(clamped, availableEnd);
 
-    set({ playbackTime: clamped });
+    set({ playbackTime: clamped, followLatest: false });
   },
 
   // Set available data range (called when HistoryStore stats are loaded)
   setAvailableRange: (start: number, end: number) => {
+    const { isReplaying, followLatest } = get();
     set({
       availableStart: start,
       availableEnd: end,
+      ...(isReplaying && followLatest ? { playbackTime: recentReplayTime(start, end) } : {}),
     });
   },
 
   // Log a decision (called from store.addDecision wrapper)
   logDecision: (decision: AIDecision) => {
-    const entry: DecisionHistoryEntry = {
-      id: decision.id,
-      timestamp: decision.timestamp.getTime(),
-      type: decision.type,
-      action: decision.action,
-      priority: decision.priority,
-      machineId: decision.machineId,
-    };
+    const entry = toEntry(decision);
 
     set((state) => {
       const newHistory = [...state.decisionHistory, entry];

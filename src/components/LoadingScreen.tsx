@@ -32,6 +32,41 @@ interface LoadingScreenProps {
   slowWorldDelayMs?: number;
 }
 
+/** Nothing moving for this long, while the cover is up, is a stall. */
+const STALL_MS = 90_000;
+
+/**
+ * Calls `onElapsed` once `delayMs` of visible time has passed. A hidden tab
+ * renders nothing, so neither readiness nor slowness can be observed there.
+ * Returns the cancel.
+ */
+function startVisibleTimer(delayMs: number, onElapsed: () => void): () => void {
+  let remaining = delayMs;
+  let armedAt = 0;
+  let timer: number | undefined;
+  const arm = (): void => {
+    if (timer !== undefined || document.visibilityState === 'hidden') return;
+    armedAt = performance.now();
+    timer = window.setTimeout(onElapsed, remaining);
+  };
+  const disarm = (): void => {
+    if (timer === undefined) return;
+    window.clearTimeout(timer);
+    timer = undefined;
+    remaining = Math.max(0, remaining - (performance.now() - armedAt));
+  };
+  const onVisibility = (): void => {
+    if (document.visibilityState === 'hidden') disarm();
+    else arm();
+  };
+  arm();
+  document.addEventListener('visibilitychange', onVisibility);
+  return () => {
+    document.removeEventListener('visibilitychange', onVisibility);
+    window.clearTimeout(timer);
+  };
+}
+
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   minimumLoadTimeMs = 700,
   recoveryDelayMs = 30000,
@@ -66,12 +101,18 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
   useEffect(() => {
     const minimumTimer = window.setTimeout(() => setMinimumTimePassed(true), minimumLoadTimeMs);
-    const recoveryTimer = window.setTimeout(() => setShowRecovery(true), recoveryDelayMs);
-    return () => {
-      window.clearTimeout(minimumTimer);
-      window.clearTimeout(recoveryTimer);
-    };
-  }, [recoveryDelayMs, minimumLoadTimeMs]);
+    return () => window.clearTimeout(minimumTimer);
+  }, [minimumLoadTimeMs]);
+
+  // A hidden tab cannot become ready (nothing renders and the readiness probe
+  // waits for visibility), so only visible time counts towards the slow-load
+  // offer. On wall time a tab opened in the background came back offering Low,
+  // a choice that is kept for every later visit.
+  // Working if hidden time never brings the offer forward.
+  useEffect(
+    () => startVisibleTimer(recoveryDelayMs, () => setShowRecovery(true)),
+    [recoveryDelayMs]
+  );
 
   useEffect(() => {
     if (!(minimumTimePassed && (startup.ready || startup.opened))) return;
@@ -98,15 +139,45 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   // for that resource revision: a >1 s hitch restarts the frame window
   // (`prepared` false) without a resource change, and the controls must not
   // flicker away on the slow device they were offered to. A real resource
-  // change bumps the revision and releases it.
+  // change bumps the revision and releases it. Visible time only: a hidden tab
+  // draws no frames, so `prepared` keeps its last value and wall time latched
+  // a briefly slow world as slow behind the player's back.
+  // Working if hidden time never confirms a slow world.
   const [slowWorldRevision, setSlowWorldRevision] = useState<number | null>(null);
   useEffect(() => {
     if (!startup.prepared || startup.ready) return;
     const revision = startup.revision;
-    const timer = window.setTimeout(() => setSlowWorldRevision(revision), slowWorldDelayMs);
-    return () => window.clearTimeout(timer);
+    return startVisibleTimer(slowWorldDelayMs, () => setSlowWorldRevision(revision));
   }, [startup.prepared, startup.ready, startup.revision, slowWorldDelayMs]);
   const slowWorldConfirmed = !startup.ready && slowWorldRevision === startup.revision;
+
+  // A stall, not a slow device: neither progress nor any resource has moved for
+  // STALL_MS (an asset fetch with no timeout can hang). A slow device keeps no
+  // routine reload prompt, but a stall at Low graphics had no control at all.
+  // The wait restarts whenever either moves, and is not counted while hidden.
+  // The timer records the point it stalled at; the stall shows while that point
+  // is still current. No state is written when progress moves: this component
+  // re-renders on every asset event, and a write per event chained renders.
+  const progressKey = `${Math.floor(safeProgress)}:${startup.revision}`;
+  const [stalledAt, setStalledAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (startup.ready) return;
+    let timer: number | undefined;
+    const arm = () => {
+      window.clearTimeout(timer);
+      timer =
+        document.visibilityState === 'hidden'
+          ? undefined
+          : window.setTimeout(() => setStalledAt(progressKey), STALL_MS);
+    };
+    arm();
+    document.addEventListener('visibilitychange', arm);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', arm);
+    };
+  }, [progressKey, startup.ready]);
+  const showStall = stalledAt === progressKey && !startup.ready && startup.errors === 0;
   // The startup error count only rises, and strict readiness needs it at zero,
   // so a known error is final for this page load: say so and offer the way out
   // at once instead of after the slow-load delay.
@@ -214,19 +285,26 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
           {recoveryVisible &&
             !startup.ready &&
-            (startup.prepared || slowWorldConfirmed || hasStartupError || quality !== 'low') && (
+            (startup.prepared ||
+              slowWorldConfirmed ||
+              hasStartupError ||
+              quality !== 'low' ||
+              showStall) && (
               <div className="mt-6 flex max-w-md flex-col items-center gap-3 text-center text-sm text-slate-300">
-                {(startup.prepared || slowWorldConfirmed) && <p>{t('slowAnimation')}</p>}
+                {(startup.prepared || slowWorldConfirmed) && (
+                  <p>{startup.deferredShaders ? t('trucksPreparing') : t('slowAnimation')}</p>
+                )}
                 {/* Say why a bare quality switch appeared on a slow load. */}
                 {!startup.prepared &&
                   !slowWorldConfirmed &&
                   !hasStartupError &&
                   quality !== 'low' && <p>{t('slowLoad')}</p>}
                 {hasStartupError && <p>{t('resourcesFailed')}</p>}
+                {showStall && <p>{t('stalledLoad')}</p>}
                 {/* Reload is the explicit recovery control the focus trap waits for.
                   The service worker serves what already arrived, so it retries
                   only what failed. Working if every error state has a control. */}
-                {hasStartupError && (
+                {(hasStartupError || showStall) && (
                   <button
                     type="button"
                     onClick={() => window.location.reload()}
@@ -244,6 +322,10 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                     onClick={() => {
                       resetStartupPreparation();
                       useGraphicsStore.getState().setGraphicsQuality('low');
+                      // This button goes with the choice, and focus with it to
+                      // <body>, where Tab reached the controls under the cover.
+                      // Working if focus stays on the cover after the click.
+                      loadingRef.current?.focus();
                     }}
                     className="min-h-11 rounded-md border border-slate-500 px-4 py-2 text-slate-100 transition-colors hover:border-amber-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
                   >

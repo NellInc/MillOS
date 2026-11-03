@@ -14,15 +14,26 @@ import { useQCLabStore, type QCLabStore } from './qcLabStore';
 import { useAchievementsStore, type AchievementsStore } from './achievementsStore';
 import { useAnnouncementsStore, type AnnouncementsStore } from './announcementsStore';
 import { useIncidentReplayStore, type IncidentReplayStore } from './incidentReplayStore';
-import { useTruckScheduleStore, type TruckScheduleStore } from './truckScheduleStore';
+import {
+  useTruckScheduleStore,
+  type DockSchedule,
+  type TruckScheduleState,
+  type TruckScheduleStore,
+} from './truckScheduleStore';
 import { useUIStore } from './uiStore';
 import { useBreakdownStore } from './breakdownStore';
 // Read only inside performMaintenance (game-clock service dates), never at
 // module evaluation, so the import cycle with gameSimulationStore is inert.
 import { useGameSimulationStore } from './gameSimulationStore';
 import { formatFixed, translate } from '../i18n';
+import { readPlantClock } from '../utils/timeFormatting';
 import { productionStoreMessages } from './productionStore.messages';
+import { registerAlertCatalog } from '../i18n/alertCopy';
 import { bagsPerGameHour } from '../simulation/pace';
+import { incidentHoldsMachineWarning } from './operationsCampaignStore';
+
+const PRODUCTION_ALERT_CATALOG = 'productionStore';
+registerAlertCatalog(PRODUCTION_ALERT_CATALOG, productionStoreMessages);
 
 // Re-export from new focused stores for backward compatibility
 export { useQCLabStore } from './qcLabStore';
@@ -53,9 +64,16 @@ export type { TruckScheduleState, TruckScheduleStore } from './truckScheduleStor
 
 /**
  * Daily production goal in bags. Shared by ProductionTargetWidget (progress UI)
- * and UnifiedGameTick (milestone celebrations at 25/50/75/100%). Set to about
- * 85% of packer capacity (~1,440 bags per game day at the default 180x), so a
- * well-run day reaches it; the former 5,000 was unreachable at any offered speed.
+ * and UnifiedGameTick (milestone celebrations at 25/50/75/100%). A game day is
+ * 2,880 plant seconds at any pace (pace.ts, STANDARD_GAME_SPEED = 30). Measured
+ * on the material model over one game day: the three packers' ceiling is
+ * 3 x 25 kg/s = 216 t (8,640 bags); with finished goods shipped every game hour
+ * the line packs ~126 t (~5,000 bags); with nothing shipped the packers fill
+ * their 5 t output buffers and stop at 15 t (600 bags). The 1,200 bags (30 t)
+ * here therefore needs dispatch to keep up, and the order plan and truck cadence
+ * cap a real day below the steady-dispatch figure. The former 5,000 asked for
+ * that figure itself (the measurement fed 20 t wheat deliveries; the game's
+ * GRAIN_DELIVERY_KG is 15 t), which no day in play reached.
  */
 export const DAILY_TARGET_BAGS = 1200;
 
@@ -231,6 +249,50 @@ export function calculateEfficiency(wear: number, machineType: string): number {
 /** Service records kept per machine; machines are saved with the session. */
 const MAX_MAINTENANCE_RECORDS = 10;
 
+/** The figures a service record is worded from, so it follows the language. */
+export interface MaintenanceRecordFigures {
+  /** Game day as shown ('Day N'): game day 0 is Day 1. */
+  day: number;
+  minuteOfDay: number;
+  fromWear: number;
+  toWear: number;
+  restart: boolean;
+}
+export type WordedMaintenanceRecord = MaintenanceRecord & { figures?: MaintenanceRecordFigures };
+
+/**
+ * A service record's date, notes and service unit in the current language. A
+ * record saved before it carried its figures shows the text stored with it.
+ * Working if the inspector's maintenance log follows a language switch.
+ */
+export function maintenanceRecordText(
+  record: WordedMaintenanceRecord
+): Pick<MaintenanceRecord, 'date' | 'notes' | 'serviceUnit'> {
+  const figures = record.figures;
+  if (
+    !figures ||
+    ![figures.day, figures.minuteOfDay, figures.fromWear, figures.toWear].every(Number.isFinite)
+  )
+    return { date: record.date, notes: record.notes, serviceUnit: record.serviceUnit };
+  const wearNote = translate(productionStoreMessages, 'maintenanceResultWearReduced', {
+    from: formatFixed(figures.fromWear, 1),
+    to: formatFixed(figures.toWear, 1),
+  });
+  return {
+    date: translate(productionStoreMessages, 'maintenanceRecordDate', {
+      day: formatFixed(figures.day, 0),
+      time: `${String(Math.floor(figures.minuteOfDay / 60)).padStart(2, '0')}:${String(figures.minuteOfDay % 60).padStart(2, '0')}`,
+    }),
+    notes: figures.restart
+      ? translate(productionStoreMessages, 'maintenanceRecordRestartNote', { wear: wearNote })
+      : `${wearNote}.`,
+    // A restart names its work order, which is never translated.
+    serviceUnit: figures.restart
+      ? record.serviceUnit
+      : translate(productionStoreMessages, 'maintenanceRecordRoutineUnit'),
+  };
+}
+
 /**
  * True while wear alone keeps a machine at or above its warning threshold.
  * Restarting or cooling such a machine does not clear the warning; only
@@ -244,114 +306,6 @@ export function wearHoldsWarning(machine: Pick<MachineData, 'type' | 'metrics'>)
     Number.isFinite(wear) &&
     wear >= getWearConfig(machine.type).warningThreshold
   );
-}
-
-function updateMachinesForTick(
-  machines: MachineData[],
-  productionSpeed: number,
-  deltaSeconds: number,
-  machinesToBreakdown: Array<{ id: string; name: string; type: string }>
-): MachineData[] {
-  if (machines.length === 0) return machines;
-
-  let hasAnyChanges = false;
-  const updatedMachines = machines.map((machine) => {
-    const isRunning = machine.status === 'running' || machine.status === 'warning';
-    const isBrokenDown = machine.status === 'critical';
-    const baseRpm = machine.metrics.rpm;
-    const baseLoad = machine.metrics.load;
-    const baseTemp = machine.metrics.temperature;
-    const baseWear = machine.metrics.wear ?? 0;
-    const wearConfig = WEAR_CONFIG[machine.type];
-
-    // Skip updates for broken down machines
-    if (isBrokenDown) {
-      return machine;
-    }
-
-    // RPM variance: +/-2% random variation when running
-    let newRpm = baseRpm;
-    if (isRunning && baseRpm > 0) {
-      const rpmVariance = baseRpm * 0.02 * (Math.random() * 2 - 1);
-      newRpm = Math.max(0, Math.round(baseRpm + rpmVariance));
-    }
-
-    // Temperature: gradually increases when running, decreases when idle
-    let newTemp = baseTemp;
-    if (isRunning) {
-      // Running: temperature rises toward 75C at ~0.5C per second
-      const tempTarget = 75;
-      const tempDelta = (tempTarget - baseTemp) * 0.02 * deltaSeconds;
-      newTemp = Math.round(Math.min(85, baseTemp + Math.max(0.1, tempDelta)));
-    } else {
-      // Idle: temperature falls toward ambient 25C at ~0.3C per second
-      const tempTarget = 25;
-      const tempDelta = (baseTemp - tempTarget) * 0.01 * deltaSeconds;
-      newTemp = Math.round(Math.max(25, baseTemp - Math.max(0.1, tempDelta)));
-    }
-
-    // Load variance: +/-5% based on production speed when running
-    let newLoad = baseLoad;
-    if (isRunning && baseLoad > 0) {
-      const loadVariance = baseLoad * 0.05 * (Math.random() * 2 - 1);
-      newLoad = Math.round(
-        Math.max(10, Math.min(100, baseLoad * productionSpeed * 0.8 + loadVariance))
-      );
-    }
-
-    // WEAR ACCUMULATION: Machines accumulate wear while running
-    // Higher load accelerates wear (load factor: 0.5 at 50% load, 1.5 at 100% load)
-    let newWear = baseWear;
-    if (isRunning) {
-      const loadFactor = 0.5 + newLoad / 100;
-      const wearIncrement = wearConfig.wearRatePerSecond * deltaSeconds * loadFactor;
-      newWear = Math.min(100, baseWear + wearIncrement);
-    }
-
-    // EFFICIENCY CALCULATION: Efficiency decreases as wear increases
-    const newEfficiency = calculateEfficiency(newWear, machine.type);
-
-    // STATUS UPDATE based on wear thresholds
-    let newStatus = machine.status;
-    if (newWear >= wearConfig.breakdownThreshold) {
-      // Machine breaks down!
-      newStatus = 'critical';
-      machinesToBreakdown.push({ id: machine.id, name: machine.name, type: machine.type });
-    } else if (newWear >= wearConfig.warningThreshold && machine.status === 'running') {
-      // Machine needs maintenance soon
-      newStatus = 'warning';
-    }
-
-    // Only create new object if something changed
-    const wearChanged = Math.abs(newWear - baseWear) > 0.0001;
-    const efficiencyChanged = newEfficiency !== (machine.metrics.efficiency ?? 100);
-    if (
-      newRpm === baseRpm &&
-      newTemp === baseTemp &&
-      newLoad === baseLoad &&
-      !wearChanged &&
-      !efficiencyChanged &&
-      newStatus === machine.status
-    ) {
-      return machine;
-    }
-
-    hasAnyChanges = true;
-    return {
-      ...machine,
-      status: newStatus,
-      metrics: {
-        ...machine.metrics,
-        rpm: newRpm,
-        temperature: newTemp,
-        load: newLoad,
-        wear: Math.round(newWear * 100) / 100, // Round to 2 decimal places
-        efficiency: newEfficiency,
-      },
-    };
-  });
-
-  return hasAnyChanges ? updatedMachines : machines;
 }
 
 // Performance-optimized indices for O(1) lookups
@@ -415,7 +369,12 @@ export interface ProductionStore
   recordDecisionResponse: (
     decisionId: string,
     disposition: AIDecisionDisposition,
-    options?: { note?: string; modifiedAction?: string }
+    options?: {
+      note?: string;
+      modifiedAction?: string;
+      deferredAt?: { day: number; hour: number };
+      deferralReturned?: boolean;
+    }
   ) => void;
 
   // Machine management
@@ -449,8 +408,6 @@ export interface ProductionStore
   };
   updateMetrics: (metrics: Partial<ProductionStore['metrics']>) => void;
   recalculateMetrics: () => void; // Recompute all metrics from current state
-  tickMetrics: (deltaSeconds: number) => void; // Called by game loop to update tracking
-  tickMachineMetrics: (deltaSeconds: number) => void; // Vary machine metrics over time
 
   // Heat map data for route and process activity history.
   heatMapData: Array<{ x: number; z: number; intensity: number }>;
@@ -661,7 +618,8 @@ export const useProductionStore = create<ProductionStore>()(
     updateAchievementProgress: (
       ...args: Parameters<AchievementsStore['updateAchievementProgress']>
     ) => useAchievementsStore.getState().updateAchievementProgress(...args),
-    resetAchievements: () => useAchievementsStore.getState().resetAchievements(),
+    resetAchievements: (bagsProducedSoFar?: number) =>
+      useAchievementsStore.getState().resetAchievements(bagsProducedSoFar),
     getAchievement: (...args: Parameters<AchievementsStore['getAchievement']>) =>
       useAchievementsStore.getState().getAchievement(...args),
     getUnlockedAchievements: () => useAchievementsStore.getState().getUnlockedAchievements(),
@@ -785,7 +743,12 @@ export const useProductionStore = create<ProductionStore>()(
           if (evictionIndex === -1) return state;
           retainedDecisions = retainedDecisions.filter((_, index) => index !== evictionIndex);
         }
-        const enrichedDecision = enrichDecisionProvenance(decision, state);
+        // Stamped on the plant clock, as alerts, incidents and PA lines are.
+        const gameClock = decision.gameClock ?? readPlantClock();
+        const enrichedDecision = enrichDecisionProvenance(
+          gameClock ? { ...decision, gameClock } : decision,
+          state
+        );
         const updatedDecisions = [enrichedDecision, ...retainedDecisions].slice(0, 50);
 
         // Log decision to historical playback store (fire-and-forget)
@@ -867,6 +830,22 @@ export const useProductionStore = create<ProductionStore>()(
               recordedAt: Date.now(),
               note: options?.note,
               modifiedAction: options?.modifiedAction,
+              // A deferral keeps its plant-clock stamp and return across a
+              // re-record (a new note), so a reload cannot restart its wait.
+              ...(disposition === 'deferred'
+                ? {
+                    deferredAt:
+                      options?.deferredAt ??
+                      (decision.response?.disposition === 'deferred'
+                        ? decision.response.deferredAt
+                        : undefined),
+                    deferralReturned:
+                      options?.deferralReturned ??
+                      (decision.response?.disposition === 'deferred'
+                        ? decision.response.deferralReturned
+                        : undefined),
+                  }
+                : {}),
             },
             outcome:
               disposition === 'rejected'
@@ -967,24 +946,48 @@ export const useProductionStore = create<ProductionStore>()(
       const newWear = Math.max(0, currentWear - wearReduced);
       const newEfficiency = calculateEfficiency(newWear, machine.type);
 
-      // Determine new status based on wear
-      let newStatus: MachineData['status'] = 'running';
+      // A facility stop, drill or interlocked crisis idles what was running and
+      // records it for its release. A unit serviced while the stop holds is
+      // judged by the status the stop recorded, stays idle now, and its new
+      // status joins that record, so the release starts it (or leaves it idle).
+      // Working if no serviced unit runs during a stop, and none comes back in
+      // a warning its new wear no longer earns.
+      const clock = useGameSimulationStore.getState();
+      const stopHolds = clock.emergencyActive;
+      const recordedStatus = stopHolds
+        ? clock.preEmergencyMachineStatuses.get(machineId)
+        : undefined;
+      const priorStatus =
+        machine.status === 'idle' &&
+        (recordedStatus === 'running' ||
+          recordedStatus === 'warning' ||
+          recordedStatus === 'critical')
+          ? recordedStatus
+          : machine.status;
+
+      // Determine new status based on wear. An idle unit stays idle: 'warning'
+      // is a running state, so it is earned only by a unit that was running.
+      let releaseStatus: MachineData['status'];
       if (newWear >= wearConfig.breakdownThreshold) {
-        newStatus = 'critical';
-      } else if (newWear >= wearConfig.warningThreshold) {
-        newStatus = 'warning';
-      } else if (machine.status === 'critical') {
-        // If was broken down, set to running after repair
-        newStatus = 'running';
+        releaseStatus = 'critical';
+      } else if (priorStatus === 'idle') {
+        releaseStatus = 'idle';
+      } else if (newWear >= wearConfig.warningThreshold || incidentHoldsMachineWarning(machineId)) {
+        // Worn, or an open dust-filter incident holds the warning until mitigated.
+        releaseStatus = 'warning';
       } else {
-        newStatus = machine.status === 'idle' ? 'idle' : 'running';
+        // Running, or broken down and now repaired.
+        releaseStatus = 'running';
       }
+      const holdForRelease =
+        stopHolds && (releaseStatus === 'running' || releaseStatus === 'warning');
+      const newStatus: MachineData['status'] = holdForRelease ? 'idle' : releaseStatus;
 
       // Every service leaves a record on the game clock, newest first, so the
       // inspector's log shows what was done. One write here covers the
       // inspector, the maintenance schedule and the work-order restart.
-      const clock = useGameSimulationStore.getState();
-      const day = Number.isFinite(clock.gameDay) ? Math.max(1, Math.floor(clock.gameDay)) : 1;
+      // Game day N reads 'Day N + 1', as every other plant stamp does.
+      const day = Number.isFinite(clock.gameDay) ? Math.max(0, Math.floor(clock.gameDay)) + 1 : 1;
       const minuteOfDay = Number.isFinite(clock.gameTime)
         ? Math.floor((((clock.gameTime % 24) + 24) % 24) * 60 + 1e-6)
         : 0;
@@ -993,24 +996,26 @@ export const useProductionStore = create<ProductionStore>()(
       let recordId = baseId;
       for (let n = 2; history.some((entry) => entry.id === recordId); n += 1)
         recordId = `${baseId}-${n}`;
-      const wearNote = translate(productionStoreMessages, 'maintenanceResultWearReduced', {
-        from: formatFixed(currentWear, 1),
-        to: formatFixed(newWear, 1),
-      });
-      const record: MaintenanceRecord = {
+      // The figures travel with the record so the log is worded at render,
+      // in the language of the moment; the text is the same wording, kept for
+      // any reader that shows it as stored.
+      const figures: MaintenanceRecordFigures = {
+        day,
+        minuteOfDay,
+        fromWear: currentWear,
+        toWear: newWear,
+        restart: !!authorizedRestart,
+      };
+      const worded = {
         id: recordId,
-        date: translate(productionStoreMessages, 'maintenanceRecordDate', {
-          day: formatFixed(day, 0),
-          time: `${String(Math.floor(minuteOfDay / 60)).padStart(2, '0')}:${String(minuteOfDay % 60).padStart(2, '0')}`,
-        }),
-        type: authorizedRestart ? 'corrective' : 'preventive',
-        serviceUnit: authorizedRestart
-          ? (restartWorkOrderId ?? '')
-          : translate(productionStoreMessages, 'maintenanceRecordRoutineUnit'),
-        notes: authorizedRestart
-          ? translate(productionStoreMessages, 'maintenanceRecordRestartNote', { wear: wearNote })
-          : `${wearNote}.`,
+        type: authorizedRestart ? ('corrective' as const) : ('preventive' as const),
+        serviceUnit: authorizedRestart ? (restartWorkOrderId ?? '') : '',
         duration: 0,
+        figures,
+      };
+      const record: WordedMaintenanceRecord = {
+        ...worded,
+        ...maintenanceRecordText({ ...worded, date: '', notes: '' }),
       };
       const maintenanceHistory = [record, ...history].slice(0, MAX_MAINTENANCE_RECORDS);
 
@@ -1032,27 +1037,37 @@ export const useProductionStore = create<ProductionStore>()(
             : m
         ),
       }));
+      if (holdForRelease)
+        useGameSimulationStore
+          .getState()
+          .setReleaseStatus(machineId, releaseStatus as 'running' | 'warning');
 
-      // Fire maintenance complete alert
+      // Fire maintenance complete alert. Keyed with raw figures, so the bell
+      // (and a restored session) words it in the language active now.
+      const noticeMessage =
+        wearReduced > 0
+          ? ('maintenanceCompleteWearMessage' as const)
+          : ('maintenanceCompleteRestoredMessage' as const);
+      const noticeParams = {
+        name: machine.name,
+        reduced: wearReduced,
+        wear: newWear,
+        efficiency: newEfficiency,
+      };
       useUIStore.getState().addAlert({
         id: `maintenance-${machineId}-${Date.now()}`,
         type: 'success',
         title: translate(productionStoreMessages, 'maintenanceCompleteTitle'),
-        message:
-          wearReduced > 0
-            ? translate(productionStoreMessages, 'maintenanceCompleteWearMessage', {
-                name: machine.name,
-                reduced: formatFixed(wearReduced, 1),
-                wear: formatFixed(newWear, 1),
-                efficiency: formatFixed(newEfficiency, 0),
-              })
-            : translate(productionStoreMessages, 'maintenanceCompleteRestoredMessage', {
-                name: machine.name,
-                efficiency: formatFixed(newEfficiency, 0),
-              }),
+        message: translate(productionStoreMessages, noticeMessage, noticeParams),
         machineId,
         timestamp: new Date(),
         acknowledged: false,
+        copy: {
+          catalog: PRODUCTION_ALERT_CATALOG,
+          title: 'maintenanceCompleteTitle',
+          message: noticeMessage,
+          params: noticeParams,
+        },
       });
 
       return {
@@ -1168,149 +1183,6 @@ export const useProductionStore = create<ProductionStore>()(
           metrics: { efficiency, uptime, quality, throughput },
         };
       }),
-
-    // Tick metrics tracking - called by game simulation loop
-    tickMetrics: (deltaSeconds: number) => {
-      const machinesToBreakdown: Array<{ id: string; name: string; type: string }> = [];
-
-      set((state) => {
-        // 1) Update machine state (wear/metrics/status) AND metric tracking in one write.
-        const nextMachines = updateMachinesForTick(
-          state.machines,
-          state.productionSpeed,
-          deltaSeconds,
-          machinesToBreakdown
-        );
-
-        const totalMachines = nextMachines.length || 1;
-        const runningMachines = nextMachines.filter(
-          (m) => m.status === 'running' || m.status === 'warning'
-        ).length;
-
-        const nextMetricTracking = {
-          ...state._metricTracking,
-          totalRunningSeconds:
-            state._metricTracking.totalRunningSeconds + runningMachines * deltaSeconds,
-          totalElapsedSeconds: state._metricTracking.totalElapsedSeconds + deltaSeconds,
-        };
-
-        // 2) Recompute derived metrics here to avoid a second store update.
-        const efficiency = Math.round((runningMachines / totalMachines) * 100 * 10) / 10;
-        const uptime =
-          nextMetricTracking.totalElapsedSeconds > 0
-            ? Math.round(
-                (nextMetricTracking.totalRunningSeconds /
-                  (nextMetricTracking.totalElapsedSeconds * totalMachines)) *
-                  100 *
-                  10
-              ) / 10
-            : 100;
-
-        // Quality: Get from QC Lab store - fetch latest test result for quality score
-        // Grade mapping: A=100, B=85, C=70, FAIL=0
-        const qcLabState = useQCLabStore.getState();
-        const latestTest = qcLabState.qcLab.testHistory[qcLabState.qcLab.testHistory.length - 1];
-        let quality = 99.5; // Default before any tests
-        if (latestTest) {
-          const gradeScores: Record<string, number> = { A: 100, B: 85, C: 70, FAIL: 0 };
-          quality = gradeScores[latestTest.grade] ?? 99.5;
-        }
-
-        const materialFlowState = useMaterialFlowStore.getState();
-        // Final-stage (packer) rate only - the documented basis for throughput.
-        // currentFlowRate sums every processing stage (mill + sifter + packer),
-        // which inflated bags/hour ~3x.
-        const flowRateKgPerSec = materialFlowState.currentPackerFlowRate;
-        const BAG_WEIGHT_KG = 25;
-
-        let throughput: number;
-        if (flowRateKgPerSec > 0) {
-          throughput = bagsPerGameHour(flowRateKgPerSec, BAG_WEIGHT_KG);
-        } else {
-          const BAGS_PER_RPM_PER_MIN = 0.2;
-          const packers = nextMachines.filter((m) => m.type.toString() === 'PACKER');
-          const runningPackers = packers.filter(
-            (m) => m.status === 'running' || m.status === 'warning'
-          );
-          throughput = Math.round(
-            runningPackers.reduce((sum, p) => sum + p.metrics.rpm * BAGS_PER_RPM_PER_MIN, 0) *
-              60 *
-              state.productionSpeed
-          );
-        }
-
-        const nextMetrics =
-          state.metrics.efficiency === efficiency &&
-          state.metrics.uptime === uptime &&
-          state.metrics.throughput === throughput &&
-          state.metrics.quality === quality
-            ? state.metrics
-            : { efficiency, uptime, quality, throughput };
-
-        // Update production target's actualThroughput if we have an active target
-        const nextProductionTarget = state.productionTarget
-          ? {
-              ...state.productionTarget,
-              actualThroughput: throughput,
-            }
-          : null;
-
-        return {
-          machines: nextMachines,
-          _metricTracking: nextMetricTracking,
-          metrics: nextMetrics,
-          productionTarget: nextProductionTarget,
-        };
-      });
-
-      // Fire breakdown alerts outside of set() to avoid store recursion
-      if (machinesToBreakdown.length > 0) {
-        machinesToBreakdown.forEach(({ id, name, type }) => {
-          useUIStore.getState().addAlert({
-            id: `breakdown-${id}-${Date.now()}`,
-            type: 'critical',
-            title: translate(productionStoreMessages, 'breakdownTitle'),
-            message: translate(productionStoreMessages, 'breakdownMessage', { name, type }),
-            machineId: id,
-            timestamp: new Date(),
-            acknowledged: false,
-            announce: 'assertive',
-          });
-        });
-      }
-    },
-
-    // Tick machine metrics - vary RPM, temperature, load, accumulate wear, and update efficiency
-    tickMachineMetrics: (deltaSeconds: number) => {
-      // Track machines that need breakdown alerts (handled outside set() to avoid store recursion)
-      const machinesToBreakdown: Array<{ id: string; name: string; type: string }> = [];
-
-      set((state) => {
-        const nextMachines = updateMachinesForTick(
-          state.machines,
-          state.productionSpeed,
-          deltaSeconds,
-          machinesToBreakdown
-        );
-        return nextMachines === state.machines ? state : { machines: nextMachines };
-      });
-
-      // Fire breakdown alerts outside of set() to avoid store recursion
-      if (machinesToBreakdown.length > 0) {
-        machinesToBreakdown.forEach(({ id, name, type }) => {
-          useUIStore.getState().addAlert({
-            id: `breakdown-${id}-${Date.now()}`,
-            type: 'critical',
-            title: translate(productionStoreMessages, 'breakdownTitle'),
-            message: translate(productionStoreMessages, 'breakdownMessage', { name, type }),
-            machineId: id,
-            timestamp: new Date(),
-            acknowledged: false,
-            announce: 'assertive',
-          });
-        });
-      }
-    },
 
     // Heat map data
     heatMapData: [],
@@ -1478,8 +1350,8 @@ export const useProductionStore = create<ProductionStore>()(
 
     // Dock status
     dockStatus: {
-      receiving: { status: 'clear', etaMinutes: 12 },
-      shipping: { status: 'clear', etaMinutes: 0 },
+      receiving: dockStatusFromSchedule(useTruckScheduleStore.getState().truckSchedule.receiving),
+      shipping: dockStatusFromSchedule(useTruckScheduleStore.getState().truckSchedule.shipping),
     },
     updateDockStatus: (
       dock: 'receiving' | 'shipping',
@@ -1496,4 +1368,48 @@ export const useProductionStore = create<ProductionStore>()(
     scadaLive: false,
     setScadaLive: (live: boolean) => set({ scadaLive: live }),
   }))
+);
+
+type DockStatusEntry = ProductionStore['dockStatus']['receiving'];
+
+/**
+ * One dock's card (Overview, the yard board) read off the truck schedule, the
+ * authority TruckBay and the central tick drive. The countdown is whole game
+ * minutes, so the card changes once a minute rather than every tick.
+ */
+export function dockStatusFromSchedule(dock: DockSchedule): DockStatusEntry {
+  switch (dock.lifecyclePhase) {
+    case 'scheduled':
+      return {
+        status: 'clear',
+        etaMinutes: Number.isFinite(dock.nextArrivalMinutes)
+          ? Math.max(0, Math.ceil(dock.nextArrivalMinutes - 1e-9))
+          : 0,
+      };
+    case 'approaching':
+      return { status: 'arriving', etaMinutes: 0 };
+    case 'departing':
+      return { status: 'departing', etaMinutes: 0 };
+    default:
+      return { status: 'loading', etaMinutes: 0 };
+  }
+}
+
+const sameDockStatus = (a: DockStatusEntry, b: DockStatusEntry) =>
+  a.status === b.status && a.etaMinutes === b.etaMinutes;
+
+// Nothing else writes dockStatus: without this the cards read "Clear, next truck
+// in 12 min" for the whole session. Not fireImmediately: the store starts from
+// the schedule above, and a write during module evaluation would read stores
+// still mid-import.
+useTruckScheduleStore.subscribe(
+  (state) => state.truckSchedule,
+  (schedule: TruckScheduleState) => {
+    const current = useProductionStore.getState().dockStatus;
+    const receiving = dockStatusFromSchedule(schedule.receiving);
+    const shipping = dockStatusFromSchedule(schedule.shipping);
+    if (sameDockStatus(current.receiving, receiving) && sameDockStatus(current.shipping, shipping))
+      return;
+    useProductionStore.setState({ dockStatus: { receiving, shipping } });
+  }
 );

@@ -281,7 +281,10 @@ KNOWLEDGE_ENTRIES.push(
       brief: note.brief,
       article: note.article,
       relatedEntries: note.relatedEntries,
-      seeInAction: ['Mill Chronicle'],
+      // The workspace name, in the language the dock shows it in.
+      get seeInAction() {
+        return [translate(knowledgeStoreMessages, 'historySeeInAction')];
+      },
       unlockCondition: HISTORY_ENTRY_UNLOCK,
     })
   )

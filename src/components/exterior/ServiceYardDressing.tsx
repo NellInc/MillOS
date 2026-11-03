@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../../constants/renderLayers';
+import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { applyWorldSurface } from '../../utils/worldSurface';
 import {
   TANK_FARM_MANIFOLD,
@@ -278,11 +278,18 @@ const BoxSet: React.FC<{
     mesh.computeBoundingBox();
     mesh.computeBoundingSphere();
   }, [parts]);
-  // After the overlays (renderOrder 1): their exteriorOverlay bias would
+  // After the overlays (floor markings): their exteriorOverlay bias would
   // otherwise win the depth test over steel standing 2-4 cm above them, and
-  // the grate read as a solid black pit (y5b med-12 yard).
+  // the grate read as a solid black pit (y5b med-12 yard). The overlays in
+  // turn draw after the terrain, which at their old order 1 tied with it and
+  // painted over the pit.
   return (
-    <instancedMesh ref={ref} args={[BOX, material, parts.length]} receiveShadow renderOrder={2} />
+    <instancedMesh
+      ref={ref}
+      args={[BOX, material, parts.length]}
+      receiveShadow
+      renderOrder={RENDER_ORDER.floorMarkings + 1}
+    />
   );
 };
 
@@ -361,7 +368,7 @@ export const YardIntake: React.FC = () => {
         material={PIT}
         position={[grate.x, EXTERIOR_LAYERS.groundOverlay, grate.z]}
         rotation={[-Math.PI / 2, 0, 0]}
-        renderOrder={1}
+        renderOrder={RENDER_ORDER.floorMarkings}
       >
         <planeGeometry args={[grate.width, grate.length]} />
       </mesh>
@@ -376,7 +383,7 @@ export const YardIntake: React.FC = () => {
               grate.z,
             ]}
             rotation={[-Math.PI / 2, 0, 0]}
-            renderOrder={1}
+            renderOrder={RENDER_ORDER.floorMarkings}
           >
             <planeGeometry args={[border, outerL]} />
           </mesh>
@@ -388,7 +395,7 @@ export const YardIntake: React.FC = () => {
               grate.z + (side * (grate.length + border)) / 2,
             ]}
             rotation={[-Math.PI / 2, 0, 0]}
-            renderOrder={1}
+            renderOrder={RENDER_ORDER.floorMarkings}
           >
             <planeGeometry args={[grate.width, border]} />
           </mesh>
@@ -411,7 +418,7 @@ export const YardIntake: React.FC = () => {
               (drain.from[1] + drain.to[1]) / 2,
             ]}
             rotation={[-Math.PI / 2, 0, 0]}
-            renderOrder={1}
+            renderOrder={RENDER_ORDER.floorMarkings}
           >
             <planeGeometry
               args={alongX ? [length, YARD_DRAIN.width] : [YARD_DRAIN.width, length]}

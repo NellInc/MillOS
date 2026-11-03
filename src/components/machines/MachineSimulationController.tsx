@@ -3,9 +3,12 @@ import { storeOwnedLoad } from '../../simulation/machineLoad';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MachineData } from '../../types';
-import { useProductionStore, wearHoldsWarning } from '../../stores/productionStore';
+import { getWearConfig, useProductionStore, wearHoldsWarning } from '../../stores/productionStore';
+import { useBreakdownStore } from '../../stores/breakdownStore';
+import { incidentHoldsMachineWarning } from '../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { centralTick } from '../../systems/CentralTickSystem';
+import { plantSecondsForRealSeconds } from '../../simulation/pace';
 import {
   isWorkplaceReplayActive,
   registerReplayParticipant,
@@ -24,7 +27,30 @@ const RUNNING_VIBRATION_MM_S: Record<string, number> = {
   CONTROL_ROOM: 0.3,
 };
 
-export function updateOfflineMachineMetrics() {
+/**
+ * The easing below was authored as one step per two plant seconds (one update
+ * every two real seconds at standard pace). An update now walks the plant time
+ * that actually passed in steps of at most that size, so a trip takes the same
+ * game minutes at every pace (and at every frame rate).
+ */
+const STANDARD_STEP_PLANT_SECONDS = 2;
+/** Bounds the work of one update after a very long frame gap. */
+const MAX_STEPS_PER_UPDATE = 64;
+/** A longer frame (hidden tab, hitch) counts as one central tick (0.5 s), as the game clock does. */
+const MAX_FRAME_REAL_SECONDS = 0.5;
+const easeFor = (perStep: number, plantSeconds: number) =>
+  1 - Math.pow(1 - perStep, plantSeconds / STANDARD_STEP_PLANT_SECONDS);
+
+export function updateOfflineMachineMetrics(plantSeconds = STANDARD_STEP_PLANT_SECONDS) {
+  const span = Number.isFinite(plantSeconds) && plantSeconds > 0 ? plantSeconds : 0;
+  const steps = Math.min(
+    MAX_STEPS_PER_UPDATE,
+    Math.max(1, Math.ceil(span / STANDARD_STEP_PLANT_SECONDS - 1e-9))
+  );
+  const stepSpan = span / steps;
+  const temperatureEase = easeFor(0.05, stepSpan);
+  const vibrationEase = easeFor(0.1, stepSpan);
+  const loadEase = easeFor(0.1, stepSpan);
   const {
     machines: storeMachines,
     batchUpdateMachineMetrics,
@@ -35,6 +61,9 @@ export function updateOfflineMachineMetrics() {
     machineId: string;
     metrics: Partial<MachineData['metrics']>;
   }[] = [];
+  // 'warning' is a running state, so a trip lifted while a facility stop,
+  // drill or interlocked crisis holds would start the unit mid-stop.
+  const stopHolds = useGameSimulationStore.getState().emergencyActive;
 
   for (const machine of storeMachines) {
     const isRunning =
@@ -50,34 +79,39 @@ export function updateOfflineMachineMetrics() {
     };
     const machineBaseTemperature = baseTemperature[machine.type] ?? 30;
 
-    const newLoad = storeOwnedLoad(machine, productionSpeed);
-
-    let targetTemperature = machineBaseTemperature;
-    if (isRunning) targetTemperature += (newLoad / 100) * 20;
-    else if (isIdle) targetTemperature = 20;
-    else if (isCritical) targetTemperature += 40;
-    const newTemperature = THREE.MathUtils.clamp(
-      machine.metrics.temperature + (targetTemperature - machine.metrics.temperature) * 0.05,
-      15,
-      90
-    );
-
     // mm/s velocity, the same unit the SCADA VT001 tags feed the store, so
     // toggling SCADA does not jump the reading (or the status derived from it).
-    let targetVibration = 1;
-    if (isRunning) {
-      targetVibration = (RUNNING_VIBRATION_MM_S[machine.type] ?? 1.3) * (0.6 + newLoad / 200);
-      if (machine.status === 'warning') targetVibration *= 1.5;
-    } else if (isCritical) {
-      targetVibration = 7;
-    } else {
-      targetVibration = 0.2;
+    const runningVibration =
+      (RUNNING_VIBRATION_MM_S[machine.type] ?? 1.3) * (machine.status === 'warning' ? 1.5 : 1);
+    let newLoad = machine.metrics.load;
+    let newTemperature = machine.metrics.temperature;
+    let newVibration = machine.metrics.vibration;
+    for (let step = 0; step < steps; step++) {
+      newLoad = storeOwnedLoad(
+        { status: machine.status, metrics: { load: newLoad } },
+        productionSpeed,
+        loadEase
+      );
+
+      let targetTemperature = machineBaseTemperature;
+      if (isRunning) targetTemperature += (newLoad / 100) * 20;
+      else if (isIdle) targetTemperature = 20;
+      else if (isCritical) targetTemperature += 40;
+      newTemperature = THREE.MathUtils.clamp(
+        newTemperature + (targetTemperature - newTemperature) * temperatureEase,
+        15,
+        90
+      );
+
+      let targetVibration = 0.2;
+      if (isRunning) targetVibration = runningVibration * (0.6 + newLoad / 200);
+      else if (isCritical) targetVibration = 7;
+      newVibration = THREE.MathUtils.clamp(
+        newVibration + (targetVibration - newVibration) * vibrationEase,
+        0,
+        10
+      );
     }
-    const newVibration = THREE.MathUtils.clamp(
-      machine.metrics.vibration + (targetVibration - machine.metrics.vibration) * 0.1,
-      0,
-      10
-    );
 
     metricUpdates.push({
       machineId: machine.id,
@@ -93,10 +127,25 @@ export function updateOfflineMachineMetrics() {
     } else if (machine.status === 'warning') {
       if (newTemperature > 80 || newVibration > 8) {
         updateMachineStatus(machine.id, 'critical');
-      } else if (newTemperature < 55 && newVibration < 3.5 && !wearHoldsWarning(machine)) {
+      } else if (
+        newTemperature < 55 &&
+        newVibration < 3.5 &&
+        !wearHoldsWarning(machine) &&
+        !incidentHoldsMachineWarning(machine.id)
+      ) {
         updateMachineStatus(machine.id, 'running');
       }
-    } else if (machine.status === 'critical' && newTemperature < 40 && newVibration < 2) {
+    } else if (
+      machine.status === 'critical' &&
+      !stopHolds &&
+      newTemperature < 40 &&
+      newVibration < 2 &&
+      // Only a metric-only trip cools off. A wear breakdown or an open repair
+      // is cleared by maintenance; lifting it here restarted a cool silo or a
+      // cold tripped mill with its work order still open.
+      (machine.metrics.wear ?? 0) < getWearConfig(machine.type).breakdownThreshold &&
+      !useBreakdownStore.getState().getBreakdownForMachine(machine.id)
+    ) {
       updateMachineStatus(machine.id, 'warning');
     }
   }
@@ -112,6 +161,7 @@ export function MachineSimulationController() {
   const lastUpdateRef = useRef(0);
   const frameCountRef = useRef(0);
   const replayTicksRef = useRef(0);
+  const plantSecondsRef = useRef(0);
 
   useEffect(() => {
     const unregister = registerReplayParticipant('machine-metrics', {
@@ -120,6 +170,7 @@ export function MachineSimulationController() {
         frameCountRef.current = saved.frameCount;
         replayTicksRef.current = saved.replayTicks;
         lastUpdateRef.current = 0;
+        plantSecondsRef.current = 0;
       },
     });
     centralTick.register(
@@ -132,7 +183,11 @@ export function MachineSimulationController() {
         )
           return;
         replayTicksRef.current += 1;
-        if (replayTicksRef.current % 4 === 0) updateOfflineMachineMetrics();
+        if (replayTicksRef.current % 4 === 0) {
+          updateOfflineMachineMetrics(
+            plantSecondsForRealSeconds(ctx.deltaSeconds * 4, ctx.gameSpeed)
+          );
+        }
       },
       1
     );
@@ -142,20 +197,23 @@ export function MachineSimulationController() {
     };
   }, []);
 
-  useFrame((state) => {
-    if (
-      isWorkplaceReplayActive() ||
-      useProductionStore.getState().scadaLive ||
-      useGameSimulationStore.getState().gameSpeed === 0
-    )
+  useFrame((state, delta) => {
+    const gameSpeed = useGameSimulationStore.getState().gameSpeed;
+    if (isWorkplaceReplayActive() || useProductionStore.getState().scadaLive || gameSpeed === 0)
       return;
+    plantSecondsRef.current += plantSecondsForRealSeconds(
+      Math.min(delta, MAX_FRAME_REAL_SECONDS),
+      gameSpeed
+    );
     frameCountRef.current += 1;
     if (frameCountRef.current % 30 !== 0) return;
     const now = state.clock.elapsedTime;
     if (now - lastUpdateRef.current < 2 || useProductionStore.getState().machines.length === 0)
       return;
     lastUpdateRef.current = now;
-    updateOfflineMachineMetrics();
+    const plantSeconds = plantSecondsRef.current;
+    plantSecondsRef.current = 0;
+    updateOfflineMachineMetrics(plantSeconds);
   });
 
   return null;

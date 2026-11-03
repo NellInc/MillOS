@@ -24,10 +24,10 @@ export const autonomyPanelMessages = defineMessages({
     throughput: 'Throughput',
     throughputDetail: 'bags per simulated hour',
     target: 'Target',
-    targetDetail: 'completed against the active batch plan',
+    targetDetail: "of today's production target",
     safetyStops: 'Safety stops',
     safetyStopsDetail: (p: CountParams) =>
-      `${p.count} route ${p.count === 1 ? 'conflict' : 'conflicts'} recorded`,
+      `${p.count} blocked-route ${p.count === 1 ? 'stop' : 'stops'} recorded`,
     coordinationHeading: 'Closed-loop coordination',
     processControl: 'Process control',
     processAgree: 'Machine states and targets agree.',
@@ -54,12 +54,12 @@ export const autonomyPanelMessages = defineMessages({
     throughput: 'Vazão',
     throughputDetail: 'sacos por hora simulada',
     target: 'Meta',
-    targetDetail: 'concluída em relação ao plano de lotes ativo',
+    targetDetail: 'da meta de produção de hoje',
     safetyStops: 'Paradas de segurança',
     safetyStopsDetail: (p: CountParams) =>
       p.count === 1
-        ? `${formatFixed(p.count, 0, 'pt-BR')} conflito de rota registrado`
-        : `${formatFixed(p.count, 0, 'pt-BR')} conflitos de rota registrados`,
+        ? `${formatFixed(p.count, 0, 'pt-BR')} parada por rota bloqueada registrada`
+        : `${formatFixed(p.count, 0, 'pt-BR')} paradas por rota bloqueada registradas`,
     coordinationHeading: 'Coordenação em malha fechada',
     processControl: 'Controle de processo',
     processAgree: 'Os estados das máquinas e as metas estão de acordo.',

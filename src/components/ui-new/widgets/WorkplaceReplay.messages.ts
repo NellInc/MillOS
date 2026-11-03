@@ -34,6 +34,7 @@ export const workplaceReplayMessages = defineMessages({
 
     // Feedback
     recordedLocally: 'Replay state recorded locally.',
+    forgotten: 'Replay checkpoint and reports forgotten.',
     noChange: 'No change.',
     reportDownloaded: 'Redacted run report downloaded locally. Plant checkpoint stays in memory.',
 
@@ -47,8 +48,9 @@ export const workplaceReplayMessages = defineMessages({
     captureRequires:
       'Capture requires a paused, safe local plant and an idle or untouched minute-zero discussion. External SCADA control, safety holds and owed recovery block rewind. Checkpoints disappear on reload and cannot be exported.',
     checkpointLine:
-      'Checkpoint: {customer}, {remaining} kg remaining; source stock {source} kg. Day {day}, hour {hour}; seed {seed}. Faults: {faults}.',
+      'Checkpoint: {customer}, {remaining} kg remaining; source stock {source} kg. {stamp}; seed {seed}. Faults: {faults}.',
     none: 'none',
+    faultLine: '{machine}: {type}',
     replayCharter: 'Replay {profile} charter',
     retainReview: 'Retain actual run review',
     forget: 'Forget replay checkpoint and reports',
@@ -154,6 +156,7 @@ export const workplaceReplayMessages = defineMessages({
       pick({ advice: 'somente recomendação', bounded: 'execução delimitada' }, p.value),
 
     recordedLocally: 'Estado da reprodução registrado localmente.',
+    forgotten: 'Ponto de controle e relatórios da reprodução descartados.',
     noChange: 'Nenhuma alteração.',
     reportDownloaded:
       'Relatório da execução com dados ocultados baixado localmente. O ponto de controle da planta continua na memória.',
@@ -167,8 +170,9 @@ export const workplaceReplayMessages = defineMessages({
     captureRequires:
       'A captura exige uma planta local pausada e segura e uma discussão ociosa ou ainda intocada no minuto zero. Controle SCADA externo, retenções de segurança e recuperação devida bloqueiam a volta no tempo. Os pontos de controle somem ao recarregar e não podem ser exportados.',
     checkpointLine:
-      'Ponto de controle: {customer}, {remaining} kg pendentes; estoque de origem {source} kg. Dia {day}, hora {hour}; semente {seed}. Falhas: {faults}.',
+      'Ponto de controle: {customer}, {remaining} kg pendentes; estoque de origem {source} kg. {stamp}; semente {seed}. Falhas: {faults}.',
     none: 'nenhuma',
+    faultLine: '{machine}: {type}',
     replayCharter: 'Reproduzir estatuto: {profile}',
     retainReview: 'Guardar a revisão da execução real',
     forget: 'Descartar o ponto de controle e os relatórios da reprodução',

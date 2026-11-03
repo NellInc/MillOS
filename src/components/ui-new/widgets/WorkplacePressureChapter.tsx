@@ -5,6 +5,9 @@ import {
   CAMPAIGN_PRESSURES,
   campaignOutcomes,
   campaignTotals,
+  formatKg,
+  pressureObjectionText,
+  shiftResumable,
 } from '../../../simulation/workplaceCampaign';
 import { formatFixed, translate, useT } from '../../../i18n';
 import { workplacePressureChapterMessages } from './WorkplacePressureChapter.messages';
@@ -77,7 +80,10 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
               minute: formatFixed(Math.ceil(campaign?.inspectionUntilMinute ?? 0), 0),
             })
         : reviewing
-          ? translate(msg, 'nextReviewing')
+          ? // A reload pauses rather than ends a shift; never call that one final.
+            shiftResumable(state)
+            ? translate(msg, 'nextResumeAfterReload')
+            : translate(msg, 'nextReviewing')
           : running
             ? translate(msg, 'nextRunning')
             : needsRevisedOffer
@@ -215,7 +221,7 @@ export function WorkplacePressureChapter({
           )}
           {openObjections.map((item) => (
             <p key={item.id} className="text-amber-100">
-              {t('openItem', { statement: item.statement })}
+              {t('openItem', { statement: pressureObjectionText(item.statement) })}
             </p>
           ))}
           {totals.members.map((member) => (
@@ -232,11 +238,11 @@ export function WorkplacePressureChapter({
           <p className="tabular-nums">
             {t('deliveryLine', {
               status: t('deliveryStatus', { status: outcomes.delivery.status }),
-              delivered: formatFixed(outcomes.delivery.deliveredKg, 1),
-              target: formatFixed(outcomes.delivery.targetKg, 0),
+              delivered: formatKg(outcomes.delivery.deliveredKg, 1),
+              target: formatKg(outcomes.delivery.targetKg),
               agreement: t('agreementStatus', { status: outcomes.agreement.status }),
               wages: formatFixed(outcomes.accounts.wages, 2),
-              remaining: formatFixed(outcomes.delivery.remainingKg, 0),
+              remaining: formatKg(outcomes.delivery.remainingKg),
             })}
             {campaign.mission &&
               t('dispatchEvidence', {

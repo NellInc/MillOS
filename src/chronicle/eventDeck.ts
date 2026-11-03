@@ -345,6 +345,7 @@ const BASE_DECK: ChronicleEventDefinition[] = [
           result:
             'The supplier whose count the mill checked sends spare bales from its own store at no charge.',
         },
+        aiRecommended: true,
       },
       {
         id: 'rush',
@@ -575,7 +576,7 @@ const BASE_DECK: ChronicleEventDefinition[] = [
   {
     id: 'evt-inspector-visit',
     title: 'The food-safety inspector',
-    text: 'A food-safety inspector from the county arrives unannounced and asks for the traceability records, the cleaning schedule and a walk of the packing hall. The visit is open until the inspector signs off. How the mill meets it shapes what the report says.',
+    text: 'A food-safety inspector from the county arrives unannounced and asks for the traceability records, the cleaning schedule and a walk of the packing hall. The visit is open until the inspector signs off. The report depends on how the mill handles it.',
     polarity: 'neutral',
     weight: 2,
     routine: false,

@@ -84,10 +84,11 @@ describe('UIStore', () => {
       addAlert(alert1);
       addAlert(alert2);
 
+      // Each is filed as a copy stamped with the plant clock.
       const alerts = useUIStore.getState().alerts;
       expect(alerts).toHaveLength(2);
-      expect(alerts[0]).toBe(alert2);
-      expect(alerts[1]).toBe(alert1);
+      expect(alerts[0]).toMatchObject(alert2);
+      expect(alerts[1]).toMatchObject(alert1);
     });
 
     it('should limit alerts to 10 items', () => {
@@ -389,7 +390,7 @@ it('never reopens first-person or blueprint view after a reload', () => {
   try {
     useUIStore.setState({ fpsMode: true, blueprintMode: true, showFPSCounter: true });
     const options = useUIStore.persist.getOptions();
-    const saved = options.partialize!(useUIStore.getState());
+    const saved = options.partialize!(useUIStore.getState()) as Record<string, unknown>;
     expect(saved).not.toHaveProperty('fpsMode');
     expect(saved).not.toHaveProperty('blueprintMode');
     expect(saved).toHaveProperty('showFPSCounter', true);

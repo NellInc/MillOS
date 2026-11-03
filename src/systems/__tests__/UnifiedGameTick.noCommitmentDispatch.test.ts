@@ -122,3 +122,24 @@ it('says why in Brazilian Portuguese', () => {
     setLocale('en');
   }
 });
+
+// The hold's reason is translated copy, recomputed every tick; comparing it
+// re-filed the notice on a language switch and marked it unread, though
+// nothing changed at the dock. Working if a switch alone leaves it read.
+it('does not re-announce a standing hold when only the language changes', () => {
+  const trucks = useTruckScheduleStore.getState();
+  trucks.setTruckDocked('shipping', true);
+  trucks.setTruckTransferReady('shipping', true);
+  for (let index = 0; index < 4; index++) unifiedGameTick({ ...tick, tickCount: index + 2 });
+  const notice = () =>
+    useUIStore.getState().alerts.find((alert) => alert.id.startsWith('dispatch-commitment-wait'));
+  expect(notice()).toBeDefined();
+  useUIStore.getState().acknowledgeAlert(notice()!.id);
+  setLocale('pt-BR');
+  try {
+    for (let index = 0; index < 4; index++) unifiedGameTick({ ...tick, tickCount: index + 10 });
+    expect(notice()?.acknowledged).toBe(true);
+  } finally {
+    setLocale('en');
+  }
+});

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Coins, Handshake, Hammer, Landmark, Lightbulb, type LucideIcon } from 'lucide-react';
 import { deskLabel, DESKS } from '../../chronicle/desks';
+import { formatFixed, formatGrouped } from '../../i18n';
 import type { ChronicleState } from '../../chronicle/engine';
 import { fundOf, knowHowOf, price } from '../../chronicle/engine';
 import type { Cost, Desk } from '../../chronicle/types';
@@ -15,7 +16,17 @@ export const CHIP =
   'inline-flex items-center gap-1 rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-200';
 
 export function whole(value: number): string {
-  return Math.round(value).toLocaleString();
+  // The Chronicle's copy is English only so far, so its numbers are too.
+  return formatGrouped(Math.round(value), undefined, 'en');
+}
+
+/**
+ * A balance as it is, to a tenth. Know-how the AI partner earns comes in halves,
+ * and rounding 7.5 to 8 showed an 8 know-how plan as affordable when it was not.
+ */
+export function amount(value: number): string {
+  const tenths = Math.round(value * 10) / 10;
+  return Number.isInteger(tenths) ? whole(tenths) : formatFixed(tenths, 1, 'en');
 }
 
 export function FundAmount({ value }: { value: number }) {
@@ -33,7 +44,7 @@ export function KnowHowAmount({ value }: { value: number }) {
     <span className="inline-flex items-center gap-1 tabular-nums">
       <Lightbulb className="h-3.5 w-3.5 text-sky-300" aria-hidden="true" />
       <span className="sr-only">know-how</span>
-      {whole(value)}
+      {amount(value)}
     </span>
   );
 }

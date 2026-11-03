@@ -236,7 +236,11 @@ async function buildContactSheet(directory, scenes, headed) {
   // bare launch throws AFTER all twelve frames are on disk - the capture looks
   // like it failed when only the contact sheet did. Installed Chrome is also
   // what the frames themselves were rendered with, so the sheet matches them.
-  const browser = await chromium.launch({ headless: !headed, channel: 'chrome' });
+  const browser = await chromium.launch({
+    chromiumSandbox: true,
+    headless: !headed,
+    channel: 'chrome',
+  });
   try {
     const page = await browser.newPage({ viewport: { width: 640 * columns, height: 720 } });
     await page.goto(`file://${sheetSource}`, { waitUntil: 'load' });

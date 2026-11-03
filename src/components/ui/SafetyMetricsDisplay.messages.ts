@@ -8,9 +8,8 @@ export const safetyMetricsDisplayMessages = defineMessages({
     minutesAgo: '{count}m ago',
     hoursAgo: '{count}h ago',
     title: 'Safety Stats',
-    liveStatus: 'Safety stops: {stops}, route conflicts: {conflicts}',
-    stops: 'Stops',
-    conflicts: 'Conflicts',
+    liveStatus: 'Blocked-route stops: {stops}',
+    stops: 'Route stops',
     lastEvent: 'Last Event',
   },
   'pt-BR': {
@@ -20,9 +19,8 @@ export const safetyMetricsDisplayMessages = defineMessages({
     minutesAgo: 'há {count}min',
     hoursAgo: 'há {count}h',
     title: 'Estatísticas de segurança',
-    liveStatus: 'Paradas de segurança: {stops}, conflitos de rota: {conflicts}',
-    stops: 'Paradas',
-    conflicts: 'Conflitos',
+    liveStatus: 'Paradas por rota bloqueada: {stops}',
+    stops: 'Paradas por rota',
     lastEvent: 'Último evento',
   },
 });

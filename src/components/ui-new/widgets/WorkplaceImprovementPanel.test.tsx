@@ -31,7 +31,7 @@ beforeEach(() => {
   useGameSimulationStore.getState().setGameSpeed(0);
 });
 afterEach(cleanup);
-const click = (name: string) => fireEvent.click(screen.getByRole('button', { name, exact: true }));
+const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
 const mount = (participation = false) =>
   render(
     <>
@@ -156,12 +156,12 @@ describe('choice-first handoff interface', () => {
   });
   it('offers canonical worker ideas, public challenge and individual decisions before execution', () => {
     mount();
-    expect(screen.getByRole('combobox', { name: 'Handoff governance', exact: true })).toBeEnabled();
-    expect(screen.getByRole('combobox', { name: 'Handoff mode', exact: true })).toBeEnabled();
+    expect(screen.getByRole('combobox', { name: 'Handoff governance' })).toBeEnabled();
+    expect(screen.getByRole('combobox', { name: 'Handoff mode' })).toBeEnabled();
     click('Open the handoff experiment');
     click('Maintenance proposes a small packing buffer');
     expect(screen.getByText('Selected for this trial.')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Challenge author', exact: true })).toBeEnabled();
+    expect(screen.getByRole('combobox', { name: 'Challenge author' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Approve and run handoff trial' })).toBeDisabled();
     click('Challenge this proposal');
     expect(screen.getByText(/Quality challenged forecast/)).toBeInTheDocument();
@@ -276,6 +276,58 @@ describe('the handoff clock hold', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('offers the resume beside the obligations when an early stop owes recovery', () => {
+    const store = useWorkplaceStore.getState();
+    store.beginImprovement('team', store.workplace.revision);
+    store.proposeImprovement('briefing', 'packing');
+    store.acknowledgeImprovement();
+    for (const m of useWorkplaceStore.getState().workplace.members) {
+      store.understand(m.id);
+      store.vote(m.id, true);
+    }
+    store.activate(useWorkplaceStore.getState().workplace.revision);
+    store.tick(20, 100, false);
+    store.stop();
+    const owed = structuredClone(useWorkplaceStore.getState().workplace);
+    owed.members[0].recoveryOwedMinutes = 5;
+    useWorkplaceStore.setState({ workplace: owed });
+    useGameSimulationStore.setState({ gameSpeed: 30, clockHolds: [] });
+    useGameSimulationStore.getState().holdClock('workplace');
+    mount();
+    expect(screen.getByText('Deliver owed recovery before continuing.')).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Shift pace' }), {
+      target: { value: '60' },
+    });
+    expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 60, clockHolds: [] });
+  });
+
+  it('names the reviewed forecast pace in the same 1x vocabulary as the frozen advice', () => {
+    const store = useWorkplaceStore.getState();
+    store.beginImprovement('team', store.workplace.revision);
+    store.proposeImprovement('briefing', 'packing');
+    store.acknowledgeImprovement();
+    for (const m of useWorkplaceStore.getState().workplace.members) {
+      store.understand(m.id);
+      store.vote(m.id, true);
+    }
+    store.activate(useWorkplaceStore.getState().workplace.revision);
+    store.tick(90, 500, false);
+    const reviewed = structuredClone(useWorkplaceStore.getState().workplace);
+    const captured = derivePackingAdvice(captureCurrentPackingPlant(reviewed), 'briefing');
+    reviewed.improvement!.advice = {
+      ...captured,
+      reasonToAbstain: null,
+      evidence: { ...captured.evidence, gameSpeed: 30, missingFacts: [] },
+      dispatchUpperKg: 400,
+    };
+    useWorkplaceStore.setState({ workplace: reviewed });
+    mount();
+    click('Hear the adviser review its forecast');
+    const quote = screen.getByText(/I assumed fixed machinery/);
+    expect(quote).toHaveTextContent('1.0× clock pace');
+    expect(quote).not.toHaveTextContent('30×');
+  });
+
   it('starts a season from the panel at standard pace, as the play card does', () => {
     useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
     useOperationsCampaignStore.getState().initializeCampaign();
@@ -302,7 +354,6 @@ describe('predict then rehearse together', () => {
     render(<MatchedPackingRehearsal state={state} report={report} />);
     const prediction = screen.getByRole('combobox', {
       name: 'Our packing prediction (optional)',
-      exact: true,
     });
     expect(prediction).toHaveValue('');
     fireEvent.change(prediction, { target: { value: 'higher' } });
@@ -379,7 +430,7 @@ it('requires the adviser checks, then keeps understanding, policy choice and han
   mount(true);
   expect(screen.getByRole('button', { name: 'Hear the adviser response' })).toBeDisabled();
   for (const q of turnChecks(get().workplace))
-    fireEvent.change(screen.getByLabelText(`Turn check: ${q.id}`), {
+    fireEvent.change(screen.getByLabelText(`Turn check: ${q.prompt}`), {
       target: { value: q.correct },
     });
   expect(screen.getByRole('button', { name: 'Hear the adviser response' })).toBeEnabled();
@@ -395,7 +446,7 @@ it('requires the adviser checks, then keeps understanding, policy choice and han
   expect(understand).toBeDisabled();
   const finance = structuredClone(get().workplace.finance);
   for (const q of turnChecks(get().workplace))
-    fireEvent.change(screen.getByLabelText(`Turn check: ${q.id}`), {
+    fireEvent.change(screen.getByLabelText(`Turn check: ${q.prompt}`), {
       target: { value: q.correct },
     });
   expect(
@@ -531,7 +582,7 @@ it('lets roles inspect current plant views while abstaining facts remain unknown
     ['View milling line', 'Milling'],
     ['View shipping dock', 'Shipping'],
   ]) {
-    fireEvent.click(within(inspections).getByRole('button', { name: action, exact: true }));
+    fireEvent.click(within(inspections).getByRole('button', { name: action }));
     const camera = useCameraStore.getState();
     expect(camera.activePreset).toBe(CAMERA_PRESETS.findIndex((p) => p.name === destination));
     expect(camera.targetPosition?.toArray()).toEqual(CAMERA_PRESETS[camera.activePreset!].position);
@@ -545,9 +596,7 @@ it('keeps the quality-boundary experiment unavailable when the captured comparis
   render(<MatchedPackingRehearsal state={createWorkplace()} report={report} />);
   click('Run matched packing rehearsal');
   await screen.findByLabelText('Matched packing results');
-  expect(
-    screen.getByRole('button', { name: 'Rehearse withheld dispatch release', exact: true })
-  ).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Rehearse withheld dispatch release' })).toBeDisabled();
   expect(
     screen.getByText(/Resolve missing captured facts before this exercise/)
   ).toBeInTheDocument();

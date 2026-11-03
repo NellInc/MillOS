@@ -581,7 +581,8 @@ export const SITE_LAYOUT = {
       { position: [115, 0, -80] as Vec3Tuple, radius: 6 },
     ],
     nissenHuts: [
-      { position: [-75, 0, -100] as Vec3Tuple, length: 14, rotation: 0 },
+      // Door (local -Z) faces the site uphill, not the river bank 1.2 m down.
+      { position: [-75, 0, -100] as Vec3Tuple, length: 14, rotation: Math.PI },
       { position: [85, 0, -100] as Vec3Tuple, length: 10, rotation: Math.PI / 2 },
     ],
   },
@@ -746,8 +747,10 @@ export const SITE_LAYOUT = {
     // into the terrain with 25 m sloped banks.
     river: { position: [34, 16, -118], target: [0, -2, -145] },
     // Exterior sweep cameras, one per feature that had never been framed.
-    // Tunnel portal at (160, 0, 50), rotated a quarter turn, 15 m long.
-    tunnel: { position: [132, 8, 36], target: [160, 3, 50] },
+    // Riverside station (constants/railwayLayout.ts), which replaced the
+    // Victorian road tunnel at (160, 0, 50): over the car park's north-west
+    // corner to the street front, the cross gable and the platform beyond.
+    railway: { position: [116, 11, 20], target: [150, 3, 55] },
     // Nissen hut at (-75, 0, -100), 14 m long, with the modern path lamps.
     huts: { position: [-52, 8, -78], target: [-75, 3, -100] },
     // Four-floor office block at (-78, 0, 95).

@@ -2,6 +2,7 @@ import React from 'react';
 import { RotateCcw, Factory } from 'lucide-react';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useT } from '../../i18n';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { rotateDeviceOverlayMessages } from './RotateDeviceOverlay.messages';
 
 interface RotateDeviceOverlayProps {
@@ -18,6 +19,16 @@ export const RotateDeviceOverlay: React.FC<RotateDeviceOverlayProps> = ({ visibl
   // Rotation releases this notice; keyboard input stays inside its empty dialog.
   // Working if Tab cannot reach the obscured dock and focus returns after rotation.
   useFocusTrap(overlayRef as React.RefObject<HTMLElement>, visible, () => {});
+  // The notice covers the whole plant, so the shift clock waits with the player.
+  // Working if orders cannot go late while the phone is upright, rotation
+  // resumes the pace the player had, and another holder's hold is left alone.
+  React.useEffect(() => {
+    if (!visible) return;
+    useGameSimulationStore.getState().holdClock('orientation');
+    return () => {
+      useGameSimulationStore.getState().releaseClock('orientation');
+    };
+  }, [visible]);
   if (!visible) return null;
 
   return (

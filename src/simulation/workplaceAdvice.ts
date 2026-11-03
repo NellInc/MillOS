@@ -14,7 +14,7 @@ import type {
   PackingRehearsals,
   PackingFirstObservation,
 } from '../types/workplaceAdvice';
-import { formatFixed, translate } from '../i18n';
+import { LOCALES, formatFixed, translate } from '../i18n';
 import { workplaceAdviceMessages as msg } from './workplaceAdvice.messages';
 export type {
   PackingAdvice,
@@ -35,12 +35,45 @@ const ARRANGEMENTS = {
 };
 // Resolved when advice is modeled, so frozen advice keeps the language it was captured in.
 const assumptions = () => [
-  translate(msg, 'assumptionHorizon'),
+  translate(msg, 'assumptionHorizon', {
+    seconds: formatFixed(plantSecondsForGameSeconds(5400), 0),
+  }),
   translate(msg, 'assumptionEngine'),
   translate(msg, 'assumptionFixed'),
   translate(msg, 'assumptionPacing'),
   translate(msg, 'assumptionDispatch'),
 ];
+
+/**
+ * Frozen advice keeps the sentences it was modelled with (assumptions, and the
+ * missing facts its abstention joins). Each of this catalogue's sentences, in
+ * either language, is shown in the language chosen now; the advice itself, and
+ * its fingerprint, are unchanged. Working if switching language rewrites a
+ * frozen assumption and an abstention reason, and leaves unknown text as stored.
+ */
+let adviceSentences: { pattern: RegExp; render: () => string }[] | null = null;
+export function displayAdviceText(text: string): string {
+  if (!adviceSentences) {
+    adviceSentences = [];
+    for (const locale of LOCALES)
+      for (const [key, value] of Object.entries(msg[locale])) {
+        if (typeof value !== 'string' || value.length < 20) continue;
+        const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // The horizon is the one templated sentence; its number is a constant.
+        if (key === 'assumptionHorizon')
+          adviceSentences.push({
+            pattern: new RegExp(escaped.replace('\\{seconds\\}', '[\\d.,]+'), 'g'),
+            render: () => assumptions()[0],
+          });
+        else if (!value.includes('{'))
+          adviceSentences.push({
+            pattern: new RegExp(escaped, 'g'),
+            render: () => translate(msg, key as keyof typeof msg.en),
+          });
+      }
+  }
+  return adviceSentences.reduce((out, { pattern, render }) => out.replace(pattern, render), text);
+}
 function canonical(value: unknown): unknown {
   if (value instanceof Map)
     return [...value.entries()]

@@ -340,6 +340,27 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
   // schemes, so they no longer share one field.
   const [websocketUrl, setWebsocketUrl] = useState('ws://localhost:3001/ws');
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
+  const [restApiKeyAuth, setRestApiKeyAuth] = useState<'bearer' | 'x-api-key'>('bearer');
+  const [scadaApiKeyEntry, setScadaApiKeyEntry] = useState<{
+    context: string;
+    value: string;
+  } | null>(null);
+  const scadaCredentialContext = JSON.stringify([
+    connectionType,
+    connectionType === 'rest'
+      ? restUrl
+      : connectionType === 'opcua' || connectionType === 'modbus'
+        ? proxyUrl
+        : connectionType === 'websocket'
+          ? websocketUrl
+          : connectionType === 'mqtt'
+            ? mqttBrokerUrl
+            : '',
+    restApiKeyAuth,
+  ]);
+  useEffect(() => {
+    setScadaApiKeyEntry(null);
+  }, [scadaCredentialContext, isOpen]);
   const [settingsMessage, setSettingsMessage] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -610,6 +631,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
 
     try {
       const config = getSCADAService().getConnectionConfig();
+      setScadaApiKeyEntry(null);
+      setRestApiKeyAuth(config.apiKeyAuth === 'x-api-key' ? 'x-api-key' : 'bearer');
       setConnectionType(config.type ?? 'simulation');
       if (config.baseUrl) setRestUrl(config.baseUrl);
       if (config.pollInterval) setRestPollIntervalInput(String(config.pollInterval));
@@ -2881,7 +2904,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                     ].map(({ type, icon: Icon, label, desc }) => (
                       <button
                         key={type}
-                        onClick={() => setConnectionType(type)}
+                        onClick={() => {
+                          setScadaApiKeyEntry(null);
+                          setConnectionType(type);
+                        }}
                         aria-pressed={connectionType === type}
                         className={`p-3 rounded-lg text-left transition-colors ${
                           connectionType === type
@@ -2925,7 +2951,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           id="rest-base-url"
                           type="text"
                           value={restUrl}
-                          onChange={(e) => setRestUrl(e.target.value)}
+                          onChange={(e) => {
+                            setScadaApiKeyEntry(null);
+                            setRestUrl(e.target.value);
+                          }}
                           placeholder="http://localhost:3001"
                           className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                         />
@@ -2970,7 +2999,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           id="mqtt-broker-url"
                           type="text"
                           value={mqttBrokerUrl}
-                          onChange={(e) => setMqttBrokerUrl(e.target.value)}
+                          onChange={(e) => {
+                            setScadaApiKeyEntry(null);
+                            setMqttBrokerUrl(e.target.value);
+                          }}
                           placeholder="ws://localhost:8883"
                           className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                         />
@@ -3010,7 +3042,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                         id="websocket-url"
                         type="text"
                         value={websocketUrl}
-                        onChange={(e) => setWebsocketUrl(e.target.value)}
+                        onChange={(e) => {
+                          setScadaApiKeyEntry(null);
+                          setWebsocketUrl(e.target.value);
+                        }}
                         placeholder="ws://localhost:3001/ws"
                         className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                       />
@@ -3034,7 +3069,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                         id="proxy-url"
                         type="text"
                         value={proxyUrl}
-                        onChange={(e) => setProxyUrl(e.target.value)}
+                        onChange={(e) => {
+                          setScadaApiKeyEntry(null);
+                          setProxyUrl(e.target.value);
+                        }}
                         placeholder="http://localhost:3001"
                         className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
                       />
@@ -3059,6 +3097,62 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
 
               {/* Apply Button */}
               <div className="p-4 border-t border-slate-700/50 space-y-2">
+                {(connectionType === 'rest' ||
+                  connectionType === 'opcua' ||
+                  connectionType === 'modbus') && (
+                  <div className="mb-3 grid gap-2">
+                    {connectionType === 'rest' && (
+                      <>
+                        <label
+                          htmlFor="scada-rest-key-header"
+                          className="block text-xs text-slate-300"
+                        >
+                          API key header
+                        </label>
+                        <select
+                          id="scada-rest-key-header"
+                          className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                          value={restApiKeyAuth}
+                          onChange={(event) => {
+                            setScadaApiKeyEntry(null);
+                            setRestApiKeyAuth(
+                              event.target.value === 'x-api-key' ? 'x-api-key' : 'bearer'
+                            );
+                          }}
+                        >
+                          <option value="bearer">Bearer</option>
+                          <option value="x-api-key">x-api-key</option>
+                        </select>
+                      </>
+                    )}
+                    <label htmlFor="scada-api-key" className="block text-xs text-slate-300">
+                      API key
+                    </label>
+                    <input
+                      id="scada-api-key"
+                      type="password"
+                      className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700/50 rounded text-sm text-white focus:outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/30"
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      value={
+                        scadaApiKeyEntry?.context === scadaCredentialContext
+                          ? scadaApiKeyEntry.value
+                          : ''
+                      }
+                      onChange={(event) =>
+                        setScadaApiKeyEntry(
+                          event.target.value
+                            ? {
+                                context: scadaCredentialContext,
+                                value: event.target.value,
+                              }
+                            : null
+                        )
+                      }
+                    />
+                  </div>
+                )}
                 <button
                   onClick={async () => {
                     setIsApplyingSettings(true);
@@ -3103,8 +3197,24 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                         config.proxyUrl = proxyUrl;
                       }
 
+                      if (
+                        connectionType === 'rest' ||
+                        connectionType === 'opcua' ||
+                        connectionType === 'modbus'
+                      ) {
+                        if (
+                          scadaApiKeyEntry?.context === scadaCredentialContext &&
+                          scadaApiKeyEntry.value
+                        ) {
+                          config.apiKey = scadaApiKeyEntry.value;
+                        }
+                        config.apiKeyAuth =
+                          connectionType === 'rest' ? restApiKeyAuth : 'x-api-key';
+                      }
+
                       const service = getSCADAService();
                       await service.setConnectionConfig(config);
+                      setScadaApiKeyEntry((entry) => (entry === scadaApiKeyEntry ? null : entry));
 
                       setSettingsMessage({
                         type: 'success',
@@ -3144,6 +3254,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                     // SECURITY NOTE: Resetting to localhost defaults with HTTP/WS protocols.
                     // These defaults are appropriate for local development only.
                     // Production deployments must use HTTPS/WSS for all remote connections.
+                    setScadaApiKeyEntry(null);
+                    setRestApiKeyAuth('bearer');
                     setConnectionType('simulation');
                     setRestUrl('http://localhost:3001');
                     setRestPollIntervalInput(String(DEFAULT_POLL_INTERVAL_MS));

@@ -18,6 +18,7 @@ export const contextSidebarMessages = defineMessages({
     management: 'Workplace & Autonomy',
     production: 'Production',
     overview: 'Mill Overview',
+    chronicle: 'Mill Chronicle',
     // The machine type enum, shown as words (capitalised by CSS).
     machineType: (p: { type: string }) => p.type.toLowerCase().replaceAll('_', ' '),
     panelLabel: '{title} sidebar panel',
@@ -42,6 +43,7 @@ export const contextSidebarMessages = defineMessages({
     management: 'Trabalho e autonomia',
     production: 'Produção',
     overview: 'Visão geral do moinho',
+    chronicle: 'Crônica do moinho',
     machineType: (p: { type: string }) =>
       upperFirst(PT_MACHINE_TYPES[p.type] ?? p.type.toLowerCase().replaceAll('_', ' ')),
     panelLabel: 'Painel lateral: {title}',

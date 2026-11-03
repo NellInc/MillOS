@@ -2150,8 +2150,9 @@ function FactoryShell() {
     // SHADOW FLAGS ARE SET HERE, AT SOURCE.
     //
     // Every opaque envelope mesh casts. The roof was the only thing that did,
-    // so at the default 10:00 sun - 60 degrees, roof shadow displaced 19 units
-    // down-sun - a 19 x 100 m band of interior floor was lit straight through a
+    // so at the default 10:00 sun - then 60 degrees, roof shadow displaced 19
+    // units down-sun; 33 degrees and further since the site-latitude orbit - a
+    // band of interior floor was lit straight through a
     // solid wall. The glazing and the skylights deliberately do NOT cast, which
     // is what turns the clerestory bays into real bands of sunlight on the slab
     // instead of a uniformly shadowed interior.

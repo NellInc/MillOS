@@ -19,6 +19,7 @@ export const onDeviceOperatorMessages = defineMessages({
     standDown_drill: 'during the egress verification drill',
     standDown_control: 'while control is not simulated',
     standDown_replay: 'during a replay',
+    standDown_budget: 'because the on-device AI has used its command budget for this session',
   },
   'pt-BR': {
     noticeTitle: 'IA no dispositivo · {queue}',
@@ -34,5 +35,6 @@ export const onDeviceOperatorMessages = defineMessages({
     standDown_drill: 'durante o simulado de verificação das rotas de saída',
     standDown_control: 'enquanto o controle não é simulado',
     standDown_replay: 'durante uma reprodução',
+    standDown_budget: 'porque a IA no dispositivo esgotou seu limite de comandos desta sessão',
   },
 });

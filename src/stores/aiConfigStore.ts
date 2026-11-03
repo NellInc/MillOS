@@ -29,6 +29,7 @@ import {
 } from '../utils/webgpuClient';
 import { logger } from '../utils/logger';
 import { formatFixed, translate } from '../i18n';
+import { sanitizeKeyedLine, type KeyedLine } from '../i18n/alertCopy';
 import { aiConfigStoreMessages } from './aiConfigStore.messages';
 import type { StrategicPriority } from '../types';
 
@@ -82,6 +83,9 @@ export function getActiveCloudPricing(): { model: string; input: number; output:
 // Strategic layer configuration
 const DEFAULT_STRATEGIC_INTERVAL_MS = 45000; // 45 seconds
 
+const sameSteps = (a: readonly string[] | undefined, b: readonly string[] | undefined) =>
+  !!a && !!b && a.length === b.length && a.every((step, i) => step === b[i]);
+
 interface CostTracking {
   sessionCost: number; // App-scoped provider-reported/estimated usage, including key tests
   reservedCost: number; // In-flight admission reservations
@@ -105,6 +109,11 @@ interface StrategicState {
   confidenceScores?: { overall: number; reasoning: string };
 }
 
+/** A client error's key (src/i18n/alertCopy); null for text a browser or server wrote. */
+function keyedCopyOf(error: unknown): KeyedLine | null {
+  return sanitizeKeyedLine((error as { copy?: unknown } | null)?.copy) ?? null;
+}
+
 /** Optional detail the strategic layer attaches to a set of priorities. */
 export interface StrategicPlanDetails {
   actionPlan?: string[];
@@ -122,10 +131,14 @@ interface AIConfigState {
   connectedProviders: Record<CloudBackend, boolean>;
   connectionEpoch: number;
   connectionError: string | null;
+  /** connectionError's key when it has one: the settings word it in the language active now. */
+  connectionErrorCopy: KeyedLine | null;
   chatgptStatus: ChatGPTStatus | null;
   chatgptError: string | null;
+  /** chatgptError's key when it has one: the settings word it in the language active now. */
+  chatgptErrorCopy: KeyedLine | null;
   refreshChatGPT: () => Promise<void>;
-  setChatGPTError: (error: string | null) => void;
+  setChatGPTError: (error: string | null, copy?: KeyedLine | null) => void;
 
   // One strategic backend at a time, with on-device WebGPU preserved.
   llmBackend: LLMBackend;
@@ -139,10 +152,11 @@ interface AIConfigState {
   webgpuModelReady: boolean; // engine loaded & serving inference
   webgpuModelId: string;
   webgpuAdapterWarning: string | null; // advisory OOM/perf warning from adapter probe
-  /** A second copy of the local model for routing (webgpuClient fast lane). Session only. */
+  webgpuAdapterWarningCopy: KeyedLine | null; // its key, so it rewords on a language switch
+  /** A second copy of the local model for routing (webgpuClient fast lane). Off is remembered where the device default is on. */
   webgpuFastLane: boolean;
   setWebGPUFastLane: (enabled: boolean) => Promise<void>;
-  /** The on-device model routes and handles raised incidents itself. Session only. */
+  /** The on-device model routes and handles raised incidents itself. Off is remembered. */
   lightsOut: boolean;
   setLightsOut: (enabled: boolean) => void;
   /** Load the local model. `promote` (default true) mirrors cloud
@@ -151,7 +165,8 @@ interface AIConfigState {
   loadWebGPUModel: (promote?: boolean) => Promise<boolean>;
   cancelWebGPUModelLoad: () => void;
   unloadWebGPUModel: () => Promise<void>;
-  deleteWebGPUCache: () => Promise<void>;
+  /** Resolves false when a downloaded copy could not be deleted. */
+  deleteWebGPUCache: () => Promise<boolean>;
 
   /** True when the active LLM backend is ready to serve strategic decisions. */
   isLLMReady: () => boolean;
@@ -210,6 +225,9 @@ interface AIConfigState {
 // load with a cancellation request. Module-scoped so it survives across the
 // loadWebGPUModel/cancelWebGPUModelLoad closures without polluting store state.
 let webgpuCancelRequested = false;
+// Bumped by every load and every cancel, so a load whose adapter probe answers
+// after a cancel (or after a newer load began) stops before downloading.
+let webgpuLoadAttempt = 0;
 let cloudKeyAttempt = 0;
 
 export const useAIConfigStore = create<AIConfigState>()(
@@ -235,9 +253,11 @@ export const useAIConfigStore = create<AIConfigState>()(
       },
       connectionEpoch: 0,
       connectionError: null,
+      connectionErrorCopy: null,
       chatgptStatus: null,
       chatgptError: null,
-      setChatGPTError: (error) => set({ chatgptError: error }),
+      chatgptErrorCopy: null,
+      setChatGPTError: (error, copy = null) => set({ chatgptError: error, chatgptErrorCopy: copy }),
       refreshChatGPT: async () => {
         try {
           const status = await chatgptClient.status();
@@ -250,6 +270,7 @@ export const useAIConfigStore = create<AIConfigState>()(
             return {
               chatgptStatus: status,
               chatgptError: null,
+              chatgptErrorCopy: null,
               connectionEpoch: changed ? state.connectionEpoch + 1 : state.connectionEpoch,
             };
           });
@@ -260,6 +281,7 @@ export const useAIConfigStore = create<AIConfigState>()(
               error instanceof Error
                 ? error.message
                 : translate(aiConfigStoreMessages, 'localCompanionUnavailable'),
+            chatgptErrorCopy: keyedCopyOf(error),
           });
         }
       },
@@ -275,6 +297,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           llmBackend: backend,
           connectionEpoch: state.connectionEpoch + 1,
           connectionError: null,
+          connectionErrorCopy: null,
         }));
         logger.info(`[AIConfigStore] LLM backend set to: ${backend}`);
         if (backend === 'chatgpt') void get().refreshChatGPT();
@@ -308,6 +331,7 @@ export const useAIConfigStore = create<AIConfigState>()(
       webgpuModelReady: false,
       webgpuModelId: DEFAULT_WEBGPU_MODEL_ID,
       webgpuAdapterWarning: null,
+      webgpuAdapterWarningCopy: null,
       webgpuFastLane: fastLaneByDefault(),
       setWebGPUFastLane: async (enabled) => {
         if (get().webgpuFastLane === enabled) return;
@@ -337,6 +361,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           return false;
         }
 
+        const attempt = ++webgpuLoadAttempt;
         set({
           webgpuStatus: 'checking',
           webgpuError: null,
@@ -345,6 +370,8 @@ export const useAIConfigStore = create<AIConfigState>()(
         });
 
         const report = await checkWebGPUAdapter();
+        // Cancelled during the probe: cancelWebGPUModelLoad already returned the UI to idle.
+        if (attempt !== webgpuLoadAttempt) return false;
         if (!report.supported) {
           set({
             webgpuStatus: 'unsupported',
@@ -358,6 +385,7 @@ export const useAIConfigStore = create<AIConfigState>()(
         webgpuCancelRequested = false;
         set({
           webgpuAdapterWarning: report.warning ?? null,
+          webgpuAdapterWarningCopy: report.warningCopy ?? null,
           webgpuStatus: 'loading',
           webgpuProgress: 0,
           webgpuMessage: translate(aiConfigStoreMessages, 'initializingDownload'),
@@ -422,6 +450,7 @@ export const useAIConfigStore = create<AIConfigState>()(
         // request may still complete in the background, but the engine is freed
         // on completion and the UI returns to idle immediately.
         webgpuCancelRequested = true;
+        webgpuLoadAttempt += 1;
         webgpuClient.cancelLoad();
         set({
           webgpuStatus: 'idle',
@@ -444,8 +473,9 @@ export const useAIConfigStore = create<AIConfigState>()(
         logger.info('[AIConfigStore] WebGPU model unloaded');
       },
 
-      deleteWebGPUCache: async (): Promise<void> => {
+      deleteWebGPUCache: async (): Promise<boolean> => {
         await webgpuClient.disconnect();
+        let deleted = true;
         // Every model MillOS has shipped, not only the current one: a browser
         // that downloaded Qwen3-4B before the switch to Qwen3.5-4B would
         // otherwise keep 2.3 GB this button could no longer reach.
@@ -456,6 +486,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           try {
             await WebGPUClient.deleteModelCache(modelId);
           } catch (error) {
+            deleted = false;
             logger.warn(`[AIConfigStore] Failed to delete WebGPU model cache ${modelId}:`, error);
           }
         }
@@ -467,6 +498,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           webgpuError: null,
         });
         logger.info('[AIConfigStore] WebGPU model cache deleted');
+        return deleted;
       },
 
       isLLMReady: (): boolean => {
@@ -499,10 +531,19 @@ export const useAIConfigStore = create<AIConfigState>()(
         set((state) => ({
           strategic: {
             ...state.strategic,
-            legacyPriorities: priorities,
+            // Kept when a re-issued plan repeats them, as the action plan is
+            // below, so the priority cards keep the player's dismissals.
+            legacyPriorities: sameSteps(state.strategic.legacyPriorities, priorities)
+              ? state.strategic.legacyPriorities
+              : priorities,
             // Assigned explicitly (not spread) so a plan that omits a field
-            // clears the previous plan's value instead of inheriting it.
-            actionPlan: details?.actionPlan,
+            // clears the previous plan's value instead of inheriting it. A
+            // re-issued plan with the same steps keeps the previous array, so
+            // the action-plan timeline (keyed by it) keeps its place instead of
+            // restarting at step 1 on every strategic decision.
+            actionPlan: sameSteps(state.strategic.actionPlan, details?.actionPlan)
+              ? state.strategic.actionPlan
+              : details?.actionPlan,
             insight: details?.insight,
             tradeoff: details?.tradeoff,
             focusMachine: details?.focusMachine,
@@ -634,8 +675,11 @@ export const useAIConfigStore = create<AIConfigState>()(
 
       // Get formatted cost string
       getFormattedCost: () => {
-        const { sessionCost, requestCount } = get().costTracking;
-        const amount = requestCount === 0 ? 0 : sessionCost;
+        // An estimate of what this session may be billed: settled charges plus
+        // calls in flight and dispatched calls whose billing is unknown (the
+        // same pending sum the settings modal shows and the cap counts).
+        const { sessionCost, reservedCost, uncertainCost } = get().costTracking;
+        const amount = sessionCost + reservedCost + uncertainCost;
         return translate(aiConfigStoreMessages, 'sessionCost', {
           amount: formatFixed(amount, spendDigits(amount)),
         });
@@ -643,7 +687,7 @@ export const useAIConfigStore = create<AIConfigState>()(
 
       setCloudApiKey: async (backend, key) => {
         const attempt = ++cloudKeyAttempt;
-        set({ connectionError: null });
+        set({ connectionError: null, connectionErrorCopy: null });
         try {
           await cloudAIClient.testKey(backend, key);
           if (attempt !== cloudKeyAttempt || get().llmBackend !== backend) return false;
@@ -653,6 +697,7 @@ export const useAIConfigStore = create<AIConfigState>()(
             connectionEpoch: state.connectionEpoch + 1,
             aiMode: 'hybrid',
             connectionError: null,
+            connectionErrorCopy: null,
           }));
           return true;
         } catch (error) {
@@ -662,6 +707,8 @@ export const useAIConfigStore = create<AIConfigState>()(
                 error instanceof Error
                   ? error.message
                   : translate(aiConfigStoreMessages, 'connectionFailed'),
+              // The client's errors carry their key; a browser's own text has none.
+              connectionErrorCopy: keyedCopyOf(error),
             });
           }
           return false;
@@ -675,6 +722,7 @@ export const useAIConfigStore = create<AIConfigState>()(
           connectionEpoch: state.connectionEpoch + 1,
           aiMode: state.llmBackend === backend ? 'heuristic' : state.aiMode,
           connectionError: null,
+          connectionErrorCopy: null,
         }));
       },
     }),
@@ -724,6 +772,14 @@ export const useAIConfigStore = create<AIConfigState>()(
         // Persist the chosen backend; webgpuModelReady is intentionally NOT
         // persisted (the engine is memory-only and must be reloaded each session).
         llmBackend: state.llmBackend,
+        // A lights-out switched off stays off: the persisted WebGPU backend
+        // prewarms the model on a fresh page, and the on-device AI would take
+        // the player's incidents again. On is the default, so nothing is saved.
+        ...(state.lightsOut ? {} : { lightsOut: false }),
+        // The fast lane is a second copy of the model in graphics memory. Off
+        // where the device would turn it on is kept; on is never saved, so a
+        // reload after a lost device falls back to this device's default.
+        ...(fastLaneByDefault() && !state.webgpuFastLane ? { webgpuFastLane: false } : {}),
       }),
     }
   )

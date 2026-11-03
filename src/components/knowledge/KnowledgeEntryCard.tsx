@@ -280,6 +280,7 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
       <div className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700 px-6 py-4">
         <button
           onClick={onClose}
+          data-entry-card-back
           className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-3"
         >
           <ArrowLeft className="w-4 h-4" />

@@ -23,7 +23,6 @@ import { useTruckScheduleStore } from '../../stores/truckScheduleStore';
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useQCLabStore } from '../../stores/qcLabStore';
 import { hasCommunityBakerySupply } from '../../simulation/communityLife';
-import { deriveDeliveryJourney } from '../../components/ui-new/onboarding/deliveryJourney';
 import { toSimulationMinutes } from '../../simulation/simulationClock';
 import type { OperationsChallengeId } from '../../simulation/operationsPlay';
 import {

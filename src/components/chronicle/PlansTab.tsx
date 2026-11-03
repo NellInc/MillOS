@@ -24,9 +24,10 @@ export function effectSummary(plan: ImprovementDefinition): string {
   if (e.wear) parts.push(`wear x${e.wear}`);
   if (e.qualityPenalty) parts.push(`quality +${-e.qualityPenalty}`);
   if (e.upkeep) parts.push(`upkeep x${e.upkeep}`);
+  // Relief comes off the forecast's chance in points, as the forecast card counts it.
   for (const [kind, relief] of Object.entries(plan.forecastRelief ?? {}))
     parts.push(
-      `${FORECASTS[kind as keyof typeof FORECASTS].title.toLowerCase()} -${Math.round((relief ?? 0) * 100)}%`
+      `${FORECASTS[kind as keyof typeof FORECASTS].title.toLowerCase()} -${Math.round((relief ?? 0) * 100)} points`
     );
   for (const kind of plan.cropRelief ?? []) {
     const left = CROP_YEARS[kind].treatedPenalty;
@@ -46,6 +47,8 @@ export function PlansTab({ state }: { state: ChronicleState }) {
     useShallow((s) => ({ plan: s.plan, install: s.install, cancel: s.cancel, hire: s.hire }))
   );
   const installing = state.improvements.some((p) => p.phase === 'installing');
+  // An ended chronicle takes no more plans or contractors; the engine refuses them.
+  const active = state.status === 'active';
   return (
     <div className="space-y-3">
       <Section
@@ -80,7 +83,7 @@ export function PlansTab({ state }: { state: ChronicleState }) {
                 </ul>
                 <button
                   className={`${BUTTON} mt-2`}
-                  disabled={installing || !canAfford(state, { fund: offer.retainer })}
+                  disabled={!active || installing || !canAfford(state, { fund: offer.retainer })}
                   title={installing ? 'An install is under way' : undefined}
                   onClick={() => actions.hire(offer.id)}
                 >
@@ -136,7 +139,7 @@ export function PlansTab({ state }: { state: ChronicleState }) {
                     {availability === 'available' && (
                       <button
                         className={BUTTON}
-                        disabled={knowHowOf(state) < plan.planCost}
+                        disabled={!active || knowHowOf(state) < plan.planCost}
                         onClick={() => actions.plan(plan.id)}
                       >
                         Draw up the plan

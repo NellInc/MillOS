@@ -16,12 +16,13 @@ import {
 } from '../stores/operationsCampaignStore';
 import { persistedGameSpeed, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { migrateLegacyGameSpeed } from '../simulation/pace';
-import { useBreakdownStore } from '../stores/breakdownStore';
+import { promoteCoveredOrders, useBreakdownStore } from '../stores/breakdownStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useQCLabStore } from '../stores/qcLabStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useAchievementsStore } from '../stores/achievementsStore';
 import { useUIStore } from '../stores/uiStore';
+import { registerAlertCatalog } from '../i18n/alertCopy';
 import { captureUnifiedTickState, restoreUnifiedTickState } from '../systems/UnifiedGameTick';
 import { centralTick } from '../systems/CentralTickSystem';
 import { peekSCADAService } from '../scada/SCADAService';
@@ -30,6 +31,7 @@ import {
   missingReplayParticipants,
   restoreReplayParticipants,
   isWorkplaceReplayActive,
+  onReplayRecordChanged,
   REQUIRED_REPLAY_PARTICIPANTS,
 } from '../simulation/workplaceReplayRuntime';
 import { getStartupSnapshot, subscribeStartup } from './startupReadiness';
@@ -97,6 +99,9 @@ export function capturePhysicalSession() {
     tick: captureUnifiedTickState(),
     clock: centralTick.captureClock(),
     participants: captureReplayParticipants().map(({ id, value }) => ({ id, value })),
+    // The bell's notices describe the faults, incidents and holds restored above;
+    // most are filed only on the transition, so nothing would raise them again.
+    alerts: useUIStore.getState().alerts,
   };
 }
 type PhysicalSession = ReturnType<typeof capturePhysicalSession>;
@@ -155,6 +160,25 @@ export const NULLABLE_PHYSICAL_FIELDS = {
   operations: ['activeChallenge', 'lastMaterialSessionId', 'activeOrderId', 'currentShiftKey'],
   game: ['emergencyMachineId', 'activeSafetyEventId'],
 } as const;
+
+const SESSION_ALERT_CATALOG = 'physicalSession';
+type SessionMessageKey = keyof (typeof messages)['en'];
+registerAlertCatalog(SESSION_ALERT_CATALOG, messages);
+
+// Saved-store fields added after the format began, with the value an older save
+// restores to. physicalSession.test.ts pins the saved field set, so a new field
+// fails there until it is listed here.
+const ADDED_PHYSICAL_FIELDS: Partial<
+  Record<string, Record<string, (saved: Record<string, unknown>) => unknown>>
+> = {
+  // Unknown for an older save: treat a hold as the player's, as before.
+  game: { stopHeldForklifts: () => false },
+  // The session counter began with the log; the kept log is the best count.
+  safety: {
+    sessionIncidentCount: (saved) =>
+      Array.isArray(saved.safetyIncidents) ? saved.safetyIncidents.length : 0,
+  },
+};
 
 function validateTree(value: unknown, budget: { left: number }, depth = 0): void {
   if (--budget.left < 0 || depth > 50) throw new Error('Invalid save size');
@@ -245,6 +269,12 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
       )
         throw new Error(`Invalid physical field ${domain}.${key}`);
     }
+    // A field added to a saved store after a save was written is filled from
+    // its fallback; any other missing field still marks the save incomplete.
+    const added = ADDED_PHYSICAL_FIELDS[domain as keyof typeof ADDED_PHYSICAL_FIELDS];
+    for (const [key, fallback] of Object.entries(added ?? {}))
+      if (!(key in saved))
+        (saved as Record<string, unknown>)[key] = fallback(saved as Record<string, unknown>);
     for (const key of Object.keys(expected))
       if (!(key in saved)) throw new Error(`Incomplete physical domain ${domain}.${key}`);
   }
@@ -380,6 +410,21 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
     )
       throw new Error('Unbound source hold');
   }
+  // Older records carry no notices; a record that does must hold notices.
+  if (
+    value.alerts !== undefined &&
+    !(
+      Array.isArray(value.alerts) &&
+      value.alerts.every(
+        (alert) =>
+          !!alert &&
+          typeof alert === 'object' &&
+          typeof alert.id === 'string' &&
+          alert.timestamp instanceof Date
+      )
+    )
+  )
+    throw new Error('Invalid saved alerts');
   const participantIds = value.participants.map((p) => p.id);
   if (new Set(participantIds).size !== participantIds.length)
     throw new Error('Duplicate continuation');
@@ -401,11 +446,21 @@ function restoreStores(saved: PhysicalSession) {
     ...saved.operations,
     creditedBatchKg: compactBatchCreditKeys(saved.operations.creditedBatchKg),
   });
-  useBreakdownStore.setState(saved.maintenance);
+  // A session restores paused, before any tick: settle part reservations now
+  // (a save from before them can hold two diagnosed orders on one part).
+  useBreakdownStore.setState({
+    ...saved.maintenance,
+    workOrders: promoteCoveredOrders(
+      saved.maintenance.workOrders,
+      saved.maintenance.partsInventory
+    ),
+  });
   useTruckScheduleStore.setState(saved.trucks);
   useQCLabStore.setState(saved.quality);
   useSafetyStore.setState(saved.safety);
   useAchievementsStore.setState(saved.achievements);
+  // Before React mounts, so AlertSystem treats them as already announced.
+  if (Array.isArray(saved.alerts)) useUIStore.setState({ alerts: saved.alerts });
   useProductionStore.setState({ ...saved.production, scadaLive: false });
   useLogisticsLayoutStore.getState().restoreSaved(saved.logistics);
   // Frame-driven owners also observe gameSpeed; hold them through warm-up,
@@ -453,14 +508,22 @@ export function installPhysicalSession(
     queued = false,
     saveFailed = false,
     lastWritten: string | null = null;
-  const notify = (id: string, type: 'info' | 'warning', title: string, message: string) =>
+  // Keyed, so a notice the bell keeps (and a reload restores) reads in the
+  // language active now; the stored text is the fallback.
+  const notify = (
+    id: string,
+    type: 'info' | 'warning',
+    title: SessionMessageKey,
+    message: SessionMessageKey
+  ) =>
     useUIStore.getState().addAlert({
       id,
       type,
-      title,
-      message,
+      title: translate(messages, title),
+      message: translate(messages, message),
       timestamp: new Date(),
       acknowledged: false,
+      copy: { catalog: SESSION_ALERT_CATALOG, title, message },
     });
   // Working if only a record this tab could not load pauses the shift: halt()
   // guards restore integrity, notify() reports a save problem while play goes on.
@@ -468,12 +531,15 @@ export function installPhysicalSession(
     if (error !== undefined) console.error('[physicalSession] restore failed:', error);
     disabled = true;
     useGameSimulationStore.getState().holdClock('restoreFailed');
-    notify(
-      'physical-save-unavailable',
-      'warning',
-      translate(messages, 'saveNeedsAttention'),
-      translate(messages, 'resetHint', { reason: message })
-    );
+    // The reason is already worded, so this rare notice keeps its stored text.
+    useUIStore.getState().addAlert({
+      id: 'physical-save-unavailable',
+      type: 'warning',
+      title: translate(messages, 'saveNeedsAttention'),
+      message: translate(messages, 'resetHint', { reason: message }),
+      timestamp: new Date(),
+      acknowledged: false,
+    });
   };
   const localControl = () =>
     !peekSCADAService() || peekSCADAService()?.getState().mode === 'simulation';
@@ -517,12 +583,7 @@ export function installPhysicalSession(
       if (storage.getItem(PHYSICAL_SESSION_KEY) !== lastWritten) {
         disabled = true;
         if (storage.getItem(PHYSICAL_SESSION_KEY) !== null)
-          notify(
-            'physical-save-other-tab',
-            'info',
-            translate(messages, 'otherTabTitle'),
-            translate(messages, 'otherTabMessage')
-          );
+          notify('physical-save-other-tab', 'info', 'otherTabTitle', 'otherTabMessage');
         return;
       }
       cleanupThrottledBags();
@@ -543,12 +604,8 @@ export function installPhysicalSession(
         notify(
           'physical-autosave-skipped',
           'info',
-          translate(messages, tooLarge ? 'autosaveStoppedTitle' : 'autosaveSkippedTitle'),
-          tooLarge
-            ? translate(messages, 'autosaveTooLarge')
-            : quota
-              ? translate(messages, 'autosaveSkippedQuota')
-              : translate(messages, 'autosaveSkippedMessage')
+          tooLarge ? 'autosaveStoppedTitle' : 'autosaveSkippedTitle',
+          tooLarge ? 'autosaveTooLarge' : quota ? 'autosaveSkippedQuota' : 'autosaveSkippedMessage'
         );
       }
       saveFailed = true;
@@ -574,6 +631,13 @@ export function installPhysicalSession(
   // Coalesce a quality or repair action after all its synchronous store writes.
   // Ordinary stock/clock autosaves are paced, with a latest-state flush on exit.
   const qc = useQCLabStore.subscribe(queue);
+  // A shift close is credited to the Mill Chronicle at once; write the plant in
+  // the same microtask so a reload never restores a campaign from before it.
+  const reports = useOperationsCampaignStore.subscribe((now, before) => {
+    if (now.reports !== before.reports) queue();
+  });
+  // A retained or forgotten replay review writes the workplace at once.
+  const replayRecord = onReplayRecordChanged(queue);
   const logistics = useLogisticsLayoutStore.subscribe((now, before) => {
     if (now.revision !== before.revision) queue();
   });
@@ -608,19 +672,9 @@ export function installPhysicalSession(
     if (++missingChecks < 4 || sceneWarned) return;
     sceneWarned = true;
     if (pending)
-      notify(
-        'physical-scene-incomplete',
-        'warning',
-        translate(messages, 'sceneWaitingTitle'),
-        translate(messages, 'sceneWaitingMessage')
-      );
+      notify('physical-scene-incomplete', 'warning', 'sceneWaitingTitle', 'sceneWaitingMessage');
     else
-      notify(
-        'physical-scene-incomplete',
-        'info',
-        translate(messages, 'autosavePausedTitle'),
-        translate(messages, 'autosavePausedMessage')
-      );
+      notify('physical-scene-incomplete', 'info', 'autosavePausedTitle', 'autosavePausedMessage');
   };
   const timer = window.setInterval(() => {
     watchScene();
@@ -635,6 +689,8 @@ export function installPhysicalSession(
     window.clearInterval(timer);
     startup();
     qc();
+    reports();
+    replayRecord();
     logistics();
     maintenance();
     window.removeEventListener('pagehide', save);

@@ -14,7 +14,8 @@ export interface WorkplaceCheckpointInfo {
   gameDay: number;
   gameTime: number;
   sourceKg: number;
-  faults: string[];
+  /** Active breakdowns: machine designation and breakdown type id, labelled at display. */
+  faults: { machineName: string; type: string }[];
   participantIds: string[];
 }
 

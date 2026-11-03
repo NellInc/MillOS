@@ -26,6 +26,8 @@ import { CLOSED_DOUBLE_FACED_ASSETS } from './closedDoubleFacedAssets';
 import {
   createMarketCanopyGeometry,
   createBarnJoineryGeometry,
+  createFencePanelGeometry,
+  createLockGateStructureGeometry,
   createPosterStationGeometry,
 } from '../scenery/AuthoredPropTrim';
 import {
@@ -142,6 +144,12 @@ export interface GeneratedModelProps {
   /** Explicit market cloth trade; all non-canvas asset pixels remain authored. */
   marketDressing?: number;
   /**
+   * Fence panels only: keep the leading (-x) / trailing (+x) end post. A run
+   * drops the post its neighbour already supplies. Both default to true.
+   */
+  fenceLeadingPost?: boolean;
+  fenceTrailingPost?: boolean;
+  /**
    * Uniform scale. The assets are authored at their shipped size, so this is
    * for the handful of call sites that genuinely want a variant - a smaller
    * outbuilding, a taller landmark - not for correcting the asset.
@@ -176,6 +184,8 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
   asset,
   shopTrade,
   marketDressing,
+  fenceLeadingPost = true,
+  fenceTrailingPost = true,
   scale,
   sink,
   castShadow,
@@ -190,6 +200,24 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
     clone.traverse((object) => {
       const mesh = object as THREE.Mesh;
       if (!mesh.isMesh) return;
+      if (asset === 'fence' && !(fenceLeadingPost && fenceTrailingPost)) {
+        const geometry = createFencePanelGeometry(
+          mesh.geometry,
+          fenceLeadingPost,
+          fenceTrailingPost
+        );
+        if (geometry !== mesh.geometry) {
+          mesh.geometry = geometry;
+          geometries.push(geometry);
+        }
+      }
+      if (asset === 'lockGateStructure') {
+        const geometry = createLockGateStructureGeometry(mesh.geometry);
+        if (geometry !== mesh.geometry) {
+          mesh.geometry = geometry;
+          geometries.push(geometry);
+        }
+      }
       if (
         asset === 'marketstall' &&
         marketDressing !== undefined &&
@@ -302,7 +330,16 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         receiveShadow ?? (typeof authoredReceive === 'boolean' ? authoredReceive : true);
     });
     return { model: clone, materials, geometries };
-  }, [scene, asset, shopTrade, marketDressing, castShadow, receiveShadow]);
+  }, [
+    scene,
+    asset,
+    shopTrade,
+    marketDressing,
+    fenceLeadingPost,
+    fenceTrailingPost,
+    castShadow,
+    receiveShadow,
+  ]);
   useEffect(
     () => () => {
       materials.forEach((material) => material.dispose());

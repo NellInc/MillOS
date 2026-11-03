@@ -110,6 +110,31 @@ describe('historicalPlaybackStore', () => {
       store.setPlaybackTime(end + 50000);
       expect(useHistoricalPlaybackStore.getState().playbackTime).toBe(end);
     });
+
+    it('opens the recent replay inside a recording shorter than a minute', () => {
+      const start = Date.now() - 20000;
+      const end = Date.now();
+      const store = useHistoricalPlaybackStore.getState();
+      store.setAvailableRange(start, end);
+      store.enterReplayMode();
+      expect(useHistoricalPlaybackStore.getState().playbackTime).toBe(start);
+    });
+
+    it('opens the recent replay at the newest recording once the range refreshes', () => {
+      // The range was read when the timeline first mounted, an hour ago.
+      const staleEnd = Date.now() - 3_600_000;
+      const store = useHistoricalPlaybackStore.getState();
+      store.setAvailableRange(staleEnd - 600_000, staleEnd);
+      store.enterReplayMode();
+      // useHistoricalMode re-reads the range on entering replay.
+      store.setAvailableRange(staleEnd - 600_000, Date.now());
+      expect(useHistoricalPlaybackStore.getState().playbackTime).toBe(Date.now() - 60_000);
+
+      // Once the player scrubs, a later refresh keeps their position.
+      store.setPlaybackTime(staleEnd);
+      store.setAvailableRange(staleEnd - 600_000, Date.now() + 1000);
+      expect(useHistoricalPlaybackStore.getState().playbackTime).toBe(staleEnd);
+    });
   });
 
   describe('decision logging', () => {

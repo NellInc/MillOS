@@ -418,6 +418,72 @@ describe('ambient one-shot schedulers', () => {
     expect(bell).toHaveBeenCalledOnce();
   });
 
+  // PA mode Off is the player's way to quiet the PA; the routine cycle bells
+  // and tones ride the PA chain, so they go quiet with it and resume after.
+  it('rings no routine PA bell or tone while PA mode is Off', async () => {
+    const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+    const bell = vi.spyOn(manager, 'playCycleBell').mockImplementation(() => undefined);
+    const tone = vi
+      .spyOn(manager as unknown as { playPATone: () => void }, 'playPATone')
+      .mockImplementation(() => undefined);
+    useAnnouncementsStore.setState({ mode: 'off' });
+    manager.startPASystem();
+
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 * 3);
+    expect(bell).not.toHaveBeenCalled();
+    expect(tone).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    useAnnouncementsStore.setState({ mode: 'focused' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bell).toHaveBeenCalledOnce();
+  });
+
+  // A drill, a facility or forklift stop, or a crisis is sounding its own alarm;
+  // a routine "cycle complete" bell over it says the plant is running normally.
+  // PAAnnouncementSystem marks those states as the PA's safetyCritical context.
+  it('rings no routine PA bell or tone while a safety state holds the plant', async () => {
+    const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+    const bell = vi.spyOn(manager, 'playCycleBell').mockImplementation(() => undefined);
+    const tone = vi
+      .spyOn(manager as unknown as { playPATone: () => void }, 'playPATone')
+      .mockImplementation(() => undefined);
+    useAnnouncementsStore.setState({ mode: 'focused' });
+    useAnnouncementsStore.getState().setContext({ safetyCritical: true });
+    manager.startPASystem();
+
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 * 3);
+    expect(bell).not.toHaveBeenCalled();
+    expect(tone).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    useAnnouncementsStore.getState().setContext({ safetyCritical: false });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bell).toHaveBeenCalledOnce();
+  });
+
+  // A "cycle complete" bell while the plant is paused says it is cycling.
+  // PAAnnouncementSystem marks a paused plant as the PA's plantPaused context.
+  it('rings no routine PA bell or tone while the plant is paused', async () => {
+    const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+    const bell = vi.spyOn(manager, 'playCycleBell').mockImplementation(() => undefined);
+    const tone = vi
+      .spyOn(manager as unknown as { playPATone: () => void }, 'playPATone')
+      .mockImplementation(() => undefined);
+    useAnnouncementsStore.setState({ mode: 'focused' });
+    useAnnouncementsStore.getState().setContext({ plantPaused: true });
+    manager.startPASystem();
+
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 * 3);
+    expect(bell).not.toHaveBeenCalled();
+    expect(tone).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    useAnnouncementsStore.getState().setContext({ plantPaused: false });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bell).toHaveBeenCalledOnce();
+  });
+
   it('keeps the metal clanks scheduled after a tick fires while muted', async () => {
     const clank = vi
       .spyOn(manager as unknown as { playMetalClankHeavy: () => void }, 'playMetalClankHeavy')

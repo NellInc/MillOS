@@ -56,6 +56,7 @@ export const sharedMessages = defineMessages({
     facilityStopEngaged:
       'Facility emergency stop engaged. Restart held until the cause is found and interlocks clear.',
     vehiclesSecure: 'All vehicles secure. Route reservations locked until the all-clear.',
+    facilityStopCleared: 'Facility emergency stop cleared. Forklifts released.',
     forkliftStop:
       'Forklift emergency stop. Every forklift is holding position; the mill keeps running.',
   },
@@ -126,6 +127,7 @@ export const sharedMessages = defineMessages({
       'Parada de emergência da unidade acionada. Religamento bloqueado até que a causa seja encontrada e os intertravamentos sejam liberados.',
     vehiclesSecure:
       'Todos os veículos em segurança. Reservas de rota bloqueadas até a liberação geral.',
+    facilityStopCleared: 'Parada de emergência da unidade liberada. Empilhadeiras liberadas.',
     forkliftStop:
       'Parada de emergência das empilhadeiras. Todas as empilhadeiras estão paradas na posição; o moinho continua funcionando.',
   },

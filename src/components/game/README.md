@@ -16,7 +16,8 @@ Key modules:
 - `PAAnnouncementSystem.tsx`: priority-aware accessible caption presentation.
 - `MiniMap.tsx`: factory, vehicle, and zone overview.
 - `IncidentReplayControls.tsx`: historical event playback.
-- `GamificationBar.tsx`: compact access to achievements, replay, map, and export.
+- `AchievementsPanel.tsx`: goal list, opened from the Overview panel's Quick
+  Actions.
 
 Announcements are state-driven and cooldown protected. Muting prevents their
 creation, critical safety notices pre-empt routine notices, and reduced-motion

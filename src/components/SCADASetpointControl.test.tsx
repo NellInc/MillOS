@@ -20,9 +20,14 @@ const sample = (tagId: string, value: number): TagValue => ({
 });
 
 function renderControl(
-  overrides: { mode?: SCADAMode; isConnected?: boolean; write?: ReturnType<typeof vi.fn> } = {}
+  overrides: {
+    mode?: SCADAMode;
+    isConnected?: boolean;
+    write?: ReturnType<typeof vi.fn<(tagId: string, value: number) => Promise<boolean>>>;
+  } = {}
 ) {
-  const write = overrides.write ?? vi.fn(async () => true);
+  const write =
+    overrides.write ?? vi.fn<(tagId: string, value: number) => Promise<boolean>>(async () => true);
   render(
     <SCADASetpointControl
       tag={setpointTag}
@@ -79,6 +84,27 @@ describe('SCADA setpoint control', () => {
 
     await waitFor(() => expect(write).toHaveBeenCalledWith(SP_ID, 1450));
     expect(await screen.findByRole('status')).toHaveTextContent('Setpoint 1,450 RPM applied.');
+  });
+
+  it('re-reads its result and validation lines in the language just chosen', async () => {
+    renderControl();
+    const input = screen.getByLabelText('New setpoint for RM-101 Speed Setpoint (RPM)');
+    fireEvent.change(input, { target: { value: '1450' } });
+    fireEvent.submit(input.closest('form')!);
+    // The status line is always present (empty until the write resolves), so
+    // wait for its text rather than for the element.
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('Setpoint 1,450 RPM applied.')
+    );
+
+    act(() => setLocale('pt-BR'));
+    expect(screen.getByRole('status')).toHaveTextContent('Setpoint 1.450 RPM aplicado.');
+
+    fireEvent.change(input, { target: { value: '2500' } });
+    fireEvent.submit(input.closest('form')!);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Digite um valor de 0 a 2.000 RPM.');
+    act(() => setLocale('en'));
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a value from 0 to 2,000 RPM.');
   });
 
   it('reports a refused write instead of claiming success', async () => {

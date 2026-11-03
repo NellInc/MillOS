@@ -3,6 +3,7 @@
  * button (Predynastic Egypt's choice hints) rather than in helper text.
  */
 import { INCIDENT_DEFINITIONS } from '../stores/operationsCampaignStore';
+import { formatFixed } from '../i18n';
 import { SUSPENSION_CUSTOMER_DELTA } from './certifier';
 import { EVENT_DECK } from './eventDeck';
 import { FORECASTS } from './forecasts';
@@ -16,7 +17,7 @@ function signed(value: number): string {
 
 /** Standing moves in hundredths of a point, as Castles II's plot variables do. */
 export function signedHundredths(value: number): string {
-  return `${value > 0 ? '+' : '-'}${(Math.abs(value) / 100).toFixed(2)}`;
+  return `${value > 0 ? '+' : '-'}${formatFixed(Math.abs(value) / 100, 2, 'en')}`;
 }
 
 export function describeModifier(values: ModifierValues): string[] {
@@ -33,7 +34,11 @@ export function describeModifier(values: ModifierValues): string[] {
   return parts;
 }
 
-export function describeEffect(effect: ChronicleEventEffect): string {
+export function describeEffect(
+  effect: ChronicleEventEffect,
+  /** A suspended mill's standing does not move, so its button names no change. */
+  context: { suspended?: boolean } = {}
+): string {
   const parts: string[] = [];
   if (effect.fund) parts.push(`fund ${signed(effect.fund)}`);
   if (effect.knowHow) parts.push(`know-how ${signed(effect.knowHow)}`);
@@ -52,7 +57,8 @@ export function describeEffect(effect: ChronicleEventEffect): string {
     const name = customer === 'all' ? 'all customers' : partyName(customer);
     parts.push(`${name} ${signed(delta)}`);
   }
-  if (effect.standing) parts.push(`standing ${signedHundredths(effect.standing)}`);
+  if (effect.standing && !context.suspended)
+    parts.push(`standing ${signedHundredths(effect.standing)}`);
   // What a mark does at once is shown; what it leads to later is the record's to tell.
   for (const id of effect.marks ?? []) {
     for (const prepare of MARKS[id]?.prepares ?? [])

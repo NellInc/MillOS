@@ -2,7 +2,11 @@ import { improvementSummary, workplaceMission } from '../../../simulation/workpl
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { WORKPLACE_PLANS } from '../../../simulation/bilateralWorkplace';
 import { deriveWorkplaceGuidance } from './WorkplacePressureChapter';
-import { thursdayNegotiation } from '../../../simulation/workplaceCampaign';
+import {
+  formatKg,
+  missionDelivery,
+  thursdayNegotiation,
+} from '../../../simulation/workplaceCampaign';
 import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 import { formatFixed, useT } from '../../../i18n';
 import { workplaceCompanionMessages } from './WorkplaceCompanion.messages';
@@ -36,13 +40,16 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
         status: 'pending',
       };
   const deliveredKg = mission?.creditedKg ?? delivery.deliveredKg;
-  const targetKg = mission?.targetKg ?? delivery.targetKg;
+  // A renegotiated installment is the denominator here until credit passes it,
+  // then the order (missionDelivery). Working if the receipts row names the
+  // installment while it is the denominator, and never reads 6000 / 4800.
+  const shown = mission ? missionDelivery(mission) : null;
+  const targetKg = shown?.targetKg ?? delivery.targetKg;
   const remainingKg = mission
     ? Math.max(0, mission.originalTargetKg - mission.creditedKg)
     : delivery.remainingKg;
-  // A renegotiated installment is the denominator here, not the order. Working
-  // if the receipts row names the installment and the deferral stays visible.
-  const deferredKg = mission ? Math.max(0, mission.originalTargetKg - mission.targetKg) : 0;
+  // "Still part of the full commitment" holds only while some of it is unshipped.
+  const deferredKg = shown && remainingKg > 1e-6 ? shown.deferredKg : 0;
   const evidenceBlocked = mission ? mission.evidence !== 'current' : delivery.status === 'blocked';
   const title = improvement
     ? t('handoffShift', { cycle: formatFixed(improvement.cycle, 0) })
@@ -53,6 +60,8 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
   return (
     <aside
       aria-label={t('regionLabel')}
+      // src/index.css places it on small screens by this hook: the label is translated.
+      data-agreement-companion=""
       className="pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-15.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/30 bg-slate-950/95 p-4 text-sm leading-6 text-slate-200 selection:bg-cyan-800 selection:text-cyan-100 sm:left-auto sm:right-4 sm:w-[360px]"
     >
       <h2 className="font-semibold text-white">{t('heading')}</h2>
@@ -67,7 +76,7 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
           {state.improvement.advice.reasonToAbstain
             ? t('adviserAbstained')
             : t('frozenBound', {
-                upper: formatFixed(state.improvement.advice.dispatchUpperKg, 0),
+                upper: formatKg(state.improvement.advice.dispatchUpperKg),
               })}
         </p>
       )}
@@ -114,15 +123,15 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
         <div>
           <dt className="inline text-slate-300">
             {mission
-              ? deferredKg > 0
+              ? shown?.installment
                 ? t('installmentReceipts')
                 : t('dispatchReceipts')
               : t('teachingOutput')}
           </dt>
           <dd className="inline">
             {t('receiptsValue', {
-              delivered: formatFixed(deliveredKg, 0),
-              target: formatFixed(targetKg, 0),
+              delivered: formatKg(deliveredKg),
+              target: formatKg(targetKg),
               blocked: Boolean(evidenceBlocked),
             })}
           </dd>
@@ -130,19 +139,19 @@ export function WorkplaceCompanion({ onOpen }: { onOpen: () => void }) {
         {deferredKg > 0 && (
           <div>
             <dt className="inline text-slate-300">{t('agreedDeferral')}</dt>
-            <dd className="inline">{t('deferralValue', { kg: formatFixed(deferredKg, 0) })}</dd>
+            <dd className="inline">{t('deferralValue', { kg: formatKg(deferredKg) })}</dd>
           </div>
         )}
         {improvement && mission && (
           <div>
             <dt className="inline text-slate-300">{t('handoffDispatch')}</dt>
-            <dd className="inline">{t('kgValue', { kg: formatFixed(improvement.actualKg, 0) })}</dd>
+            <dd className="inline">{t('kgValue', { kg: formatKg(improvement.actualKg) })}</dd>
           </div>
         )}
         {mission && (
           <div>
             <dt className="inline text-slate-300">{t('commitmentRemaining')}</dt>
-            <dd className="inline">{t('kgValue', { kg: formatFixed(remainingKg, 0) })}</dd>
+            <dd className="inline">{t('kgValue', { kg: formatKg(remainingKg) })}</dd>
           </div>
         )}
         <div>

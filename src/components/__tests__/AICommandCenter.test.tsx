@@ -45,6 +45,15 @@ const aiEngineMock = {
   shouldTriggerAudioCue: vi.fn(() => false),
   getConfidenceAdjustmentForType: vi.fn(() => 0),
   isTacticalLayerActive: vi.fn(() => true),
+  isDeferralReturned: vi.fn((_id: string) => false),
+  // The stored text: AICommandCenter.language.gameplay.test.tsx covers the keyed copy.
+  decisionCardText: (decision: AIDecision) => ({
+    action: decision.action,
+    reasoning: decision.reasoning,
+    impact: decision.impact,
+    note: decision.response?.note,
+    outcome: decision.outcome,
+  }),
   isStrategicLayerActive: vi.fn(() => false),
   isGeminiModeActive: vi.fn(() => false),
 };
@@ -257,7 +266,10 @@ describe('AICommandCenter', () => {
   // Tests for decision generation should be in aiEngine.test.ts or the store tests.
 
   describe('Memory Management and Cleanup', () => {
-    it('should clear any pending alert reaction timeout on unmount', async () => {
+    // Reactions moved to the engine (aiEngine.alertReactions.gameplay.test.ts),
+    // so the panel schedules nothing: opening it cannot double-react, and
+    // closing it cannot cancel a reaction that is due.
+    it('schedules no alert reaction of its own while open, so none can double up', async () => {
       const mockAlert: AlertData = {
         id: 'alert-cleanup',
         type: 'warning',
@@ -268,16 +280,21 @@ describe('AICommandCenter', () => {
         acknowledged: false,
       };
 
+      const { rerender, unmount } = render(
+        <AICommandCenter isOpen={true} onClose={vi.fn()} embedded />
+      );
       setupStoreMocks({}, { alerts: [mockAlert] });
+      rerender(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
 
-      const { unmount } = render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
-
-      // Flush effects so the timeout is scheduled.
       await act(async () => {});
-      expect(vi.getTimerCount()).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+      expect(aiEngineMock.reactToAlert).not.toHaveBeenCalled();
+      expect(aiEngineMock.applyDecisionEffects).not.toHaveBeenCalled();
 
       unmount();
-
       expect(vi.getTimerCount()).toBe(0);
     });
   });
@@ -439,60 +456,168 @@ describe('AICommandCenter', () => {
       expect(screen.queryByText('Action 15')).not.toBeInTheDocument();
     });
 
-    // Note: Sparklines feature is noted as "Currently unused but kept for future feature expansion"
-    // in AICommandCenter.tsx (lines 38-42). Test removed as feature is not currently implemented.
-  });
-
-  describe('Alert Reactions', () => {
-    it('should react once and apply the returned decision after the alert delay', async () => {
-      const mockAlert: AlertData = {
-        id: 'alert-1',
-        type: 'critical',
-        title: 'Machine Failure',
-        message: 'RM-101 has stopped',
-        machineId: 'RM-101',
+    // Accept and Reject end a card's pending state and remove the button that
+    // was pressed. Focus then fell to the page body, so a keyboard player lost
+    // their place in the feed after every answer.
+    it.each([
+      ['Accept', 'completed'],
+      ['Reject', 'superseded'],
+    ] as const)('keeps focus on the card after %s removes its buttons', (name, status) => {
+      const pending: AIDecision = {
+        id: 'focus-decision',
         timestamp: new Date(),
-        acknowledged: false,
+        type: 'coordination',
+        action: 'Rebalance the packers',
+        reasoning: 'Test',
+        confidence: 75,
+        impact: 'Test',
+        status: 'pending',
+        priority: 'low',
       };
+      setupStoreMocks({ aiDecisions: [pending] });
+      const view = render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+      const button = screen.getByRole('button', { name });
+      button.focus();
+      fireEvent.click(button);
+      // The store answers the response; the card re-renders without its buttons.
+      setupStoreMocks({ aiDecisions: [{ ...pending, status }] });
+      view.rerender(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Inspect evidence' }));
+    });
 
-      const mockDecision: AIDecision = {
-        id: 'reaction-decision',
+    // A deferred card stayed pending with Defer still offered, and once 15 newer
+    // cards arrived it fell off the list while still holding its place in the
+    // unresolved queue. The engine now returns it once after a plant hour.
+    // Working if a deferred card offers Accept and Reject but no second Defer,
+    // and a returned one is listed first however many cards came after it.
+    it('takes Defer away once used, keeping focus on the card', () => {
+      const pending: AIDecision = {
+        id: 'defer-once',
         timestamp: new Date(),
         type: 'maintenance',
-        action: 'Emergency maintenance',
-        reasoning: 'Machine failure detected',
-        confidence: 95,
-        impact: 'Restore operation',
+        action: 'Plan a bearing check',
+        reasoning: 'Test',
+        confidence: 80,
+        impact: 'Test',
         status: 'pending',
-        priority: 'critical',
-        triggeredBy: 'alert',
+        priority: 'high',
       };
-
-      aiEngineMock.reactToAlert.mockReturnValue(mockDecision);
-
-      const { rerender } = render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
-
-      // Update store with new alert
-      setupStoreMocks({}, { alerts: [mockAlert] });
-
-      rerender(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1499);
+      setupStoreMocks({ aiDecisions: [pending] });
+      const view = render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+      const defer = screen.getByRole('button', { name: 'Defer' });
+      defer.focus();
+      fireEvent.click(defer);
+      setupStoreMocks({
+        aiDecisions: [{ ...pending, response: { disposition: 'deferred', recordedAt: 1 } }],
       });
-
-      expect(aiEngineMock.reactToAlert).not.toHaveBeenCalled();
-      expect(aiEngineMock.applyDecisionEffects).not.toHaveBeenCalled();
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1);
-      });
-
-      expect(aiEngineMock.reactToAlert).toHaveBeenCalledTimes(1);
-      expect(aiEngineMock.reactToAlert).toHaveBeenCalledWith(mockAlert);
-      expect(aiEngineMock.applyDecisionEffects).toHaveBeenCalledTimes(1);
-      expect(aiEngineMock.applyDecisionEffects).toHaveBeenCalledWith(mockDecision);
+      view.rerender(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+      expect(screen.queryByRole('button', { name: 'Defer' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument();
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Inspect evidence' }));
     });
+
+    it('lists a returned deferral first, with its note, however many cards came after it', () => {
+      const decisions: AIDecision[] = Array.from({ length: 20 }, (_, i) => ({
+        id: `decision-${i}`,
+        timestamp: new Date(),
+        type: 'optimization' as const,
+        action: `Action ${i}`,
+        reasoning: `Reasoning ${i}`,
+        confidence: 75,
+        impact: `Impact ${i}`,
+        status: 'completed' as const,
+        priority: 'low' as const,
+      }));
+      decisions[18] = {
+        ...decisions[18],
+        status: 'pending',
+        response: {
+          disposition: 'deferred',
+          recordedAt: 1,
+          note: 'Back for a decision after 1 plant hour deferred.',
+        },
+      };
+      aiEngineMock.isDeferralReturned.mockImplementation((id: string) => id === 'decision-18');
+      try {
+        setupStoreMocks({ aiDecisions: decisions });
+        render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+        const cards = screen
+          .getAllByRole('button', { name: 'Inspect evidence' })
+          .map((button) => button.closest('.border'));
+        expect(cards).toHaveLength(15);
+        expect(cards[0]).toHaveTextContent('Action 18');
+        expect(cards[0]).toHaveTextContent('Back for a decision after 1 plant hour deferred.');
+        expect(cards[0]).toHaveTextContent('Accept');
+        expect(cards[0]).not.toHaveTextContent('Defer');
+      } finally {
+        aiEngineMock.isDeferralReturned.mockImplementation(() => false);
+      }
+    });
+
+    // Only the 15 newest cards were listed, and nothing else offers an answer.
+    // Once newer cards were answered, older pending ones sat below the cut with
+    // no Accept, Defer or Reject anywhere, still counting toward the engine's
+    // unresolved limit and blocking new cards for their machines. Working if
+    // every card still waiting for an answer is listed before settled ones, as
+    // on the phone sheet.
+    it('lists every pending card ahead of newer settled ones', () => {
+      const decisions: AIDecision[] = Array.from({ length: 20 }, (_, i) => ({
+        id: `decision-${i}`,
+        timestamp: new Date(),
+        type: 'optimization' as const,
+        action: `Action ${i}`,
+        reasoning: `Reasoning ${i}`,
+        confidence: 75,
+        impact: `Impact ${i}`,
+        // Newest first: the 15 newest are answered, the 5 oldest still wait.
+        status: i < 15 ? ('completed' as const) : ('pending' as const),
+        priority: 'low' as const,
+      }));
+      setupStoreMocks({ aiDecisions: decisions });
+      render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+      expect(screen.getAllByRole('button', { name: 'Inspect evidence' })).toHaveLength(15);
+      expect(screen.getAllByRole('button', { name: 'Accept' })).toHaveLength(5);
+      const cards = screen
+        .getAllByRole('button', { name: 'Inspect evidence' })
+        .map((button) => button.closest('.border'));
+      expect(cards[0]).toHaveTextContent('Action 15');
+      expect(cards[4]).toHaveTextContent('Action 19');
+      expect(cards[5]).toHaveTextContent('Action 0');
+    });
+
+    it('shows a lapsed deferral by its outcome, not the note that said it would lapse', () => {
+      setupStoreMocks({
+        aiDecisions: [
+          {
+            id: 'lapsed',
+            timestamp: new Date(),
+            type: 'maintenance',
+            action: 'Plan a bearing check',
+            reasoning: 'Test',
+            confidence: 80,
+            impact: 'Test',
+            status: 'superseded',
+            priority: 'high',
+            outcome: 'Deferred and not taken up within 3 plant hours; superseded.',
+            response: {
+              disposition: 'deferred',
+              recordedAt: 1,
+              note: 'Back for a decision. It lapses if left another 2 plant hours.',
+            },
+          },
+        ],
+      });
+      render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
+      expect(
+        screen.getByText('Deferred and not taken up within 3 plant hours; superseded.')
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/It lapses if left/)).not.toBeInTheDocument();
+    });
+
+    // Note: Sparklines feature is noted as "Currently unused but kept for future feature expansion"
+    // in AICommandCenter.tsx (lines 38-42). Test removed as feature is not currently implemented.
   });
 
   describe('System Status Display', () => {
