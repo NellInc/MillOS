@@ -386,7 +386,7 @@ test.describe('MillOS master refinement runtime', () => {
       await expect(safetySidebar).toBeVisible();
       await expect(safetySidebar.getByRole('button', { name: 'START DRILL' })).toBeVisible();
       await expect(safetySidebar.getByRole('button', { name: 'END DRILL' })).toHaveCount(0);
-      await expect(page.getByRole('alert', { name: 'Simulated fire drill' })).toHaveCount(0);
+      await expect(page.getByRole('alert', { name: 'Egress verification drill' })).toHaveCount(0);
       await expect(page.getByLabel('AI reflection', { exact: true })).toHaveCount(0);
       await expectNoWcagViolations(page, testInfo, 'safety-uncrewed');
       await page.screenshot({
@@ -399,7 +399,7 @@ test.describe('MillOS master refinement runtime', () => {
 
     await test.step('run the automated service-egress verification to completion', async () => {
       await safetySidebar.getByRole('button', { name: 'START DRILL' }).click();
-      const drillBanner = page.getByRole('alert', { name: 'Simulated fire drill' });
+      const drillBanner = page.getByRole('alert', { name: 'Egress verification drill' });
       await expect(drillBanner).toBeVisible();
       await expect(safetySidebar.getByRole('button', { name: 'END DRILL' })).toBeVisible();
       await expect(

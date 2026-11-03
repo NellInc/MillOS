@@ -706,6 +706,92 @@ export const QUIZ_QUESTIONS: QuizQuestion[] = [
     ],
     correctIndex: 1,
   },
+  // history-ogas
+  {
+    id: 'q-ogas-1',
+    noteId: 'history-ogas',
+    prompt: 'Who proposed the Soviet nationwide planning network that became OGAS?',
+    options: ['Stafford Beer', 'Viktor Glushkov', 'Martin Weitzman', 'Fernando Flores'],
+    correctIndex: 1,
+  },
+  {
+    id: 'q-ogas-2',
+    noteId: 'history-ogas',
+    prompt: 'What became of OGAS?',
+    options: [
+      'It was built in full and ran until 1991',
+      'It was handed to the military and used for air defence',
+      'It was scaled down, and each ministry built its own separate computer systems',
+      'It was sold abroad to pay for grain imports',
+    ],
+    correctIndex: 2,
+  },
+  // history-cybersyn
+  {
+    id: 'q-cybersyn-1',
+    noteId: 'history-cybersyn',
+    prompt: 'How did Cybersyn’s network carry messages between enterprises and Santiago?',
+    options: ['By radio', 'By telex', 'By courier', 'By punched cards sent by post'],
+    correctIndex: 1,
+  },
+  {
+    id: 'q-cybersyn-2',
+    noteId: 'history-cybersyn',
+    prompt: 'When a factory’s figure went out of range, what happened first?',
+    options: [
+      'The president was told at once',
+      'The factory was closed until it was inspected',
+      'The enterprise had a set time to deal with it before the warning went higher',
+      'Nothing, until the end of the month',
+    ],
+    correctIndex: 2,
+  },
+  // history-ratchet
+  {
+    id: 'q-ratchet-1',
+    noteId: 'history-ratchet',
+    prompt: 'Under planning "from the achieved level", how was next period’s target set?',
+    options: [
+      'By a vote of the workforce',
+      'From world market prices',
+      'From what had been achieved in the last period, plus an increment for growth',
+      'From the factory’s original design capacity',
+    ],
+    correctIndex: 2,
+  },
+  {
+    id: 'q-ratchet-2',
+    noteId: 'history-ratchet',
+    prompt: 'Which economist analysed the "ratchet principle" in 1980?',
+    options: ['Martin Weitzman', 'Stafford Beer', 'Viktor Glushkov', 'Joseph Berliner'],
+    correctIndex: 0,
+  },
+  // history-assembly
+  {
+    id: 'q-assembly-1',
+    noteId: 'history-assembly',
+    prompt:
+      'Under the second co-operative principle, how do members of a primary co-operative vote?',
+    options: [
+      'In proportion to the capital each has put in',
+      'One member, one vote',
+      'Only elected representatives vote',
+      'By length of membership',
+    ],
+    correctIndex: 1,
+  },
+  {
+    id: 'q-assembly-2',
+    noteId: 'history-assembly',
+    prompt: 'Why are a co-operative’s indivisible reserves not shared out among its members?',
+    options: [
+      'They are owed to the government as tax',
+      'They belong to the bank that lent them',
+      'They were built by many generations of members and belong to the co-operative as a whole',
+      'They are paid to the founders’ heirs',
+    ],
+    correctIndex: 2,
+  },
 ];
 
 /** Localized questions with canonical order and answer indices. */

@@ -1,20 +1,25 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import {
   exportWorkplaceReplayReport,
+  selectReplayRunLive,
   useWorkplaceReplayStore,
 } from '../../../stores/workplaceReplayStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
-import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { useWorkplaceStore, workplaceReasonText } from '../../../stores/workplaceStore';
 import {
   PRACTICES,
   WORKPLACE_PLANS,
   displayEventDetail,
+  workplaceActorName,
 } from '../../../simulation/bilateralWorkplace';
 import { replayLearningReview } from '../../../simulation/workplaceFairness';
-import type { WorkplaceProfile } from '../../../types/workplace';
-import { formatFixed, translate, useT } from '../../../i18n';
+import type { WorkplaceProfile, WorkplaceTransitionResult } from '../../../types/workplace';
+import { formatFixed, useT } from '../../../i18n';
+import { formatPlantStamp } from '../../../utils/timeFormatting';
 import { workplaceReplayMessages } from './WorkplaceReplay.messages';
+// Breakdown type labels already live with the maintenance panel's catalogue.
+import { predictiveMaintenancePanelMessages } from '../../ui/PredictiveMaintenancePanel.messages';
 
 const buttonClass =
   'min-h-9 rounded-md border border-cyan-300/25 px-2 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
@@ -38,16 +43,24 @@ export function WorkplaceReplay({
   navigate: (section: WorkplaceSection) => void;
 }) {
   const t = useT(workplaceReplayMessages);
+  const tFault = useT(predictiveMaintenancePanelMessages);
   const replay = useWorkplaceReplayStore();
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const report = (result: { changed: boolean; reason: string | null }) => {
-    setFeedback(
-      result.reason ??
-        (result.changed
-          ? translate(workplaceReplayMessages, 'recordedLocally')
-          : translate(workplaceReplayMessages, 'noChange'))
-    );
+  // Kept keyed and resolved at render, so the status line follows a language
+  // switch. Working if a refused capture reads in the language chosen after.
+  const [feedback, setFeedback] = useState<
+    | WorkplaceTransitionResult
+    | { key: 'recordedLocally' | 'forgotten' | 'noChange' | 'reportDownloaded' }
+    | null
+  >(null);
+  const feedbackText =
+    feedback === null ? null : 'key' in feedback ? t(feedback.key) : workplaceReasonText(feedback);
+  const captureRef = useRef<HTMLButtonElement>(null);
+  const report = (
+    result: WorkplaceTransitionResult,
+    success: 'recordedLocally' | 'forgotten' = 'recordedLocally'
+  ) => {
+    setFeedback(result.reason ? result : { key: result.changed ? success : 'noChange' });
     return result.changed;
   };
   const begin = (profile: WorkplaceProfile) => {
@@ -55,6 +68,8 @@ export function WorkplaceReplay({
   };
   const guide = () => {
     if (!validSeed) return;
+    // The capture needs a paused plant, so the guide holds a running one first.
+    // Working if a refused guided replay leaves the clock as it found it.
     const clock = useGameSimulationStore.getState();
     // A pre-existing pause needs no new owner. Failed entry releases only the
     // hold this attempt acquired; newer independent holds keep their place.
@@ -81,7 +96,7 @@ export function WorkplaceReplay({
     link.download = 'millos-workplace-replay-report.json';
     link.click();
     URL.revokeObjectURL(url);
-    setFeedback(translate(workplaceReplayMessages, 'reportDownloaded'));
+    setFeedback({ key: 'reportDownloaded' });
   };
   const learning = replayLearningReview(replay.runs);
   return (
@@ -100,6 +115,7 @@ export function WorkplaceReplay({
           {t('pauseForCapture')}
         </button>
         <button
+          ref={captureRef}
           className={buttonClass}
           disabled={!validSeed}
           onClick={() => report(replay.capture(seed))}
@@ -111,9 +127,9 @@ export function WorkplaceReplay({
         </button>
       </div>
       <p>{t('captureRequires')}</p>
-      {feedback && (
+      {feedbackText && (
         <p role="status" className="break-words text-amber-100">
-          {feedback}
+          {feedbackText}
         </p>
       )}
       {replay.checkpoint ? (
@@ -123,10 +139,22 @@ export function WorkplaceReplay({
               customer: replay.checkpoint.customer,
               remaining: formatFixed(replay.checkpoint.remainingKg, 1),
               source: formatFixed(replay.checkpoint.sourceKg, 1),
-              day: formatPlain(replay.checkpoint.gameDay),
-              hour: formatFixed(replay.checkpoint.gameTime, 2),
+              // The plant clock as every other stamp reads it ("Day 1, 14:30").
+              stamp:
+                formatPlantStamp({
+                  day: replay.checkpoint.gameDay,
+                  hour: replay.checkpoint.gameTime,
+                }) ?? '',
               seed: String(replay.checkpoint.seed),
-              faults: replay.checkpoint.faults.join(', ') || t('none'),
+              faults:
+                replay.checkpoint.faults
+                  .map((fault) =>
+                    t('faultLine', {
+                      machine: fault.machineName,
+                      type: tFault('failureType', { type: fault.type }),
+                    })
+                  )
+                  .join(', ') || t('none'),
             })}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -138,7 +166,17 @@ export function WorkplaceReplay({
             <button className={buttonClass} onClick={() => report(replay.record())}>
               {t('retainReview')}
             </button>
-            <button className={buttonClass} onClick={() => report(replay.forget())}>
+            <button
+              className={buttonClass}
+              onClick={() => {
+                // Forgetting removes this control with focus on it; Capture stays.
+                if (report(replay.forget(), 'forgotten'))
+                  requestAnimationFrame(() => {
+                    if (document.activeElement === document.body)
+                      captureRef.current?.focus({ preventScroll: true });
+                  });
+              }}
+            >
               {t('forget')}
             </button>
           </div>
@@ -263,7 +301,11 @@ export function WorkplaceReplay({
               {run.members.map((member) => (
                 <p key={member.id} className="tabular-nums">
                   {t('memberLine', {
-                    role: member.role,
+                    // Stored as text when retained; named now, in the language chosen.
+                    role:
+                      workplaceActorName(member.id) === member.id
+                        ? member.role
+                        : workplaceActorName(member.id),
                     extra: formatFixed(member.extraMinutes, 1),
                     rest: formatFixed(member.restMinutes, 1),
                     recovery: formatFixed(member.recoveryMinutes, 1),
@@ -287,7 +329,7 @@ export function WorkplaceReplay({
                         <li key={event.id} className="break-words">
                           {t('eventLine', {
                             minute: formatFixed(event.minute, 1),
-                            actor: event.actorId,
+                            actor: workplaceActorName(event.actorId),
                             detail: displayEventDetail(event.detail),
                           })}
                         </li>
@@ -313,9 +355,12 @@ export function WorkplaceReplay({
 export function WorkplaceReplayGuide({
   section,
   navigate,
+  onClosed,
 }: {
   section: WorkplaceSection;
   navigate: (section: WorkplaceSection) => void;
+  /** The guide unmounts with focus inside it; the host gives focus a place. */
+  onClosed?: () => void;
 }) {
   const t = useT(workplaceReplayMessages);
   const guided = useWorkplaceReplayStore((state) => state.guided);
@@ -373,7 +418,10 @@ export function WorkplaceReplayGuide({
         </button>
         <button
           className={buttonClass}
-          onClick={() => useWorkplaceReplayStore.getState().setGuided(false)}
+          onClick={() => {
+            useWorkplaceReplayStore.getState().setGuided(false);
+            onClosed?.();
+          }}
         >
           {t('endGuide')}
         </button>
@@ -383,23 +431,26 @@ export function WorkplaceReplayGuide({
   );
 }
 
-export function WorkplaceReplayResume() {
+export function WorkplaceReplayResume({ onResumed }: { onResumed?: () => void } = {}) {
   const t = useT(workplaceReplayMessages);
-  const activeRunId = useWorkplaceReplayStore((state) => state.activeRunId);
+  // A retained run's season is ordinary play: its later shifts are not a replay.
+  const live = useWorkplaceReplayStore(selectReplayRunLive);
   const phase = useWorkplaceStore((state) => state.workplace.phase);
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
-  if (!activeRunId || phase !== 'active' || gameSpeed !== 0) return null;
+  if (!live || phase !== 'active' || gameSpeed !== 0) return null;
   return (
     <button
       className={buttonClass}
       onClick={() => {
         if (
-          useWorkplaceReplayStore.getState().activeRunId &&
+          selectReplayRunLive(useWorkplaceReplayStore.getState()) &&
           useWorkplaceStore.getState().workplace.phase === 'active' &&
           useGameSimulationStore.getState().gameSpeed === 0
         ) {
           // The button names its pace, so it sets it: an explicit choice.
           useGameSimulationStore.getState().setGameSpeed(STANDARD_GAME_SPEED);
+          // The button hides once the plant runs, with focus on it.
+          onResumed?.();
         }
       }}
     >

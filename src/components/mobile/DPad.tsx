@@ -5,6 +5,9 @@ import { useUIStore } from '../../stores/uiStore';
 import { useT } from '../../i18n';
 import { dPadMessages } from './DPad.messages';
 
+/** How long a click (screen reader or keyboard) moves the camera. */
+const NUDGE_MS = 400;
+
 interface DPadProps {
   disabled?: boolean;
   idleOpacity?: number;
@@ -72,6 +75,16 @@ export const DPad: React.FC<DPadProps> = ({
     };
   }, [setDpadDirection]);
 
+  // A sheet opening makes the pad inert, and a thumb still on a direction may
+  // never deliver its touchend there: release the hold, or the camera drifts.
+  const panelOpen = useMobileControlStore((state) => state.mobilePanelVisible);
+  useEffect(() => {
+    if (!panelOpen && !disabled) return;
+    if (activeDirectionsRef.current.size === 0) return;
+    activeDirectionsRef.current.clear();
+    updateDirection();
+  }, [panelOpen, disabled, updateDirection]);
+
   // Accessible names follow what the buttons actually do in each mode.
   const labels =
     dpadMode === 'move' || fpsMode
@@ -88,11 +101,46 @@ export const DPad: React.FC<DPadProps> = ({
           right: t('orbitRight'),
         };
 
+  // A screen reader's double tap (or a keyboard Enter) arrives as a click with
+  // no touch behind it: give that a short nudge. A real touch is followed by a
+  // synthesized click, which must not move the camera a second time.
+  const lastTouchAtRef = useRef(0);
+  // One release per direction: a shared timer let a second nudge cancel the
+  // first one's release, and that direction stayed held with nothing pressed.
+  const nudgeTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const handleClick = useCallback(
+    (direction: string) => () => {
+      if (disabled || Date.now() - lastTouchAtRef.current < 1000) return;
+      activeDirectionsRef.current.add(direction);
+      updateDirection();
+      const timers = nudgeTimersRef.current;
+      const pending = timers.get(direction);
+      if (pending) clearTimeout(pending);
+      timers.set(
+        direction,
+        setTimeout(() => {
+          timers.delete(direction);
+          activeDirectionsRef.current.delete(direction);
+          updateDirection();
+        }, NUDGE_MS)
+      );
+    },
+    [disabled, updateDirection]
+  );
+  useEffect(() => {
+    const timers = nudgeTimersRef.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
+
   // touch-action below owns scroll suppression; React's touch listeners are
   // passive, so preventDefault here would only produce a browser warning.
   const handleTouchStart = useCallback(
     (direction: string) => (e: React.TouchEvent) => {
       e.stopPropagation();
+      lastTouchAtRef.current = Date.now();
       if (disabled) return;
       activeDirectionsRef.current.add(direction);
       updateDirection();
@@ -104,9 +152,12 @@ export const DPad: React.FC<DPadProps> = ({
     [disabled, updateDirection]
   );
 
+  // The synthesized click follows the touchend, however long the hold was, so
+  // the end restarts the window that keeps it from nudging a second time.
   const handleTouchEnd = useCallback(
     (direction: string) => (e: React.TouchEvent) => {
       e.stopPropagation();
+      lastTouchAtRef.current = Date.now();
       activeDirectionsRef.current.delete(direction);
       updateDirection();
     },
@@ -116,6 +167,7 @@ export const DPad: React.FC<DPadProps> = ({
   const handleTouchCancel = useCallback(
     (direction: string) => (e: React.TouchEvent) => {
       e.stopPropagation();
+      lastTouchAtRef.current = Date.now();
       activeDirectionsRef.current.delete(direction);
       updateDirection();
     },
@@ -165,6 +217,7 @@ export const DPad: React.FC<DPadProps> = ({
         onTouchStart={handleTouchStart('up')}
         onTouchEnd={handleTouchEnd('up')}
         onTouchCancel={handleTouchCancel('up')}
+        onClick={handleClick('up')}
         disabled={disabled}
         aria-label={labels.up}
       >
@@ -181,6 +234,7 @@ export const DPad: React.FC<DPadProps> = ({
         onTouchStart={handleTouchStart('down')}
         onTouchEnd={handleTouchEnd('down')}
         onTouchCancel={handleTouchCancel('down')}
+        onClick={handleClick('down')}
         disabled={disabled}
         aria-label={labels.down}
       >
@@ -197,6 +251,7 @@ export const DPad: React.FC<DPadProps> = ({
         onTouchStart={handleTouchStart('left')}
         onTouchEnd={handleTouchEnd('left')}
         onTouchCancel={handleTouchCancel('left')}
+        onClick={handleClick('left')}
         disabled={disabled}
         aria-label={labels.left}
       >
@@ -213,6 +268,7 @@ export const DPad: React.FC<DPadProps> = ({
         onTouchStart={handleTouchStart('right')}
         onTouchEnd={handleTouchEnd('right')}
         onTouchCancel={handleTouchCancel('right')}
+        onClick={handleClick('right')}
         disabled={disabled}
         aria-label={labels.right}
       >

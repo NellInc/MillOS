@@ -1,5 +1,9 @@
 import { translate } from '../i18n';
 import { chatgptClientMessages } from './chatgptClient.messages';
+import { registerAlertCatalog, type KeyedLine } from '../i18n/alertCopy';
+
+const CHATGPT_CLIENT_CATALOG = 'chatgptClient';
+registerAlertCatalog(CHATGPT_CLIENT_CATALOG, chatgptClientMessages);
 
 /** Browser bridge for the optional loopback companion. OAuth tokens never enter this module. */
 export interface ChatGPTAccount {
@@ -28,11 +32,14 @@ const endpoint = '/api/chatgpt';
  * cannot recognise a pt-BR message by its English wording.
  */
 class ChatGPTClientError extends Error {
+  /** The message's key, so a surface that keeps it words it in the language active now. */
+  readonly copy: KeyedLine;
   constructor(
     key: keyof (typeof chatgptClientMessages)['en'],
     readonly disconnects: boolean
   ) {
     super(translate(chatgptClientMessages, key));
+    this.copy = { catalog: CHATGPT_CLIENT_CATALOG, key };
   }
 }
 

@@ -16,7 +16,7 @@ import {
   SMAA,
   Vignette,
 } from '@react-three/postprocessing';
-import { BlendFunction, SMAAPreset } from 'postprocessing';
+import { BlendFunction, EffectPass, SMAAPreset } from 'postprocessing';
 import { DisplayHueSaturation } from './environment/DisplayHueSaturation';
 import { DisplayBrightnessContrast } from './environment/DisplayBrightnessContrast';
 import { DisplayToneMapping } from './environment/DisplayToneMapping';
@@ -221,6 +221,27 @@ export const PostProcessing: React.FC = () => {
     },
     []
   );
+
+  // --- Output dither ------------------------------------------------------
+  // The composer works in a HalfFloat target, so the only quantisation in the
+  // frame is the final write to the 8-bit canvas. Without dither, that write
+  // turns every smooth gradient into contour rings: the noon `sun` capture
+  // steps one level at a time with flat runs up to 30 px wide around the solar
+  // glare. `EffectPass.dithering` adds three's +-0.5 LSB per-pixel offset AFTER
+  // the colour-space encode, i.e. in the domain where the rounding happens,
+  // inside the pass that already runs: no extra pass, a handful of ALU.
+  // The offset is a pure function of `gl_FragCoord`, so it is identical on
+  // every frame and paired controls (`measure:surfaces`) still read 0.
+  // R3F's composer rebuilds its EffectPasses whenever its children change and
+  // has no prop for this, so the last pass is checked every frame (priority 0,
+  // before the composer's priority-1 render). The tone-mapping pass is always
+  // present, so the screen pass is always an EffectPass.
+  // Working if a sky gradient shows no contour rings at 8 bits.
+  useFrame(() => {
+    const passes = composerRef.current?.passes;
+    const screenPass = passes?.[passes.length - 1];
+    if (screenPass instanceof EffectPass && !screenPass.dithering) screenPass.dithering = true;
+  });
 
   // --- Anti-aliasing ------------------------------------------------------
   // MSAA resolves geometric edges whatever their brightness, including thin

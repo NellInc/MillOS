@@ -1,0 +1,114 @@
+[
+ {
+  "set": "production",
+  "kind": "bearing_overheat",
+  "locale": "en",
+  "text": "Roller mill bearing overheat\nR.M. 101 bearing temperature is rising toward the trip point.",
+  "label": "Equipment maintenance"
+ },
+ {
+  "set": "production",
+  "kind": "dust_filter_pressure",
+  "locale": "en",
+  "text": "Dust filter differential pressure\nExtraction resistance is increasing around the sifting floor.",
+  "label": "Equipment maintenance"
+ },
+ {
+  "set": "production",
+  "kind": "power_sag",
+  "locale": "en",
+  "text": "Site power sag\nIncoming voltage is unstable and motor protection is limiting load.",
+  "label": "Equipment maintenance"
+ },
+ {
+  "set": "production",
+  "kind": "delayed_truck",
+  "locale": "en",
+  "text": "Delayed dispatch truck\nThe scheduled collection is delayed, increasing finished goods pressure.",
+  "label": "Logistics coordination"
+ },
+ {
+  "set": "production",
+  "kind": "supplier_contamination",
+  "locale": "en",
+  "text": "Supplier contamination alert\nA source lot notification requires an immediate hold and traceability review.",
+  "label": "Product quality"
+ },
+ {
+  "set": "production",
+  "kind": "packaging_shortage",
+  "locale": "en",
+  "text": "Packaging material shortage\nPacker consumables are below the active order requirement.",
+  "label": "Logistics coordination"
+ },
+ {
+  "set": "production",
+  "kind": "severe_rain",
+  "locale": "en",
+  "text": "Severe rain and drainage loading\nYard drainage and the stream are rising, slowing vehicle movements.",
+  "label": "Logistics coordination"
+ },
+ {
+  "set": "production",
+  "kind": "control_network_degraded",
+  "locale": "en",
+  "text": "Control network degraded\nRedundant control links have fallen below the required availability threshold.",
+  "label": "Equipment maintenance"
+ },
+ {
+  "set": "production",
+  "kind": "bearing_overheat",
+  "locale": "pt-BR",
+  "text": "Superaquecimento de rolamento no moinho de rolos\nA temperatura do rolamento do R.M. 101 está subindo em direção ao ponto de desarme.",
+  "label": "Equipment maintenance"
+ },
+ {
+  "set": "production",
+  "kind": "dust_filter_pressure",
+  "locale": "pt-BR",
+  "text": "Pressão diferencial do filtro de pó\nA resistência da exaustão está aumentando no piso de peneiramento.",
+  "label": "Equipment maintenance"
+ },
+ {
+  "set": "production",
+  "kind": "power_sag",
+  "locale": "pt-BR",
+  "text": "Queda de tensão na unidade\nA tensão de entrada está instável e a proteção dos motores está limitando a carga.",
+  "label": "Equipment maintenance"
+ },
+ {
+  "set": "production",
+  "kind": "delayed_truck",
+  "locale": "pt-BR",
+  "text": "Caminhão de expedição atrasado\nA coleta programada está atrasada, aumentando a pressão sobre os produtos acabados.",
+  "label": "Logistics coordination"
+ },
+ {
+  "set": "production",
+  "kind": "supplier_contamination",
+  "locale": "pt-BR",
+  "text": "Alerta de contaminação do fornecedor\nUma notificação sobre um lote de origem exige retenção imediata e revisão de rastreabilidade.",
+  "label": "Product quality"
+ },
+ {
+  "set": "production",
+  "kind": "packaging_shortage",
+  "locale": "pt-BR",
+  "text": "Falta de material de embalagem\nOs insumos da ensacadeira estão abaixo do necessário para o pedido ativo.",
+  "label": "Logistics coordination"
+ },
+ {
+  "set": "production",
+  "kind": "severe_rain",
+  "locale": "pt-BR",
+  "text": "Chuva forte e sobrecarga da drenagem\nA drenagem do pátio e o córrego estão subindo, o que desacelera a movimentação de veículos.",
+  "label": "Logistics coordination"
+ },
+ {
+  "set": "production",
+  "kind": "control_network_degraded",
+  "locale": "pt-BR",
+  "text": "Rede de controle degradada\nOs links de controle redundantes caíram abaixo do limite de disponibilidade exigido.",
+  "label": "Equipment maintenance"
+ }
+]

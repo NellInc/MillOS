@@ -55,6 +55,8 @@ export const workplaceImprovementMessages = defineMessages({
       'Confirm each role’s understanding and current policy ballot in Fresh role decisions here in Handoff.',
     nextWatch: 'Watch the packing floor. Any role may stop the arrangement immediately.',
     nextHearComparison: 'Hear the adviser compare its forecast with actual dispatch.',
+    nextResume:
+      'A reload interrupted this deliberation before anything was funded. Resume it; no handoff shift is used up.',
     nextVerdicts: 'Each member records adopt, amend or stop, then finalise the review.',
     nextOpenShift: 'Open the next shift with carried cash and a fresh agreement.',
     nextCloseExperiment: 'Close the handoff experiment.',
@@ -141,6 +143,8 @@ export const workplaceImprovementMessages = defineMessages({
     nextWatch:
       'Acompanhe o setor de ensaque. Qualquer função pode interromper o arranjo imediatamente.',
     nextHearComparison: 'Ouça o conselheiro comparar a previsão dele com a expedição real.',
+    nextResume:
+      'Uma recarga interrompeu esta deliberação antes de qualquer financiamento. Retome-a; nenhum turno de passagem é gasto.',
     nextVerdicts:
       'Cada cooperado registra adotar, ajustar ou interromper e, depois, finaliza a revisão.',
     nextOpenShift: 'Abra o próximo turno com o caixa acumulado e um novo acordo.',

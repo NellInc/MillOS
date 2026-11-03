@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import { Minimize2, X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
@@ -6,13 +7,14 @@ import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import {
   selectChosenPace,
   selectClockHolder,
+  selectPaceUnderPause,
   SHIFT_CLOSING_TIME,
   useGameSimulationStore,
 } from '../../../stores/gameSimulationStore';
 import { isPaceGameSpeed, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
 import { FollowOnNotice, WorkplaceLeaveSeason } from '../widgets/WorkplaceCampaignArchive';
-import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { useWorkplaceStore, workplaceReasonText } from '../../../stores/workplaceStore';
 import {
   improvementSummary,
   improvementObligations,
@@ -20,12 +22,18 @@ import {
 import {
   campaignOutcomes,
   campaignTotals,
+  formatKg,
   shiftResumable,
 } from '../../../simulation/workplaceCampaign';
 import { displayEventDetail } from '../../../simulation/bilateralWorkplace';
-import type { WorkplaceProfile, WorkplaceState } from '../../../types/workplace';
+import type {
+  WorkplaceProfile,
+  WorkplaceState,
+  WorkplaceTransitionResult,
+} from '../../../types/workplace';
 import {
   FIRST_ORDER_ID,
+  recordOperatorAction,
   selectProvisionalShiftReport,
   useOperationsCampaignStore,
 } from '../../../stores/operationsCampaignStore';
@@ -50,6 +58,7 @@ import {
   describeShiftTryNext,
   shiftGradeReasons,
   shiftHeadline,
+  shiftRiskLabels,
   shiftWindowName,
 } from '../../../simulation/shiftReview';
 import { playableShiftMessages } from './PlayableShift.messages';
@@ -64,6 +73,34 @@ const CARD = 'rounded-xl border border-cyan-400/20 bg-slate-900/90 p-3 text-sm t
 // Working if compact pace remains visible at844x390 without covering either.
 const JOURNEY_FRAME =
   'pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 shadow-xl sm:left-5 sm:right-auto sm:w-[360px] [@media(min-width:640px)_and_(max-height:500px)]:left-auto [@media(min-width:640px)_and_(max-height:500px)]:right-5 [@media(min-width:640px)_and_(max-height:500px)]:bottom-28 [@media(min-width:640px)_and_(max-height:500px)]:max-h-[calc(100dvh-11rem)]';
+
+/**
+ * The player's "Compact delivery guide" choice, outside the card: the host
+ * unmounts the card for the compact inspector, the phone sheet, walk mode,
+ * safety states and the shortcuts modal. It belongs to one guided run (one
+ * order id) and is never persisted.
+ * Working if an inspection or a panel visit on a phone brings the card back
+ * compact, and a new or replayed guided delivery, or closing it, opens expanded.
+ */
+const useJourneyCompactStore = create<{ orderId: string | null; compact: boolean }>(() => ({
+  orderId: null,
+  compact: false,
+}));
+const resetJourneyCompact = () =>
+  useJourneyCompactStore.setState({ orderId: null, compact: false });
+// startDeliveryJourney is the only writer that empties the inspection record,
+// with a fresh array on every call, so a new empty array marks a new run. The
+// watch starts with the first card and stays: a replay can land while the
+// card is unmounted. Before any card has mounted there is no choice to reset.
+let watchingJourneyRuns = false;
+const watchJourneyRuns = () => {
+  if (watchingJourneyRuns) return;
+  watchingJourneyRuns = true;
+  useUIStore.subscribe((state, prev) => {
+    if (state.inspectedMachineIds !== prev.inspectedMachineIds && !state.inspectedMachineIds.length)
+      resetJourneyCompact();
+  });
+};
 
 function DeliveryDeadline({
   order,
@@ -86,6 +123,11 @@ function DeliveryDeadline({
 }
 
 /** Names who holds the clock, beside every pace control. A player pause needs no note. */
+/** A workplace status line: the stored text, and the result whose keyed reason follows the language. */
+type StatusLine = { message: string; result?: WorkplaceTransitionResult };
+const statusLineText = (line: StatusLine): string =>
+  (line.result && workplaceReasonText(line.result)) || line.message;
+
 export function PaceHoldNote() {
   const holder = useGameSimulationStore(selectClockHolder);
   const pace = useT(paceMessages);
@@ -114,7 +156,15 @@ export function TeachingPace() {
           aria-label={t('shiftPace')}
           title={pace('paceTitle')}
           value={known ? shown : 'custom'}
-          onChange={(e) => setSpeed(Number(e.target.value))}
+          onChange={(e) => {
+            // A new running pace is the player's decision; a pause to inspect is
+            // not (the same rule as the Overview pace buttons).
+            const value = Number(e.target.value);
+            const before = selectPaceUnderPause(useGameSimulationStore.getState());
+            setSpeed(value);
+            if (value > 0 && value !== before)
+              recordOperatorAction({ kind: 'pace', gameSpeed: value });
+          }}
           className="min-h-11 rounded bg-slate-800 px-2 text-white"
         >
           {PACE_GAME_SPEEDS.map((value) => (
@@ -189,7 +239,12 @@ export function FirstDeliveryJourney({
     shippingTruck,
     fault.workOrderId ? fault : null
   );
-  const [sceneFocused, setSceneFocused] = useState(false);
+  const sceneFocused = useJourneyCompactStore((s) => s.compact && s.orderId === ui.orderId);
+  const setSceneFocused = useCallback(
+    (compact: boolean) => useJourneyCompactStore.setState({ orderId: ui.orderId, compact }),
+    [ui.orderId]
+  );
+  useEffect(watchJourneyRuns, []);
   const expandButton = useRef<HTMLButtonElement>(null);
   const collapseButton = useRef<HTMLButtonElement>(null);
   const firstFocus = useRef(true);
@@ -200,7 +255,6 @@ export function FirstDeliveryJourney({
     }
     (sceneFocused ? expandButton : collapseButton).current?.focus();
   }, [sceneFocused]);
-  useEffect(() => setSceneFocused(false), [ui.orderId]);
   // The tour's last button unmounted with it; this card's heading takes over.
   // Working if Start operating or Skip tour leaves focus on 'Your first delivery'.
   const cardRef = useRef<HTMLElement>(null);
@@ -211,15 +265,39 @@ export function FirstDeliveryJourney({
     headingRef.current?.focus();
     onHeadingFocused?.();
   }, [focusHeadingOnMount, onHeadingFocused]);
+  // The card swaps lesson, receipt and compact forms in place as the order
+  // moves on, so the control under keyboard focus can go with the old form
+  // (Open SCADA when the order is fulfilled). Focus is read before each commit
+  // and handed to the heading if it fell to <body>. Working if Tab carries on
+  // from the guide after a fulfilment.
+  const focusWasInCard = useRef(false);
+  focusWasInCard.current =
+    typeof document !== 'undefined' && !!cardRef.current?.contains(document.activeElement);
+  useLayoutEffect(() => {
+    if (!focusWasInCard.current) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    headingRef.current?.focus();
+  });
   // Closing removes the focused control with the card, so focus goes to the
   // dock, unless it was somewhere else (an Escape from the scene keeps it).
+  // The scene leaves focus on <body> (the canvas is not focusable), and a
+  // focused dock button blocks W A S D, so Escape moves focus only out of the
+  // card. Working if W A S D still drive the camera after Escape from the scene.
   const closeJourney = ui.close;
-  const closeGuide = useCallback(() => {
-    const active = document.activeElement;
-    if (!active || active === document.body || cardRef.current?.contains(active))
-      focusDockItem('overview');
-    closeJourney(false);
-  }, [closeJourney]);
+  const closeGuide = useCallback(
+    (fromEscape = false) => {
+      const active = document.activeElement;
+      if (
+        cardRef.current?.contains(active) ||
+        (!fromEscape && (!active || active === document.body))
+      )
+        focusDockItem('overview');
+      resetJourneyCompact();
+      closeJourney(false);
+    },
+    [closeJourney]
+  );
   // A keyboard route to the opening lesson: the host selects a real roller
   // mill and flies to it, so the receipt is the one a click records.
   const inspectTarget = useProductionStore(
@@ -258,17 +336,23 @@ export function FirstDeliveryJourney({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       // Working if Escape closes an open sidebar or inspector before the guide.
+      // Bubble phase, after the focused control's own Escape: the open
+      // playlist collapses and stops it, and the guide stays.
       if (
         event.key !== 'Escape' ||
-        document.querySelector('[role="dialog"], [role="menu"], #context-sidebar')
+        event.defaultPrevented ||
+        document.querySelector(
+          '[role="dialog"], [role="menu"], #context-sidebar, #forklift-inspector, [data-escape-layer]'
+        )
       )
         return;
       event.preventDefault();
-      event.stopPropagation();
-      closeGuide();
+      // Immediate: another document listener (the sidebar's) must not act too.
+      event.stopImmediatePropagation();
+      closeGuide(true);
     };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, [closeGuide]);
   // Completion keeps its receipt available while yielding the foreground to
   // the live commitment. This projection never advances an order or a truck.
@@ -279,7 +363,14 @@ export function FirstDeliveryJourney({
   // every order is in, so a guided order that is gone was fulfilled: the card
   // reads the live order, never "Awaiting an order" while one is running.
   const guidedOrderGone = ui.orderId !== null && order === null;
-  const completed = order?.status === 'fulfilled' || guidedOrderGone;
+  // With every order in there is no active order, so Replay guided delivery
+  // opens on none. That is a finished programme, not a customer to choose.
+  // Working if the replayed card reads the shift review, not 'Choose a delivery'.
+  const programmeDone =
+    order === null &&
+    campaign.orders.length > 0 &&
+    campaign.orders.every((item) => item.status === 'fulfilled' || item.status === 'cancelled');
+  const completed = order?.status === 'fulfilled' || guidedOrderGone || programmeDone;
   const play = deriveOperationsPlay(campaign);
   const currentOrder =
     completed && play.nextAction.kind !== 'programme' && play.activeOrder?.id !== order?.id
@@ -322,7 +413,7 @@ export function FirstDeliveryJourney({
           >
             <Minimize2 className="h-4 w-4" aria-hidden="true" />
           </button>
-          <button className={BUTTON} aria-label={t('closeGuide')} onClick={closeGuide}>
+          <button className={BUTTON} aria-label={t('closeGuide')} onClick={() => closeGuide()}>
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
@@ -336,7 +427,7 @@ export function FirstDeliveryJourney({
                 )
               : t('fulfilledDispatched', {
                   customer: order.customer,
-                  kg: formatFixed(order.shippedKg, 0),
+                  kg: formatKg(order.shippedKg),
                 })}
           </p>
         )}
@@ -418,7 +509,7 @@ export function FirstDeliveryJourney({
             aria-live="polite"
             className={`min-w-0 flex-1 font-semibold text-white ${HEADING_FOCUS}`}
           >
-            {guidedOrderGone ? t('deliveryFulfilled') : guide.title}
+            {completed && !order ? t('deliveryFulfilled') : guide.title}
           </h2>
           <button
             className={`${BUTTON} shrink-0`}
@@ -432,7 +523,7 @@ export function FirstDeliveryJourney({
           <button
             className={`${BUTTON} shrink-0`}
             aria-label={t('closeGuide')}
-            onClick={closeGuide}
+            onClick={() => closeGuide()}
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -458,7 +549,7 @@ export function FirstDeliveryJourney({
             <p className="mt-1 text-xs leading-5 text-slate-300">
               {t('inspectionStatus', {
                 inspection: ui.inspected ? t('inspectionRecorded') : t('inspectionWaiting'),
-                delivery: t('kgDispatched', { kg: formatFixed(order?.shippedKg ?? 0, 0) }),
+                delivery: t('kgDispatched', { kg: formatKg(order?.shippedKg ?? 0) }),
               })}
             </p>
           </>
@@ -469,10 +560,12 @@ export function FirstDeliveryJourney({
             className={`${BUTTON} mt-2 w-full`}
             onClick={() => openWorkspace(compactWorkspace)}
           >
+            {/* Only the quality hold is a QC review; a repair, a choice of
+                customer or a return to the order opens Overview for that. */}
             {compactWorkspace === 'overview'
-              ? completed
-                ? t('openOverview')
-                : t('reviewDeliveryQc')
+              ? !completed && guide.quality
+                ? t('reviewDeliveryQc')
+                : t('openOverview')
               : t('openScada')}
           </button>
         )}
@@ -501,7 +594,7 @@ export function FirstDeliveryJourney({
         >
           <Minimize2 className="h-4 w-4" aria-hidden="true" />
         </button>
-        <button className={BUTTON} aria-label={t('closeGuide')} onClick={closeGuide}>
+        <button className={BUTTON} aria-label={t('closeGuide')} onClick={() => closeGuide()}>
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
@@ -509,7 +602,7 @@ export function FirstDeliveryJourney({
         {order
           ? t('orderLine', {
               customer: order.customer,
-              kg: formatFixed(order.requiredKg, 0),
+              kg: formatKg(order.requiredKg),
               product: order.recipe.label,
             })
           : t('awaitingOrder')}
@@ -533,16 +626,16 @@ export function FirstDeliveryJourney({
             <span>{t('truckLoad')}</span>
             <span className="tabular-nums">
               {t('truckLoadValue', {
-                loaded: formatFixed(guide.loading.loadedKg, 0),
-                capacity: formatFixed(guide.loading.capacityKg, 0),
+                loaded: formatKg(guide.loading.loadedKg),
+                capacity: formatKg(guide.loading.capacityKg),
               })}
             </span>
           </p>
           <progress
             aria-label={t('truckLoad')}
             aria-valuetext={t('truckLoadValueText', {
-              loaded: formatFixed(guide.loading.loadedKg, 0),
-              capacity: formatFixed(guide.loading.capacityKg, 0),
+              loaded: formatKg(guide.loading.loadedKg),
+              capacity: formatKg(guide.loading.capacityKg),
             })}
             max={guide.loading.capacityKg}
             value={guide.loading.loadedKg}
@@ -556,7 +649,7 @@ export function FirstDeliveryJourney({
           delivery:
             order?.status === 'fulfilled'
               ? t('deliveryStatusFulfilled')
-              : t('kgDispatched', { kg: formatFixed(order?.shippedKg ?? 0, 0) }),
+              : t('kgDispatched', { kg: formatKg(order?.shippedKg ?? 0) }),
         })}
       </p>
       {/* The lesson's next actions stay pinned in the card's scroll box; the
@@ -590,13 +683,17 @@ export function FirstDeliveryJourney({
           )}
           {guide.workspace && (
             <button className={BUTTON} onClick={() => openWorkspace(guide.workspace!)}>
-              {guide.workspace === 'scada' ? t('openScada') : t('openOverviewQc')}
+              {guide.workspace === 'scada'
+                ? t('openScada')
+                : guide.quality
+                  ? t('openOverviewQc')
+                  : t('openOverview')}
             </button>
           )}
         </div>
       )}
       <LearningNote entryId={guide.entryId} />
-      <button className={`${BUTTON} mt-3`} onClick={closeGuide}>
+      <button className={`${BUTTON} mt-3`} onClick={() => closeGuide()}>
         {t('skipGuide')}
       </button>
     </section>
@@ -624,7 +721,7 @@ function WorkingAgreementSummary({
   onLeft,
 }: {
   state: WorkplaceState;
-  onLeft?: (message: string) => void;
+  onLeft?: (message: string, result?: WorkplaceTransitionResult) => void;
 }) {
   const t = useT(playableShiftMessages);
   const trial = improvementSummary(state);
@@ -635,12 +732,12 @@ function WorkingAgreementSummary({
         <p>{trial.next}</p>
         <p>
           {t('trialReceipts', {
-            kg: formatFixed(trial.actualKg, 0),
+            kg: formatKg(trial.actualKg),
             pay: formatFixed(trial.lifetimeWages, 2),
           })}
         </p>
         {trial.remainingKg !== null && (
-          <p>{t('trialRemaining', { kg: formatFixed(trial.remainingKg, 0) })}</p>
+          <p>{t('trialRemaining', { kg: formatKg(trial.remainingKg) })}</p>
         )}
         <button
           className={BUTTON}
@@ -663,23 +760,23 @@ function WorkingAgreementSummary({
       <p>
         {t('deliveryOutcome', {
           status: t('deliveryStatus', { status: outcome.delivery.status }),
-          deliveredKg: formatFixed(outcome.delivery.deliveredKg, 0),
-          targetKg: formatFixed(outcome.delivery.targetKg, 0),
+          deliveredKg: formatKg(outcome.delivery.deliveredKg),
+          targetKg: formatKg(outcome.delivery.targetKg),
           customer: outcome.delivery.customer,
         })}
       </p>
       {outcome.delivery.deferredKg > 0 && (
-        <p>{t('agreedDeferral', { kg: formatFixed(outcome.delivery.deferredKg, 0) })}</p>
+        <p>{t('agreedDeferral', { kg: formatKg(outcome.delivery.deferredKg) })}</p>
       )}
       <p>
-        {t('remainingCommitment', { kg: formatFixed(outcome.delivery.remainingKg, 0) })}
+        {t('remainingCommitment', { kg: formatKg(outcome.delivery.remainingKg) })}
         {outcome.delivery.remainingKg === 0 && t('fullCommitmentDispatched')}
       </p>
       {state.campaign.followOn && (
         <p>
           {t('followOnCredit', {
             customer: state.campaign.followOn.customer,
-            kg: formatFixed(state.campaign.followOn.creditedKg, 0),
+            kg: formatKg(state.campaign.followOn.creditedKg),
           })}
         </p>
       )}
@@ -774,6 +871,7 @@ export function OperationsPlayCard() {
   );
   const focusId = useUIStore((s) => s.operationalFocusId);
   const nextActionRef = useRef<HTMLButtonElement>(null);
+  const challengeSummaryRef = useRef<HTMLElement>(null);
   // Consume navigation only after the real control mounts, including lazy and
   // compact panels. Inspection never executes its action or advances the clock.
   // Working if the response is in view/focus and a stale/FPS request is discarded.
@@ -797,10 +895,16 @@ export function OperationsPlayCard() {
   }, [focusId]);
   const workplace = useWorkplaceStore((s) => s.workplace);
   const [profile, setProfile] = useState<WorkplaceProfile>('toe-dip');
-  const [missionFeedback, setMissionFeedback] = useState<string | null>(null);
+  // Kept as the transition result, so its keyed reason re-renders in the
+  // language active now (the stored text is the fallback).
+  const [missionFeedback, setMissionFeedback] = useState<StatusLine | null>(null);
   const reviewPending = linkedReviewPending(workplace);
   const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
   const play = deriveOperationsPlay(snapshot);
+  // Whole minutes, rounded up: the run can still complete in a part minute.
+  const challengeMinutesLeft = Math.ceil(
+    Math.max(0, play.challengeProgress?.remainingMinutes ?? 0)
+  );
   const awaitingResponse = play.nextAction.kind === 'resume' && gameSpeed > 0;
   const rush = openRush(snapshot.orders);
   const rushDeadline = deriveDeliveryDeadline(rush?.order ?? null, snapshot.elapsedMinutes);
@@ -913,8 +1017,8 @@ export function OperationsPlayCard() {
         {play.activeOrder
           ? t('activeOrderProgress', {
               customer: play.activeOrder.customer,
-              shippedKg: formatFixed(play.activeOrder.shippedKg, 0),
-              requiredKg: formatFixed(play.activeOrder.requiredKg, 0),
+              shippedKg: formatKg(play.activeOrder.shippedKg),
+              requiredKg: formatKg(play.activeOrder.requiredKg),
             })
           : t('programmeCompleteCurrent')}
       </p>
@@ -957,9 +1061,10 @@ export function OperationsPlayCard() {
           <p className="text-xs leading-5">
             {t('challengeProgressLine', {
               label: play.challengeProgress.label,
-              dispatchedKg: formatFixed(play.challengeProgress.dispatchedKg, 0),
-              targetKg: formatFixed(play.challengeProgress.targetKg, 0),
-              minutes: formatFixed(Math.max(0, play.challengeProgress.remainingMinutes), 0),
+              dispatchedKg: formatKg(play.challengeProgress.dispatchedKg),
+              targetKg: formatKg(play.challengeProgress.targetKg),
+              minutes: formatFixed(challengeMinutesLeft, 0),
+              count: challengeMinutesLeft,
             })}
           </p>
           <p className="mt-1 text-xs leading-5 text-slate-300">
@@ -971,17 +1076,28 @@ export function OperationsPlayCard() {
       <p className="mt-1 text-xs leading-5 text-slate-300">
         {awaitingResponse ? t('runningAtPace') : play.nextAction.consequence}
       </p>
+      {/* Mitigation turns this button into 'Awaiting simulation update' for a
+          tick; disabled, it dropped keyboard focus to <body>. It stays
+          focusable and inert (performNext rechecks the live action), so the
+          next step lands under the focus that pressed it. Working if Enter
+          carries a recovery challenge from start to restore. */}
       <button
         ref={nextActionRef}
-        className={`${BUTTON} mt-2`}
-        disabled={awaitingResponse || (play.nextAction.kind === 'programme' && reviewPending)}
-        onClick={performNext}
+        className={`${BUTTON} mt-2 aria-disabled:opacity-40`}
+        aria-disabled={awaitingResponse || undefined}
+        disabled={play.nextAction.kind === 'programme' && reviewPending}
+        onClick={() => {
+          if (!awaitingResponse) performNext();
+        }}
       >
         {nextLabel}
       </button>
       <button
         className={`${BUTTON} mt-2`}
         onClick={() => {
+          // The host hides the guide while walking; leave walk mode first, as
+          // the tour and the number keys do, or the replay shows nothing.
+          if (useUIStore.getState().fpsMode) useUIStore.getState().setFpsMode(false);
           startJourney(play.activeOrder?.id ?? null);
           useMobileControlStore.getState().closeMobilePanel();
         }}
@@ -995,7 +1111,10 @@ export function OperationsPlayCard() {
           })}
         </p>
       )}
-      <WorkingAgreementSummary state={workplace} onLeft={setMissionFeedback} />
+      <WorkingAgreementSummary
+        state={workplace}
+        onLeft={(message, result) => setMissionFeedback({ message, result })}
+      />
       {workplace.phase === 'idle' && (
         <div className="mt-3 space-y-2 border-t border-slate-700 pt-3">
           <label className="block text-xs text-slate-300">
@@ -1016,7 +1135,7 @@ export function OperationsPlayCard() {
             disabled={!canStartMission}
             onClick={() => {
               const result = useWorkplaceStore.getState().startMission(profile);
-              setMissionFeedback(result.reason ?? null);
+              setMissionFeedback(result.reason ? { message: result.reason, result } : null);
               if (result.changed) {
                 useGameSimulationStore.getState().setGameSpeed(STANDARD_GAME_SPEED);
                 window.dispatchEvent(
@@ -1032,12 +1151,18 @@ export function OperationsPlayCard() {
       )}
       {missionFeedback && (
         <p role="status" className="mt-2 text-xs text-amber-200">
-          {missionFeedback}
+          {statusLineText(missionFeedback)}
         </p>
       )}
       <TeachingPace />
+      {/* Starting a challenge disables its button and abandoning one removes
+          Abandon, each under the focus that pressed it. Focus goes to the
+          challenge's first response, and back to this section on abandon. */}
       <details className="mt-3">
-        <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-cyan-200">
+        <summary
+          ref={challengeSummaryRef}
+          className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-cyan-200"
+        >
           {t('adjustChallenge')}
         </summary>
         <p className="mb-2 text-xs leading-5">
@@ -1051,9 +1176,10 @@ export function OperationsPlayCard() {
             <button
               className={BUTTON}
               disabled={!challenge.available}
-              onClick={() =>
-                useOperationsCampaignStore.getState().startChallenge(challenge.id, 'operator')
-              }
+              onClick={() => {
+                if (useOperationsCampaignStore.getState().startChallenge(challenge.id, 'operator'))
+                  nextActionRef.current?.focus();
+              }}
             >
               {challenge.label}
             </button>
@@ -1065,7 +1191,10 @@ export function OperationsPlayCard() {
         {play.challengeProgress && (
           <button
             className={`${BUTTON} mt-2`}
-            onClick={() => useOperationsCampaignStore.getState().abandonChallenge('operator')}
+            onClick={() => {
+              useOperationsCampaignStore.getState().abandonChallenge('operator');
+              challengeSummaryRef.current?.focus();
+            }}
           >
             {t('abandonChallenge')}
           </button>
@@ -1181,7 +1310,10 @@ function ShiftReportArticle({
       )}
       {report.openRisks.length > 0 && (
         <p className="text-xs text-amber-200">
-          {t('carryForward', { risks: report.openRisks.join('; ') })}
+          {t('carryForward', {
+            // In the reader's language, as the reasons above are.
+            risks: (basis ? shiftRiskLabels(basis, locale) : report.openRisks).join('; '),
+          })}
         </p>
       )}
     </article>
@@ -1207,20 +1339,29 @@ export function ShiftDebrief() {
       incidents: s.incidents,
     }))
   );
-  const provisional = selectProvisionalShiftReport(open);
+  // Reports give the live view the same window watermark the saved ones use.
+  const provisional = selectProvisionalShiftReport({ ...open, reports });
   // The shift label, not the clock: this re-renders three times a day, not every tick.
   const currentShift = useGameSimulationStore((s) => s.currentShift);
   // Leaving unmounts the summary that holds the Leave button, so its message
   // lives here, as on the play card, until another season starts.
   // Working if the debrief says the season was left and what it kept.
-  const [leftMessage, setLeftMessage] = useState<string | null>(null);
+  const [leftMessage, setLeftMessage] = useState<StatusLine | null>(null);
   const seasonOpen = !!workplace.campaign;
   useEffect(() => {
     if (seasonOpen) setLeftMessage(null);
   }, [seasonOpen]);
+  // Accepting disables the pressed button; focus lands on this heading instead.
+  const headingRef = useRef<HTMLHeadingElement>(null);
   return (
     <section aria-label={t('savedReports')} className={CARD}>
-      <h3 className="font-semibold text-white">{t('shiftDebrief')}</h3>
+      <h3
+        ref={headingRef}
+        tabIndex={-1}
+        className="rounded font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+      >
+        {t('shiftDebrief')}
+      </h3>
       {provisional && <ShiftReportArticle report={provisional} provisional />}
       {/* The newest closed shift is in view; older ones stay one click away.
           Working if a shift that just closed is readable without expanding. */}
@@ -1249,18 +1390,24 @@ export function ShiftDebrief() {
           )}
         </>
       )}
-      <WorkingAgreementSummary state={workplace} onLeft={setLeftMessage} />
+      <WorkingAgreementSummary
+        state={workplace}
+        onLeft={(message, result) => setLeftMessage({ message, result })}
+      />
       {leftMessage && (
         <p role="status" className="mt-2 text-xs text-amber-200">
-          {leftMessage}
+          {statusLineText(leftMessage)}
         </p>
       )}
       <button
         className={`${BUTTON} mt-3`}
         disabled={!canNext || reviewPending}
         onClick={() => {
-          if (!linkedReviewPending(useWorkplaceStore.getState().workplace))
-            useOperationsCampaignStore.getState().acceptNextProgramme('operator');
+          if (
+            !linkedReviewPending(useWorkplaceStore.getState().workplace) &&
+            useOperationsCampaignStore.getState().acceptNextProgramme('operator')
+          )
+            headingRef.current?.focus();
         }}
       >
         {t('acceptNextProgramme')}

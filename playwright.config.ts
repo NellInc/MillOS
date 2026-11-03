@@ -50,7 +50,11 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        channel: 'chrome',
+        launchOptions: { chromiumSandbox: true },
+        ...devices['Desktop Chrome'],
+      },
     },
   ],
 

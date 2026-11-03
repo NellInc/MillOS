@@ -20,6 +20,9 @@ export const messages = defineMessages({
     p16: 'Cool',
     p17: 'Neutral',
     p18: 'Warm',
+    b0: 'The AI partner’s brief',
+    b1: 'What the partner would choose',
+    b2: 'nothing it can take',
   },
   'pt-BR': {
     m0: 'Clientes',
@@ -41,5 +44,8 @@ export const messages = defineMessages({
     p16: 'Fria',
     p17: 'Neutra',
     p18: 'Calorosa',
+    b0: 'A orientação do parceiro de IA',
+    b1: 'O que o parceiro escolheria',
+    b2: 'nada que ele possa assumir',
   },
 });

@@ -1,4 +1,4 @@
-import { formatGrouped } from '../../i18n';
+import { formatFixed, formatGrouped } from '../../i18n';
 import { localizedDeskLabel } from '../../chronicle/desks';
 import { translate, useT } from '../../i18n';
 import { messages } from './shared.messages';
@@ -22,6 +22,15 @@ export function whole(value: number): string {
   return formatGrouped(Math.round(value));
 }
 
+/**
+ * A balance as it is, to a tenth. Know-how the AI partner earns comes in halves,
+ * and rounding 7.5 to 8 showed an 8 know-how plan as affordable when it was not.
+ */
+export function amount(value: number): string {
+  const tenths = Math.round(value * 10) / 10;
+  return Number.isInteger(tenths) ? whole(tenths) : formatFixed(tenths, 1);
+}
+
 export function FundAmount({ value }: { value: number }) {
   const t = useT(messages);
   return (
@@ -39,7 +48,7 @@ export function KnowHowAmount({ value }: { value: number }) {
     <span className="inline-flex items-center gap-1 tabular-nums">
       <Lightbulb className="h-3.5 w-3.5 text-sky-300" aria-hidden="true" />
       <span className="sr-only">{t('m1')}</span>
-      {whole(value)}
+      {amount(value)}
     </span>
   );
 }

@@ -99,6 +99,22 @@ describe('Jev advisory consent and lifecycle', () => {
     }
   );
 
+  // Cancel leaves with the pending state it ends, and focus fell to the page
+  // body. It belongs back on the send button, which is usable again.
+  it('returns focus to the send button when a request is cancelled', async () => {
+    requestMock.mockReturnValue(new Promise<JevAdvice>(() => undefined));
+    render(<JevAdvisoryPanel />);
+    prepare();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send to Jev' }));
+    });
+    const cancelButton = screen.getByRole('button', { name: 'Cancel request' });
+    cancelButton.focus();
+    fireEvent.click(cancelButton);
+    expect(screen.queryByRole('button', { name: 'Cancel request' })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Send to Jev' }));
+  });
+
   it('expires advice and does not persist a key across remounts', async () => {
     requestMock.mockResolvedValue(advice());
     const { unmount } = render(<JevAdvisoryPanel />);
@@ -169,5 +185,17 @@ describe('on-device advisory', () => {
     act(() => useAIConfigStore.setState({ webgpuModelReady: false }));
     expect(screen.getByRole('button', { name: 'Send to Jev' })).toBeInTheDocument();
     expect(screen.getByLabelText('Your OpenRouter API key')).toBeInTheDocument();
+  });
+
+  // Forget key leaves with the key it forgets; focus fell to <body>.
+  it('moves focus to the key field after Forget key', () => {
+    render(<JevAdvisoryPanel />);
+    const field = screen.getByLabelText('Your OpenRouter API key');
+    fireEvent.change(field, { target: { value: key } });
+    const forget = screen.getByRole('button', { name: 'Forget key' });
+    forget.focus();
+    fireEvent.click(forget);
+    expect(screen.queryByRole('button', { name: 'Forget key' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByLabelText('Your OpenRouter API key'));
   });
 });

@@ -10,6 +10,8 @@ export interface StartupSnapshot {
   prepared: boolean;
   opened: boolean;
   ready: boolean;
+  /** A shader prewarm outlived its window and was deferred, not failed. */
+  deferredShaders: boolean;
 }
 
 let snapshot: StartupSnapshot = {
@@ -22,6 +24,7 @@ let snapshot: StartupSnapshot = {
   prepared: false,
   opened: false,
   ready: false,
+  deferredShaders: false,
 };
 /** Caller-owned startup admission. No renderer method or scene flag is replaced.
  * Working if blocked CPU ticks never certify a draw, and throws never increment it.
@@ -151,6 +154,11 @@ export function markStartupPrepared(prepared: boolean, guard?: () => boolean): v
   if (preparationGuard)
     latchedPreparation = { revision: snapshot.revision, guard: preparationGuard };
   if (snapshot.prepared !== prepared) update({ prepared }, false);
+}
+
+/** Says why a deferred world is offered; never grants access or changes the revision. */
+export function setStartupDeferredShaders(deferred: boolean): void {
+  if (snapshot.deferredShaders !== deferred) update({ deferredShaders: deferred }, false);
 }
 
 export function resetStartupPreparation(): void {

@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { Hand, Move } from 'lucide-react';
+import { Forklift, Hand, Move } from 'lucide-react';
 import {
   createMachineObstacles,
   createConveyorObstacles,
@@ -21,6 +21,12 @@ import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import { FIRST_PERSON_EYE_HEIGHT, clampNavigationDelta } from '../../utils/cameraNavigation';
 import { useT } from '../../i18n';
 import { mobileFirstPersonControllerMessages } from './MobileFirstPersonController.messages';
+import {
+  manualForkliftInput,
+  resetManualForkliftInput,
+  useForkliftDriveStore,
+} from '../../stores/forkliftDriveStore';
+import { forkliftInReach, forkliftStepDownPoint } from '../../utils/forkliftBoarding';
 
 // Movement configuration (same as desktop FPS)
 const MOVE_SPEED = 12;
@@ -34,6 +40,7 @@ const LOOK_SMOOTHING = 0.15; // Lerp factor per 60 Hz frame for smooth camera mo
 // Module-level reusable vectors to avoid per-frame allocation (GC pressure on mobile)
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
+const _cameraYaw = new THREE.Euler(0, 0, 0, 'YXZ');
 
 // Share the actual machine anchors with desktop navigation and Rapier.
 const COLLISION_BOXES = [
@@ -104,6 +111,9 @@ export const MobileFirstPersonController: React.FC = () => {
   const targetEuler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const lastTouchTimeRef = useRef<number>(0);
+  // The yaw this controller last gave the camera, and the forklift being driven.
+  const writtenYawRef = useRef<number | null>(null);
+  const drivenRef = useRef<string | null>(null);
 
   // Set initial position and FOV for FPS mode
   useEffect(() => {
@@ -133,10 +143,17 @@ export const MobileFirstPersonController: React.FC = () => {
       camera.updateProjectionMatrix();
     }
 
-    // Force D-pad to move mode during FPS
+    // Force D-pad to move mode during FPS, and give back the player's own
+    // look/move choice on leaving: the centre toggle is disabled while walking.
+    const prevDpadMode = useMobileControlStore.getState().dpadMode;
     useMobileControlStore.getState().setDpadMode('move');
 
     return () => {
+      // Leaving first-person in a seat hands the forklift back to its autopilot.
+      resetManualForkliftInput();
+      useForkliftDriveStore.getState().exit();
+      useForkliftDriveStore.getState().setInReach(null);
+      useMobileControlStore.getState().setDpadMode(prevDpadMode);
       camera.position.copy(prevPosition);
       if (camera instanceof THREE.PerspectiveCamera && prevFov !== null) {
         camera.fov = prevFov;
@@ -238,14 +255,51 @@ export const MobileFirstPersonController: React.FC = () => {
     // MUST run every frame, independent of movement. Previously this lived after
     // the no-movement early-return below, so touch-to-look did nothing unless a
     // D-pad direction was also held.
+    const drive = useForkliftDriveStore.getState();
+    if (drive.drivenId && writtenYawRef.current !== null) {
+      // In a seat the forklift carries the camera and turns it with the cab
+      // (ForkliftSystem). Fold that turn into the look, or the write below
+      // would undo it and the view would stay fixed while the truck turns.
+      const turn = _cameraYaw.setFromQuaternion(camera.quaternion).y - writtenYawRef.current;
+      const wrapped = Math.atan2(Math.sin(turn), Math.cos(turn));
+      euler.current.y += wrapped;
+      targetEuler.current.y += wrapped;
+    }
     euler.current.x += (targetEuler.current.x - euler.current.x) * lookBlend;
     euler.current.y += (targetEuler.current.y - euler.current.y) * lookBlend;
     camera.quaternion.setFromEuler(euler.current);
+    writtenYawRef.current = _cameraYaw.setFromQuaternion(camera.quaternion).y;
+
+    // Driving: the D-pad is throttle and steering (forks are their own buttons,
+    // MobileControlsOverlay), and the seat owns the camera's position.
+    if (drive.drivenId) {
+      drivenRef.current = drive.drivenId;
+      manualForkliftInput.throttle = dpadDirection
+        ? Math.max(-1, Math.min(1, -dpadDirection.y))
+        : 0;
+      manualForkliftInput.steer = dpadDirection ? Math.max(-1, Math.min(1, dpadDirection.x)) : 0;
+      return;
+    }
 
     // Touch navigation follows the same quality-tier triangles as the trees.
     const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
+    if (drivenRef.current) {
+      // Just stepped down: onto the driver's side, on free ground, or onto free
+      // ground beneath the eye if the forklift is gone (as on desktop).
+      const point = forkliftStepDownPoint(drivenRef.current);
+      drivenRef.current = null;
+      const [x, z] = findFreeSpawn(
+        point ? point[0] : camera.position.x,
+        point ? point[1] : camera.position.z
+      );
+      camera.position.x = x;
+      camera.position.z = z;
+    }
     camera.position.y =
       PLAYER_HEIGHT + sampleWalkingGroundHeight(camera.position.x, camera.position.z, segments);
+    drive.setInReach(
+      forkliftInReach(camera.position.x, camera.position.y, camera.position.z, segments)
+    );
 
     // --- D-pad movement ---
     direction.current.set(0, 0, 0);
@@ -353,6 +407,13 @@ export const MobileFPSInstructions: React.FC<{ visible: boolean; onDismiss: () =
               <Hand className="w-5 h-5 text-slate-200" aria-hidden="true" />
             </div>
             <div className="text-white text-xs font-medium">{t('dragLook')}</div>
+          </div>
+
+          <div className="flex-1 bg-slate-800/50 rounded-lg p-3 flex flex-col items-center gap-1">
+            <div className="w-8 h-8 bg-slate-700 rounded-lg flex items-center justify-center">
+              <Forklift className="w-5 h-5 text-slate-200" aria-hidden="true" />
+            </div>
+            <div className="text-white text-xs font-medium">{t('forklift')}</div>
           </div>
         </div>
 

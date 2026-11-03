@@ -125,7 +125,7 @@ export const stewardDeckMessages = defineMessages({
       'The mason is thanked and the culvert is left as it is.',
     'evt-switchgear-survey.title': 'The switchgear survey',
     'evt-switchgear-survey.text':
-      'The electrical contractor offers to survey the roller-floor switchgear while the line is down for cleaning. They expect to find nothing urgent. A grid failure would find whatever they miss.',
+      'The electrical contractor offers to survey the roller-floor switchgear while the line is down for cleaning. They expect to find nothing urgent. Anything they miss would show in a grid failure.',
     'evt-switchgear-survey.choices.survey.label': 'Commission the survey',
     'evt-switchgear-survey.choices.survey.effect.result':
       'The survey finds two loose busbar joints and a tired contactor, all put right.',
@@ -176,9 +176,9 @@ export const stewardDeckMessages = defineMessages({
     'evt-valley-meeting.choices.principles.label': 'Speak to the Rochdale principles',
     'evt-valley-meeting.choices.principles.effect.result':
       'The meeting hears how a cooperative answers to its members, and agrees to meet again.',
-    'evt-valley-meeting.choices.reserve.label': 'Open the reserve for a valley rebate',
+    'evt-valley-meeting.choices.reserve.label': 'Pay the valley a rebate',
     'evt-valley-meeting.choices.reserve.effect.result':
-      'The mill pays a rebate from its reserve, and the meeting closes in good order.',
+      'The mill pays the valley a rebate from the fund, and the meeting closes in good order.',
     'evt-valley-meeting.choices.close.label': 'Close the meeting',
     'evt-valley-meeting.choices.close.effect.result':
       'The meeting is closed with the questions unanswered.',
@@ -388,7 +388,7 @@ export const stewardDeckMessages = defineMessages({
       'O pedreiro recebe os agradecimentos e o bueiro fica como está.',
     'evt-switchgear-survey.title': 'A inspeção dos equipamentos elétricos',
     'evt-switchgear-survey.text':
-      'A empresa de instalações elétricas oferece uma inspeção dos equipamentos de manobra do setor de moagem enquanto a linha para para limpeza. Não esperam encontrar nada urgente. Uma falha da rede revelaria o que passasse despercebido.',
+      'A empresa de instalações elétricas oferece uma inspeção dos equipamentos de manobra do setor de moagem enquanto a linha para para limpeza. Não esperam encontrar nada urgente. O que passar despercebido apareceria numa falha da rede.',
     'evt-switchgear-survey.choices.survey.label': 'Contratar a inspeção',
     'evt-switchgear-survey.choices.survey.effect.result':
       'A inspeção encontra duas conexões de barramento frouxas e um contator desgastado, todos corrigidos.',
@@ -438,9 +438,9 @@ export const stewardDeckMessages = defineMessages({
     'evt-valley-meeting.choices.principles.label': 'Falar dos princípios de Rochdale',
     'evt-valley-meeting.choices.principles.effect.result':
       'Os presentes ouvem como uma cooperativa responde aos seus cooperados e concordam em se reunir novamente.',
-    'evt-valley-meeting.choices.reserve.label': 'Usar a reserva para um abatimento ao vale',
+    'evt-valley-meeting.choices.reserve.label': 'Pagar um abatimento ao vale',
     'evt-valley-meeting.choices.reserve.effect.result':
-      'O moinho paga um abatimento com sua reserva e a reunião termina em boa ordem.',
+      'O moinho paga ao vale um abatimento com o fundo, e a reunião termina em boa ordem.',
     'evt-valley-meeting.choices.close.label': 'Encerrar a reunião',
     'evt-valley-meeting.choices.close.effect.result':
       'A reunião é encerrada com as perguntas sem resposta.',

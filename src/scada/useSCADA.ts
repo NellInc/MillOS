@@ -370,15 +370,24 @@ export function useSCADA(): UseSCADAReturn {
   // Use shared state via useSyncExternalStore for efficient updates
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  const [activeFaults, setActiveFaults] = useState<ActiveFault[]>([]);
+  // The adapter owns the faults: a panel reopened while one runs, or a second
+  // surface, lists it from the first render rather than from its own presses.
+  const [activeFaults, setActiveFaults] = useState<ActiveFault[]>(
+    () => peekSCADAService()?.getActiveFaults() ?? []
+  );
 
-  // Timed faults expire inside the adapter; drop them from the list as the
-  // next sample arrives.
+  // Timed faults expire inside the adapter, and another instance may inject or
+  // clear one; follow the adapter's list as each sample arrives.
   useEffect(() => {
     setActiveFaults((prev) => {
-      if (prev.length === 0) return prev;
-      const next = getSCADAService().getActiveFaults();
-      return next.length === prev.length ? prev : next;
+      const next = getSCADAService().getActiveFaults() ?? [];
+      const same =
+        next.length === prev.length &&
+        next.every(
+          (fault, index) =>
+            fault.tagId === prev[index].tagId && fault.faultType === prev[index].faultType
+        );
+      return same ? prev : next;
     });
   }, [state.values]);
 

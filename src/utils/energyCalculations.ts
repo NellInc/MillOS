@@ -97,18 +97,20 @@ export function getMachineEnergyDetailed(machine: MachineData): MachineEnergyBre
       warningPenalty = 1.1;
       baseEnergy = consumption.running * loadFactor * warningPenalty;
       break;
+    // A breakdown ('critical') stops the unit: productionStore freezes it and
+    // the material flow stops it processing, so it draws standby power like an
+    // idle unit. Billing 80% of running demand let a breakdown barely move the
+    // bill and gave a type row counted idle a running-size figure.
     case 'critical':
-      // Critical - still consuming but erratically
-      baseEnergy = consumption.running * 0.8;
-      break;
     case 'idle':
     default:
       baseEnergy = consumption.idle;
       break;
   }
 
-  // Apply maintenance penalty (only affects running machines)
-  const finalEnergy = machine.status === 'idle' ? baseEnergy : baseEnergy * maintenancePenalty;
+  // Apply maintenance penalty (only affects machines that are running)
+  const onLoadCurve = machine.status === 'running' || machine.status === 'warning';
+  const finalEnergy = onLoadCurve ? baseEnergy * maintenancePenalty : baseEnergy;
 
   return {
     baseEnergy: consumption.running,

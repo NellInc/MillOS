@@ -100,6 +100,23 @@ describe('near horizon city layout', () => {
     }
   });
 
+  it('places no pane inside the hill on walls that run up the slope', () => {
+    const buildings = buildNearCitySpecs();
+    // Some walls do climb the ridge: an uphill corner stands a storey above the base.
+    expect(
+      buildings.some((b) =>
+        nearCityFootprint(b).some(([x, z]) => sampleFoothillGroundHeight(x, z) - b.baseY > 2.5)
+      )
+    ).toBe(true);
+    for (const w of buildNearCityWindows(buildings)) {
+      const outside = sampleFoothillGroundHeight(
+        w.x + Math.sin(w.yaw) * 0.6,
+        w.z + Math.cos(w.yaw) * 0.6
+      );
+      expect(w.y - w.height / 2).toBeGreaterThanOrEqual(outside + 0.25);
+    }
+  });
+
   it('keeps instance colours independent of absent vertex colours', () => {
     const source = readFileSync('src/components/environment/NearHorizonCity.tsx', 'utf8');
     const bodyMaterial = source.match(

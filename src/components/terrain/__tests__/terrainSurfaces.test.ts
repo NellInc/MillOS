@@ -408,7 +408,10 @@ describe('splat map over SPLAT_BOUNDS', () => {
     expect(dominant(sample(-99, 140))).toBe('asphalt');
     expect(dominant(sample(120, 50))).toBe('asphalt');
     expect(sample(-88, 150).dirt).toBeGreaterThan(0.1);
-    expect(sample(135, 50).dirt).toBeGreaterThan(0.1);
+    // The lot's east kerb now meets Riverside station's paved forecourt, so its
+    // worn margin is read on the west side, and the forecourt is asphalt.
+    expect(sample(106, 50).dirt).toBeGreaterThan(0.1);
+    expect(dominant(sample(136.75, 50))).toBe('asphalt');
     expect(sample(-88, 160).grass).toBeGreaterThan(0.95);
   });
 

@@ -18,6 +18,7 @@ import {
   CANAL_FOOTBRIDGE_ACCESS,
   CANAL_BRIDGE_STEPS,
 } from '../../constants/publicRealmLayout';
+import { railwayStationObstacles } from '../../constants/railwayLayout';
 import {
   COLLISION_FILTERS,
   createCollisionGroups,
@@ -222,6 +223,10 @@ export function generateObstacles(): ObstacleData[] {
     minY: 2.8, // below walkway for step-up
     maxY: 3.15, // walkway surface
   });
+
+  // Riverside station: platforms, ramps, forecourt steps and the building,
+  // the same floors and solids walking reads (constants/railwayLayout.ts).
+  obstacles.push(...railwayStationObstacles());
 
   return obstacles;
 }

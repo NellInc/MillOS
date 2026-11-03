@@ -5,6 +5,9 @@ import {
   CAMPAIGN_PRESSURES,
   campaignOutcomes,
   campaignTotals,
+  formatKg,
+  pressureObjectionText,
+  shiftResumable,
 } from '../../../simulation/workplaceCampaign';
 import { formatFixed, translate, useT } from '../../../i18n';
 import { workplacePressureChapterMessages } from './WorkplacePressureChapter.messages';
@@ -31,6 +34,7 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
   const needsRemedy = openObjections.length > 0;
   const reviewing = state.phase === 'review';
   const running = state.phase === 'active';
+  const resumable = reviewing && shiftResumable(state);
   const recoveryOwed = state.members.some((member) => member.recoveryOwedMinutes > 0);
   const finalReview = reviewing && campaign?.shift === 2;
   const archiveBlocked =
@@ -63,13 +67,15 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
           ? translate(msg, 'beatQualityReviews')
           : translate(msg, 'beatCompleteInspection')
         : reviewing
-          ? recoveryOwed
-            ? translate(msg, 'beatRecovery')
-            : archiveBlocked
-              ? translate(msg, 'beatSettle')
-              : campaign
-                ? translate(msg, finalReview ? 'beatArchive' : 'beatNextShift')
-                : translate(msg, 'beatAccount')
+          ? resumable
+            ? translate(msg, 'beatAccount')
+            : recoveryOwed
+              ? translate(msg, 'beatRecovery')
+              : archiveBlocked
+                ? translate(msg, 'beatSettle')
+                : campaign
+                  ? translate(msg, finalReview ? 'beatArchive' : 'beatNextShift')
+                  : translate(msg, 'beatAccount')
           : running
             ? translate(msg, 'beatDeliver')
             : translate(msg, 'beatEarn');
@@ -94,13 +100,16 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
               minute: formatFixed(Math.ceil(campaign?.inspectionUntilMinute ?? 0), 0),
             })
         : reviewing
-          ? recoveryOwed
-            ? translate(msg, state.mode === 'workshop' ? 'nextWorkshopRecovery' : 'nextRecovery')
-            : archiveBlocked
-              ? translate(msg, 'nextSettle')
-              : campaign
-                ? translate(msg, finalReview ? 'nextArchive' : 'nextShift')
-                : translate(msg, 'nextReviewing')
+          ? // A reload pauses rather than ends a shift; never call that one final.
+            resumable
+            ? translate(msg, 'nextResumeAfterReload')
+            : recoveryOwed
+              ? translate(msg, state.mode === 'workshop' ? 'nextWorkshopRecovery' : 'nextRecovery')
+              : archiveBlocked
+                ? translate(msg, 'nextSettle')
+                : campaign
+                  ? translate(msg, finalReview ? 'nextArchive' : 'nextShift')
+                  : translate(msg, 'nextReviewing')
           : running
             ? translate(msg, 'nextRunning')
             : needsRevisedOffer
@@ -238,7 +247,7 @@ export function WorkplacePressureChapter({
           )}
           {openObjections.map((item) => (
             <p key={item.id} className="text-amber-100">
-              {t('openItem', { statement: item.statement })}
+              {t('openItem', { statement: pressureObjectionText(item.statement) })}
             </p>
           ))}
           {totals.members.map((member) => (
@@ -255,11 +264,11 @@ export function WorkplacePressureChapter({
           <p className="tabular-nums">
             {t('deliveryLine', {
               status: t('deliveryStatus', { status: outcomes.delivery.status }),
-              delivered: formatFixed(outcomes.delivery.deliveredKg, 1),
-              target: formatFixed(outcomes.delivery.targetKg, 0),
+              delivered: formatKg(outcomes.delivery.deliveredKg, 1),
+              target: formatKg(outcomes.delivery.targetKg),
               agreement: t('agreementStatus', { status: outcomes.agreement.status }),
               wages: formatFixed(outcomes.accounts.wages, 2),
-              remaining: formatFixed(outcomes.delivery.remainingKg, 0),
+              remaining: formatKg(outcomes.delivery.remainingKg),
             })}
             {campaign.mission &&
               t('dispatchEvidence', {

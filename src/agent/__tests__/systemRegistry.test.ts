@@ -124,6 +124,17 @@ describe('MillOS agent system registry', () => {
     );
   });
 
+  // F35: the handler verifies the chosen pace (the handoff's resume pace while
+  // it holds the clock), so the agent-facing verifier must say so.
+  it('describes the set-speed verifier as the chosen pace the handler checks', () => {
+    const setSpeed = SYSTEM_REGISTRY_SOURCE.capabilities.find(
+      (capability) => capability.id === 'simulation.set-speed'
+    );
+    expect(setSpeed?.verifier).toBe(
+      'The sanitized chosen pace (the handoff resume pace while it holds the clock) equals the requested value.'
+    );
+  });
+
   it('keeps generated artifacts current with the executable source', () => {
     // build/generated/ is gitignored, so a fresh checkout (CI) has no manifest
     // yet. Generate it on demand; when one already exists the assertions below

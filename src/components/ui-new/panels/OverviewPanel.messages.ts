@@ -57,7 +57,10 @@ export const overviewPanelMessages = defineMessages({
     material: (p: { value: string }) => p.value.replaceAll('_', ' '),
 
     batchGenealogy: 'Batch genealogy and quality',
-    lotSummary: '{lots} source lots, {batches} production batches',
+    lotSummary: (p: { lots: string; lotCount: number; batches: string; batchCount: number }) =>
+      `${p.lots} ${p.lotCount === 1 ? 'source lot' : 'source lots'}, ${p.batches} ${
+        p.batchCount === 1 ? 'production batch' : 'production batches'
+      }`,
     genealogyBalance: 'Genealogy {sign}{value} kg',
     firstBatch: 'Packing is building the first traceable batch.',
     batchListLabel: 'Held and investigated batches, then recent production',
@@ -148,7 +151,10 @@ export const overviewPanelMessages = defineMessages({
     material: (p: { value: string }) => PT_MATERIAL[p.value] ?? p.value.replaceAll('_', ' '),
 
     batchGenealogy: 'Genealogia e qualidade dos lotes',
-    lotSummary: '{lots} lotes de origem, {batches} lotes de produção',
+    lotSummary: (p: { lots: string; lotCount: number; batches: string; batchCount: number }) =>
+      `${p.lots} ${p.lotCount === 1 ? 'lote de origem' : 'lotes de origem'}, ${p.batches} ${
+        p.batchCount === 1 ? 'lote de produção' : 'lotes de produção'
+      }`,
     genealogyBalance: 'Genealogia {sign}{value} kg',
     firstBatch: 'O ensaque está formando o primeiro lote rastreável.',
     batchListLabel: 'Lotes retidos e em investigação, depois a produção recente',

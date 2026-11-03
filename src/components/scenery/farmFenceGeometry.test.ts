@@ -9,7 +9,7 @@ import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
 import { AUTHORED_PROP_TRIM, AUTHORED_PROP_TRIM_MATERIALS } from './AuthoredPropTrim';
 import { FarmFenceRun } from './FarmFenceRun';
-import { createFarmFenceRun } from './farmFenceGeometry';
+import { createFarmFenceRun, fencePanelCount } from './farmFenceGeometry';
 
 const fenceLoaderFixture = vi.hoisted(() => ({ scene: undefined as THREE.Group | undefined }));
 vi.mock('../../utils/dracoLoader', async (importOriginal) => ({
@@ -152,6 +152,44 @@ describe('farm-local shared fence supports from the immutable delivery', () => {
       } finally {
         result.body.dispose();
         result.trim.dispose();
+      }
+    }
+  );
+  it.each([4, 5, 6])(
+    'shares a %i m run joint: a post end centres its post on the joint, an open end draws none',
+    (length) => {
+      const foot = (geometry: THREE.BufferGeometry) => {
+        const p = geometry.getAttribute('position');
+        const feet: number[] = [];
+        for (let i = 0; i < p.count; i++) if (Math.abs(p.getY(i)) < 1e-6) feet.push(p.getX(i));
+        return feet;
+      };
+      const owner = createFarmFenceRun(source, AUTHORED_PROP_TRIM.fence, length, 'post', 'post');
+      const open = createFarmFenceRun(source, AUTHORED_PROP_TRIM.fence, length, 'open', 'open');
+      try {
+        // Panels tile at the panel's own post pitch.
+        expect(owner.bays).toBe(fencePanelCount(length));
+        expect(owner.postCentres[0]).toBeCloseTo(-length / 2, 9);
+        expect(owner.postCentres[owner.bays]).toBeCloseTo(length / 2, 9);
+        expect(owner.posts).toHaveLength(owner.bays + 1);
+        // The owner's end posts stand centred on the joints, half a post past its ends.
+        expect(owner.body.boundingBox!.min.x).toBeCloseTo(-length / 2 - 0.098, 5);
+        expect(owner.body.boundingBox!.max.x).toBeCloseTo(length / 2 + 0.098, 5);
+        // The open run draws no end post, so no post foot lies near its ends...
+        expect(open.posts).toHaveLength(open.bays - 1);
+        expect(foot(open.body).every((x) => Math.abs(x) < length / 2 - 0.2)).toBe(true);
+        expect(ray(open.trim, -length / 2, 0.59)).toHaveLength(0);
+        // ...while its rails run on into the neighbour's post.
+        for (const y of [0.28, 0.59, 0.87]) {
+          expect(ray(open.body, -length / 2 + 0.05, y).length).toBeGreaterThan(0);
+          expect(ray(open.body, length / 2 - 0.05, y).length).toBeGreaterThan(0);
+        }
+        expect(open.body.boundingBox!.max.x).toBeLessThan(length / 2 + 0.098);
+      } finally {
+        for (const result of [owner, open]) {
+          result.body.dispose();
+          result.trim.dispose();
+        }
       }
     }
   );

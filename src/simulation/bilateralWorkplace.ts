@@ -26,6 +26,7 @@ import {
   validWorkplaceMission,
   MANAGEMENT_APPROACHES,
   CAMPAIGN_PRESSURES,
+  pressureObjectionText,
   campaignRelationship,
   validRelationshipEvents,
   restoreRelationshipEvents,
@@ -51,7 +52,7 @@ import {
   HANDOFF_EPISODE_CHOICES,
   validImprovementEpisode,
 } from './workplaceImprovement';
-import { validPackingAdvice } from './workplaceAdvice';
+import { displayAdviceText, validPackingAdvice } from './workplaceAdvice';
 import {
   LOCALES,
   createTranslator,
@@ -59,23 +60,170 @@ import {
   formatGrouped,
   getLocale,
   translate,
+  type Locale,
   type Translator,
 } from '../i18n';
 import { bilateralWorkplaceMessages } from './bilateralWorkplace.messages';
+import { workplaceCampaignMessages } from './workplaceCampaign.messages';
 
 // Copy resolves on read (getters), so a language change reaches every importer.
 const wm = bilateralWorkplaceMessages;
+/** An engine refusal: a key whose copy takes no params. */
+type EngineReasonKey = {
+  [K in keyof typeof wm.en]: (typeof wm.en)[K] extends string ? K : never;
+}[keyof typeof wm.en];
 // Record sentinels stay English in state: workplaceImprovement.ts and
 // workplaceFairness.ts match their prefixes. displayEventDetail() renders them
 // in the active language.
 const BALLOT_DECLINED_DETAIL = wm.en.evBallotDeclined;
 const RELOAD_SAFETY_DETAIL = wm.en.evReloadSafety;
 
-/** Render-time event detail: translates the English sentinels, returns all else unchanged. */
+/**
+ * Receipts and review reasons are written in the language active when they
+ * were recorded. Every fixed sentence (no placeholders) of the two catalogues
+ * that write them, in either language, maps back to its key, so a receipt is
+ * shown in the language active now. Working if switching language rewrites a
+ * recorded "Plan approved; ..." and an archived reload reason.
+ */
+let recordedSentences: Map<string, { table: 'workplace' | 'campaign'; key: string }> | null = null;
+function recordedSentence(detail: string): string | null {
+  if (!recordedSentences) {
+    recordedSentences = new Map();
+    const tables = [
+      ['workplace', bilateralWorkplaceMessages],
+      ['campaign', workplaceCampaignMessages],
+    ] as const;
+    for (const [table, catalog] of tables)
+      for (const locale of LOCALES)
+        for (const [key, value] of Object.entries(catalog[locale])) {
+          if (typeof value !== 'string') continue;
+          // '{id}: sentence' templates record a machine id, then fixed text.
+          const sentence = /^\{\w+\}: ([^{}]+)$/.exec(value)?.[1] ?? value;
+          if (sentence.length >= 20 && !sentence.includes('{'))
+            recordedSentences.set(sentence, { table, key });
+        }
+  }
+  // A pressure repair or a templated receipt is recorded as `${id}: ${sentence}`.
+  const split = /^([\w-]+): (.+)$/s.exec(detail);
+  const [head, sentence] = recordedSentences.has(detail)
+    ? ['', detail]
+    : split && recordedSentences.has(split[2])
+      ? [`${split[1]}: `, split[2]]
+      : ['', ''];
+  const hit = recordedSentences.get(sentence);
+  if (!hit) return null;
+  const catalog =
+    hit.table === 'workplace' ? bilateralWorkplaceMessages : workplaceCampaignMessages;
+  const value = (catalog[getLocale()] as Record<string, unknown>)[hit.key];
+  if (typeof value !== 'string') return null;
+  return head + (/^\{\w+\}: ([^{}]+)$/.exec(value)?.[1] ?? value);
+}
+
+/**
+ * Templated receipts (a resumed minute, a forecast bound, a nested response)
+ * recorded in one language, re-rendered in the language active now. Numbers
+ * are read in the language they were written in and written in the new one;
+ * other values are themselves shown as receipts (ids pass through unchanged).
+ * Working if a "Shift resumed at minute 37" receipt reads in Portuguese after
+ * a switch, and a receipt in the active language is shown as written.
+ */
+let recordedTemplates:
+  | { pattern: RegExp; names: string[]; locale: Locale; template: (locale: Locale) => string }[]
+  | null = null;
+function recordedTemplate(detail: string): string | null {
+  if (!recordedTemplates) {
+    recordedTemplates = [];
+    const tables = [bilateralWorkplaceMessages, workplaceCampaignMessages] as const;
+    for (const catalog of tables)
+      for (const locale of LOCALES)
+        for (const [key, value] of Object.entries(catalog[locale])) {
+          if (typeof value !== 'string' || !value.includes('{')) continue;
+          // Two placeholders with nothing between them cannot be told apart.
+          const literal = value.replace(/\{\w+\}/g, '');
+          if (literal.length < 10 || /\}\s*\{/.test(value)) continue;
+          const names: string[] = [];
+          const source = value
+            .replace(/[.*+?^$()|[\]\\]/g, '\\$&')
+            .replace(/\{(\w+)\}/g, (_, name: string) => {
+              names.push(name);
+              return '(.+?)';
+            });
+          recordedTemplates.push({
+            pattern: new RegExp(`^${source}$`, 's'),
+            names,
+            locale,
+            template: (to) => {
+              const text = (catalog[to] as Record<string, unknown>)[key];
+              return typeof text === 'string' ? text : value;
+            },
+          });
+        }
+  }
+  const current = getLocale();
+  for (const { pattern, names, locale, template } of recordedTemplates) {
+    if (locale === current) continue;
+    const match = pattern.exec(detail);
+    if (!match) continue;
+    const params = new Map(names.map((name, i) => [name, match[i + 1]]));
+    return template(current).replace(/\{(\w+)\}/g, (whole, name: string) => {
+      const value = params.get(name);
+      if (value === undefined) return whole;
+      const number =
+        locale === 'en'
+          ? /^-?\d+(\.\d+)?$/.test(value)
+            ? value
+            : null
+          : /^-?\d{1,3}(\.\d{3})*(,\d+)?$/.test(value)
+            ? value.replace(/\./g, '').replace(',', '.')
+            : null;
+      // An abstention quotes the adviser's missing facts, from its own catalogue.
+      if (number === null) return displayAdviceText(displayEventDetail(value));
+      return formatFixed(Number(number), number.split('.')[1]?.length ?? 0, current);
+    });
+  }
+  return null;
+}
+
+/**
+ * Receipts written by function-valued copy (an objection raised or resolved, a
+ * chair or surplus ballot). Their parameters are closed sets of ids, so every
+ * rendering in every language maps back to its key and parameters.
+ * Working if "Raised a rest objection; ..." reads in Portuguese after a switch.
+ */
+let recordedFunctions: Map<string, () => string> | null = null;
+function recordedFunction(detail: string): string | null {
+  if (!recordedFunctions) {
+    recordedFunctions = new Map();
+    const actors = [...MEMBER_ORDER, 'mind'];
+    const variants: [keyof typeof wm.en, Record<string, string>[]][] = [
+      ['evObjection', KINDS.map((kind) => ({ kind }))],
+      ['objectionResolution', actors.flatMap((actor) => KINDS.map((kind) => ({ actor, kind })))],
+      ['evChairBallot', MEMBER_ORDER.map((candidate) => ({ candidate }))],
+      ['evSurplusBallot', DESTINATIONS.map((destination) => ({ destination }))],
+    ];
+    const render = (locale: Locale, key: keyof typeof wm.en, params: Record<string, string>) =>
+      (wm[locale][key] as unknown as (p: Record<string, string>) => string)(params);
+    for (const [key, list] of variants)
+      for (const params of list)
+        for (const locale of LOCALES)
+          recordedFunctions.set(render(locale, key, params), () =>
+            render(getLocale(), key, params)
+          );
+  }
+  return recordedFunctions.get(detail)?.() ?? null;
+}
+
+/** Render-time event detail: translates the English sentinels and recorded fixed sentences. */
 export function displayEventDetail(detail: string): string {
   if (detail === BALLOT_DECLINED_DETAIL) return translate(wm, 'evBallotDeclined');
   if (detail === RELOAD_SAFETY_DETAIL) return translate(wm, 'evReloadSafety');
-  return detail;
+  const recorded = recordedSentence(detail) ?? recordedFunction(detail);
+  if (recorded) return recorded;
+  // A challenged demand is recorded with its English matching key (see
+  // CAMPAIGN_PRESSURES); show it in the language active now.
+  const pressure = CAMPAIGN_PRESSURES.find((item) => detail === `${item.id}: ${item.objection}`);
+  if (pressure) return `${pressure.id}: ${pressureObjectionText(pressure.objection)}`;
+  return recordedTemplate(detail) ?? detail;
 }
 export const PRACTICES: { id: PracticeId; title: string; detail: string }[] = [
   {
@@ -255,6 +403,28 @@ const memberCopy = (t: WorkplaceTranslator) => [
 ];
 
 const MEMBER_ORDER = ['packing', 'quality', 'maintenance', 'coordinator'];
+
+const ACTOR_KEYS = {
+  packing: 'rolePacking',
+  quality: 'roleQuality',
+  maintenance: 'roleMaintenance',
+  coordinator: 'roleCoordinator',
+  mind: 'actorAdviser',
+  system: 'actorSystem',
+  team: 'actorTeam',
+  members: 'actorMembers',
+} as const;
+
+/**
+ * The name an event receipt shows for its stored actor id, in the language
+ * active now; an unknown id is shown as stored. Working if no receipt reads
+ * "packing" or "mind" where the rest of the record says Packing or Adviser.
+ */
+export function workplaceActorName(actorId: string): string {
+  return Object.prototype.hasOwnProperty.call(ACTOR_KEYS, actorId)
+    ? translate(wm, ACTOR_KEYS[actorId as keyof typeof ACTOR_KEYS])
+    : actorId;
+}
 
 /**
  * Members store their public copy as text in the language active when it was
@@ -585,6 +755,8 @@ export function compareWorkplacePlans(seed: number): WorkplaceComparison[] {
 export function workplaceAlternatives(s: WorkplaceState) {
   const totals = campaignTotals(s);
   return WORKPLACE_PLANS.filter((p) => !p.illegalReason).map((p) => {
+    // The same figures readiness and activation use (a resumed shift buys only
+    // setup it has not already paid for).
     const funding = workplaceFunding(s, p);
     const reserve = funding.wages;
     const maximumCompensation = funding.compensation;
@@ -598,12 +770,22 @@ export function workplaceAlternatives(s: WorkplaceState) {
       }));
     return {
       ...p,
+      // What activating now buys, so the reservation line sums to the cash after it.
+      budgetCost: funding.purchase,
       reserve,
       maximumCompensation,
       cashAfterReservations: s.finance.cash - reserve - funding.purchase - maximumCompensation,
       available: missing.length === 0 && funded,
+      // Name what is actually missing: cover needs rest and remedy, not budget.
       constraint: missing.length
-        ? translate(wm, 'altEnableBudget')
+        ? missing.length === 1 && missing[0] === 'budget'
+          ? translate(wm, 'altEnableBudget')
+          : translate(wm, 'altEnablePractices', {
+              practices: missing
+                .map((id) => PRACTICES.find((practice) => practice.id === id)?.title ?? id)
+                .join(', '),
+              count: missing.length,
+            })
         : !funded
           ? translate(wm, 'altUnfunded')
           : null,
@@ -801,7 +983,14 @@ function deliverRecovery(
 }
 function settle(s: WorkplaceState, reason: string) {
   releaseCover(s);
-  if (s.improvement && s.minute < s.durationMinutes) s.improvement.stopped = true;
+  // A reload of a handoff deliberation stopped nothing: it was never run, and
+  // it resumes with the arrangement its members were deciding (shiftResumable).
+  if (
+    s.improvement &&
+    s.minute < s.durationMinutes &&
+    !(reason === RELOAD_SAFETY_DETAIL && s.phase === 'deliberating')
+  )
+    s.improvement.stopped = true;
   s.finance.wageReserve = 0;
   for (const m of s.members) {
     m.sharing = false;
@@ -864,16 +1053,19 @@ export function transitionWorkplace(
   previous: WorkplaceState,
   command: WorkplaceCommand
 ): WorkplaceReduction {
-  const reject = (reason: string): WorkplaceReduction => ({
+  // A refusal keeps its key, so a status line that holds it follows a language
+  // switch. Working if a refusal shown in English reads in Portuguese after one.
+  const reject = (key: EngineReasonKey): WorkplaceReduction => ({
     changed: false,
-    reason,
+    reason: translate(wm, key),
+    reasonCopy: { catalog: 'engine', key },
     state: previous,
   });
   if (
     previous.mode === 'pilot' &&
-    !['start', 'configure', 'selectPlan', 'stop'].includes(command.type)
+    !['start', 'configure', 'selectPlan', 'stop', 'endExercise'].includes(command.type)
   )
-    return reject(translate(wm, 'rejPilot'));
+    return reject('rejPilot');
   const s = structuredClone(previous);
   const member = (id: string) => s.members.find((m) => m.id === id);
   const deliberating = s.phase === 'deliberating';
@@ -891,7 +1083,7 @@ export function transitionWorkplace(
         improvementObligations(s).length ||
         (mission && !validWorkplaceMission(mission))
       )
-        return reject(translate(wm, 'rejBeginImprovement'));
+        return reject('rejBeginImprovement');
       const fresh = createWorkplace(mode, s.seed);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
@@ -937,7 +1129,7 @@ export function transitionWorkplace(
         !['deliberating', 'review'].includes(s.phase) ||
         improvementObligations(s).length
       )
-        return reject(translate(wm, 'rejCancelImprovement'));
+        return reject('rejCancelImprovement');
       const origin = restoreWorkplace(i.origin);
       origin.revision = s.revision + 1;
       record(origin, 'members', 'improvement-cancelled', translate(wm, 'evImprovementCancelled'));
@@ -956,7 +1148,7 @@ export function transitionWorkplace(
         !member(actor) ||
         (i.proposalId === id && !i.stopped)
       )
-        return reject(translate(wm, 'rejPropose'));
+        return reject('rejPropose');
       Object.assign(i, freshImprovementTerms(), { proposalId: id, proposerId: actor });
       invalidate(s);
       i.forecastKg = improvementForecast(s).kg;
@@ -974,7 +1166,7 @@ export function transitionWorkplace(
         !IMPROVEMENT_CHALLENGES.includes(kind) ||
         i.challenges.some((c) => c.actorId === actor && c.kind === kind)
       )
-        return reject(translate(wm, 'rejChallenge'));
+        return reject('rejChallenge');
       i.challenges.push({ actorId: actor, kind });
       invalidate(s);
       record(s, actor, 'improvement-challenged', translate(wm, 'evChallenged', { kind }));
@@ -982,16 +1174,16 @@ export function transitionWorkplace(
     }
     case 'acknowledgeImprovement': {
       const i = s.improvement;
-      if (!i || !deliberating || !i.proposalId) return reject(translate(wm, 'rejAckChooseTerms'));
+      if (!i || !deliberating || !i.proposalId) return reject('rejAckChooseTerms');
       const advice = command.args[0];
       const validated = advice === undefined ? undefined : validPackingAdvice(advice);
       if (
         advice !== undefined &&
         (!validated || validated.arrangement !== (i.stopped ? 'steady' : i.proposalId))
       )
-        return reject(translate(wm, 'rejAckInvalidAdvice'));
+        return reject('rejAckInvalidAdvice');
       if (i.acknowledged && (!validated || validated.fingerprint === i.advice?.fingerprint))
-        return reject(translate(wm, 'rejAckAlready'));
+        return reject('rejAckAlready');
       const changedAdvice =
         !!i.advice && !!validated && i.advice.fingerprint !== validated.fingerprint;
       invalidate(s);
@@ -1008,9 +1200,13 @@ export function transitionWorkplace(
               head: validated.reasonToAbstain
                 ? translate(wm, 'evResponseAbstain', { reason: validated.reasonToAbstain })
                 : translate(wm, 'evResponseStock', {
-                    released: formatFixed(validated.evidence.releasedPackedKg, 0),
-                    held: formatFixed(validated.evidence.heldPackedKg, 0),
-                    upper: formatFixed(validated.dispatchUpperKg, 0),
+                    released: formatGrouped(validated.evidence.releasedPackedKg, {
+                      maximumFractionDigits: 0,
+                    }),
+                    held: formatGrouped(validated.evidence.heldPackedKg, {
+                      maximumFractionDigits: 0,
+                    }),
+                    upper: formatGrouped(validated.dispatchUpperKg, { maximumFractionDigits: 0 }),
                   }),
               cost: formatFixed(improvementCost(s), 0),
             })
@@ -1027,7 +1223,7 @@ export function transitionWorkplace(
         (id !== null && !HANDOFF_EPISODES.some((e) => e.id === id)) ||
         (i.episode?.id ?? null) === id
       )
-        return reject(translate(wm, 'rejEpisode'));
+        return reject('rejEpisode');
       if (id === null) delete i.episode;
       else i.episode = { id, actorId: null, choice: null };
       invalidate(s);
@@ -1049,7 +1245,7 @@ export function transitionWorkplace(
         !HANDOFF_EPISODE_CHOICES.some((c) => c.id === choice) ||
         (i.episode.actorId === actor && i.episode.choice === choice)
       )
-        return reject(translate(wm, 'rejEpisodeResponse'));
+        return reject('rejEpisodeResponse');
       i.episode = { ...i.episode, actorId: actor, choice };
       invalidate(s);
       record(
@@ -1070,7 +1266,7 @@ export function transitionWorkplace(
         !i.proposalId ||
         (!member(actor) && actor !== 'mind')
       )
-        return reject(translate(wm, 'rejStopImprovement'));
+        return reject('rejStopImprovement');
       i.stopped = true;
       if (deliberating) invalidate(s);
       record(s, actor, 'improvement-stopped', translate(wm, 'evImprovementStopped'));
@@ -1078,8 +1274,10 @@ export function transitionWorkplace(
     }
     case 'acknowledgeImprovementReview': {
       const i = s.improvement;
-      if (!i || s.phase !== 'review' || i.reviewAcknowledged)
-        return reject(translate(wm, 'rejAckReview'));
+      // A deliberation a reload interrupted was never worked: it resumes, and
+      // is never reviewed into a cycle against MAX_IMPROVEMENT_CYCLES.
+      if (i && shiftResumable(s)) return reject('rejAckReviewResume');
+      if (!i || s.phase !== 'review' || i.reviewAcknowledged) return reject('rejAckReview');
       i.reviewAcknowledged = true;
       record(
         s,
@@ -1115,7 +1313,7 @@ export function transitionWorkplace(
         i.ballots[actor] === verdict ||
         (verdict === 'adopt' && (!i.funded || i.stopped || s.minute !== s.durationMinutes))
       )
-        return reject(translate(wm, 'rejVoteReview'));
+        return reject('rejVoteReview');
       i.ballots[actor] = verdict;
       s.revision += 1;
       record(s, actor, 'improvement-review-ballot', translate(wm, 'evReviewBallot', { verdict }));
@@ -1135,7 +1333,7 @@ export function transitionWorkplace(
         improvementObligations(s).length ||
         (winner === 'adopt' && (!i.funded || i.stopped || s.minute !== s.durationMinutes))
       )
-        return reject(translate(wm, 'rejFinishReview'));
+        return reject('rejFinishReview');
       i.verdict = winner;
       s.revision += 1;
       record(s, 'members', 'improvement-reviewed', translate(wm, 'evReviewed', { winner }));
@@ -1154,7 +1352,7 @@ export function transitionWorkplace(
         i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES ||
         (mission && !validWorkplaceMission(mission))
       )
-        return reject(translate(wm, 'rejContinue'));
+        return reject('rejContinue');
       const { improvement: _improvement, ...snapshot } = saveWorkplace(s) as WorkplaceState;
       const history = [...i.history, { ...improvementTerms(s), snapshot }];
       const fresh = createWorkplace(s.mode, s.seed === 0xffffffff ? 1 : s.seed + 1);
@@ -1194,15 +1392,26 @@ export function transitionWorkplace(
     }
     case 'resumeShift': {
       if (!Number.isSafeInteger(command.args[0]) || command.args[0] !== s.revision)
-        return reject(translate(wm, 'rejStaleRevision'));
-      if (!shiftResumable(s)) return reject(translate(wm, 'rejResumeShift'));
+        return reject('rejStaleRevision');
+      if (!shiftResumable(s)) return reject('rejResumeShift');
       // Back to deliberation at the minute reached. invalidate() keeps every
       // understanding, ballot and proof expired; checks and cover consent were
       // cleared by the reload's settle, so nothing runs without fresh consent.
       s.phase = 'deliberating';
       s.reviewReason = null;
+      if (s.improvement) {
+        s.improvement.reviewAcknowledged = false;
+        s.improvement.ballots = {};
+      }
       invalidate(s);
-      record(s, 'team', 'shift-resumed', translate(wm, 'evShiftResumed', { minute: s.minute }));
+      // The plant ticks in fractions of a minute; name the whole minute, as the
+      // resume note beside this receipt does.
+      record(
+        s,
+        'team',
+        'shift-resumed',
+        translate(wm, 'evShiftResumed', { minute: formatFixed(s.minute, 0) })
+      );
       break;
     }
     case 'closeImprovement': {
@@ -1221,7 +1430,7 @@ export function transitionWorkplace(
         !Number.isSafeInteger(revision) ||
         improvementObligations(s).length
       )
-        return reject(translate(wm, 'rejCloseImprovement'));
+        return reject('rejCloseImprovement');
       const fresh = createWorkplace(s.mode, s.seed === 0xffffffff ? 1 : s.seed + 1);
       fresh.revision = s.revision + 1;
       return { state: fresh, changed: true, reason: null };
@@ -1238,7 +1447,7 @@ export function transitionWorkplace(
             mission.creditedKg !== 0 ||
             mission.evidence !== 'current'))
       )
-        return reject(translate(wm, 'rejStartCampaign'));
+        return reject('rejStartCampaign');
       const fresh = createWorkplace('game', seed);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
@@ -1286,7 +1495,7 @@ export function transitionWorkplace(
             followOn.evidence !== 'current' ||
             followOn.orderId === s.campaign.mission.orderId))
       )
-        return reject(translate(wm, 'rejNextShift'));
+        return reject('rejNextShift');
       const history = [...s.campaign.history, campaignRecord(s)];
       const fresh = createWorkplace('game', (s.seed + 1) >>> 0);
       fresh.phase = 'deliberating';
@@ -1333,8 +1542,28 @@ export function transitionWorkplace(
         improvementObligations(s).length ||
         c.history.some((h) => h.members.some((m) => m.recoveryOwedMinutes > 0))
       )
-        return reject(translate(wm, 'rejLeaveCampaign'));
+        return reject('rejLeaveCampaign');
       const fresh = createWorkplace('game', s.seed === 0xffffffff ? 1 : s.seed + 1);
+      fresh.revision = s.revision + 1;
+      return { state: fresh, changed: true, reason: null };
+    }
+    case 'endExercise': {
+      // 'start' only reopens the same mode, and every season, mode and
+      // participation choice needs idle, so a settled standalone exercise
+      // needs its own exit. It owes nothing ('start' would discard it too).
+      // Working if a game, workshop or pilot review returns to the setup form.
+      const [revision] = command.args;
+      if (
+        s.campaign ||
+        s.improvement ||
+        s.phase !== 'review' ||
+        revision !== s.revision ||
+        !Number.isSafeInteger(revision) ||
+        s.members.some((m) => m.recoveryOwedMinutes > 0)
+      )
+        return reject('rejEndExercise');
+      // Idle is the game's setup: the season and the automatic demo start there.
+      const fresh = createWorkplace('game', s.seed);
       fresh.revision = s.revision + 1;
       return { state: fresh, changed: true, reason: null };
     }
@@ -1349,9 +1578,9 @@ export function transitionWorkplace(
         !requiredChecks(actor).includes(question) ||
         !check.options.some((option) => option.value === answer)
       )
-        return reject(translate(wm, 'rejAnswerCheck'));
+        return reject('rejAnswerCheck');
       const answers = s.campaign.checks[actor] ?? {};
-      if (answers[question] === answer) return reject(translate(wm, 'rejAnswerUnchanged'));
+      if (answers[question] === answer) return reject('rejAnswerUnchanged');
       s.campaign.checks[actor] = { ...answers, [question]: answer };
       if (actor === 'mind') s.campaign.adviserAcknowledged = checksPassed(s.campaign, actor);
       else {
@@ -1368,29 +1597,32 @@ export function transitionWorkplace(
           ? translate(wm, 'evCheckCorrect', { question })
           : check.clarification
       );
-      return {
-        state: s,
-        changed: true,
-        reason: answer === check.correct ? null : check.clarification,
-      };
+      // A clarification kept on a status line follows a language switch.
+      return answer === check.correct
+        ? { state: s, changed: true, reason: null }
+        : {
+            state: s,
+            changed: true,
+            reason: check.clarification,
+            reasonCopy: { catalog: 'campaign', key: `${check.id}Clarification` },
+          };
     }
     case 'campaignDecision': {
       const [decision, actor] = command.args;
       const c = s.campaign;
       const choice = c && CAMPAIGN_SHIFTS[c.shift]?.choices.find((item) => item.id === decision);
       if (!c || !choice || choice.actorId !== actor || !member(actor))
-        return reject(translate(wm, 'rejDecisionRole'));
-      if (decision === 'penalize-refusal') return reject(translate(wm, 'rejPenalizeRefusal'));
-      if (decision === 'skip-inspection') return reject(translate(wm, 'rejSkipInspection'));
+        return reject('rejDecisionRole');
+      if (decision === 'penalize-refusal') return reject('rejPenalizeRefusal');
+      if (decision === 'skip-inspection') return reject('rejSkipInspection');
       if (c.shift === 1) {
         if (s.phase !== 'active' || s.minute < 25 || c.decision !== null)
-          return reject(translate(wm, 'rejInspectionTiming'));
+          return reject('rejInspectionTiming');
         c.decision = decision;
         c.inspectionUntilMinute = s.minute + 5;
         record(s, actor, 'inspection-started', translate(wm, 'evInspectionStarted'));
       } else {
-        if (!deliberating || c.decision === decision)
-          return reject(translate(wm, 'rejDifferentResponse'));
+        if (!deliberating || c.decision === decision) return reject('rejDifferentResponse');
         c.decision = decision;
         if (c.shift === 0 || c.shift === 2) {
           s.targetKg = decision === 'renegotiate' ? 480 : 600;
@@ -1425,7 +1657,7 @@ export function transitionWorkplace(
         pressure.id !== id ||
         !['accept-demand', 'protect-boundary'].includes(response)
       )
-        return reject(translate(wm, 'rejPressureCard'));
+        return reject('rejPressureCard');
       const prefix = `${id}: `;
       const protectedTerms = s.events.some(
         (event) => event.kind === 'pressure-protected' && event.detail.startsWith(prefix)
@@ -1435,9 +1667,9 @@ export function transitionWorkplace(
         (response === 'accept-demand' &&
           s.objections.some((o) => o.statement === pressure.objection))
       )
-        return reject(translate(wm, 'rejPressureReviewed'));
+        return reject('rejPressureReviewed');
       if (response === 'accept-demand') {
-        if (s.objections.length >= 32) return reject(translate(wm, 'rejObjectionRecordFull'));
+        if (s.objections.length >= 32) return reject('rejObjectionRecordFull');
         s.objections.push({
           id: `o-${s.objections.length + 1}`,
           actorId: pressure.challenger,
@@ -1452,6 +1684,7 @@ export function transitionWorkplace(
           state: s,
           changed: true,
           reason: translate(wm, 'reasonDemandBlocked'),
+          reasonCopy: { catalog: 'engine', key: 'reasonDemandBlocked' },
         };
       }
       record(s, 'coordinator', 'pressure-protected', `${prefix}${pressure.repair}`);
@@ -1460,16 +1693,16 @@ export function transitionWorkplace(
         state: s,
         changed: true,
         reason: translate(wm, 'reasonTermsRestated'),
+        reasonCopy: { catalog: 'engine', key: 'reasonTermsRestated' },
       };
     }
     case 'start': {
-      if (s.improvement) return reject(translate(wm, 'rejStartDuringImprovement'));
+      if (s.improvement) return reject('rejStartDuringImprovement');
       const [mode, seed = 1] = command.args;
-      if (!MODES.includes(mode) || !validSeed(seed))
-        return reject(translate(wm, 'rejInvalidModeSeed'));
-      if (s.campaign) return reject(translate(wm, 'rejCampaignReset'));
+      if (!MODES.includes(mode) || !validSeed(seed)) return reject('rejInvalidModeSeed');
+      if (s.campaign) return reject('rejCampaignReset');
       if (s.phase === 'active' || s.members.some((m) => m.recoveryOwedMinutes > 0))
-        return reject(translate(wm, 'rejStopActiveFirst'));
+        return reject('rejStopActiveFirst');
       const fresh = createWorkplace(mode, seed);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
@@ -1477,7 +1710,7 @@ export function transitionWorkplace(
       return { state: fresh, changed: true, reason: null };
     }
     case 'configure': {
-      if (!deliberating) return reject(translate(wm, 'rejConfigureOnly'));
+      if (!deliberating) return reject('rejConfigureOnly');
       const [settings] = command.args;
       if (
         !settings ||
@@ -1486,7 +1719,7 @@ export function transitionWorkplace(
           (k) => !['practices', 'workerAutonomy', 'governance', 'aiAuthority'].includes(k)
         )
       )
-        return reject(translate(wm, 'rejUnknownField'));
+        return reject('rejUnknownField');
       const { practices, workerAutonomy, governance, aiAuthority } = settings;
       if (
         practices !== undefined &&
@@ -1494,40 +1727,43 @@ export function transitionWorkplace(
           practices.some((p) => !PRACTICES.some((known) => known.id === p)) ||
           new Set(practices).size !== practices.length)
       )
-        return reject(translate(wm, 'rejUnknownPractice'));
+        return reject('rejUnknownPractice');
       if (
         workerAutonomy !== undefined &&
         !['directed', 'individual', 'team'].includes(workerAutonomy)
       )
-        return reject(translate(wm, 'rejInvalidAutonomy'));
+        return reject('rejInvalidAutonomy');
       if (
         governance !== undefined &&
         !['consultative', 'team-consent', 'member-vote'].includes(governance)
       )
-        return reject(translate(wm, 'rejInvalidGovernance'));
+        return reject('rejInvalidGovernance');
       if (aiAuthority !== undefined && !['advice', 'bounded'].includes(aiAuthority))
-        return reject(translate(wm, 'rejInvalidAuthority'));
+        return reject('rejInvalidAuthority');
       const next = {
         practices: [...(practices ?? s.practices)],
         workerAutonomy: workerAutonomy ?? s.workerAutonomy,
         governance: governance ?? s.governance,
         aiAuthority: aiAuthority ?? s.aiAuthority,
       };
+      // Practices are a set: toggling one off and on again reorders the list
+      // without changing any term. Working if the same set in another order
+      // keeps every recorded check, ballot and consent.
       if (
-        JSON.stringify(next) ===
+        JSON.stringify({ ...next, practices: [...next.practices].sort() }) ===
         JSON.stringify({
-          practices: s.practices,
+          practices: [...s.practices].sort(),
           workerAutonomy: s.workerAutonomy,
           governance: s.governance,
           aiAuthority: s.aiAuthority,
         })
       )
-        return reject(translate(wm, 'rejConfigUnchanged'));
+        return reject('rejConfigUnchanged');
       if (
         s.objections.some((o) => o.status === 'open') &&
         s.practices.some((p) => !next.practices.includes(p))
       )
-        return reject(translate(wm, 'rejResolveBeforeRemoving'));
+        return reject('rejResolveBeforeRemoving');
       Object.assign(s, next);
       invalidate(s);
       s.chairBallots = {};
@@ -1537,10 +1773,9 @@ export function transitionWorkplace(
     }
     case 'selectPlan': {
       const [id] = command.args;
-      if (s.improvement && id !== 'steady') return reject(translate(wm, 'rejNoStacking'));
-      if (!deliberating || !WORKPLACE_PLANS.some((p) => p.id === id))
-        return reject(translate(wm, 'rejKnownPlan'));
-      if (s.planId === id) return reject(translate(wm, 'rejPlanUnchanged'));
+      if (s.improvement && id !== 'steady') return reject('rejNoStacking');
+      if (!deliberating || !WORKPLACE_PLANS.some((p) => p.id === id)) return reject('rejKnownPlan');
+      if (s.planId === id) return reject('rejPlanUnchanged');
       s.planId = id;
       invalidate(s);
       record(s, 'team', 'plan-revised', translate(wm, 'evPlanRevised'));
@@ -1548,9 +1783,8 @@ export function transitionWorkplace(
     }
     case 'understand': {
       const m = member(command.args[0]);
-      if (!deliberating || !m || m.understood) return reject(translate(wm, 'rejUnderstand'));
-      if (s.campaign && !checksPassed(s.campaign, m.id))
-        return reject(translate(wm, 'rejUnderstandChecks'));
+      if (!deliberating || !m || m.understood) return reject('rejUnderstand');
+      if (s.campaign && !checksPassed(s.campaign, m.id)) return reject('rejUnderstandChecks');
       m.understood = true;
       record(s, m.id, 'understood', translate(wm, 'evUnderstood'));
       break;
@@ -1559,7 +1793,7 @@ export function transitionWorkplace(
       const [id, approve] = command.args;
       const m = member(id);
       if (!deliberating || !m?.understood || typeof approve !== 'boolean' || m.ballot === approve)
-        return reject(translate(wm, 'rejVote'));
+        return reject('rejVote');
       m.ballot = approve;
       record(
         s,
@@ -1582,8 +1816,8 @@ export function transitionWorkplace(
         s.planId !== 'cover' ||
         m.coverConsent === accept
       )
-        return reject(translate(wm, 'rejCoverConsent'));
-      if (accept && !eligibleCover(m)) return reject(translate(wm, 'rejNotQualified'));
+        return reject('rejCoverConsent');
+      if (accept && !eligibleCover(m)) return reject('rejNotQualified');
       m.coverConsent = accept;
       record(
         s,
@@ -1602,7 +1836,7 @@ export function transitionWorkplace(
         !['deliberating', 'active'].includes(s.phase) ||
         m.sharing === share
       )
-        return reject(translate(wm, 'rejShare'));
+        return reject('rejShare');
       m.sharing = share;
       m.shareUntilMinute = share ? s.durationMinutes : null;
       record(
@@ -1624,14 +1858,14 @@ export function transitionWorkplace(
         !m.eligibleTasks.includes(task) ||
         m.chosenTask === task
       )
-        return reject(translate(wm, 'rejChooseTask'));
+        return reject('rejChooseTask');
       m.chosenTask = task;
       invalidate(s);
       record(s, id, 'work-choice', translate(wm, 'evTaskChanged'));
       break;
     }
     case 'simulateResponses': {
-      if (!deliberating || s.mode !== 'game') return reject(translate(wm, 'rejSimulateMode'));
+      if (!deliberating || s.mode !== 'game') return reject('rejSimulateMode');
       let changed = false;
       for (const m of s.members) {
         if (s.campaign) {
@@ -1666,7 +1900,7 @@ export function transitionWorkplace(
           changed = true;
         }
       }
-      if (!changed) return reject(translate(wm, 'rejAuthoredAlready'));
+      if (!changed) return reject('rejAuthoredAlready');
       record(
         s,
         'simulation',
@@ -1682,10 +1916,10 @@ export function transitionWorkplace(
         !KINDS.includes(kind) ||
         !['deliberating', 'active'].includes(s.phase)
       )
-        return reject(translate(wm, 'rejObjectRole'));
+        return reject('rejObjectRole');
       if (s.objections.some((o) => o.actorId === id && o.kind === kind && o.status === 'open'))
-        return reject(translate(wm, 'rejObjectionOpen'));
-      if (s.objections.length >= 32) return reject(translate(wm, 'rejObjectionFull'));
+        return reject('rejObjectionOpen');
+      if (s.objections.length >= 32) return reject('rejObjectionFull');
       s.objections.push({
         id: `o-${s.objections.length + 1}`,
         actorId: id,
@@ -1707,7 +1941,7 @@ export function transitionWorkplace(
         o.status !== 'open' ||
         o.actorId !== actor
       )
-        return reject(translate(wm, 'rejResolveRaiser'));
+        return reject('rejResolveRaiser');
       const pressure = CAMPAIGN_PRESSURES.find((item) => item.objection === o.statement);
       if (
         pressure &&
@@ -1716,7 +1950,7 @@ export function transitionWorkplace(
             event.kind === 'pressure-protected' && event.detail.startsWith(`${pressure.id}: `)
         )
       )
-        return reject(translate(wm, 'rejRestateFirst'));
+        return reject('rejRestateFirst');
       o.status = 'resolved';
       o.resolution = translate(wm, 'objectionResolution', { actor, kind: o.kind });
       record(s, actor, 'objection-resolved', o.resolution);
@@ -1724,9 +1958,10 @@ export function transitionWorkplace(
     }
     case 'activate': {
       if (!Number.isSafeInteger(command.args[0]) || command.args[0] !== s.revision)
-        return reject(translate(wm, 'rejStaleRevision'));
+        return reject('rejStaleRevision');
       const readiness = workplaceReadiness(s);
-      if (!readiness.allowed) return reject(readiness.reasons.join(' '));
+      if (!readiness.allowed)
+        return { changed: false, reason: readiness.reasons.join(' '), state: previous };
       const p = planOf(s);
       // Reloads expire consent. Reserve only unpaid work, retaining the setup
       // already purchased while charging any newly selected setup before work.
@@ -1776,7 +2011,7 @@ export function transitionWorkplace(
         !['deliberating', 'active'].includes(s.phase) ||
         (m.coverConsent !== true && !m.sharing)
       )
-        return reject(translate(wm, 'rejNoConsentToWithdraw'));
+        return reject('rejNoConsentToWithdraw');
       const withdrawingCover = m.coverConsent === true;
       m.sharing = false;
       m.shareUntilMinute = null;
@@ -1790,8 +2025,7 @@ export function transitionWorkplace(
       break;
     }
     case 'stop': {
-      if (!['deliberating', 'active'].includes(s.phase))
-        return reject(translate(wm, 'rejNoScenario'));
+      if (!['deliberating', 'active'].includes(s.phase)) return reject('rejNoScenario');
       settle(s, translate(wm, 'settleStopped'));
       break;
     }
@@ -1809,7 +2043,7 @@ export function transitionWorkplace(
         shipped > 1e9 ||
         typeof emergency !== 'boolean'
       )
-        return reject(translate(wm, 'rejNoTick'));
+        return reject('rejNoTick');
       const links = () => JSON.stringify([workplaceMission(s), s.campaign?.followOn]);
       const beforeMission = links();
       const observing = !(s.phase === 'review' && (s.campaign?.shift === 2 || s.improvement));
@@ -1821,7 +2055,7 @@ export function transitionWorkplace(
           ? observeLink(s.campaign.followOn, followOnObservation)
           : 0;
       if (s.phase === 'deliberating') {
-        if (links() === beforeMission) return reject(translate(wm, 'rejNoMissionReceipt'));
+        if (links() === beforeMission) return reject('rejNoMissionReceipt');
         break;
       }
       if (
@@ -1835,7 +2069,7 @@ export function transitionWorkplace(
       if (s.phase === 'review') {
         if (emergency || !s.members.some((m) => m.recoveryOwedMinutes > 0)) {
           if (links() !== beforeMission) break;
-          return reject(translate(wm, 'rejNoRecovery'));
+          return reject('rejNoRecovery');
         }
         deliverRecovery(s, delta);
         break;
@@ -1907,7 +2141,7 @@ export function transitionWorkplace(
         !member(candidate) ||
         s.chairBallots[voter] === candidate
       )
-        return reject(translate(wm, 'rejElect'));
+        return reject('rejElect');
       s.chairBallots[voter] = candidate;
       s.electedChair =
         s.members.find((m) => Object.values(s.chairBallots).filter((v) => v === m.id).length >= 3)
@@ -1925,7 +2159,7 @@ export function transitionWorkplace(
         !DESTINATIONS.includes(destination) ||
         s.surplusBallots[voter] === destination
       )
-        return reject(translate(wm, 'rejSurplusVote'));
+        return reject('rejSurplusVote');
       s.surplusBallots[voter] = destination;
       record(s, voter, 'surplus-ballot', translate(wm, 'evSurplusBallot', { destination }));
       break;
@@ -1940,11 +2174,11 @@ export function transitionWorkplace(
         s.members.some((m) => m.recoveryOwedMinutes > 0) ||
         s.objections.some((o) => o.status === 'open')
       )
-        return reject(translate(wm, 'rejSettleFirst'));
+        return reject('rejSettleFirst');
       const destination = DESTINATIONS.find(
         (d) => Object.values(s.surplusBallots).filter((v) => v === d).length >= 3
       );
-      if (!destination) return reject(translate(wm, 'rejSurplusAgree'));
+      if (!destination) return reject('rejSurplusAgree');
       const surplus = Math.min(
         s.finance.cash,
         Math.max(
@@ -1956,7 +2190,7 @@ export function transitionWorkplace(
             s.finance.improvementSpend
         )
       );
-      if (surplus <= 1e-8) return reject(translate(wm, 'rejNoSurplus'));
+      if (surplus <= 1e-8) return reject('rejNoSurplus');
       if (destination === 'members') {
         s.finance.cash -= surplus;
         s.finance.distributed += surplus;
@@ -1976,7 +2210,7 @@ export function transitionWorkplace(
       break;
     }
     default:
-      return reject(translate(wm, 'rejUnknownAction'));
+      return reject('rejUnknownAction');
   }
   return { changed: true, reason: null, state: s };
 }
@@ -2134,7 +2368,10 @@ function restoreImprovementSnapshot(input: object): WorkplaceState {
       (terms.verdict === 'adopt' && (!terms.funded || terms.stopped || restored.minute !== 90)) ||
       (terms.verdict && improvementObligations(restored).length) ||
       (!terms.funded && !terms.stopped && (restored.minute !== 0 || restored.shippedKg !== 0)) ||
-      (restored.minute < 90 && !terms.stopped)
+      // An unstopped early ending is only a deliberation a reload interrupted.
+      (restored.minute < 90 &&
+        !terms.stopped &&
+        (terms.funded || restored.reviewReason !== RELOAD_SAFETY_DETAIL))
     )
       return null;
     return restored;

@@ -146,12 +146,22 @@ export const DEFAULT_CHARTER: Omit<Charter, 'seed'> = {
   mode: 'historical',
 };
 
+/**
+ * Fortune weights events and forecasts, and a sandbox draws neither: there its
+ * hardest setting is hard in name only, so it earns nothing.
+ */
+export function fortuneCounts(mode: ChronicleMode): boolean {
+  return mode !== 'sandbox';
+}
+
 export function charterScore(charter: Omit<Charter, 'seed'>): number {
   return (
     (GRAIN_OPTIONS.find((o) => o.id === charter.grain)?.score ?? 0) +
     (PLANT_OPTIONS.find((o) => o.id === charter.plant)?.score ?? 0) +
     (CUSTOMER_OPTIONS.find((o) => o.id === charter.customers)?.score ?? 0) +
-    (FORTUNE_OPTIONS.find((o) => o.id === charter.fortune)?.score ?? 0)
+    (fortuneCounts(charter.mode)
+      ? (FORTUNE_OPTIONS.find((o) => o.id === charter.fortune)?.score ?? 0)
+      : 0)
   );
 }
 

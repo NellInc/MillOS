@@ -1,8 +1,7 @@
-import { localizedEventText } from '../../chronicle/eventDeck';
+import { EVENT_DECK, localizedEventText } from '../../chronicle/eventDeck';
 import { formatGrouped } from '../../i18n';
 import { getCropYears } from '../../chronicle/cropYears';
 import { getEras } from '../../chronicle/plans';
-import { getEventDeck } from '../../chronicle/eventDeck';
 import { getForecasts } from '../../chronicle/forecasts';
 import { getFronts, localizedFrontSources } from '../../chronicle/longNight';
 import {
@@ -32,7 +31,9 @@ import { DESKS } from '../../chronicle/desks';
 import { cropWheatPenalty } from '../../chronicle/cropYears';
 import { relievedCropKinds } from '../../chronicle/effects';
 import {
+  answerablePending,
   canAfford,
+  cropTreatmentMoot,
   currentForecastChance,
   eraBonusText,
   fundOf,
@@ -40,6 +41,7 @@ import {
   FIRE_SUPPRESSION_COST,
   FORCED_FUND_PER_KNOW_HOW,
   knowHowOf,
+  mitigationRelief,
   nextEra,
   treatmentPrice,
   upkeepPerShift,
@@ -59,6 +61,7 @@ import { nextMedalTarget, trialFraction } from '../../chronicle/trials';
 
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
+import { incidentTitle } from '../../stores/incidentText';
 import {
   BUTTON,
   BUTTON_PRIMARY,
@@ -98,10 +101,12 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
   const crop = state.crop ? getCropYears()[state.crop.kind] : null;
   const penalty = cropWheatPenalty(state.crop, relievedCropKinds(state.improvements));
   const treatCost = treatmentPrice(state);
+  const awaiting = answerablePending(state, EVENT_DECK);
   const owned = state.ownedIncidents
     .map((o) => incidents.find((i) => i.id === o.incidentId))
     .filter((i): i is NonNullable<typeof i> => !!i && i.phase !== 'resolved');
-  const rawFollowing = nextEra(state);
+  // A finished chronicle reaches no further era, so it shows nothing to work toward.
+  const rawFollowing = state.status === 'active' ? nextEra(state) : null;
   const following = rawFollowing ? getEras().find((entry) => entry.id === rawFollowing.id)! : null;
   const knowHowTarget = following
     ? eraKnowHowTarget(following, state.charter?.mode ?? 'historical')
@@ -173,9 +178,12 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
             <span>
               {t('m7')} {Math.min(state.shift, CHRONICLE_SHIFTS)} {t('m8')} {CHRONICLE_SHIFTS}
             </span>
-            <span className="inline-flex items-center gap-1">
-              {t('m9')} <FundAmount value={upkeepPerShift(state)} />
-            </span>
+            {/* A finished chronicle charges no more upkeep. */}
+            {state.status === 'active' && (
+              <span className="inline-flex items-center gap-1">
+                {t('m9')} <FundAmount value={upkeepPerShift(state)} />
+              </span>
+            )}
           </div>
           <ProgressBar value={state.shift / CHRONICLE_SHIFTS} label={t('m10')} />
         </div>
@@ -185,6 +193,7 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
         <Section title={t('m11')}>
           <p className="flex items-center gap-2 text-rose-200">
             <Flame className="h-4 w-4" aria-hidden="true" />
+            {/* Paid suppression and a clean by hand both end in a clean duct. */}
             {state.fire.suppressing ? t('m12') : t('m13')}
           </p>
           {!state.fire.suppressing && (
@@ -240,7 +249,7 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
         </Section>
       )}
 
-      {state.trainingOffered && !state.trainingMode && (
+      {state.status === 'active' && state.trainingOffered && !state.trainingMode && (
         <Section title={t('m21')}>
           <button className={BUTTON} onClick={actions.acceptTraining}>
             {t('m22')}
@@ -253,7 +262,8 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
           {owned.map((incident) => (
             <div key={incident.id} className="flex flex-wrap items-center justify-between gap-2">
               <span>
-                {incident.title}{' '}
+                {/* The record keeps the title in the language it was raised in. */}
+                {incidentTitle(incident)}{' '}
                 <span className="text-xs text-slate-300">
                   (
                   {
@@ -270,12 +280,15 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
               {incident.phase === 'raised' ? (
                 <button
                   className={BUTTON}
-                  onClick={() => campaign.acknowledgeIncident(incident.id)}
+                  onClick={() => campaign.acknowledgeIncident(incident.id, 'operator')}
                 >
                   {t('m24')}
                 </button>
               ) : incident.phase === 'acknowledged' ? (
-                <button className={BUTTON} onClick={() => campaign.mitigateIncident(incident.id)}>
+                <button
+                  className={BUTTON}
+                  onClick={() => campaign.mitigateIncident(incident.id, 'operator')}
+                >
                   {t('m25')}
                 </button>
               ) : (
@@ -298,14 +311,15 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
         !hasMark(state, 'held-intake') &&
         !hasMark(state, 'held-floor') && <LongNightCard state={state} />}
 
-      {penalty > 0 && (
+      {/* A finished chronicle applies no effect to the plant, so it claims none. */}
+      {state.status === 'active' && penalty > 0 && (
         <Section title={crop?.label ?? t('m2')}>
           <p className="flex items-center gap-2 text-amber-200">
             <Sprout className="h-4 w-4" aria-hidden="true" />
             {t('m28')}
             {penalty}
           </p>
-          {!state.crop?.treated && treatCost > 0 && (
+          {!cropTreatmentMoot(state) && treatCost > 0 && (
             <button
               className={BUTTON}
               disabled={!canAfford(state, { fund: treatCost })}
@@ -318,25 +332,27 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
         </Section>
       )}
 
-      {state.pendingEvents.length > 0 && (
+      {awaiting.length > 0 && (
         <Section title={t('m31')}>
-          {state.pendingEvents.map((pending) => {
-            const event = getEventDeck().find((e) => e.id === pending.eventId);
+          {awaiting.map(({ pending, event }) => {
+            const title = localizedEventText(event.id, event.title);
             return (
               <div
                 key={pending.instanceId}
                 className="flex flex-wrap items-center justify-between gap-2"
               >
                 <span>
-                  {event?.title ?? pending.eventId}{' '}
+                  {title}{' '}
                   <span className="text-xs text-slate-300">
                     {pending.lapsesShift - state.shift <= 1
                       ? t('m32')
                       : t('p54', { shifts: plural(pending.lapsesShift - state.shift, 'shift') })}
                   </span>
                 </span>
+                {/* Several can stand at once: each is named for the decision it opens. */}
                 <button
                   className={BUTTON}
+                  aria-label={t('p74', { title })}
                   onClick={() =>
                     window.dispatchEvent(
                       new CustomEvent(OPEN_EVENT, { detail: pending.instanceId })
@@ -358,6 +374,8 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
             .map((forecast) => {
               const definition = getForecasts()[forecast.kind];
               const due = Math.max(0, forecast.dueShift - state.shift);
+              // What paying still buys: the floor can leave less than the full relief, or none.
+              const relief = Math.round(mitigationRelief(state, forecast) * 100);
               return (
                 <div key={forecast.id} className="space-y-1">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -375,12 +393,19 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
                   ) : (
                     <button
                       className={BUTTON}
-                      disabled={!canAfford(state, { fund: definition.mitigationCost })}
+                      disabled={
+                        relief <= 0 || !canAfford(state, { fund: definition.mitigationCost })
+                      }
                       onClick={() => actions.mitigate(forecast.id)}
                     >
-                      {definition.mitigationLabel}: -{Math.round(definition.mitigationRelief * 100)}{' '}
-                      {t('m35')}
-                      <CostTag state={state} cost={{ fund: definition.mitigationCost }} />
+                      {relief > 0 ? (
+                        <>
+                          {definition.mitigationLabel}: -{relief} {t('m35')}
+                          <CostTag state={state} cost={{ fund: definition.mitigationCost }} />
+                        </>
+                      ) : (
+                        `${definition.mitigationLabel}: ${t('m76')}`
+                      )}
                     </button>
                   )}
                 </div>
@@ -389,7 +414,7 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
         </Section>
       )}
 
-      {state.modifiers.length > 0 && (
+      {state.status === 'active' && state.modifiers.length > 0 && (
         <Section title={t('m36')}>
           <div className="flex flex-wrap gap-2">
             {state.modifiers.map((modifier) => (
@@ -412,6 +437,13 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
             <li className={earned >= knowHowTarget ? 'text-emerald-300' : ''}>
               <KnowHowAmount value={earned} /> {t('m38')} {knowHowTarget}
             </li>
+            {/* A suspension holds the mill in its era whatever the era asks of standing. */}
+            {following.minStanding === undefined && state.certifier.suspended && (
+              <li>
+                <ShieldAlert className="mr-1 inline h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+                {t('p75', { name: CERTIFIER_NAME })}
+              </li>
+            )}
             {following.minStanding !== undefined && (
               <li
                 className={
@@ -453,6 +485,7 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
           <input
             type="checkbox"
             checked={state.austerity.active}
+            disabled={state.status !== 'active'}
             onChange={(event) => actions.setAusterity(event.target.checked)}
             className="h-5 w-5"
           />
@@ -520,7 +553,11 @@ function LongNightCard({ state }: { state: ChronicleState }) {
     <Section title={t('m46')}>
       <p className="flex items-center gap-2 text-amber-200">
         <Moon className="h-4 w-4" aria-hidden="true" />
-        {pending ? t('p60') : t('p59', { shifts: plural(startsIn, 'shift') })}
+        {pending
+          ? t('p60')
+          : startsIn > 0
+            ? t('p59', { shifts: plural(startsIn, 'shift') })
+            : t('m77')}
       </p>
       {(['intake', 'floor'] as const).map((front) => {
         const prepared = frontPreparation(state, front);
@@ -556,6 +593,7 @@ function LongNightCard({ state }: { state: ChronicleState }) {
       {pending && (
         <button
           className={BUTTON_PRIMARY}
+          aria-label={t('p74', { title: t('m46') })}
           onClick={() =>
             window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: pending.instanceId }))
           }

@@ -42,11 +42,12 @@ export const safetyPanelMessages = defineMessages({
     endDrill: 'END DRILL',
     startDrill: 'START DRILL',
     clearEmergencyBeforeDrill: 'Clear the active emergency before starting a drill',
+    drillJustEnded: 'The drill has just ended',
     releaseForkliftStop: 'RELEASE FORKLIFT STOP',
 
     resolveCrisisFirst: 'Resolve the active crisis before clearing its interlock',
     chronicleFireInterlock:
-      'A Mill Chronicle duct fire holds this interlock; answer it in the Chronicle',
+      'A Mill Chronicle duct fire holds this interlock until the duct is clean',
     endDrillFirst: 'End the active egress verification drill before using the emergency stop',
     crisisInterlockActive: 'CRISIS INTERLOCK ACTIVE',
     drillInterlockActive: 'DRILL INTERLOCK ACTIVE',
@@ -62,6 +63,7 @@ export const safetyPanelMessages = defineMessages({
     confirmMessage:
       'Everything stops — machines, forklifts, the lot. The alarm stays on until you clear the interlock from this panel.',
     confirmLabel: 'Trigger emergency stop',
+    facilityStopIncident: 'Facility emergency stop triggered from the Safety panel',
   },
   'pt-BR': {
     loading: 'Carregando...',
@@ -97,11 +99,12 @@ export const safetyPanelMessages = defineMessages({
     endDrill: 'ENCERRAR SIMULADO',
     startDrill: 'INICIAR SIMULADO',
     clearEmergencyBeforeDrill: 'Encerre a emergência ativa antes de iniciar um simulado',
+    drillJustEnded: 'O simulado acabou de terminar',
     releaseForkliftStop: 'LIBERAR PARADA DAS EMPILHADEIRAS',
 
     resolveCrisisFirst: 'Resolva a crise ativa antes de liberar o intertravamento',
     chronicleFireInterlock:
-      'Um incêndio no duto da Crônica do moinho mantém este intertravamento; responda a ele na Crônica',
+      'Um incêndio no duto da Crônica do moinho mantém este intertravamento até o duto ficar limpo',
     endDrillFirst:
       'Encerre o simulado de verificação das rotas de saída em andamento antes de usar a parada de emergência',
     crisisInterlockActive: 'INTERTRAVAMENTO DE CRISE ATIVO',
@@ -118,5 +121,6 @@ export const safetyPanelMessages = defineMessages({
     confirmMessage:
       'Tudo para — máquinas, empilhadeiras, tudo. O alarme continua ligado até você liberar o intertravamento neste painel.',
     confirmLabel: 'Acionar parada de emergência',
+    facilityStopIncident: 'Parada de emergência da unidade acionada pelo painel de Segurança',
   },
 });

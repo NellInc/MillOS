@@ -14,6 +14,13 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   /** Colour accent for the icon + confirm button. Use 'red' for destructive actions. */
   tone?: 'amber' | 'red';
+  /**
+   * The confirmed action is running: every control stays in place but does
+   * nothing, so Cancel, the backdrop and Escape cannot close the dialog over
+   * an action that will finish anyway. Controls stay focusable (aria-disabled,
+   * not disabled) so keyboard focus is not dropped to <body>.
+   */
+  busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -30,6 +37,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   confirmLabel,
   cancelLabel,
   tone = 'amber',
+  busy = false,
   onConfirm,
   onCancel,
 }) => {
@@ -37,7 +45,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const modalRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   const descId = useId();
-  useFocusTrap(modalRef as React.RefObject<HTMLElement>, isOpen, onCancel);
+  const cancel = busy ? () => {} : onCancel;
+  const confirm = busy ? () => {} : onConfirm;
+  useFocusTrap(modalRef as React.RefObject<HTMLElement>, isOpen, cancel);
 
   const toneStyles =
     tone === 'red'
@@ -66,7 +76,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 z-[1000] pointer-events-auto"
-            onClick={onCancel}
+            onClick={cancel}
             aria-hidden="true"
           />
 
@@ -77,6 +87,9 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             aria-modal="true"
             aria-labelledby={titleId}
             aria-describedby={descId}
+            // A click on the message focuses the dialog, not <body>, where the
+            // global shortcuts (Space stops the forklifts) no longer saw it.
+            tabIndex={-1}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -91,7 +104,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 </h2>
               </div>
               <button
-                onClick={onCancel}
+                onClick={cancel}
+                aria-disabled={busy || undefined}
                 aria-label={t('close')}
                 className="p-1 rounded text-slate-400 hover:bg-slate-500/20 focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
@@ -109,13 +123,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             {/* Actions */}
             <div className="flex justify-end gap-2 p-4 border-t border-slate-700">
               <button
-                onClick={onCancel}
+                onClick={cancel}
+                aria-disabled={busy || undefined}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 text-slate-200 hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-colors"
               >
                 {cancelLabel ?? t('cancel')}
               </button>
               <button
-                onClick={onConfirm}
+                onClick={confirm}
+                aria-disabled={busy || undefined}
                 className={`px-4 py-2 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 transition-colors ${toneStyles.confirm}`}
               >
                 {confirmLabel ?? t('confirm')}

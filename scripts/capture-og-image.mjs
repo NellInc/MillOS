@@ -134,9 +134,10 @@ try {
   await mkdir(outputDirectory, { recursive: true });
   const baseUrl = await startPreview();
   const browser = await chromium.launch({
+    chromiumSandbox: true,
     headless: !process.argv.includes('--headed'),
     // Same default as run-performance-benchmark.mjs: the installed Chrome.
-    channel: argument('channel', 'chrome') || undefined,
+    channel: argument('channel', 'chrome') || undefined || 'chrome',
   });
   const results = [];
   for (const variant of VARIANTS) {

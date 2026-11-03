@@ -109,9 +109,11 @@ export const LANDSCAPE_HEDGES: readonly LandscapeHedge[] = [
   // Low rear boundary gives the forecourt a plot, leaving its front and sides open.
   rural([-108, 154], [-95, 155], 0.85, 1.25),
   rural([-89, 155], [-69, 154], 0.85, 1.25),
-  // Parkland edge beyond the lake and picnic ground, interrupted by a foot gap.
-  rural([163, 96], [168, 119], 1.1, 1.5),
-  rural([169, 129], [165, 154], 1.1, 1.5),
+  // Lineside hedge beyond the railway, interrupted by a foot gap. It began as
+  // the parkland edge at x 163-169; it now stands clear of the ballast cess
+  // (constants/railwayLayout.ts) and of platform 2's south ramp.
+  rural([167.5, 99], [171, 119], 1.1, 1.5),
+  rural([172, 129], [168.5, 154], 1.1, 1.5),
 ];
 
 export function landscapeCrownTransforms(segments: number) {
@@ -168,13 +170,22 @@ export function meadowSiteClear(x: number, z: number, radius: number) {
   );
 }
 
+/** Largest seat drop, as a fraction of height, that leaves a shrub showing
+ * over half its height and a stone (crest 0.37 of its height above the seat)
+ * a visible crown. */
+export const MEADOW_SHRUB_MAX_DROP = 0.45;
+export const MEADOW_STONE_MAX_DROP = 0.22;
+
 export function meadowTransforms(segments: number, rocks = false) {
   return MEADOW_POCKETS.flatMap(([cx, cz, rx, rz], pocket) => {
     const count = rocks ? 12 : 48;
     return Array.from({ length: count }, (_, i) => {
       const seed = [cx + i * 0.73, 0, cz + pocket] as const;
-      const a = treeSeed(seed, 21) * Math.PI * 2;
-      const radius = Math.sqrt(treeSeed(seed, 22));
+      // Stones draw their own spot: on the shrubs' channels every stone sat
+      // under one of the pocket's first twelve crowns, a grey pad beneath it.
+      const spot = rocks ? 40 : 0;
+      const a = treeSeed(seed, 21 + spot) * Math.PI * 2;
+      const radius = Math.sqrt(treeSeed(seed, 22 + spot));
       const x = cx + Math.cos(a) * radius * rx;
       const z = cz + Math.sin(a) * radius * rz;
       const width = rocks ? 0.6 + treeSeed(seed, 23) * 1.5 : 1.5 + treeSeed(seed, 23) * 2.7;
@@ -200,14 +211,21 @@ export function meadowTransforms(segments: number, rocks = false) {
           );
         })
       );
+      // Where the slope across the foot is steeper than the item is tall, the
+      // seat above sinks it whole: a crown keeps under half its height above
+      // its own centre, a stone's crest drops under the turf. Leave those out.
+      const drop = ground - seated;
+      if (drop > height * (rocks ? MEADOW_STONE_MAX_DROP : MEADOW_SHRUB_MAX_DROP)) return null;
       return {
         position: [x, seated + (rocks ? -height * 0.16 : height / 2), z] as const,
         scale: [width, height, depth] as const,
         angle: treeSeed(seed, 26) * Math.PI * 2,
         tint: 0.76 + treeSeed(seed, 27) * 0.24,
       };
-    }).filter((item) =>
-      meadowSiteClear(item.position[0], item.position[2], Math.max(item.scale[0], item.scale[2]))
+    }).filter(
+      (item): item is NonNullable<typeof item> =>
+        item !== null &&
+        meadowSiteClear(item.position[0], item.position[2], Math.max(item.scale[0], item.scale[2]))
     );
   });
 }

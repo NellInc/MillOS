@@ -4,7 +4,7 @@ import type {
   OrderExecutionState,
 } from '../../../stores/operationsCampaignStore';
 import { CAMPAIGN_MASS_EPSILON_KG } from '../../../simulation/operationsPlay';
-import { formatFixed, translate } from '../../../i18n';
+import { formatFixed, formatGrouped, translate } from '../../../i18n';
 import { dispatchBlockText } from '../../../stores/dispatchBlockText';
 import { deliveryJourneyMessages as m } from './deliveryJourney.messages';
 
@@ -19,6 +19,8 @@ interface DeliveryJourney {
   focus?: 'maintenance';
   /** The opening lesson: the card offers a keyboard route to inspect a machine. */
   inspect?: true;
+  /** The quality-hold step: the only one whose Overview route is a QC review. */
+  quality?: true;
 }
 
 /** The oldest open work order, as the guide reads it; read-only. */
@@ -79,8 +81,8 @@ function deriveTripStatus(
   const trip = translate(m, 'tripStatus', {
     loads,
     loadsText: formatFixed(loads, 0),
-    capacity: formatFixed(capacity, 0),
-    left: formatFixed(leftKg, 0),
+    capacity: formatGrouped(Math.round(capacity)),
+    left: formatGrouped(Math.round(leftKg)),
   });
   if (!truck || truck.docked) return trip;
   return (
@@ -118,7 +120,7 @@ export function deriveDeliveryJourney(
     return {
       title: translate(m, 'fulfilledTitle'),
       detail: translate(m, 'fulfilledDetail', {
-        kg: formatFixed(order.shippedKg, 0),
+        kg: formatGrouped(Math.round(order.shippedKg)),
         product,
         customer: order.customer,
       }),
@@ -168,6 +170,7 @@ export function deriveDeliveryJourney(
         reason: dispatchBlockText(execution.dispatchLoad) ?? translate(m, 'qualityHoldUnknown'),
       }),
       workspace: 'overview' as const,
+      quality: true,
       entryId: 'batch-quality',
     };
   const load = execution.dispatchLoad;
@@ -185,7 +188,7 @@ export function deriveDeliveryJourney(
     const waiting =
       dispatchBlockText(load) ??
       translate(m, 'releasedWaiting', {
-        kg: formatFixed(execution.releasedFinishedKg, 0),
+        kg: formatGrouped(Math.round(execution.releasedFinishedKg)),
         product,
       });
     return {
@@ -213,9 +216,9 @@ export function deriveDeliveryJourney(
   }
   if (execution.stage === 'dispatched') {
     const receipt = translate(m, 'departedDetail', {
-      lastKg: formatFixed(load.lastDispatchKg, 0),
-      shippedKg: formatFixed(order.shippedKg, 0),
-      requiredKg: formatFixed(order.requiredKg, 0),
+      lastKg: formatGrouped(Math.round(load.lastDispatchKg)),
+      shippedKg: formatGrouped(Math.round(order.shippedKg)),
+      requiredKg: formatGrouped(Math.round(order.requiredKg)),
       customer: order.customer,
     });
     return {
@@ -247,11 +250,11 @@ export function deriveDeliveryJourney(
     title: translate(m, 'followTitle'),
     view: 'Milling',
     detail: translate(m, 'followDetail', {
-      sourceKg: formatFixed(execution.sourceInventoryKg, 0),
+      sourceKg: formatGrouped(Math.round(execution.sourceInventoryKg)),
       grain,
       setpoint: formatFixed(execution.lineSetpointPercent, 0),
       product,
-      releasedKg: formatFixed(execution.releasedFinishedKg, 0),
+      releasedKg: formatGrouped(Math.round(execution.releasedFinishedKg)),
       quality,
     }),
     workspace: 'scada' as const,

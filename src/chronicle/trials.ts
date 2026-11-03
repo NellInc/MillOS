@@ -176,7 +176,12 @@ export function advanceTrial(
       return {
         ...next,
         phase: 'failed',
-        failureReason: `${next.qualityFailureKg.toFixed(0)} kg failed its recipe quality threshold.`,
+        // An order's last residual can be under a kilogram; it must not read as 0 kg.
+        failureReason: `${
+          next.qualityFailureKg >= 1
+            ? formatFixed(next.qualityFailureKg, 0, 'en')
+            : formatFixed(Math.max(0.1, Math.ceil(next.qualityFailureKg * 10) / 10), 1, 'en')
+        } kg failed its recipe quality threshold.`,
       };
     }
     const energyOk =
@@ -201,16 +206,16 @@ export function trialShortfall(definition: TrialDefinition, progress: TrialProgr
   if (goal.kind === 'clean_closes')
     return `${progress.cleanCloses} of ${goal.closes} consecutive clean shift closes.`;
   const parts = [
-    `${progress.dispatchedKg.toFixed(0)} of ${goal.kg.toLocaleString()} kg dispatched.`,
+    `${formatGrouped(Math.round(progress.dispatchedKg), undefined, 'en')} of ${formatGrouped(goal.kg, undefined, 'en')} kg dispatched.`,
   ];
   if (goal.maxEnergyPerKg !== undefined && progress.dispatchedKg > 0)
     parts.push(
-      `Energy ${(progress.energyCost / progress.dispatchedKg).toFixed(3)} per kg against ${goal.maxEnergyPerKg}.`
+      `Energy ${formatFixed(progress.energyCost / progress.dispatchedKg, 3, 'en')} per kg against ${goal.maxEnergyPerKg}.`
     );
   const graded = gradedShiftsOf(progress);
   if (goal.minAverageGrade !== undefined && graded > 0)
     parts.push(
-      `Average grade points ${(progress.gradePoints / graded).toFixed(1)} against ${GRADE_POINTS[goal.minAverageGrade]}.`
+      `Average grade points ${formatFixed(progress.gradePoints / graded, 1, 'en')} against ${GRADE_POINTS[goal.minAverageGrade]}.`
     );
   return parts.join(' ');
 }
@@ -232,7 +237,7 @@ export function trialGoalText(definition: TrialDefinition): string {
   if (goal.kind === 'clean_closes')
     return `${goal.closes} clean shift closes in a row within ${definition.durationShifts} shifts`;
   const conditions = trialGoalConditions(definition);
-  return `dispatch ${goal.kg.toLocaleString()} kg in ${definition.durationShifts} shifts${conditions ? `, ${conditions}` : ''}`;
+  return `dispatch ${formatGrouped(goal.kg, undefined, 'en')} kg in ${definition.durationShifts} shifts${conditions ? `, ${conditions}` : ''}`;
 }
 
 /** Progress toward the goal, 0..1, for the trial bar. */
@@ -280,7 +285,7 @@ export function localizedTrialShortfall(
     });
   const parts = [
     copy('{done} of {total} kg dispatched.', {
-      done: formatFixed(progress.dispatchedKg),
+      done: formatGrouped(Math.round(progress.dispatchedKg)),
       total: formatGrouped(goal.kg),
     }),
   ];

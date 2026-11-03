@@ -36,6 +36,7 @@ import { SpendCapError } from '../spendBudget';
 import { webgpuClient } from '../webgpuClient';
 import { MachineType, AIDecision } from '../../types';
 import { setLocale } from '../../i18n';
+import { keyedText } from '../../i18n/alertCopy';
 
 // Mock the store
 vi.mock('../../stores/productionStore', () => ({
@@ -289,6 +290,58 @@ describe('aiEngine - Core Functions', () => {
 
       expect(decision).not.toBeNull();
       expect(decision?.type).toBe('safety');
+    });
+
+    // F28: an unattended heuristic engine filed a card every 6 s with no
+    // duplicate check, so the 50-card queue filled with identical pending cards
+    // and every later admission (alert reactions, strategic plans) was refused.
+    it('files no second card while one for the same machine and type is still pending', () => {
+      const store = vi.mocked(useProductionStore.getState)();
+      const pending = {
+        id: 'plant-optimization-1',
+        type: 'optimization',
+        status: 'pending',
+        machineId: 'RM-101',
+      } as AIDecision;
+      vi.mocked(useProductionStore.getState).mockReturnValue({
+        ...store,
+        aiDecisions: [pending],
+      } as any);
+      expect(generateContextAwareDecision()).toBeNull();
+      expect(store.addAIDecision).not.toHaveBeenCalled();
+
+      // Once the player disposes of it, the engine may file a fresh one.
+      vi.mocked(useProductionStore.getState).mockReturnValue({
+        ...store,
+        aiDecisions: [{ ...pending, status: 'superseded' }],
+      } as any);
+      expect(generateContextAwareDecision()).toMatchObject({
+        type: 'optimization',
+        machineId: 'RM-101',
+      });
+      expect(store.addAIDecision).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves queue room for alert reactions and strategic plans while cards wait unattended', () => {
+      const store = vi.mocked(useProductionStore.getState)();
+      // Forty unresolved cards about other equipment: the 15-machine plant can
+      // reach that many distinct machine-and-type pairs over a long session.
+      const waiting = Array.from(
+        { length: 40 },
+        (_, index) =>
+          ({
+            id: `plant-maintenance-${index}`,
+            type: 'maintenance',
+            status: 'pending',
+            machineId: `OTHER-${index}`,
+          }) as AIDecision
+      );
+      vi.mocked(useProductionStore.getState).mockReturnValue({
+        ...store,
+        aiDecisions: waiting,
+      } as any);
+      expect(generateContextAwareDecision()).toBeNull();
+      expect(store.addAIDecision).not.toHaveBeenCalled();
     });
 
     it('should add decision to store when generated', () => {
@@ -635,7 +688,7 @@ describe('aiEngine - Core Functions', () => {
       useAIConfigStore.setState((state) => ({
         aiMode: 'hybrid',
         llmBackend: 'haiku',
-        connectedProviders: { haiku: true, luna: false },
+        connectedProviders: { ...state.connectedProviders, haiku: true, luna: false },
         strategic: {
           ...state.strategic,
           legacyPriorities: [],
@@ -648,7 +701,7 @@ describe('aiEngine - Core Functions', () => {
       vi.restoreAllMocks();
       useAIConfigStore.setState((state) => ({
         aiMode: 'heuristic',
-        connectedProviders: { haiku: false, luna: false },
+        connectedProviders: { ...state.connectedProviders, haiku: false, luna: false },
         strategic: { ...state.strategic, legacyPriorities: [], isThinking: false },
       }));
     });
@@ -789,6 +842,28 @@ describe('aiEngine - Core Functions', () => {
       expect(useAIConfigStore.getState().aiMode).toBe('heuristic');
       expect(isTacticalLayerActive()).toBe(true);
       expect(useAIConfigStore.getState().connectionError).toMatch(/cap reached/);
+    });
+
+    // The AI settings show this refusal as connectionError; stored as English
+    // text, it stayed English after a switch to Portuguese.
+    it('files the cap refusal with its key, so it reads in the language active now', async () => {
+      configureStrategicLayer();
+      useAIConfigStore.setState({ aiMode: 'gemini' });
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'generateContent').mockRejectedValue(
+        new SpendCapError('Session cost cap reached. No paid request was sent.')
+      );
+      await generateStrategicDecision();
+      const { connectionError, connectionErrorCopy } = useAIConfigStore.getState();
+      setLocale('pt-BR');
+      try {
+        expect(keyedText(connectionErrorCopy ?? undefined, connectionError ?? '')).toMatch(
+          /teto de custo da sessão/
+        );
+      } finally {
+        setLocale('en');
+        useAIConfigStore.setState({ connectionError: null, connectionErrorCopy: null });
+      }
     });
 
     it('names people only from a live shift, and only as team totals', async () => {
@@ -1076,6 +1151,34 @@ describe('aiEngine - Core Functions', () => {
       expect(production.addAIDecision).not.toHaveBeenCalled();
 
       // The cadence picks up again once the plant has run for a full interval.
+      vi.advanceTimersByTime(6_000);
+      expect(production.addAIDecision).toHaveBeenCalled();
+    });
+
+    // Pass 7: a hidden browser tab stops the frame loop, and with it the
+    // plant, but the engine's interval kept running: cards about a frozen
+    // plant and a paid strategic request every minute on the player's key.
+    // Working if a hidden tab holds the engine as a held clock does.
+    it('files nothing and spends nothing while the browser tab is hidden', () => {
+      const production = vi.mocked(useProductionStore.getState)();
+      const game = {
+        currentShift: 'morning',
+        weather: 'clear',
+        emergencyDrillMode: false,
+        gameSpeed: 1,
+        isTabVisible: false,
+      };
+      vi.mocked(useGameSimulationStore.getState).mockImplementation(() => game as any);
+      const cleanup = initializeAIEngine();
+      cleanups.push(cleanup);
+      singletonCleanups.push(cleanup);
+
+      vi.advanceTimersByTime(60_000);
+      expect(production.addAIDecision).not.toHaveBeenCalled();
+
+      game.isTabVisible = true;
+      vi.advanceTimersByTime(2_000);
+      expect(production.addAIDecision).not.toHaveBeenCalled();
       vi.advanceTimersByTime(6_000);
       expect(production.addAIDecision).toHaveBeenCalled();
     });

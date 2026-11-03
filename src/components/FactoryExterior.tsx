@@ -128,6 +128,7 @@ import {
   BUS_SHELTER_SITE,
   BUS_SHELTER_LIGHT,
   CAFE_COURT_LANTERN,
+  FRONT_POND_APPROACH,
 } from '../constants/publicRealmLayout';
 import { generateMachineORM } from '../textures';
 import { createCheckpointGateState, stepCheckpointGate } from './exterior/checkpointLogic';
@@ -163,8 +164,15 @@ import {
   createVictorianTunnelPortalGeometry,
   createVictorianTunnelSideGeometry,
   ROAD_TUNNEL_EARTH_MATERIAL,
+  ROAD_TUNNEL_HILL,
+  ROAD_TUNNEL_TREES,
   RoadTunnel,
 } from './scenery/Tunnel';
+import { InstancedTreeField } from './scenery/InstancedFoliage';
+import { RAILWAY, RAILWAY_PORTALS, RAILWAY_STATION } from '../constants/railwayLayout';
+import { RailwayTrack } from './scenery/RailwayTrack';
+import { RAILWAY_LAMPS, RailwayStation } from './scenery/RailwayStation';
+import { RailwayTrain } from './scenery/RailwayTrain';
 import {
   SimpleTreeInstances,
   ParkBenchInstances,
@@ -347,9 +355,8 @@ const CANAL_WALL_ROUGHNESS = cloneTiledTexture(PROCEDURAL_TEXTURES.concreteRough
 const CANAL_WALL_NORMAL = cloneTiledTexture(PROCEDURAL_TEXTURES.panelNormal, 110, 1);
 const CANAL_WALL_NORMAL_SCALE = new THREE.Vector2(0.25, 0.25);
 
-/** Coarse brick for the 6m Victorian tunnel portal. */
+/** Coarse brick for the Victorian portals on the railway's tunnel mouths. */
 const VICTORIAN_PORTAL_FACE = createVictorianTunnelPortalGeometry();
-const VICTORIAN_PORTAL_EXIT = createVictorianTunnelPortalGeometry(11, 7, 1);
 const PORTAL_BRICK_MAP = cloneTiledTexture(PROCEDURAL_TEXTURES.brickColor, 2, 3);
 const PORTAL_BRICK_NORMAL = cloneTiledTexture(PROCEDURAL_TEXTURES.brickNormal, 2, 3);
 const PORTAL_BRICK_NORMAL_SCALE = new THREE.Vector2(0.45, 0.45);
@@ -846,8 +853,46 @@ const NissenHut: React.FC<{
   length?: number;
   rotation?: number;
 }> = ({ position, length = 12, rotation = 0 }) => {
+  const radius = 2.5;
+  const quality = useGraphicsStore((state) => state.graphics.quality);
+  // Level concrete raft, built up on the low side. The west hut stands on the
+  // river bank, whose ground falls 1.19 m along its 14 m: set at y 0 its river
+  // end hung in the air. The raft runs down to the lowest ground under its
+  // footprint and 0.2 m into it (the east hut's falls 0.11 m); on ground
+  // within 6 cm of the datum there is none.
+  const raft = useMemo(() => {
+    const segments = getTerrainGridSegments(quality);
+    const width = radius * 2 + 0.6;
+    const depth = length + 0.8;
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    let low = Infinity;
+    for (let i = 0; i <= 4; i++)
+      for (let j = 0; j <= 8; j++) {
+        const lx = (i / 4 - 0.5) * width;
+        const lz = (j / 8 - 0.5) * depth;
+        low = Math.min(
+          low,
+          sampleTerrainGroundHeight(
+            position[0] + lx * cos + lz * sin,
+            position[2] - lx * sin + lz * cos,
+            segments
+          )
+        );
+      }
+    const bottom = SITE_LAYOUT.datum.terrain + low - position[1] - 0.2;
+    const top = -0.01;
+    return bottom < -0.28 ? { width, depth, top, bottom } : null;
+  }, [position, length, rotation, quality]);
+
   return (
     <group position={[position[0], position[1], position[2]]} rotation={[0, rotation, 0]}>
+      {raft && (
+        <OutletStone
+          position={[0, (raft.top + raft.bottom) / 2, 0]}
+          size={[raft.width, raft.top - raft.bottom, raft.depth]}
+        />
+      )}
       <GeneratedBoundary fallback={<NissenHutFallback length={length} />}>
         <group scale={[1, 1, (length + 0.4) / 12.4]}>
           <GeneratedModel asset="nissenHut" />
@@ -1030,16 +1075,39 @@ const FixedFenceRails: React.FC<{ length: number }> = ({ length }) => {
 };
 
 // Perimeter fence section - optimized with InstancedMesh
+/**
+ * Post positions along a fence section, as fractions of its length. A section
+ * whose end meets another section's post at a corner leaves that post to it:
+ * both used to place one, two identical posts in one spot at every corner.
+ */
+export function fencePostFractions(
+  length: number,
+  postSpacing: number,
+  shared: { start?: boolean; end?: boolean } = {}
+): number[] {
+  const count = Math.floor(length / postSpacing) + 1;
+  return Array.from({ length: count }, (_, i) => (count > 1 ? i / (count - 1) : 0)).filter(
+    (_, i) => !(shared.start && i === 0) && !(shared.end && i === count - 1)
+  );
+}
+
 const FenceSection: React.FC<{
   start: [number, number, number];
   end: [number, number, number];
   postSpacing?: number;
-}> = React.memo(({ start, end, postSpacing = 8 }) => {
+  /** Ends whose corner post another section already places. */
+  sharedStart?: boolean;
+  sharedEnd?: boolean;
+}> = React.memo(({ start, end, postSpacing = 8, sharedStart, sharedEnd }) => {
   const dx = end[0] - start[0];
   const dz = end[2] - start[2];
   const length = Math.sqrt(dx * dx + dz * dz);
   const angle = Math.atan2(dx, dz);
-  const postCount = Math.floor(length / postSpacing) + 1;
+  const posts = useMemo(
+    () => fencePostFractions(length, postSpacing, { start: sharedStart, end: sharedEnd }),
+    [length, postSpacing, sharedStart, sharedEnd]
+  );
+  const postCount = posts.length;
   const meshRef = useRef<THREE.InstancedMesh>(null);
 
   // Memoize post positions
@@ -1051,16 +1119,15 @@ const FenceSection: React.FC<{
   useLayoutEffect(() => {
     if (!meshRef.current) return;
 
-    for (let i = 0; i < postCount; i++) {
-      const t = postCount > 1 ? i / (postCount - 1) : 0;
+    posts.forEach((t, i) => {
       dummy.position.set(start[0] + dx * t, 1.2, start[2] + dz * t);
       dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, dummy.matrix);
-    }
+      meshRef.current!.setMatrixAt(i, dummy.matrix);
+    });
     meshRef.current.instanceMatrix.needsUpdate = true;
     meshRef.current.computeBoundingBox();
     meshRef.current.computeBoundingSphere();
-  }, [postCount, start, dx, dz, dummy]);
+  }, [posts, start, dx, dz, dummy]);
 
   return (
     <group name="factory-exterior-content">
@@ -2134,6 +2201,9 @@ const StillCanalWater: React.FC<{
 };
 
 // Industrial Canal component - straight waterway with stone walls
+/** Top of the canal walls: each is 1.5 m tall, centred at y 0.3. */
+const CANAL_COPING_TOP = 0.3 + 1.5 / 2;
+
 const Canal: React.FC<{
   position: readonly [number, number, number];
   length: number;
@@ -2920,8 +2990,55 @@ const ROAD_RIVER_BRIDGE_FRAME_GEOMETRY = createRoadRiverBridgeFrameGeometry();
 const RIVER_FOOTBRIDGE_DECK_GEOMETRY = createRiverFootbridgeDeckGeometry();
 const RIVER_FOOTBRIDGE_FRAME_GEOMETRY = createRiverFootbridgeFrameGeometry();
 
+/**
+ * The north-road bridge, seated so its carriageway is flush with the road.
+ *
+ * Its wearing course stood at y 0.61 while the road on both banks lies at the
+ * -0.02 ground datum: the deck ends were 0.63 m kerbs with bare end faces, and
+ * the receiving trucks, which run at road level, drove through the deck. The
+ * assembly drops by that 0.63 m whole, so piers, girders and rails keep their
+ * relation to the deck. The deck also stopped at z -180 while the canyon bank
+ * already falls from z -188 (to -1.04 m at the deck end), so a north abutment
+ * carries the carriageway over that dip to level ground.
+ * Working if the carriageway reads continuous from road to deck to road.
+ */
+const ROAD_RIVER_BRIDGE_DROP = 0.61 - SITE_LAYOUT.datum.terrain;
+const ROAD_RIVER_BRIDGE_ABUTMENT = { length: 8, depth: 2.1 } as const;
+
 export const RoadRiverBridge: React.FC = () => (
-  <group name="road-river-bridge" position={[-20, 0, -145]}>
+  <group name="road-river-bridge" position={[-20, -ROAD_RIVER_BRIDGE_DROP, -145]}>
+    {/* North abutment over the bank dip, its top at the deck's top. */}
+    <mesh
+      name="road-river-bridge-north-abutment"
+      position={[
+        0,
+        0.6 - ROAD_RIVER_BRIDGE_ABUTMENT.depth / 2,
+        -35 - ROAD_RIVER_BRIDGE_ABUTMENT.length / 2,
+      ]}
+      castShadow
+      receiveShadow
+    >
+      <boxGeometry
+        args={[18, ROAD_RIVER_BRIDGE_ABUTMENT.depth, ROAD_RIVER_BRIDGE_ABUTMENT.length]}
+      />
+      <meshStandardMaterial color="#6b7280" roughness={0.9} />
+    </mesh>
+    {/* Runs on to z -34, where the deck's own course begins (it is 68 m on
+        the 70 m deck), so no bare strip shows between the two. */}
+    <mesh
+      name="road-river-bridge-north-abutment-wearing-course"
+      position={[0, 0.61, -34 - (ROAD_RIVER_BRIDGE_ABUTMENT.length + 1) / 2]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      receiveShadow
+    >
+      <planeGeometry args={[16, ROAD_RIVER_BRIDGE_ABUTMENT.length + 1]} />
+      <meshStandardMaterial
+        color="#ffffff"
+        roughness={0.9}
+        map={TARMAC_ROAD_MAP}
+        roughnessMap={TARMAC_ROAD_ROUGHNESS}
+      />
+    </mesh>
     {/* Road deck - spans the canyon */}
     <mesh name="road-river-bridge-deck" position={[0, 0.3, 0]} castShadow receiveShadow>
       <boxGeometry args={[18, 0.6, 70]} />
@@ -3123,6 +3240,42 @@ const River: React.FC = React.memo(() => {
   );
 });
 
+/**
+ * A frog's hop at time `t` (seconds plus its offset): a 0.3 m arc every 3.75 s,
+ * leaning into it, otherwise sitting. `lift` is relative to the frog's own
+ * group, which already stands at its seat; adding the seat height here again
+ * held every frog 0.21 m above its lily pad.
+ */
+export function frogHop(t: number): { lift: number; lean: number } {
+  const hopPhase = (t * 0.8) % 3;
+  if (hopPhase >= 0.3) return { lift: 0, lean: 0 };
+  const hopProgress = hopPhase / 0.3;
+  return { lift: Math.sin(hopProgress * Math.PI) * 0.3, lean: -hopProgress * 0.3 };
+}
+
+/** Pad top (the notch ring) and the frog model's feet below its origin. */
+export const LILY_PAD_TOP = 0.165;
+export const FROG_FOOT_DROP = 0.12;
+
+/**
+ * Lily pads of a pond of `radius`, pond-local. Each pad's spin is about the
+ * disc's own axis (Z before the -90 degree X turn): on Y, three's XYZ order
+ * tilted every pad about 30 degrees out of the water.
+ */
+export function pondLilyPads(radius: number) {
+  return [
+    { x: -radius * 0.3, z: radius * 0.2, rot: 0.5, frogRot: Math.PI * 0.3, hopOffset: 0 },
+    { x: radius * 0.4, z: -radius * 0.1, rot: 2.1, frogRot: -Math.PI * 0.5, hopOffset: 1.2 },
+    { x: -radius * 0.1, z: -radius * 0.4, rot: 4.2, frogRot: Math.PI * 0.8, hopOffset: 2.5 },
+    { x: radius * 0.2, z: radius * 0.35, rot: 1.0, frogRot: -Math.PI * 0.2, hopOffset: 0.7 },
+    { x: -radius * 0.45, z: -radius * 0.15, rot: 3.5, frogRot: Math.PI * 0.6, hopOffset: 1.8 },
+  ].map((pad) => ({
+    ...pad,
+    rotation: [-Math.PI / 2, 0, pad.rot] as [number, number, number],
+    frogY: LILY_PAD_TOP + FROG_FOOT_DROP,
+  }));
+}
+
 // Animated frog that hops on lily pads
 const AnimatedFrog: React.FC<{
   position: [number, number, number];
@@ -3317,16 +3470,7 @@ const Pond: React.FC<{
   radius: number;
 }> = ({ position, radius }) => {
   // Fixed lily pad positions and rotations (avoid Math.random in render)
-  const lilyPads = useMemo(
-    () => [
-      { x: -radius * 0.3, z: radius * 0.2, frogRot: Math.PI * 0.3, hopOffset: 0 },
-      { x: radius * 0.4, z: -radius * 0.1, frogRot: -Math.PI * 0.5, hopOffset: 1.2 },
-      { x: -radius * 0.1, z: -radius * 0.4, frogRot: Math.PI * 0.8, hopOffset: 2.5 },
-      { x: radius * 0.2, z: radius * 0.35, frogRot: -Math.PI * 0.2, hopOffset: 0.7 },
-      { x: -radius * 0.45, z: -radius * 0.15, frogRot: Math.PI * 0.6, hopOffset: 1.8 },
-    ],
-    [radius]
-  );
+  const lilyPads = useMemo(() => pondLilyPads(radius), [radius]);
 
   return (
     <group name="decorative-wildlife-pond" position={[position[0], position[1], position[2]]}>
@@ -3360,9 +3504,11 @@ const Pond: React.FC<{
         />
       </mesh>
       {/* Water surface. KEPT AT 0.15, and independently justified rather than
-          terrain clearance: the wave displacement is +/-0.035, so the trough of
-          this surface reaches 0.115 and it has to clear the kerb at 0.08 by
-          more than that. The 0.12 depth disc that used to sit here was both
+          terrain clearance: it was set when the wave displacement was +/-0.035,
+          so the trough reached 0.115 and had to clear the kerb at 0.08. The
+          pond profile's swell is now 0.0005 (waterAppearance.ts, x1.45 at full
+          wind), which leaves the lily pads at 0.16 clear of every crest. The
+          0.12 depth disc that used to sit here was both
           invisible (opaque surface of the same radius 0.03 above it) and
           actively harmful, for the same reason - troughs cut below 0.12 and
           flashed it through. `WATER_LAYERS.surface` is 0.08 and is what the
@@ -4690,11 +4836,9 @@ const LockGate: React.FC<{
               <meshStandardMaterial color="#1f2937" roughness={0.8} />
             </mesh>
           ))}
-          {/* Operating beam */}
-          <mesh position={[0, 2.8, -2]} rotation={[0.1, 0, 0]} castShadow>
-            <boxGeometry args={[0.15, 0.15, 4]} />
-            <meshStandardMaterial color="#78350f" roughness={0.85} />
-          </mesh>
+          {/* No centreline operating beam: it hung 4 m over open water where
+              no keeper could reach it. LockGateJoinery's balance beams stand
+              over the lockside for both bodies. */}
           {/* Walkway across top */}
           <mesh position={[0, 3, 0]} castShadow>
             <boxGeometry args={[width + 1.5, 0.15, 1]} />
@@ -7008,8 +7152,11 @@ const ParkingLot: React.FC<{
         </mesh>
       ))}
 
-      {/* Parking sign */}
-      <group position={[totalWidth / 2 + 2, 0, 0]}>
+      {/* Parking sign, beside the south entrance where the gate road arrives.
+          It stood on the east kerb, where the old tunnel road came in; that
+          kerb is now the station forecourt, and from the overhead carpark
+          camera its edge-on board read as a blue bar lying on the ground. */}
+      <group position={[4.5, 0, totalDepth / 2 + 3]}>
         {/* Sign pole */}
         <mesh position={[0, 1.5, 0]} castShadow>
           <cylinderGeometry args={[0.08, 0.08, 3, 8]} />
@@ -7034,27 +7181,43 @@ const ParkingLot: React.FC<{
         </Text>
       </group>
 
-      {/* Small trees at corners for decoration */}
+      {/* Small trees at corners for decoration. The south-east one stands on
+          the verge south of the lot, not on Riverside station's forecourt
+          tarmac in front of its entrance steps. */}
       <SimpleTree position={[-totalWidth / 2 - 3, 0, -totalDepth / 2 - 3]} scale={0.6} />
-      <SimpleTree position={[totalWidth / 2 + 3, 0, totalDepth / 2 + 3]} scale={0.7} />
+      <SimpleTree position={[totalWidth / 2 - 2.5, 0, totalDepth / 2 + 8]} scale={0.7} />
     </group>
   );
 };
 
-// Victorian Brick Tunnel Entrance - decorative industrial gatehouse style
-const TunnelEntrance: React.FC<{
-  position: [number, number, number];
-  rotation?: number;
-  length?: number;
-}> = ({ position, rotation = 0, length = 14 }) => {
+/**
+ * A brick mouth where the Riverside railway enters the foothills.
+ *
+ * The facade - arch, keystone, cornice, finialled parapet, lanterns and the
+ * 1892 plaque - is the one that stood on the road tunnel at (160, 0, 50)
+ * before Riverside station replaced it. Its 8 m arch clears a 2.7 m coach on
+ * either track of the double line by at least 0.4 m (`railwayLayout.test.ts`).
+ * Behind it the barrel vault
+ * runs `RAILWAY.boreDepth` to a black void cap, where a train disappears. The
+ * earth is the road tunnels' own hill and oaks, posed the same way
+ * (`RAILWAY_PORTALS`), so `Tunnel.test.ts` checks that its tail is buried in
+ * the foothills by the same rule.
+ * Working if a train passing the cap vanishes into the dark, and no grass,
+ * sky or hill core shows inside the bore.
+ */
+const RailwayTunnelMouth: React.FC<{
+  position: readonly [number, number, number];
+  rotation: number;
+}> = React.memo(({ position, rotation }) => {
+  const length = RAILWAY.boreDepth;
   const tunnelWidth = 9;
   const tunnelHeight = 6;
   const sideGeometry = useMemo(() => createVictorianTunnelSideGeometry(length), [length]);
   useEffect(() => () => sideGeometry.dispose(), [sideGeometry]);
-  // Victorian Red Brick. The albedo is now the procedural brick map, whose
-  // bytes are sRGB-tagged and already carry the right reflectance, so the tint
-  // is white - the old flat `#8d4004` would multiply the same hue twice and
-  // render the portal near-black. Coarse 2x3 repeat suits a 6m opening.
+  // Victorian Red Brick. The albedo is the procedural brick map, whose bytes
+  // are sRGB-tagged and already carry the right reflectance, so the tint is
+  // white - a flat `#8d4004` would multiply the same hue twice and render the
+  // portal near-black. Coarse 2x3 repeat suits a 6m opening.
   const brickSurface = {
     color: '#ffffff',
     map: PORTAL_BRICK_MAP,
@@ -7067,67 +7230,67 @@ const TunnelEntrance: React.FC<{
   const stoneColor = '#a89f91';
 
   return (
-    <group position={position} rotation={[0, rotation, 0]}>
-      {/* ===== TUNNEL INTERIOR ===== */}
-      {/* Road surface inside the tunnel. Ground datum with its own -2 offset,
-          matching the `ConnectingRoad` carriageway it continues; the 0.15 it
-          replaces was clearance for `TerrainGround`'s old 0.05 default and left
-          a 17 cm step where the open road met the portal. */}
-      <mesh position={[0, EXTERIOR_LAYERS.ground, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[tunnelWidth - 1, length + 2]} />
-        <meshStandardMaterial
-          // Hue-preserving lift, not a reset to white: this is damp tarmac
-          // under a portal, so it stays warmer and darker than the open road
-          // while the map now supplies the aggregate and the wear polish.
-          color="#b0a89f"
-          roughness={0.9}
-          map={TARMAC_ROAD_MAP}
-          roughnessMap={TARMAC_ROAD_ROUGHNESS}
-          polygonOffset
-          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
-          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
-        />
+    <group
+      name="railway-tunnel-mouth"
+      position={[position[0], position[1], position[2]]}
+      rotation={[0, rotation, 0]}
+    >
+      <mesh
+        name="railway-tunnel-hill"
+        geometry={ROAD_TUNNEL_HILL}
+        material={ROAD_TUNNEL_EARTH_MATERIAL}
+        castShadow
+        receiveShadow
+      />
+      <group name="railway-tunnel-oaks">
+        <InstancedTreeField trees={ROAD_TUNNEL_TREES} />
+      </group>
+
+      {/* ===== BORE ===== */}
+      {/* Soot-blackened barrel vault from the facade to the void cap. The
+          hill's own 12.6 m core stays hidden behind the facade and outside
+          this lining. The track and ballast run in along the alignment. */}
+      <group position={[0, 0, -length / 2]}>
+        <mesh position={[0, 2.5, 0]} rotation={[Math.PI / 2, Math.PI / 2, 0]}>
+          {/* args: [topRadius, bottomRadius, height, segments, openEnded, thetaStart, thetaLength] */}
+          <cylinderGeometry
+            args={[
+              tunnelWidth / 2 - 0.5,
+              tunnelWidth / 2 - 0.5,
+              length + 0.1,
+              32,
+              1,
+              true,
+              0,
+              Math.PI,
+            ]}
+          />
+          <meshStandardMaterial
+            // A deliberate dark variant of the same brick, well above a flat
+            // #3e2723 because the map carries most of the darkness itself.
+            color="#9a8880"
+            roughness={0.92}
+            map={PORTAL_BRICK_MAP}
+            normalMap={PORTAL_BRICK_NORMAL}
+            normalScale={PORTAL_BRICK_NORMAL_SCALE}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {/* The vault carried down to the ground below its spring line. */}
+        <mesh geometry={sideGeometry} castShadow receiveShadow>
+          <meshStandardMaterial {...brickSurface} color="#9a8880" roughness={0.92} />
+        </mesh>
+      </group>
+
+      {/* Void cap: a train beyond it is hidden. Unlit, like the road tunnels'. */}
+      <mesh name="railway-tunnel-void" position={[0, 3.3, -length + 0.08]}>
+        <planeGeometry args={[8.3, 6.7]} />
+        <meshBasicMaterial color="#030405" />
       </mesh>
 
-      {/* Tunnel Lining (Dark Brick) - Tilted away from map center */}
-      {/* User Instruction: "90 degrees, away from the center of the map" */}
-      <mesh position={[0, 2.5, 0]} rotation={[Math.PI / 2, Math.PI / 2, 0]}>
-        {/* args: [topRadius, bottomRadius, height, segments, openEnded, thetaStart, thetaLength] */}
-        {/* Rotation X=PI/2 tilts it horizontally, Y=PI/2 orients it away from center */}
-        <cylinderGeometry
-          args={[
-            tunnelWidth / 2 - 0.5,
-            tunnelWidth / 2 - 0.5,
-            length + 0.1,
-            32,
-            1,
-            true,
-            0,
-            Math.PI,
-          ]}
-        />
-        <meshStandardMaterial
-          // Soot-blackened lining: a deliberate dark variant of the same brick,
-          // lifted well above the old flat #3e2723 because the map now carries
-          // most of the darkness itself.
-          color="#9a8880"
-          roughness={0.92}
-          map={PORTAL_BRICK_MAP}
-          normalMap={PORTAL_BRICK_NORMAL}
-          normalScale={PORTAL_BRICK_NORMAL_SCALE}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Carry the barrel vault down to the ground instead of leaving its
-          lower sides open beneath the spring line. One shared draw, 24 tris. */}
-      <mesh geometry={sideGeometry} castShadow receiveShadow>
-        <meshStandardMaterial {...brickSurface} color="#9a8880" roughness={0.92} />
-      </mesh>
-
-      {/* ===== ENTRANCE FACADE (Main visual part) ===== */}
-      {/* Rotated 180 degrees so decorative greebles face outward toward factory */}
-      <group position={[0, 0, -length / 2 - 0.1]} rotation={[0, Math.PI, 0]}>
+      {/* ===== FACADE ===== */}
+      {/* Its decorated face is local +Z, toward the valley and the approaching line. */}
+      <group name="railway-tunnel-facade">
         {/* A true arch opening, shared with the lining. The former three boxes
             left a square hole, while the inverted stone trim fell underground. */}
         <GeneratedSurfaceMesh
@@ -7248,55 +7411,17 @@ const TunnelEntrance: React.FC<{
             color="#3e2723"
             anchorX="center"
             anchorY="middle"
+            // Carved into the stone, so lit with it: unlit troika glowed at night.
+            surface="painted"
           >
             1892
           </Text>
         </group>
       </group>
-
-      {/* ===== EXIT FACADE (Simpler version) ===== */}
-      <group position={[0, 0, length / 2 + 0.1]}>
-        <mesh geometry={VICTORIAN_PORTAL_EXIT} castShadow receiveShadow>
-          <meshStandardMaterial {...brickSurface} />
-        </mesh>
-        {/* Capping band, 2 cm proud of the 1 m exit wall on both faces: at the
-            wall's own depth its faces were coplanar with the wall's. */}
-        <mesh position={[0, tunnelHeight + 1, 0]} castShadow>
-          <boxGeometry args={[tunnelWidth + 4, 1.5, 1.04]} />
-          <meshStandardMaterial {...brickSurface} />
-        </mesh>
-        {[-tunnelWidth / 2 - 1.6, tunnelWidth / 2 + 1.6].map((x) => (
-          <GrimeStreak
-            key={`exit-grime-${x}`}
-            position={[x, tunnelHeight / 2 + 0.4, 0.5 + SURFACE_LAYERS.decal]}
-            width={2.2}
-            height={4.6}
-          />
-        ))}
-        <mesh position={[0, tunnelHeight + 1.8, 0]} castShadow>
-          <boxGeometry args={[tunnelWidth + 4.4, 0.4, 1.2]} />
-          <meshStandardMaterial
-            color={stoneColor}
-            roughness={0.84}
-            roughnessMap={OUTBUILDING_CONCRETE_ROUGHNESS}
-          />
-        </mesh>
-      </group>
-
-      {/* Ivy/Foliage Growing on it (Procedural cubes for now) */}
-      {[
-        { pos: [-tunnelWidth / 2 - 2, 1, -length / 2 + 0.5], scale: [1, 2, 1] },
-        { pos: [tunnelWidth / 2 + 2, 2, -length / 2 + 0.5], scale: [1.2, 3, 0.8] },
-        { pos: [-tunnelWidth / 2 - 1.5, 4, -length / 2 + 0.2], scale: [0.8, 1, 0.5] },
-      ].map((item, i) => (
-        <mesh position={item.pos as [number, number, number]} key={i} castShadow>
-          <boxGeometry args={item.scale as [number, number, number]} />
-          <meshStandardMaterial color="#2d5a27" roughness={0.9} />
-        </mesh>
-      ))}
     </group>
   );
-};
+});
+RailwayTunnelMouth.displayName = 'RailwayTunnelMouth';
 
 /** Finish only the east portal's 4.5 m approach gap. The old connector stays
  * intact: geometry UVs continue its 12 m axial domain and original dash phase.
@@ -7493,7 +7618,12 @@ const StationAccess: React.FC = () => {
           polygonOffsetUnits={POLYGON_OFFSET.exteriorTop.units}
         />
       </mesh>
-      <mesh geometry={markings} position-y={EXTERIOR_LAYERS.groundOverlay} receiveShadow>
+      <mesh
+        geometry={markings}
+        position-y={EXTERIOR_LAYERS.groundOverlay}
+        renderOrder={RENDER_ORDER.floorMarkings}
+        receiveShadow
+      >
         <meshStandardMaterial
           {...ROAD_PAINT_WHITE}
           polygonOffset
@@ -7504,6 +7634,9 @@ const StationAccess: React.FC = () => {
     </group>
   );
 };
+
+/** Pivot height of a checkpoint boom: closed, it crosses a car's bonnet. */
+const BARRIER_ARM_HEIGHT = 1.05;
 
 // Checkpoint Charlie style barrier gate with animated lifting arms
 // DESIGN: Booth sits BESIDE the road, barrier arms span ACROSS the road
@@ -7753,11 +7886,12 @@ const CheckpointBarrier: React.FC<{
           <meshBasicMaterial ref={lightRef} color="#ff0000" />
         </mesh>
 
-        {/* Barrier arm pivot - swings inward across road */}
+        {/* Barrier arm pivot - swings inward across road. At boom height: on
+            the 2.9 m post top a closed arm cleared a car roof. */}
         <group
           ref={barrierArmRef}
           name={`${dock}-checkpoint-inbound-arm`}
-          position={[0, 2.9, 0]}
+          position={[0, BARRIER_ARM_HEIGHT, 0]}
           userData={{ noStaticBatch: true, dynamic: true }}
         >
           {/* Same arm, stripes and reflector, one draw rotating with the pivot.
@@ -7799,7 +7933,7 @@ const CheckpointBarrier: React.FC<{
         <group
           ref={barrierArm2Ref}
           name={`${dock}-checkpoint-outbound-arm`}
-          position={[0, 2.9, 0]}
+          position={[0, BARRIER_ARM_HEIGHT, 0]}
           rotation={[0, Math.PI, 0]}
           userData={{ noStaticBatch: true, dynamic: true }}
         >
@@ -8968,11 +9102,13 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
         <FenceSection start={[32, 0, -85]} end={[95, 0, -85]} />
 
         {/* Canal pedestrian gate, aligned with the bridge-to-mill footway. */}
-        <FenceSection start={[-95, 0, -85]} end={[-95, 0, -51.8]} />
-        <FenceSection start={[-95, 0, -48.2]} end={[-95, 0, 85]} />
+        {/* The side sections leave their corner posts to the front and back
+            sections, so no corner carries two posts in one spot. */}
+        <FenceSection start={[-95, 0, -85]} end={[-95, 0, -51.8]} sharedStart />
+        <FenceSection start={[-95, 0, -48.2]} end={[-95, 0, 85]} sharedEnd />
 
         {/* Right fence (X+) */}
-        <FenceSection start={[95, 0, -85]} end={[95, 0, 85]} />
+        <FenceSection start={[95, 0, -85]} end={[95, 0, 85]} sharedStart sharedEnd />
 
         {/* Gate posts - front entrance (at fence gap edges) */}
         {[-32, 32].map((x, i) => (
@@ -9017,6 +9153,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
             key={start}
             position={[-7.5, EXTERIOR_LAYERS.groundOverlay, (start + end) / 2 - 195]}
             rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={RENDER_ORDER.floorMarkings}
             receiveShadow
           >
             <planeGeometry args={[0.3, end - start]} />
@@ -9031,6 +9168,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
         <mesh
           position={[7.5, EXTERIOR_LAYERS.groundOverlay, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
           receiveShadow
         >
           <planeGeometry args={[0.3, 170]} />
@@ -9047,6 +9185,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
             key={`front-dash-${i}`}
             position={[0, EXTERIOR_LAYERS.groundOverlay, -75 + i * 10]}
             rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={RENDER_ORDER.floorMarkings}
             receiveShadow
           >
             <planeGeometry args={[0.25, 5]} />
@@ -9068,6 +9207,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
         <mesh
           position={[-7.5, EXTERIOR_LAYERS.groundOverlay, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
           receiveShadow
         >
           <planeGeometry args={[0.3, 170]} />
@@ -9081,6 +9221,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
         <mesh
           position={[7.5, EXTERIOR_LAYERS.groundOverlay, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
+          renderOrder={RENDER_ORDER.floorMarkings}
           receiveShadow
         >
           <planeGeometry args={[0.3, 170]} />
@@ -9097,6 +9238,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
             key={`back-dash-${i}`}
             position={[0, EXTERIOR_LAYERS.groundOverlay, -75 + i * 10]}
             rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={RENDER_ORDER.floorMarkings}
             receiveShadow
           >
             <planeGeometry args={[0.25, 5]} />
@@ -9258,6 +9400,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
             key={`parking-${i}`}
             position={[i * 4 - 8, 0, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
+            renderOrder={RENDER_ORDER.floorMarkings}
             receiveShadow
           >
             <planeGeometry args={[0.15, 5]} />
@@ -9290,8 +9433,46 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       {/* Parking lot positioned outside east fence (fence is at x=95) */}
       <ParkingLot position={[120, 0, 50]} rows={2} spotsPerRow={6} rotation={0} />
 
-      {/* Tunnel entrance - connects to external road network */}
-      <TunnelEntrance position={[160, 0, 50]} rotation={Math.PI / 2} length={15} />
+      {/* ========== RIVERSIDE RAILWAY (constants/railwayLayout.ts) ========== */}
+      {/* Riverside station stands where the Victorian road tunnel did. That
+          tunnel's brick facade now faces the line at both foothill portals. */}
+      {RAILWAY_PORTALS.map((portal) => (
+        <RailwayTunnelMouth key={portal.id} position={portal.position} rotation={portal.rotation} />
+      ))}
+      <RailwayTrack />
+      <RailwayStation />
+      <RailwayTrain />
+      {/* The forecourt between the car park kerb and the booking hall. */}
+      <Hardstanding
+        position={[
+          (RAILWAY_STATION.forecourt.minX + RAILWAY_STATION.forecourt.maxX) / 2,
+          0,
+          (RAILWAY_STATION.forecourt.minZ + RAILWAY_STATION.forecourt.maxZ) / 2,
+        ]}
+        size={[
+          RAILWAY_STATION.forecourt.maxX - RAILWAY_STATION.forecourt.minX,
+          RAILWAY_STATION.forecourt.maxZ - RAILWAY_STATION.forecourt.minZ,
+        ]}
+      />
+      {/* Contact shade at the station's street front, as every other building
+          here has, so it still sits down on the low tier without shadows. */}
+      <GroundBlob
+        position={[
+          (RAILWAY_STATION.building.minX + RAILWAY_STATION.building.maxX) / 2,
+          (RAILWAY_STATION.building.minZ + RAILWAY_STATION.building.maxZ) / 2,
+        ]}
+        scale={RAILWAY_STATION.building.maxX - RAILWAY_STATION.building.minX + 5}
+        scaleZ={RAILWAY_STATION.building.maxZ - RAILWAY_STATION.building.minZ + 5}
+      />
+      {RAILWAY_LAMPS.map(([x, y, z, pool]) => (
+        <PathLamp
+          key={`railway-lamp-${x}-${z}`}
+          name="railway-lamp"
+          position={[x, y, z]}
+          style="victorian"
+          poolRadius={pool}
+        />
+      ))}
 
       {/* Truck road tunnels at each end of the valley (v0.30 blocky design). */}
       {Object.values(SITE_LAYOUT.roadTunnels).map((tunnel) => (
@@ -9315,8 +9496,8 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           eyeballed: the live scene reported two coplanar slabs at y -0.02
           centred (120, 50) and (120, 52.5) with bounding radii 16.01 and 17.68,
           and 17.68 is sqrt(2.5^2 + 17.5^2) - the road, to the centimetre.
-          Now two stubs that meet the lot's south and north kerbs. */}
-      <ConnectingRoad start={[120, 0, 28]} end={[120, 0, 39.5]} width={5} />
+          Now one stub from the lot's south kerb to the gate road. Its twin
+          off the north kerb ran 11.5 m into the field and stopped there. */}
       <ConnectingRoad start={[120, 0, 60.5]} end={[120, 0, 70]} width={5} />
 
       {/* Road connecting parking area to front entrance gate */}
@@ -9346,8 +9527,10 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       {/* Main office block - front left (moved right to not occlude kiosk parasol) */}
       <OfficeApartment position={[-78, 0, 95]} floors={4} rotation={0} />
       <GroundBlob position={[-78, 95]} scale={20} scaleZ={16} />
-      {/* Smaller office block - back right */}
-      <OfficeApartment position={[100, 0, -100]} floors={3} rotation={Math.PI} />
+      {/* Smaller office block - back right. Doors (local +Z) face north onto
+          the end of the tank-yard walkway and the east pond path; turned
+          half round, they opened south onto the river bank's grass. */}
+      <OfficeApartment position={[100, 0, -100]} floors={3} rotation={0} />
       <GroundBlob position={[100, -100]} scale={18} scaleZ={14} />
 
       {/* ========== ADDITIONAL SMALL BUILDINGS ========== */}
@@ -9376,8 +9559,10 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
         >
           WEIGHBRIDGE
         </Text>
-        {/* Weighbridge platform */}
-        <mesh position={[0, 0.1, 6]} receiveShadow>
+        {/* Weighbridge platform, pit-set: its deck stands 2 cm proud of the
+            verge rather than 0.2 m, which read as a loose slab with bare dark
+            edges beside the carriageway. */}
+        <mesh position={[0, -0.1, 6]} receiveShadow>
           <boxGeometry args={[4, 0.2, 8]} />
           <meshStandardMaterial color="#616161" roughness={0.8} />
         </mesh>
@@ -9439,13 +9624,19 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
         size={[...SITE_LAYOUT.exteriorFeatures.lake.size]}
       />
 
-      {/* Food truck (taco truck) parked next to the parking lot, on its own
-          apron - it spans x 132..138 and the lot's tarmac ends at 132.5. */}
-      <Hardstanding position={[135.5, 0, 42]} size={[9, 6.5]} />
-      <FoodTruck position={[135, 0, 42]} rotation={Math.PI / 2} color="#ff6b6b" name="TACOS" />
-
-      {/* Brick carport shelter next to taco truck - outdoor eating area */}
-      <BrickCarport position={[145, 0, 35]} rotation={0} size={[10, 3.5, 8]} />
+      {/* Taco truck on the station forecourt beside the car park, its hatch
+          facing the lot, with the picnic shelter beyond it. */}
+      <FoodTruck
+        position={[...RAILWAY_STATION.foodTruck.position]}
+        rotation={RAILWAY_STATION.foodTruck.rotation}
+        color="#ff6b6b"
+        name="TACOS"
+      />
+      <BrickCarport
+        position={[...RAILWAY_STATION.shelter.position]}
+        rotation={RAILWAY_STATION.shelter.rotation}
+        size={[...RAILWAY_STATION.shelter.size]}
+      />
 
       {/* River segment - runs along the back boundary */}
       <River />
@@ -9542,8 +9733,10 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* Riverbank path removed - was crossing through river */}
 
-      {/* Path to front pond */}
-      <GravelPath start={[-100, 0, 95]} end={[-125, 0, 105]} width={2} type="gravel" />
+      {/* Path to front pond, by way of the café court */}
+      {FRONT_POND_APPROACH.map((leg) => (
+        <GravelPath key={leg.start[0]} {...leg} type="gravel" />
+      ))}
       <CurvedPath
         position={[-125, 0, 105]}
         radius={14}
@@ -9556,8 +9749,8 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       {/* Factory perimeter path - west side */}
       <GravelPath {...WEST_FACTORY_PATH} type="paved" />
 
-      {/* Factory perimeter path - east side */}
-      <GravelPath start={[65, 0, 50]} end={[65, 0, -50]} width={2} type="paved" />
+      {/* No east perimeter path: the outdoor silo row (x 59-71, z 1-65) and the
+          open grain elevator (z -47) stand on its old line at x 65. */}
 
       {/* Cross path at rear - behind factory */}
       <GravelPath start={[-65, 0, -60]} end={[65, 0, -60]} width={2} type="paved" />
@@ -9567,11 +9760,11 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
 
       {/* ========== PATH AMENITIES & FURNITURE ========== */}
 
-      {/* Victorian lamps along canal towpath */}
-      <PathLamp position={[-155, 0, 80]} style="victorian" />
-      <PathLamp position={[-155, 0, 40]} style="victorian" />
-      <PathLamp position={[-155, 0, 0]} style="victorian" />
-      <PathLamp position={[-155, 0, -80]} style="victorian" />
+      {/* Victorian lamps along the towpath's outer edge, in line with the
+          crossing lamp at x -156.7; at x -155 they stood in its paving. */}
+      {[80, 40, 0, -80].map((z) => (
+        <PathLamp key={z} position={[-156.7, 0, z]} style="victorian" />
+      ))}
       {/* Real light reaches the raised timber; Low keeps the shared glass and ground pools.
           Working if the two dry-bank fixtures leave both approach flights clear. */}
       {CANAL_CROSSING_LAMPS.map((lamp) => (
@@ -9608,7 +9801,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           poolRadius={WEST_FACTORY_PATH_POOL_RADIUS}
         />
       ))}
-      <PathLamp position={[65, 0, 30]} style="modern" />
+      {/* Silo-yard lamp on the apron; its twin at z 30 stood inside a silo. */}
       <PathLamp position={[65, 0, -30]} style="modern" />
 
       {/* Lamps around lake */}
@@ -9621,21 +9814,22 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <PathLamp position={[0, 0, -110]} style="modern" />
       <PathLamp position={[60, 0, -110]} style="modern" />
 
-      {/* Bollards along canal edge */}
-      <Bollard position={[-137, 0, -25]} type="wood" />
-      <Bollard position={[-137, 0, -15]} type="wood" />
-      <Bollard position={[-137, 0, 15]} type="wood" />
-      <Bollard position={[-137, 0, 25]} type="wood" />
+      {/* Mooring bollards on the east wall's coping (x -139.5..-138.5, top
+          1.05). At x -137/-138 they stood in the canal walk's paving, a metre
+          below and clear of the water they were meant to serve. */}
+      {[-25, -15, 15, 25].map((z) => (
+        <Bollard key={z} position={[-139, CANAL_COPING_TOP, z]} type="wood" />
+      ))}
+      <Bollard position={[-139, CANAL_COPING_TOP, -32]} type="metal" />
+      <Bollard position={[-139, CANAL_COPING_TOP, 32]} type="metal" />
 
-      {/* Bollards at dock areas */}
-      <Bollard position={[-138, 0, -32]} type="metal" />
-      <Bollard position={[-138, 0, 32]} type="metal" />
-
-      {/* Information signs */}
-      <InfoSign position={[-154, 0, 85]} text="CANAL" rotation={Math.PI / 4} />
-      <InfoSign position={[95, 0, 115]} text="LAKE" rotation={-Math.PI / 4} />
+      {/* Information signs, beside the walks rather than in them. A sign
+          faces +z at rotation 0; each now faces the walk it serves (the
+          canal, lake and dock boards showed their backs to them). */}
+      <InfoSign position={[-156.9, 0, 85]} text="CANAL" rotation={Math.PI / 2} />
+      <InfoSign position={[95, 0, 115]} text="LAKE" rotation={Math.PI / 2} />
       <InfoSign position={[10, 0, -110]} text="RIVER" rotation={0} />
-      <InfoSign position={[-137, 0, -45]} text="DOCK" rotation={Math.PI / 2} />
+      <InfoSign position={[-134.6, 0, -45]} text="DOCK" rotation={-Math.PI / 2} />
 
       {/* Picnic area by the lake */}
       <PicnicTable position={[145, 0, 105]} rotation={Math.PI / 6} />

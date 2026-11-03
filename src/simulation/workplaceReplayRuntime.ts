@@ -61,6 +61,18 @@ export function beginReplayClock(seed: number, epoch: number) {
 export function endReplayClock() {
   clock = null;
 }
+
+// A retained or forgotten replay review writes the workplace at once; the
+// physical session listens here (the replay store cannot be imported there
+// without a module cycle) to write the plant record in the same microtask.
+const replayRecordListeners = new Set<() => void>();
+export function onReplayRecordChanged(listener: () => void): () => void {
+  replayRecordListeners.add(listener);
+  return () => replayRecordListeners.delete(listener);
+}
+export function notifyReplayRecordChanged(): void {
+  replayRecordListeners.forEach((listener) => listener());
+}
 export function advanceReplayClock(milliseconds: number) {
   if (clock && Number.isFinite(milliseconds) && milliseconds > 0)
     clock.milliseconds += milliseconds;

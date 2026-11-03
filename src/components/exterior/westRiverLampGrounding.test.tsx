@@ -187,11 +187,19 @@ function supportFixture(quality: string) {
   });
   const full = new THREE.Group();
   full.add(objectFromRecord(river.River())!);
+  // The bridge's own source constants, so the fixture is the bridge as drawn
+  // (lowered to the road datum, with its north abutment), not a stale copy.
+  const bridge = declarations(
+    factoryFile,
+    ['ROAD_RIVER_BRIDGE_DROP', 'ROAD_RIVER_BRIDGE_ABUTMENT'],
+    { SITE_LAYOUT }
+  );
   const road = objectFromRecord(
     expression(
       factoryFile,
-      (text) => text.startsWith('<group name="road-river-bridge" position={[-20, 0, -145]}>'),
+      (text) => text.startsWith('<group name="road-river-bridge" position={[-20, '),
       {
+        ...bridge,
         ROAD_RIVER_BRIDGE_FRAME_GEOMETRY: createRoadRiverBridgeFrameGeometry(),
         TARMAC_ROAD_MAP: null,
         TARMAC_ROAD_ROUGHNESS: null,

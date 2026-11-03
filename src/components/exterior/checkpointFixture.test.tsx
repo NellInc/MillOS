@@ -43,7 +43,7 @@ const declaration = (name: string) => {
   return node.getText(ast);
 };
 const compiled = ts.transpileModule(
-  `${declaration('ROAD_PAINT_WHITE')}\n${declaration('CheckpointBarrier')}`,
+  `${declaration('ROAD_PAINT_WHITE')}\n${declaration('BARRIER_ARM_HEIGHT')}\n${declaration('CheckpointBarrier')}`,
   { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }
 ).outputText;
 

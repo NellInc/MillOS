@@ -21,6 +21,7 @@ import {
   ORBIT_POLAR_LIMITS,
   clampNavigationDelta,
   getNavigationIntent,
+  releaseNavigationKey,
   shouldHandleNavigationKey,
   shouldPreventNavigationDefault,
   syncOrbitTargetToAcceptedTranslation,
@@ -273,7 +274,7 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      pressedKeys.delete(e.code);
+      releaseNavigationKey(pressedKeys, e);
     };
 
     // Clear keys when window loses focus

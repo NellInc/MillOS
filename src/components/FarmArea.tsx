@@ -1,10 +1,12 @@
 import { FarmFenceRun } from './scenery/FarmFenceRun';
+import type { FarmFenceEnd } from './scenery/farmFenceGeometry';
 import { FARM_FURROW_PITCH, FARM_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
 import { FarmPublicRealm } from './scenery/WorldPublicRealm';
 import { ScarecrowCraft } from './scenery/ScarecrowCraft';
 import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
 import React, { useRef, useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useFrame, ThreeEvent } from '@react-three/fiber';
+import { DistanceLod } from './performance/DistanceLod';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
@@ -51,7 +53,6 @@ import {
 import { WindDriver, applyWindShader } from './scenery/WindDriver';
 import { composeWorldSurface, RIB_CROWN_PHASE } from '../utils/worldSurface';
 import { PlotGeometry } from '../utils/authoredPlotGeometry';
-import { DrainageCulvert } from './scenery/Tunnel';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
@@ -399,6 +400,34 @@ farmPathCobbleNormal.needsUpdate = true;
 // Shared Geometries - created once at module load
 type GrainPoint = [number, number, number];
 
+/** One stool's three shoots: root x, root z, height, tip lean x, tip lean z. */
+const GRAIN_SHOOTS = [
+  [0, 0, 1.5, 0.035, 0.02],
+  [-0.08, 0.06, 1.36, -0.03, 0.025],
+  [0.09, -0.06, 1.25, 0.04, -0.025],
+] as const;
+const GRAIN_STEM_COLOURS = ['#84935a', '#909e63', '#7b8f57'] as const;
+
+/** Stands a culm on its root and leans it quadratically toward its tip. */
+function bendCulm(
+  stem: THREE.BufferGeometry,
+  x: number,
+  z: number,
+  height: number,
+  leanX: number,
+  leanZ: number
+) {
+  stem.translate(0, height / 2, 0);
+  const p = stem.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const t = p.getY(i) / height;
+    p.setX(i, p.getX(i) + x + leanX * t * t);
+    p.setZ(i, p.getZ(i) + z + leanZ * t * t);
+  }
+  stem.computeVertexNormals();
+  return stem;
+}
+
 /** A whole cereal stool in shared ground-root metres, never separate leaf origins.
  * Working if leaf anchors are actual culm vertices and every tip shares the
  * unchanged wind/shadow field. Three instanced surfaces, no texture or CPU sway.
@@ -407,11 +436,6 @@ export function createGrainPlantGeometries() {
   const stems = new PlotGeometry(),
     leaves = new PlotGeometry(),
     ears = new PlotGeometry();
-  const shoots = [
-    [0, 0, 1.5, 0.035, 0.02],
-    [-0.08, 0.06, 1.36, -0.03, 0.025],
-    [0.09, -0.06, 1.25, 0.04, -0.025],
-  ];
   function leaf(anchor: GrainPoint, theta: number, length: number) {
     const dx = Math.sin(theta),
       dz = Math.cos(theta),
@@ -456,20 +480,16 @@ export function createGrainPlantGeometries() {
     g.computeVertexNormals();
     return g;
   }
-  shoots.forEach(([x, z, height, leanX, leanZ], shoot) => {
-    const stem = new THREE.CylinderGeometry(0.0115, 0.021, height, 5, 4).translate(
-      0,
-      height / 2,
-      0
+  GRAIN_SHOOTS.forEach(([x, z, height, leanX, leanZ], shoot) => {
+    const stem = bendCulm(
+      new THREE.CylinderGeometry(0.0115, 0.021, height, 5, 4),
+      x,
+      z,
+      height,
+      leanX,
+      leanZ
     );
-    const p = stem.getAttribute('position');
-    for (let i = 0; i < p.count; i++) {
-      const t = p.getY(i) / height;
-      p.setX(i, p.getX(i) + x + leanX * t * t);
-      p.setZ(i, p.getZ(i) + z + leanZ * t * t);
-    }
-    stem.computeVertexNormals();
-    stems.add(stem, ['#84935a', '#909e63', '#7b8f57'][shoot]);
+    stems.add(stem, GRAIN_STEM_COLOURS[shoot]);
     for (let i = 0; i < 3; i++) {
       const t = (i + 1) / 4,
         theta = ((i * 2 + shoot) * Math.PI * 2) / 5,
@@ -535,6 +555,47 @@ export const FARM_TROUGH_GEOMETRIES = {
   water: new THREE.BoxGeometry(1.3, 0.05, 0.45),
   leg: new THREE.BoxGeometry(0.15, 0.2, 0.5),
 };
+/** The distant stool: the same shoots on the same root datum, so the wind
+ * field, instance matrices and shadows carry over unchanged. Each ear is one
+ * straw spindle covering the spikelets' silhouette (the 8 spikelets and 9
+ * awns are 3 cm and 2 mm, under a pixel beyond ~25 m), and each culm is an open
+ * triangular tube widened 15% to keep its apparent width. Leaves are shared by
+ * both levels. Working if the far stool costs about a seventh of the near stems and
+ * ears and the field does not change tone when it swaps.
+ */
+export function createGrainPlantFarGeometries() {
+  const stems = new PlotGeometry(),
+    ears = new PlotGeometry();
+  GRAIN_SHOOTS.forEach(([x, z, height, leanX, leanZ], shoot) => {
+    stems.add(
+      bendCulm(
+        new THREE.CylinderGeometry(0.0115 * 1.15, 0.021 * 1.15, height, 3, 2, true),
+        x,
+        z,
+        height,
+        leanX,
+        leanZ
+      ),
+      GRAIN_STEM_COLOURS[shoot]
+    );
+    ears.add(
+      new THREE.OctahedronGeometry(1, 0)
+        .scale(0.05, 0.11, 0.012)
+        .translate(x + leanX, height + 0.11, z + leanZ),
+      '#d9bc7e'
+    );
+  });
+  const result = { stems: stems.finish(), ears: ears.finish() };
+  for (const [name, g] of Object.entries(result)) g.name = `rooted-cereal-far-${name}`;
+  return result;
+}
+export const GRAIN_PLANT_FAR_GEOMETRY = createGrainPlantFarGeometries();
+/** Field-origin distance at which the far stool takes over. It holds until the
+ * camera is back inside 90% of this, and the field reaches ~19 m from its
+ * origin, so the nearest far stool is always >= 21 m away, where a spikelet is
+ * about a pixel at 720p. */
+export const GRAIN_FIELD_LOD_DISTANCE = 45;
+export const GRAIN_FIELD_LOD_HYSTERESIS = 0.1;
 
 const SG = {
   fencePost: new THREE.CylinderGeometry(0.08, 0.1, 1, 6),
@@ -750,7 +811,7 @@ const SM = {
   crowBlack: new THREE.MeshStandardMaterial({ color: '#212121', roughness: 0.6 }),
 };
 
-// The crop sways. `SM.cornGreen` is consumed ONLY by the three InstancedMeshes
+// The crop sways. `SM.cornGreen` is consumed ONLY by the five InstancedMeshes
 // inside `InstancedGrainField` (grep), and InstancedMesh is already excluded
 // from StaticMeshBatch merging, so the `onBeforeCompile` this adds costs no
 // batching. Do NOT do this to a building material.
@@ -1037,16 +1098,32 @@ const FenceSectionPrimitiveBody = React.memo<{ length: number }>(({ length }) =>
 });
 FenceSectionPrimitiveBody.displayName = 'FenceSectionPrimitiveBody';
 
-/** A run shares one authored post at each bay junction; only its rails stretch. */
+/** Paddock-local centres of the 5 m long runs (z = +-6) and the 4 m side runs (x = +-10).
+ * Each continuation shares its neighbour's post and the long runs own the
+ * corners. Rotated a quarter turn, a side run's start is its +z end.
+ */
+export const PADDOCK_LONG_RUNS = [-7.5, -2.5, 2.5, 7.5] as const;
+export const PADDOCK_SIDE_RUNS: readonly { z: number; start: FarmFenceEnd; end: FarmFenceEnd }[] = [
+  { z: -4, start: 'post', end: 'open' },
+  { z: 0, start: 'post', end: 'open' },
+  { z: 4, start: 'open', end: 'open' },
+];
+
+/** A run shares one authored post at each bay junction, and at each joint
+ * with a neighbouring run (`start`/`end`, start = local -x); only its rails
+ * stretch.
+ */
 const FenceSection = React.memo<{
   position: [number, number, number];
   rotation?: number;
   length?: number;
-}>(({ position, rotation = 0, length = 4 }) => {
+  start?: FarmFenceEnd;
+  end?: FarmFenceEnd;
+}>(({ position, rotation = 0, length = 4, start = 'free', end = 'free' }) => {
   return (
     <group position={position} rotation={[0, rotation, 0]}>
       <GeneratedBoundary fallback={<FenceSectionPrimitiveBody length={length} />}>
-        <FarmFenceRun length={length} />
+        <FarmFenceRun length={length} start={start} end={end} />
       </GeneratedBoundary>
     </group>
   );
@@ -2171,9 +2248,7 @@ export const GRAIN_WIND_PADDING = 0.5; // maximum world sway < .16*(.7+1.5)*1.4
  * plant part. Working if all three matrix/colour buffers agree and bounds
  * cover storm sway.
  */
-export function populateGrainField(
-  meshes: readonly [THREE.InstancedMesh, THREE.InstancedMesh, THREE.InstancedMesh]
-) {
+export function populateGrainField(meshes: readonly THREE.InstancedMesh[]) {
   const parent = new THREE.Object3D(),
     tint = new THREE.Color();
   const young = new THREE.Color('#edf0d8'),
@@ -2214,46 +2289,61 @@ export function populateGrainField(
   }
 }
 
+const GrainFieldPart = React.forwardRef<
+  THREE.InstancedMesh,
+  { name: string; geometry: THREE.BufferGeometry }
+>(({ name, geometry }, ref) => (
+  <instancedMesh
+    name={name}
+    ref={ref}
+    args={[undefined, undefined, GRAIN_FIELD_COUNT]}
+    castShadow
+    receiveShadow
+  >
+    <primitive object={geometry} attach="geometry" />
+    <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
+  </instancedMesh>
+));
+GrainFieldPart.displayName = 'GrainFieldPart';
+
+/** Leaves are shared; stems and ears swap to the far stool for the whole field
+ * at once (it is 28 x 21 m, and every wide camera sees it from 60 m or more).
+ */
 const InstancedGrainField = React.memo(() => {
   const stalksRef = useRef<THREE.InstancedMesh>(null);
   const leavesRef = useRef<THREE.InstancedMesh>(null);
   const earsRef = useRef<THREE.InstancedMesh>(null);
+  const farStalksRef = useRef<THREE.InstancedMesh>(null);
+  const farEarsRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
-    if (stalksRef.current && leavesRef.current && earsRef.current)
-      populateGrainField([stalksRef.current, leavesRef.current, earsRef.current]);
+    const meshes = [stalksRef, leavesRef, earsRef, farStalksRef, farEarsRef].map((r) => r.current);
+    if (meshes.every((m): m is THREE.InstancedMesh => m !== null)) populateGrainField(meshes);
   }, []);
   return (
     <group name="rooted-cereal-field">
-      <instancedMesh
-        name="grain-field-stems"
-        ref={stalksRef}
-        args={[undefined, undefined, GRAIN_FIELD_COUNT]}
-        castShadow
-        receiveShadow
+      <GrainFieldPart name="grain-field-leaves" ref={leavesRef} geometry={SG.cornLeaf} />
+      <DistanceLod
+        name="grain-field-lod"
+        distances={[0, GRAIN_FIELD_LOD_DISTANCE]}
+        hysteresis={GRAIN_FIELD_LOD_HYSTERESIS}
       >
-        <primitive object={SG.cornStalk} attach="geometry" />
-        <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
-      </instancedMesh>
-      <instancedMesh
-        name="grain-field-leaves"
-        ref={leavesRef}
-        args={[undefined, undefined, GRAIN_FIELD_COUNT]}
-        castShadow
-        receiveShadow
-      >
-        <primitive object={SG.cornLeaf} attach="geometry" />
-        <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
-      </instancedMesh>
-      <instancedMesh
-        name="grain-field-ears"
-        ref={earsRef}
-        args={[undefined, undefined, GRAIN_FIELD_COUNT]}
-        castShadow
-        receiveShadow
-      >
-        <primitive object={SG.cornEar} attach="geometry" />
-        <primitive object={GRAIN_FIELD_MATERIAL} attach="material" />
-      </instancedMesh>
+        <group name="grain-field-near">
+          <GrainFieldPart name="grain-field-stems" ref={stalksRef} geometry={SG.cornStalk} />
+          <GrainFieldPart name="grain-field-ears" ref={earsRef} geometry={SG.cornEar} />
+        </group>
+        <group name="grain-field-far">
+          <GrainFieldPart
+            name="grain-field-far-stems"
+            ref={farStalksRef}
+            geometry={GRAIN_PLANT_FAR_GEOMETRY.stems}
+          />
+          <GrainFieldPart
+            name="grain-field-far-ears"
+            ref={farEarsRef}
+            geometry={GRAIN_PLANT_FAR_GEOMETRY.ears}
+          />
+        </group>
+      </DistanceLod>
     </group>
   );
 });
@@ -2941,8 +3031,11 @@ export const FarmArea: React.FC = () => {
       <GardenBed position={[-15, 0, 16]} />
       <GardenBed position={[-15, 0, 19]} />
 
-      {/* Drainage culvert under the farm road - provides water drainage from fields */}
-      <DrainageCulvert position={[8, -0.3, 8]} length={6} radius={0.6} />
+      {/* No culvert between the barn and the paddock. One lay at (8, -0.3, 8),
+          described as under the farm road, but no road crossed it: its pipe
+          ran along the paddock's barn-side fence 1 m inside it, the fence posts
+          stood on its earth bank, and its west mouth opened 0.3 m from the barn
+          wall. Like the headland culvert, it drained nothing. */}
       {chickenData.map((c, i) => (
         <Chicken
           key={`chicken-${i}`}
@@ -2958,10 +3051,23 @@ export const FarmArea: React.FC = () => {
         />
       ))}
       <group position={[-12, 0, -5]}>
-        <FenceSection position={[0, 0, -3]} length={6} />
-        <FenceSection position={[0, 0, 3]} length={6} />
-        <FenceSection position={[-3, 0, 0]} rotation={Math.PI / 2} length={6} />
-        <FenceSection position={[3, 0, 0]} rotation={Math.PI / 2} length={6} />
+        {/* The two x runs own the corner posts. */}
+        <FenceSection position={[0, 0, -3]} length={6} start="post" end="post" />
+        <FenceSection position={[0, 0, 3]} length={6} start="post" end="post" />
+        <FenceSection
+          position={[-3, 0, 0]}
+          rotation={Math.PI / 2}
+          length={6}
+          start="open"
+          end="open"
+        />
+        <FenceSection
+          position={[3, 0, 0]}
+          rotation={Math.PI / 2}
+          length={6}
+          start="open"
+          end="open"
+        />
         {/* Mud puddle. Was lifted to 0.08 to clear `TerrainGround`'s old 0.05
             default; that default is now the site's declared ground datum
             (-0.02), so 0.08 would hang this decal 10 cm in the air - visible at
@@ -3007,23 +3113,39 @@ export const FarmArea: React.FC = () => {
       ))}
 
       <group position={[5, 0, 15]}>
-        {[-8, -3, 2, 7].map((x) => (
+        {/* The long runs span x -10..10, meeting the side runs at the corners.
+            Centred at -8..7 they spanned -10.5..9.5: half a metre past one
+            corner and half a metre short of the other. Each continuation
+            shares its neighbour's post. */}
+        {PADDOCK_LONG_RUNS.map((x, index) => (
           <React.Fragment key={`fence-h-${x}`}>
-            <FenceSection position={[x, 0, -6]} length={5} />
-            <FenceSection position={[x, 0, 6]} length={5} />
+            {[-6, 6].map((z) => (
+              <FenceSection
+                key={z}
+                position={[x, 0, z]}
+                length={5}
+                start={index === 0 ? 'post' : 'open'}
+                end="post"
+              />
+            ))}
           </React.Fragment>
         ))}
-        {/* Side runs, 4 m rather than 5. Two 5 m runs centred 4 m apart span
-            z -6.5..-1.5 and -2.5..2.5, so they OVERLAP by a full metre - a
-            doubled panel and a doubled post on both sides of the paddock,
-            measured at 40% AABB intersection in the assembled scene. At 4 m
-            they abut exactly at z = -2 and cover the same z -6..2 the run at
-            z = -6 needs. The primitive fence hid this because it was two thin
-            rails; a solid generated panel does not. */}
-        <FenceSection position={[-10, 0, 0]} rotation={Math.PI / 2} length={4} />
-        <FenceSection position={[-10, 0, -4]} rotation={Math.PI / 2} length={4} />
-        <FenceSection position={[10, 0, 0]} rotation={Math.PI / 2} length={4} />
-        <FenceSection position={[10, 0, -4]} rotation={Math.PI / 2} length={4} />
+        {/* Side runs, 4 m rather than 5: two 5 m runs centred 4 m apart
+            overlapped by a full metre. Three 4 m runs now close the whole
+            z -6..6 side; the two run to z 2 left both far corners open by 4 m.
+            The long runs own the corner posts. */}
+        {[-10, 10].map((x) =>
+          PADDOCK_SIDE_RUNS.map(({ z, start, end }) => (
+            <FenceSection
+              key={`fence-s-${x}-${z}`}
+              position={[x, 0, z]}
+              rotation={Math.PI / 2}
+              length={4}
+              start={start}
+              end={end}
+            />
+          ))
+        )}
       </group>
       {cowData.map((c, i) => (
         <PaddockCow
@@ -3119,7 +3241,7 @@ export const FarmArea: React.FC = () => {
 
       {/* Grain Field Background */}
       <group position={[0, 0, -42]}>
-        {/* Root-coherent cereal stools, one shared wind field and three draws. */}
+        {/* Root-coherent cereal stools, one shared wind field, three draws at either LOD. */}
         <InstancedGrainField />
         <Scarecrow position={[0, 0, 0]} rotation={0.2} />
       </group>

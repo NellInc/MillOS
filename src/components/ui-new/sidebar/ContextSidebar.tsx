@@ -88,7 +88,19 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     if (!isVisible) return;
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      // A dialog that took this Escape (the keyboard help, which has no exit
+      // animation) is already gone from the page by the time it reaches here.
+      if (event.defaultPrevented) return;
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      // A text field owns Escape (it clears a search natively), as the global
+      // shortcut hook already assumes; closing here lost the panel and its draft.
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
+        )
+      )
+        return;
       event.preventDefault();
       onClose();
     };
@@ -110,6 +122,22 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     });
     return () => cancelAnimationFrame(frame);
   }, [panelFocusRequested, isVisible]);
+
+  // A second I or O press hides the panel through its flag, not Close, so
+  // nothing handed focus on and a control focused inside fell to <body>. The
+  // aside is still on the page here (it animates out); the dock takes focus.
+  // Close's own return to its opener runs a frame later and still wins.
+  // Working if Tab continues from the dock after I, Tab, I.
+  React.useLayoutEffect(() => {
+    if (isVisible) return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !active.closest('#context-sidebar')) return;
+    (
+      document.querySelector<HTMLElement>(`[data-dock-mode="${mode}"]`) ??
+      document.querySelector<HTMLElement>('[data-dock-mode="overview"]')
+    )?.focus();
+    // Keyed on visibility alone: a mode change must not move focus.
+  }, [isVisible]);
 
   // Preload panels related to current mode when it changes
   React.useEffect(() => {

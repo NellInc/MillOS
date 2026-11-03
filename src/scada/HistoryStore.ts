@@ -645,8 +645,23 @@ export class HistoryStore {
     startTime: number,
     endTime: number = Date.now()
   ): Promise<TagHistoryPoint[]> {
+    return this.readHistory(tagId, startTime, endTime, false);
+  }
+
+  /**
+   * `wholeWindow` reads every sample in the range, for an export the operator
+   * asked for; otherwise the newest maxQueryPoints, for an on-screen trend.
+   * The window itself is bounded by retention.
+   */
+  private async readHistory(
+    tagId: string,
+    startTime: number,
+    endTime: number,
+    wholeWindow: boolean
+  ): Promise<TagHistoryPoint[]> {
     if (this.historyDisabled) return [];
     if (!isValidTimeRange(startTime, endTime)) return [];
+    if (wholeWindow) return this.readWholeWindow(tagId, startTime, endTime);
 
     const db = this.db;
     if (!db) return [];
@@ -715,12 +730,84 @@ export class HistoryStore {
   }
 
   /**
+   * Every sample in the window, in pages of maxQueryPoints, each in its own
+   * transaction: one unbounded read of a full retention window can outlast the
+   * IndexedDB timeout, and a timed-out tag exports as no rows. A page that ends
+   * inside a run of equal timestamps is cut before the run, which the next page
+   * reads whole.
+   */
+  private async readWholeWindow(
+    tagId: string,
+    startTime: number,
+    endTime: number
+  ): Promise<TagHistoryPoint[]> {
+    const limit = this.config.maxQueryPoints;
+    const points: TagHistoryPoint[] = [];
+    let lower = startTime;
+    let lowerOpen = false;
+    for (;;) {
+      if (lowerOpen && lower >= endTime) return points;
+      const page = await this.readHistoryPage(tagId, lower, lowerOpen, endTime, limit);
+      const lastTimestamp = page[page.length - 1]?.timestamp;
+      if (page.length < limit || !Number.isFinite(lastTimestamp)) {
+        for (const point of page) points.push(point);
+        return points;
+      }
+      let cut = page.length;
+      while (cut > 0 && page[cut - 1].timestamp === lastTimestamp) cut -= 1;
+      // A whole page at one instant: keep it and move past that instant.
+      const keep = cut === 0 ? page.length : cut;
+      for (let index = 0; index < keep; index += 1) points.push(page[index]);
+      lower = lastTimestamp;
+      lowerOpen = cut === 0;
+    }
+  }
+
+  private async readHistoryPage(
+    tagId: string,
+    lower: number,
+    lowerOpen: boolean,
+    endTime: number,
+    limit: number
+  ): Promise<TagHistoryPoint[]> {
+    if (this.historyDisabled) return [];
+    const db = this.db;
+    if (!db) return [];
+
+    const transaction = db.transaction('tagHistory', 'readonly');
+    const query = new Promise<TagHistoryPoint[]>((resolve, reject) => {
+      const index = transaction.objectStore('tagHistory').index('tagId_timestamp');
+      const request = index.getAll(
+        IDBKeyRange.bound([tagId, lower], [tagId, endTime], lowerOpen),
+        limit
+      );
+      request.onsuccess = () => {
+        try {
+          resolve(
+            request.result.map((r) => ({
+              timestamp: r.timestamp,
+              value: r.value,
+              quality: r.quality,
+            }))
+          );
+        } catch (error) {
+          reject(error);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    return this.withTransactionTimeout(transaction, query, `getHistory(${tagId})`);
+  }
+
+  /**
    * Get history for multiple tags within a time range
    */
   async getMultipleTagHistory(
     tagIds: string[],
     startTime: number,
-    endTime: number = Date.now()
+    endTime: number = Date.now(),
+    options: { wholeWindow?: boolean } = {}
   ): Promise<Record<string, TagHistoryPoint[]>> {
     if (!Array.isArray(tagIds)) {
       throw new TypeError('HistoryStore tagIds must be an array');
@@ -753,7 +840,10 @@ export class HistoryStore {
     // whole batch and discard every other tag's data (Record partial-result contract).
     await forEachWithConcurrency(uniqueTagIds, MAX_BATCH_CONCURRENCY, async (tagId) => {
       try {
-        result[tagId] = await this.getHistory(tagId, startTime, endTime);
+        result[tagId] =
+          options.wholeWindow === true
+            ? await this.readHistory(tagId, startTime, endTime, true)
+            : await this.getHistory(tagId, startTime, endTime);
       } catch {
         result[tagId] = [];
       }
@@ -813,7 +903,19 @@ export class HistoryStore {
   ): Promise<AlarmHistoryRecord[]> {
     if (this.historyDisabled) return [];
     if (!isValidTimeRange(startTime, endTime) || !Number.isFinite(limit) || limit <= 0) return [];
+    return this.readAlarmHistory(
+      startTime,
+      endTime,
+      Math.min(Math.floor(limit), this.config.maxQueryPoints)
+    );
+  }
 
+  /** Newest first, up to `safeLimit` records (Infinity for an export's whole window). */
+  private async readAlarmHistory(
+    startTime: number,
+    endTime: number,
+    safeLimit: number
+  ): Promise<AlarmHistoryRecord[]> {
     const db = this.db;
     if (!db) return [];
 
@@ -824,7 +926,6 @@ export class HistoryStore {
 
       const range = IDBKeyRange.bound(startTime, endTime);
       const results: AlarmHistoryRecord[] = [];
-      const safeLimit = Math.min(Math.floor(limit), this.config.maxQueryPoints);
 
       const request = index.openCursor(range, 'prev');
 
@@ -951,9 +1052,13 @@ export class HistoryStore {
     if (this.historyDisabled) return '';
 
     const rows = ['timestamp,tagId,value,quality'];
-    const histories = await this.getMultipleTagHistory(tagIds, startTime, endTime);
+    // The whole requested window, not the on-screen trend cap.
+    const histories = await this.getMultipleTagHistory(tagIds, startTime, endTime, {
+      wholeWindow: true,
+    });
 
-    for (const tagId of tagIds) {
+    // The batch read dedupes its ids; a repeated id must not write its rows twice.
+    for (const tagId of new Set(tagIds)) {
       const history = histories[tagId] ?? [];
       history.forEach((h) => {
         rows.push(`${h.timestamp},${tagId},${h.value},${h.quality}`);
@@ -983,7 +1088,9 @@ export class HistoryStore {
     }
 
     // Same limits, concurrency and null-prototype result as any other batch read.
-    const tags = await this.getMultipleTagHistory(tagIds, startTime, endTime);
+    const tags = await this.getMultipleTagHistory(tagIds, startTime, endTime, {
+      wholeWindow: true,
+    });
 
     const result: SCADAExport = {
       exportTime: Date.now(),
@@ -993,8 +1100,12 @@ export class HistoryStore {
       tags,
     };
 
+    // Every alarm in the window, as every tag sample is; a cap here dropped the
+    // oldest alarms of a busy day without a word in the file.
     if (includeAlarms) {
-      result.alarms = await this.getAlarmHistory(startTime, endTime, 1000);
+      result.alarms = isValidTimeRange(startTime, endTime)
+        ? await this.readAlarmHistory(startTime, endTime, Number.POSITIVE_INFINITY)
+        : [];
     }
 
     return result;

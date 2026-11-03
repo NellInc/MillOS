@@ -5,7 +5,60 @@
  * across multiple components with inconsistent implementations.
  */
 
-import { getLocale } from '../i18n';
+import { formatFixed, getLocale, translate } from '../i18n';
+import { timeFormattingMessages } from './timeFormatting.messages';
+// Read only inside readPlantClock, never at module evaluation, so the import
+// cycle through the stores that stamp records is inert (as incidentReplayStore's is).
+import { useGameSimulationStore } from '../stores/gameSimulationStore';
+
+/** The plant clock a record was made at: gameDay and gameTime (fractional hours). */
+export interface PlantClock {
+  day: number;
+  hour: number;
+}
+
+/**
+ * The plant clock now, for stamping a plant event when it is recorded, or
+ * undefined where it cannot be read (a partial test mock). Converting a wall
+ * time to game time later would be false across pauses, pace changes and resets.
+ */
+export function readPlantClock(): PlantClock | undefined {
+  try {
+    const { gameDay, gameTime } = useGameSimulationStore.getState();
+    return Number.isFinite(gameDay) && Number.isFinite(gameTime)
+      ? { day: gameDay, hour: gameTime }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** A restored value that is a usable plant clock, else undefined. */
+export function sanitizePlantClock(value: unknown): PlantClock | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const { day, hour } = value as Record<string, unknown>;
+  return typeof day === 'number' &&
+    Number.isFinite(day) &&
+    typeof hour === 'number' &&
+    Number.isFinite(hour)
+    ? { day, hour }
+    : undefined;
+}
+
+/**
+ * "Day 3, 14:30" on the plant clock, in the app language; game day N reads as
+ * Day N + 1, as the maintenance log does. Null for a record without a clock,
+ * so the caller falls back to its wall time.
+ */
+export function formatPlantStamp(clock: PlantClock | undefined | null): string | null {
+  const usable = sanitizePlantClock(clock);
+  if (!usable) return null;
+  const minuteOfDay = Math.floor((((usable.hour % 24) + 24) % 24) * 60 + 1e-6);
+  return translate(timeFormattingMessages, 'plantStamp', {
+    day: formatFixed(Math.max(0, Math.floor(usable.day)) + 1, 0),
+    time: `${String(Math.floor(minuteOfDay / 60)).padStart(2, '0')}:${String(minuteOfDay % 60).padStart(2, '0')}`,
+  });
+}
 
 /**
  * Format a Date object to a time string in the app language, never the

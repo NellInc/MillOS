@@ -120,6 +120,29 @@ describe('OnboardingGuide', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  // Escape dismisses the tour for good; the X closes it for this session. The
+  // guide says which one closed it, so the host need not watch the keyboard.
+  it('tells its X and Escape apart in the close it reports', () => {
+    const onClose = vi.fn();
+    render(
+      <OnboardingGuide
+        step={step}
+        stepIndex={0}
+        stepCount={3}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onSkip={vi.fn()}
+        onClose={onClose}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close getting started for this session' }));
+    expect(onClose).toHaveBeenLastCalledWith();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onClose).toHaveBeenLastCalledWith('escape');
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
   it('leaves Escape to an open context sidebar so the topmost panel closes first', () => {
     const onClose = vi.fn();
     const sidebarEscape = vi.fn();
@@ -156,6 +179,63 @@ describe('OnboardingGuide', () => {
     }
   });
 
+  // The U and Y dashboards open over the guide; in the built app Escape closed
+  // the guide behind them first. Working if Escape leaves the guide to the
+  // open dashboard (data-escape-layer) and closes the guide once it is gone.
+  it('leaves Escape to an open U or Y dashboard', () => {
+    const onClose = vi.fn();
+    render(
+      <OnboardingGuide
+        step={step}
+        stepIndex={0}
+        stepCount={3}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onSkip={vi.fn()}
+        onClose={onClose}
+      />
+    );
+    const dashboard = document.createElement('div');
+    dashboard.setAttribute('data-escape-layer', '');
+    document.body.appendChild(dashboard);
+    try {
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(onClose).not.toHaveBeenCalled();
+    } finally {
+      dashboard.remove();
+    }
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  // The forklift inspector (DeferredOperationalUI) is a plain aside: Escape
+  // clears the selected forklift before it dismisses the guide.
+  it('leaves Escape to an open forklift inspector', () => {
+    const onClose = vi.fn();
+    render(
+      <OnboardingGuide
+        step={step}
+        stepIndex={0}
+        stepCount={3}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onSkip={vi.fn()}
+        onClose={onClose}
+      />
+    );
+    const inspector = document.createElement('aside');
+    inspector.id = 'forklift-inspector';
+    document.body.appendChild(inspector);
+    try {
+      fireEvent.keyDown(document.body, { key: 'Escape' });
+      expect(onClose).not.toHaveBeenCalled();
+    } finally {
+      inspector.remove();
+    }
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it('pins Back, Skip tour and Start operating in a sticky footer of the card scroll box', () => {
     render(
       <OnboardingGuide
@@ -174,7 +254,9 @@ describe('OnboardingGuide', () => {
     expect(footer).not.toBeNull();
     // Sticky resolves against the nearest scroll box, which must be the card itself.
     expect(footer?.parentElement).toBe(guide);
-    expect(footer).toHaveClass('bottom-0', '-mx-4', '-mb-4', 'px-4', 'bg-slate-950');
+    // -bottom-4 meets the card's p-4: at bottom-0 it stuck 16 px above the edge
+    // and the step's text showed beneath it (seen on a phone at 844x390).
+    expect(footer).toHaveClass('-bottom-4', '-mx-4', '-mb-4', 'px-4', 'bg-slate-950');
     expect(footer).toContainElement(screen.getByRole('button', { name: 'Back' }));
     expect(footer).toContainElement(screen.getByRole('button', { name: 'Skip tour' }));
     expect(guide.lastElementChild).toBe(footer);

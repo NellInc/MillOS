@@ -1,3 +1,4 @@
+import { formatFixed } from '../i18n';
 /**
  * One time model for the whole plant.
  *
@@ -78,4 +79,16 @@ export function bagsPerGameHour(kgPerPlantSecond: number, bagWeightKg: number): 
         (Math.max(0, kgPerPlantSecond) * 3600 * PLANT_SECONDS_PER_GAME_SECOND) / bagWeightKg
       )
     : 0;
+}
+
+/**
+ * A running pace as a ratio of standard ('1x', '2.5x', '<0.1x'), the one label
+ * every clock shows; a paused clock (0) is each surface's own word.
+ */
+export function formatPaceRatio(gameSpeed: number): string {
+  const ratio = gameSpeed / STANDARD_GAME_SPEED;
+  if (ratio < 0.1) return `<${formatFixed(0.1, 1)}x`;
+  // Number(...) drops a trailing .0, so whole ratios print without decimals.
+  const rounded = Number(ratio.toFixed(1));
+  return `${formatFixed(rounded, Number.isInteger(rounded) ? 0 : 1)}x`;
 }

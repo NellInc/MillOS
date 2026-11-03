@@ -47,9 +47,79 @@ export interface OperationsChallengeRun {
   deadlineMinute: number;
   startingShippedKg: number;
   startingQualityFailureKg: number;
+  /**
+   * Kilograms of the order's finished product shipped, and failed on quality,
+   * across every order when the run started. Dispatch credits a product to the
+   * highest-priority open order of it, not to the order the player chose, so
+   * the run counts the product. Absent on runs saved before it was recorded:
+   * those read the order alone until withMaterialBaseline fills it in.
+   */
+  startingMaterialShippedKg?: number;
+  startingMaterialQualityFailureKg?: number;
   targetKg: number;
   status: 'active' | 'completed' | 'failed' | 'abandoned';
   endedAtMinute: number | null;
+}
+
+type ChallengeLedgerOrder = Pick<CustomerOrder, 'id' | 'recipe' | 'shippedKg' | 'qualityFailureKg'>;
+
+/** Shipped and quality-failed kilograms of one finished product over every order. */
+export function materialShipmentTotals(
+  orders: readonly ChallengeLedgerOrder[],
+  material: CustomerOrder['recipe']['finishedMaterial']
+): { shippedKg: number; qualityFailureKg: number } {
+  let shippedKg = 0;
+  let qualityFailureKg = 0;
+  for (const order of orders) {
+    if (order.recipe.finishedMaterial !== material) continue;
+    shippedKg += order.shippedKg;
+    qualityFailureKg += order.qualityFailureKg;
+  }
+  return { shippedKg, qualityFailureKg };
+}
+
+/**
+ * A run saved before the product baseline existed, given one that keeps the
+ * progress its own order already shows. The same run is returned when nothing
+ * is missing or its order is gone.
+ */
+export function withMaterialBaseline(
+  run: OperationsChallengeRun,
+  orders: readonly ChallengeLedgerOrder[]
+): OperationsChallengeRun {
+  if (
+    Number.isFinite(run.startingMaterialShippedKg) &&
+    Number.isFinite(run.startingMaterialQualityFailureKg)
+  )
+    return run;
+  const order = orders.find((candidate) => candidate.id === run.orderId);
+  if (!order) return run;
+  const totals = materialShipmentTotals(orders, order.recipe.finishedMaterial);
+  return {
+    ...run,
+    startingMaterialShippedKg: totals.shippedKg - (order.shippedKg - run.startingShippedKg),
+    startingMaterialQualityFailureKg:
+      totals.qualityFailureKg - (order.qualityFailureKg - run.startingQualityFailureKg),
+  };
+}
+
+/**
+ * What the run has shipped of its product, and failed on quality, since it
+ * started. Null when its order is gone. The completion check and the card both
+ * read it, so they cannot disagree.
+ */
+export function challengeCredit(
+  run: OperationsChallengeRun,
+  orders: readonly ChallengeLedgerOrder[]
+): { shippedKg: number; qualityFailureKg: number } | null {
+  const order = orders.find((candidate) => candidate.id === run.orderId);
+  if (!order) return null;
+  const baseline = withMaterialBaseline(run, orders);
+  const totals = materialShipmentTotals(orders, order.recipe.finishedMaterial);
+  return {
+    shippedKg: totals.shippedKg - (baseline.startingMaterialShippedKg ?? 0),
+    qualityFailureKg: totals.qualityFailureKg - (baseline.startingMaterialQualityFailureKg ?? 0),
+  };
 }
 export interface OperationsPlaySnapshot {
   orders: readonly CustomerOrder[];
@@ -117,7 +187,14 @@ export function getChallengeRecoveryIncident(
 export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
   const activeOrder = state.orders.find((order) => order.id === state.activeOrderId) ?? null;
   const blockers = state.constraints.filter((constraint) => constraint.severity !== 'info');
-  const incident = state.incidents.find((candidate) => candidate.phase !== 'resolved');
+  // The incident that most needs the operator: a raised one, then one awaiting
+  // mitigation, then any still open. Working if an incident raised behind an
+  // earlier mitigated one is offered for acknowledgement.
+  const openIncidents = state.incidents.filter((candidate) => candidate.phase !== 'resolved');
+  const incident =
+    openIncidents.find((candidate) => candidate.phase === 'raised') ??
+    openIncidents.find((candidate) => candidate.phase === 'acknowledged') ??
+    openIncidents[0];
   const run = state.activeChallenge;
   const recovery = getChallengeRecoveryIncident(state);
   // A stopped machine outranks the delivery steps: its line cannot run until
@@ -195,6 +272,9 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
     };
   } else if (
     activeOrder &&
+    // 'planning': a commitment just chosen or accepted, its route not yet read
+    // by a tick; the inventory held is another order's, or none.
+    state.execution.stage !== 'planning' &&
     state.execution.sourceInventoryKg <= 0 &&
     state.execution.releasedFinishedKg <= 0 &&
     state.execution.dispatchLoad.loadedKg <= 0
@@ -233,7 +313,6 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
     };
   }
   const blockedReason = challengeBlockReason(state);
-  const challengeOrder = run && state.orders.find((order) => order.id === run.orderId);
   const challengeIncident =
     run && state.incidents.find((incident) => incident.id === run.incidentId);
   const instruction = !challengeIncident
@@ -263,10 +342,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
           label: OPERATIONS_CHALLENGES.some((challenge) => challenge.id === run.challengeId)
             ? challengeLabel(run.challengeId)
             : translate(operationsPlayMessages, 'challengeFallback'),
-          dispatchedKg: Math.max(
-            0,
-            (challengeOrder?.shippedKg ?? run.startingShippedKg) - run.startingShippedKg
-          ),
+          dispatchedKg: Math.max(0, challengeCredit(run, state.orders)?.shippedKg ?? 0),
           targetKg: run.targetKg,
           remainingMinutes: Math.max(0, run.deadlineMinute - state.elapsedMinutes),
           instruction,

@@ -102,8 +102,7 @@ export const presentationMessages = defineMessages({
       'A storm and a grid emergency will arrive together. The mill can hold one front itself; the other holds with {n0} preparation. The intake and grain stores {n1} of {n2}; the roller floor {n3} of {n4}.',
     held: '{label} held',
     fell: '{label} fell',
-    heldBody:
-      'What was built for {pronoun} carried {pronoun} through the night ({n0} of {n1} prepared).',
+    heldBody: 'Held on preparation alone ({n0} of {n1} prepared).',
     fellBody:
       '{label} needed {n0} preparation and had {n1}. Recover the incident under Incidents raised by the chronicle.',
     dispatchFail: '{n0} of {target} kg dispatched.',
@@ -231,7 +230,7 @@ export const presentationMessages = defineMessages({
       'Uma tempestade e uma emergência na rede elétrica chegarão juntas. O moinho pode proteger uma frente; a outra resiste com {n0} de preparação. A recepção e os armazéns de grãos: {n1} de {n2}; o piso dos moinhos: {n3} de {n4}.',
     held: '{label} resistiu',
     fell: '{label} cedeu',
-    heldBody: 'A preparação garantiu a resistência durante a noite ({n0} de {n1} de preparação).',
+    heldBody: 'Resistiu apenas com a preparação ({n0} de {n1} preparados).',
     fellBody:
       '{label} precisava de {n0} de preparação e tinha {n1}. Resolva o incidente em Incidentes causados pela crônica.',
     dispatchFail: '{n0} de {target} kg expedidos.',

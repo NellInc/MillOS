@@ -126,7 +126,7 @@ export const layoutPlannerMessages = defineMessages({
     beforeSealed: 'Before is sealed when a layout is applied. After measures the subsequent run.',
     runBaseline: 'Run the current mill to collect a baseline, then apply a proposal.',
     observedNote:
-      'Active seconds are admitted central-tick time; material seconds follow the production clock. Undo retains the completed after window. Reload and replay clear these comparisons.',
+      'Active seconds are admitted central-tick time; material seconds follow the production clock. Undo retains the completed after window. A reload keeps these comparisons.',
     beforeApply: 'Before apply',
     afterApply: 'After apply',
     currentRun: 'Current run',
@@ -253,7 +253,7 @@ export const layoutPlannerMessages = defineMessages({
     runBaseline:
       'Rode o moinho atual para coletar uma linha de base e depois aplique uma proposta.',
     observedNote:
-      'Os segundos ativos são o tempo de tick central admitido; os segundos de material seguem o relógio de produção. Desfazer mantém a janela "depois" já concluída. Recarregar e reproduzir apagam estas comparações.',
+      'Os segundos ativos são o tempo de tick central admitido; os segundos de material seguem o relógio de produção. Desfazer mantém a janela "depois" já concluída. Recarregar mantém estas comparações.',
     beforeApply: 'Antes de aplicar',
     afterApply: 'Depois de aplicar',
     currentRun: 'Operação atual',

@@ -379,12 +379,7 @@ export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
       for (const id of ['intake', 'floor'] as const) {
         const raw = FRONTS[id];
         const local = localFronts[id];
-        template(
-          'held',
-          'heldBody',
-          { label: raw.label, pronoun: raw.pronoun },
-          { label: local.label }
-        );
+        template('held', 'heldBody', { label: raw.label }, { label: local.label });
         template('fell', 'fellBody', { label: raw.label }, { label: local.label });
       }
     }

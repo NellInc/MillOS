@@ -21,6 +21,7 @@ import { stakeholderName, stakeholderPhrase } from './stakeholders';
 import { CUSTOMERS } from './customers';
 import { HISTORY_NOTES } from './history';
 import { standingOf } from './certifier';
+import { GOVERNANCE_MARKS } from './governance';
 import type {
   CertifierState,
   ChronicleCondition,
@@ -151,13 +152,14 @@ export const MARKS: Record<MarkId, MarkDefinition> = {
 
   // The valley meeting (The Peasant Revolution)
   'meeting-heard': { label: 'Answered the valley meeting from the record', leaning: 'valley' },
-  'reserve-opened': { label: 'Opened the reserve for the valley', leaning: 'valley' },
+  'reserve-opened': { label: 'Paid the valley a rebate', leaning: 'valley' },
   'meeting-dismissed': { label: 'Closed the valley meeting unanswered', leaning: 'ledger' },
 
   // The certifier
   'log-reported': { label: 'Reported the gap in the cleaning log', leaning: 'standards' },
   'log-recleaned': { label: 'Re-cleaned the sifting floor and logged it' },
   'log-backdated': { label: 'Backdated the cleaning log', leaning: 'ledger' },
+  'log-left': { label: 'Left the gap in the cleaning log for the audit' },
   reinstated: { label: 'Passed the reinstatement audit', leaning: 'standards' },
 
   // Bigger offers
@@ -172,6 +174,18 @@ export const MARKS: Record<MarkId, MarkDefinition> = {
   'held-floor': { label: 'The roller floor held on the long night' },
   'fell-intake': { label: 'The intake fell on the long night' },
   'fell-floor': { label: 'The roller floor fell on the long night' },
+
+  // Part three: standing orders (set by the engine; docs/CHRONICLE.md, systems 25-32)
+  'crew-overruled': { label: 'Carried a policy over a member’s need' },
+  'crew-concession': { label: 'Met a member’s need another way' },
+  'growers-broke-off': { label: 'The growers’ cooperative acted on its warning' },
+  'village-broke-off': { label: 'The village committee acted on its warning' },
+  'federation-broke-off': { label: 'The regional federation acted on its warning' },
+  'quota-raised': { label: 'Beat the federation’s quota, which was raised' },
+  'quota-missed': { label: 'Missed the federation’s quota' },
+  administered: { label: 'Ran for a time under the federation’s administrator' },
+  'reserve-drawn': { label: 'Drew on the co-op reserve' },
+  'reserve-kept': { label: 'Closed the chronicle with the co-op reserve in hand' },
 };
 
 /** Marks the engine sets itself rather than an authored effect. */
@@ -181,6 +195,15 @@ export const ENGINE_MARKS: readonly MarkId[] = [
   'fell-intake',
   'fell-floor',
 ];
+
+/**
+ * Part three's outcomes the engine files itself (a return, a warning acted on,
+ * the reserve drawn or kept): marks the year left, not rulings anyone made. A
+ * ruling that lapsed is still a decision; these never were one.
+ */
+export function isFiledOutcome(mark: Pick<DecisionMark, 'id' | 'actor'>): boolean {
+  return mark.actor === 'chronicle' && GOVERNANCE_MARKS.includes(mark.id);
+}
 
 export function markLabel(id: MarkId): string {
   return MARKS[id]?.label ?? id;

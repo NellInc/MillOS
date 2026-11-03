@@ -12,6 +12,7 @@ import {
   getCommunityHours,
 } from '../constants/communityLayout';
 import type { Vec3Tuple } from '../constants/siteLayout';
+import { FORKLIFT_CREW_SITES } from '../constants/forkliftCrewLayout';
 import type { WorkplaceState } from '../types/workplace';
 import { improvementArrangement } from './workplaceImprovement';
 import { translate } from '../i18n';
@@ -544,6 +545,21 @@ const millLoop = (
     via([work[0], 0, aisle]),
   ]);
 
+/** A forklift operator's day: the driving spell at the crew point (stops[0], the
+ * stand beside the cab, where the forklift collects them), then a walk to their
+ * own bench and back. While the spell runs they are in the cab, not at the
+ * stand: CommunityLife seats them there, and their personal hour holds at both
+ * ends of the spell until the forklift is parked at the crew point
+ * (forkliftCrew.ts). Their strip is used by no one else, because a held hour
+ * puts them out of step with everyone, so only distance keeps them apart.
+ */
+export const FORKLIFT_OPERATOR_REST_HOURS = 0.6;
+const forkliftOperatorRoutine = (site: (typeof FORKLIFT_CREW_SITES)[number]): CommunityStop[] =>
+  fitPeriod([
+    stop(site.stand, site.standRotation, 0, `Driving ${site.tag}`),
+    rest(site.bench, site.benchRotation, FORKLIFT_OPERATOR_REST_HOURS),
+  ]);
+
 /** Closed, authored pedestrian circuits stay on the mill side of conveyors.
  * Working if sampled segments clear machine/belt footprints and vehicle lanes.
  *
@@ -711,6 +727,16 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
   { id: 'village-cyclist', role: 'Cyclist', district: 'village', phase: 0, stops: [] },
   { id: 'bus-arriving', role: 'Passenger', district: 'bus', phase: 0, stops: [] },
   { id: 'bus-departing', role: 'Passenger', district: 'bus', phase: 0.4, stops: [] },
+  // Last: personnel saves restore residents by index, so new people go at the end.
+  ...FORKLIFT_CREW_SITES.map(
+    (site): CommunityPerson => ({
+      id: site.operatorId,
+      role: 'Operator',
+      district: 'mill',
+      phase: site.phase,
+      stops: forkliftOperatorRoutine(site),
+    })
+  ),
 ];
 
 export const communityHour = (hour: number): number =>

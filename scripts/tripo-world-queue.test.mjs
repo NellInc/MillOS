@@ -270,3 +270,101 @@ test(
     expect(body.texture_quality).toBe('standard');
   })
 );
+
+function asMultiview(f, names = ['front', 'left', 'back']) {
+  const views = {};
+  names.forEach((name, i) => {
+    // Distinct bytes per view, so a swapped file is a changed hash.
+    const png = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.from([i])]);
+    const file = `pilot-${name}.png`;
+    writeFileSync(path.join(f.dir, file), png);
+    views[name] = { file, sha256: sha(png) };
+  });
+  Object.assign(f.plan.jobs[0], {
+    operation: 'multiview',
+    views,
+    reference: views.front?.file ?? 'pilot.png',
+    referenceSha256: views.front?.sha256 ?? f.plan.jobs[0].referenceSha256,
+  });
+  const api = f.api;
+  let uploads = 0;
+  f.api = async (route, options) => {
+    if (route === '/files') {
+      uploads += 1;
+      f.calls.push({ route, options });
+      return { file_token: `file_${uploads}` };
+    }
+    if (route === '/generation/multiview-to-model') {
+      f.calls.push({ route, options });
+      return { task_id: 'multiview_test' };
+    }
+    return api(route, options);
+  };
+}
+
+test(
+  'multiview uploads each reviewed view and sends view keys after durable intent',
+  withFixture(async (f) => {
+    asMultiview(f);
+    const api = f.api;
+    f.api = async (route, options) => {
+      if (route === '/generation/multiview-to-model') {
+        expect(
+          JSON.parse(readFileSync(path.join(f.dir, 'billing-ledger.json'))).jobs.pilot.status
+        ).toBe('submitting');
+      }
+      return api(route, options);
+    };
+    const result = await runQueue({ ...f, mode: 'submit', id: 'pilot' });
+    expect(result.taskId).toBe('multiview_test');
+    const post = f.calls.find((c) => c.route === '/generation/multiview-to-model');
+    const body = JSON.parse(post.options.body);
+    expect(body.inputs).toEqual([{ front: 'file_1' }, { left: 'file_2' }, { back: 'file_3' }]);
+    expect(body.input).toBeUndefined();
+    expect(body.enable_image_autofix).toBeUndefined();
+    expect(body.face_limit).toBe(4000);
+    expect(f.calls.filter((c) => c.route === '/generation/image-to-model')).toHaveLength(0);
+    const record = JSON.parse(readFileSync(path.join(f.dir, 'billing-ledger.json'))).jobs.pilot;
+    expect(record.reserveCredits).toBe(60);
+    expect(record.referenceSha256).toBe(f.plan.jobs[0].views.front.sha256);
+    expect(Object.keys(record.viewSha256)).toEqual(['front', 'left', 'back']);
+  })
+);
+
+test(
+  'multiview without a front view blocks before any network call',
+  withFixture(async (f) => {
+    asMultiview(f, ['left', 'back']);
+    await expect(runQueue(f)).rejects.toThrow('front view');
+    expect(f.calls).toEqual([]);
+  })
+);
+
+test(
+  'multiview with one view blocks before any network call',
+  withFixture(async (f) => {
+    asMultiview(f, ['front']);
+    await expect(runQueue(f)).rejects.toThrow('at least two views');
+    expect(f.calls).toEqual([]);
+  })
+);
+
+test(
+  'a changed view file blocks before any network call',
+  withFixture(async (f) => {
+    asMultiview(f);
+    writeFileSync(path.join(f.dir, 'pilot-back.png'), Buffer.from('89504e470d0a1a0aff', 'hex'));
+    await expect(runQueue(f)).rejects.toThrow('changed view');
+    expect(f.calls).toEqual([]);
+  })
+);
+
+test(
+  'multiview keeps generation pricing and rejects an unpriced reserve',
+  withFixture(async (f) => {
+    asMultiview(f);
+    f.plan.jobs[0].reserveCredits = 20;
+    await expect(runQueue(f)).rejects.toThrow('Unreviewed pricing');
+    expect(f.calls).toEqual([]);
+  })
+);

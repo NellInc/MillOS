@@ -237,8 +237,17 @@ interface RooftopSpec {
 /** Visible rooms on the town-facing facade and the exposed pitched-roof sides.
  * All panes share the existing instance draw and clock-dimmed window material.
  */
-export function buildNearCityWindows(buildings: readonly NearCityBuildingSpec[]): WindowSpec[] {
+export function buildNearCityWindows(
+  buildings: readonly NearCityBuildingSpec[],
+  groundAt: (x: number, z: number) => number = sampleFoothillGroundHeight
+): WindowSpec[] {
   const result: WindowSpec[] = [];
+  // Floors count up from the lowest corner, so on a wall running up the slope
+  // the lower panes near the uphill end were inside the hill: three wholly
+  // buried and six cut through by the turf. A pane is placed only where its
+  // sill clears the ground just outside the wall.
+  // Working if every pane on the hill town shows its whole frame above grade.
+  const SILL_CLEARANCE = 0.25;
   buildings.forEach((building, buildingIndex) => {
     // Every pane top stays 0.8 m under the eaves, which terraces now reach.
     const floors = Math.max(1, Math.floor((building.height - 3.56) / 3.5) + 1);
@@ -252,6 +261,17 @@ export function buildNearCityWindows(buildings: readonly NearCityBuildingSpec[])
       const firstOnFace = result.length;
       for (let floor = 0; floor < floors; floor++) {
         for (let column = 0; column < columns; column++) {
+          const across = (column + 0.5) / columns - 0.5;
+          const pane = {
+            x: building.x + normalX * (reach / 2 + 0.05) - normalZ * across * span * 0.76,
+            y: building.baseY + 2.3 + floor * 3.5,
+            z: building.z + normalZ * (reach / 2 + 0.05) + normalX * across * span * 0.76,
+            width: Math.min(1.3, (span / columns) * 0.38),
+            height: 0.9,
+            yaw,
+          };
+          const outside = groundAt(pane.x + normalX * 0.6, pane.z + normalZ * 0.6);
+          if (pane.y - pane.height / 2 < outside + SILL_CLEARANCE) continue;
           // A single-storey terrace end has two panes; never blank a whole face.
           const lastPane = floor === floors - 1 && column === columns - 1;
           if (
@@ -259,15 +279,7 @@ export function buildNearCityWindows(buildings: readonly NearCityBuildingSpec[])
             !(lastPane && result.length === firstOnFace)
           )
             continue;
-          const across = (column + 0.5) / columns - 0.5;
-          result.push({
-            x: building.x + normalX * (reach / 2 + 0.05) - normalZ * across * span * 0.76,
-            y: building.baseY + 2.3 + floor * 3.5,
-            z: building.z + normalZ * (reach / 2 + 0.05) + normalX * across * span * 0.76,
-            width: Math.min(1.3, (span / columns) * 0.38),
-            height: 0.9,
-            yaw,
-          });
+          result.push(pane);
         }
       }
     };

@@ -4,6 +4,7 @@ import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore
 import { setLocale } from '../../i18n';
 import { createMillOSRuntimeCommandHandlers } from '../../agent/adapters/runtime/runtimeCommandHandlers';
 import { HUMAN_OPERATOR_URI } from '../../agent/command/authority';
+import type { AgentCommandInspection } from '../../agent/command/commandKernel';
 
 const TAG = 'RM103.ST001.SP';
 
@@ -48,9 +49,12 @@ describe('SCADA setpoint writes are decisions in the campaign log', () => {
       (candidate) => candidate.capabilityId === 'scada.write-setpoint'
     )!;
     const range = (value: number) =>
-      handler
-        .inspect({ targetUri: `millos://tag/${TAG}`, parameters: { value } } as never)
-        .preconditions.find((item) => item.id === 'PRE.TAG.RANGE');
+      (
+        handler.inspect(
+          { targetUri: `millos://tag/${TAG}`, parameters: { value } } as never,
+          {} as never
+        ) as AgentCommandInspection
+      ).preconditions.find((item) => item.id === 'PRE.TAG.RANGE');
 
     expect(range(1500)?.satisfied).toBe(true);
     expect(range(2500)?.satisfied).toBe(false);
@@ -92,5 +96,30 @@ describe('SCADA setpoint writes are decisions in the campaign log', () => {
         message: 'RM-103 Speed Setpoint set to 1,300 RPM.',
       }),
     ]);
+  });
+});
+
+// Every other logbook line now carries its wording and follows the language; a
+// setpoint decision kept its frozen reading ('1,234.5' in pt-BR). Working if
+// the line re-words in Portuguese with Portuguese grouping.
+describe('setpoint decision wording', () => {
+  it('re-words a setpoint decision after a switch to pt-BR', async () => {
+    const { recordSetpointDecision } = await import('../setpointDecisionLog');
+    const { logWordingText } = await import('../../stores/operationsCampaignStore');
+    useOperationsCampaignStore.setState({ logbook: [] });
+    setLocale('en');
+    recordSetpointDecision(
+      { id: TAG, name: 'RM-103 Speed Setpoint', engUnit: 'RPM' },
+      1234.5,
+      'operator'
+    );
+    const [entry] = useOperationsCampaignStore.getState().logbook;
+    setLocale('pt-BR');
+    try {
+      expect(logWordingText(entry.wording)).toContain('1.234,5');
+    } finally {
+      setLocale('en');
+      useOperationsCampaignStore.setState({ logbook: [] });
+    }
   });
 });

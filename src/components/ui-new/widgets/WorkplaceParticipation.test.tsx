@@ -24,7 +24,7 @@ import { setLocale } from '../../../i18n';
 
 beforeEach(() => {
   useWorkplaceAutoplay.getState().pause();
-  useWorkplaceAutoplay.setState({ manual: false, message: null });
+  useWorkplaceAutoplay.setState({ manual: false, message: null, messageKey: null });
   // Admission waits for the onboarding tour; these tests start after it.
   useUIStore.setState({ hasSeenIntro: true, journeyVisible: false });
   useAnnouncementsStore.getState().setContext({ onboarding: false });
@@ -297,7 +297,7 @@ it.each([
     // A reload ends the page's runner without anyone pausing it.
     const { name, storage } = useWorkplaceAutoplay.persist.getOptions();
     const saved = await storage!.getItem(name!);
-    act(() => useWorkplaceAutoplay.getState().pause(true));
+    act(() => useWorkplaceAutoplay.getState().pause());
     await storage!.setItem(name!, saved!);
     delete document.documentElement.dataset.millosStartupReady;
     await act(async () => {
@@ -315,7 +315,7 @@ it.each([
     expect(screen.queryByRole('button', { name: 'Take over cooperative season' }) !== null).toBe(
       !tookOver
     );
-    act(() => useWorkplaceAutoplay.getState().pause(true));
+    act(() => useWorkplaceAutoplay.getState().pause());
     delete document.documentElement.dataset.millosStartupReady;
     vi.useRealTimers();
   }
@@ -372,7 +372,7 @@ it('holds autonomous admission while the onboarding tour is pending or showing',
     expect(useWorkplaceAutoplay.getState().running).toBe(true);
   } finally {
     act(() => {
-      useWorkplaceAutoplay.getState().pause(true);
+      useWorkplaceAutoplay.getState().pause();
     });
     view.unmount();
     delete document.documentElement.dataset.millosStartupReady;
@@ -410,7 +410,7 @@ it('keeps the desktop takeover control clear of the guide card column', () => {
     expect(takeover.textContent).toBe('Take over cooperative season');
   } finally {
     act(() => {
-      useWorkplaceAutoplay.getState().pause(true);
+      useWorkplaceAutoplay.getState().pause();
     });
     view.unmount();
     resize(width, height);
@@ -449,7 +449,7 @@ it('yields to an open compact-layout sheet instead of covering it', () => {
   } finally {
     act(() => {
       useMobileControlStore.getState().closeMobilePanel();
-      useWorkplaceAutoplay.getState().pause(true);
+      useWorkplaceAutoplay.getState().pause();
     });
     view.unmount();
     resize(width, height);
@@ -530,22 +530,27 @@ it('explains current mandate checks without granting consent and focuses explici
   get().startTurn('packing');
   render(<WorkplaceParticipation report={() => {}} />);
   expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 0 of 3');
-  fireEvent.change(screen.getByLabelText('Turn check: mandate'), {
+  fireEvent.change(screen.getByLabelText(`Turn check: ${turnChecks(get().workplace)[0].prompt}`), {
     target: { value: 'unlimited' },
   });
   expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 0 of 3');
-  expect(screen.getByLabelText('Turn check: mandate')).toHaveAttribute('aria-invalid', 'true');
+  expect(
+    screen.getByLabelText(`Turn check: ${turnChecks(get().workplace)[0].prompt}`)
+  ).toHaveAttribute('aria-invalid', 'true');
   expect(document.getElementById('turn-answer-mandate')).toHaveTextContent('Needs another look.');
   expect(document.getElementById('turn-answer-mandate')).toHaveTextContent(
     turnChecks(get().workplace)[0].clarification
   );
   for (const q of turnChecks(get().workplace))
-    fireEvent.change(screen.getByLabelText(`Turn check: ${q.id}`), {
+    fireEvent.change(screen.getByLabelText(`Turn check: ${q.prompt}`), {
       target: { value: q.correct },
     });
   expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 3 of 3');
   for (const q of turnChecks(get().workplace)) {
-    expect(screen.getByLabelText(`Turn check: ${q.id}`)).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.getByLabelText(`Turn check: ${q.prompt}`)).toHaveAttribute(
+      'aria-invalid',
+      'false'
+    );
     expect(document.getElementById(`turn-answer-${q.id}`)).toHaveTextContent(
       'Matches the current terms.'
     );
@@ -566,7 +571,7 @@ it('explains current mandate checks without granting consent and focuses explici
   expect(screen.getByRole('status')).toHaveTextContent('Mandate checks: 0 of 3');
   for (const q of turnChecks(get().workplace)) {
     expect(document.getElementById(`turn-answer-${q.id}`)).toBeNull();
-    expect(screen.getByLabelText(`Turn check: ${q.id}`)).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByLabelText(`Turn check: ${q.prompt}`)).not.toHaveAttribute('aria-invalid');
   }
 });
 
@@ -576,7 +581,9 @@ it('relearns a changed advice-only mandate without retaining a previous turn or 
   get().start('workshop', 17);
   get().startTurn('packing');
   render(<WorkplaceParticipation report={() => {}} />);
-  fireEvent.change(screen.getByLabelText('Turn check: mandate'), { target: { value: 'bounded' } });
+  fireEvent.change(screen.getByLabelText(`Turn check: ${turnChecks(get().workplace)[0].prompt}`), {
+    target: { value: 'bounded' },
+  });
   expect(document.getElementById('turn-answer-mandate')).toHaveTextContent(
     'Matches the current terms.'
   );
@@ -592,7 +599,7 @@ it('relearns a changed advice-only mandate without retaining a previous turn or 
   expect(get().turn).toBeNull();
   expect(document.getElementById('turn-answer-mandate')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Begin participant turn' }));
-  const input = screen.getByLabelText('Turn check: mandate');
+  const input = screen.getByLabelText(`Turn check: ${turnChecks(get().workplace)[0].prompt}`);
   expect(input).toHaveValue('');
   fireEvent.change(input, { target: { value: 'bounded' } });
   expect(input).toHaveAttribute('aria-invalid', 'true');
@@ -629,7 +636,7 @@ it.each([
     const button = screen.getByRole('button', { name: visible });
     expect(button).toHaveTextContent(visible);
   } finally {
-    act(() => useWorkplaceAutoplay.getState().pause(true));
+    act(() => useWorkplaceAutoplay.getState().pause());
     setLocale('en');
     delete document.documentElement.dataset.millosStartupReady;
     vi.useRealTimers();

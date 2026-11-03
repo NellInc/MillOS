@@ -1,8 +1,14 @@
 import { defineMessages, upperFirst } from '../../i18n';
 
+// 'gemini' is the persisted id of LLM-only mode; no Gemini model runs.
+const EN_AI_MODES: Record<string, string> = {
+  heuristic: 'heuristic',
+  gemini: 'LLM only',
+  hybrid: 'hybrid',
+};
 const PT_AI_MODES: Record<string, string> = {
   heuristic: 'heurístico',
-  gemini: 'gemini',
+  gemini: 'somente LLM',
   hybrid: 'híbrido',
 };
 
@@ -11,7 +17,7 @@ export const costEstimationOverlayMessages = defineMessages({
     title: 'BYOK API Usage',
     connected: 'Connected',
     disconnected: 'Disconnected',
-    aiMode: (p: { mode: string }) => p.mode,
+    aiMode: (p: { mode: string }) => EN_AI_MODES[p.mode] ?? p.mode,
     usd: '${amount}',
     durationHours: '{hours}h {minutes}m',
     durationMinutes: '{minutes}m',

@@ -15,8 +15,7 @@ export const workplaceAdviceMessages = defineMessages({
     missingOrder: 'Active order and recipe are unavailable.',
     missingExecution: 'Order execution facts are stale or mismatched.',
     missingSession: 'Mission and material session do not match.',
-    missingControls:
-      'Finite bounded production controls and a positive resume speed (9 to 3600x) are required.',
+    missingControls: 'Finite bounded production controls and a positive resume pace are required.',
     missingClock: 'Material clock is invalid.',
     missingRelease: 'Direct quality release is unavailable.',
     missingLoad: 'Direct dispatch load is unavailable.',
@@ -94,7 +93,7 @@ export const workplaceAdviceMessages = defineMessages({
     missingExecution: 'Os fatos de execução do pedido estão desatualizados ou não correspondem.',
     missingSession: 'A missão e a sessão de material não correspondem.',
     missingControls:
-      'São necessários controles de produção finitos e dentro dos limites, e uma velocidade de retomada positiva (de 9x a 3.600x).',
+      'São necessários controles de produção finitos e dentro dos limites, e um ritmo de retomada positivo.',
     missingClock: 'O relógio de material é inválido.',
     missingRelease: 'A liberação direta de qualidade não está disponível.',
     missingLoad: 'A carga direta de expedição não está disponível.',

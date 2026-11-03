@@ -8,6 +8,8 @@ import {
   interpolateTruckControllerState,
   stepTruckController,
   type TruckControllerState,
+  truckPhaseDirection,
+  truckWorldFrame,
 } from './truckController';
 import type { TruckAnimState } from './useTruckPhysics';
 
@@ -569,5 +571,43 @@ describe('schedule-owned articulated truck controller', () => {
     const previous = createTruckController('shipping', false);
     const current = createTruckController('shipping', true);
     expect(interpolateTruckControllerState(previous, current, 0.25)).toBe(current);
+  });
+});
+
+describe('truck world frame', () => {
+  it('turns the receiving truck half a revolution, as it is drawn, trailer included', () => {
+    for (const dock of ['shipping', 'receiving'] as const) {
+      // Mid-turn into the yard, where the trailer is articulated.
+      let state = createTruckController(dock, true);
+      for (let i = 0; i < 60 * 40 && state.phase !== 'straightening'; i += 1)
+        state = stepTruckController(state, {
+          deltaSeconds: 1 / 60,
+          arrivalReady: false,
+          safetyHold: false,
+          serviceComplete: false,
+          speedMultiplier: 1,
+        }).state;
+      const pose = getTruckControllerPose(state);
+      const world = truckWorldFrame(state, { x: 0, z: 0, tractorYaw: 0, trailerYaw: 0 });
+      expect(Math.abs(pose.articulation), dock).toBeGreaterThan(0.01);
+      expect(world.x, dock).toBeCloseTo(pose.x, 9);
+      expect(world.z, dock).toBeCloseTo(pose.z, 9);
+      expect(Math.cos(world.tractorYaw - pose.rotation), dock).toBeCloseTo(1, 9);
+      expect(Math.cos(world.trailerYaw - (pose.rotation + pose.articulation)), dock).toBeCloseTo(
+        1,
+        9
+      );
+    }
+  });
+});
+
+describe('truck phase direction', () => {
+  it('names the way each phase moves, a standing phase the move after it, and docked none', () => {
+    expect(truckPhaseDirection('entering')).toBe(1);
+    expect(truckPhaseDirection('backing')).toBe(-1);
+    expect(truckPhaseDirection('final_adjustment')).toBe(-1);
+    expect(truckPhaseDirection('stopping_to_back')).toBe(-1);
+    expect(truckPhaseDirection('preparing_to_leave')).toBe(1);
+    expect(truckPhaseDirection('docked')).toBe(0);
   });
 });

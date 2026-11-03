@@ -5,7 +5,8 @@ import type {
   WorkplaceState,
   ImprovementEpisode,
 } from '../types/workplace';
-import { campaignTotals } from './workplaceCampaign';
+import { campaignTotals, shiftResumable } from './workplaceCampaign';
+import { displayAdviceText } from './workplaceAdvice';
 import { formatFixed, translate } from '../i18n';
 import { workplaceImprovementMessages as msg } from './workplaceImprovement.messages';
 
@@ -341,16 +342,18 @@ export function improvementSummary(s: WorkplaceState) {
             : translate(msg, 'nextConfirm')
         : s.phase === 'active'
           ? translate(msg, 'nextWatch')
-          : !i.reviewAcknowledged
-            ? translate(msg, 'nextHearComparison')
-            : !i.verdict
-              ? translate(msg, 'nextVerdicts')
-              : translate(
-                  msg,
-                  i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES
-                    ? 'nextCloseExperiment'
-                    : 'nextOpenShift'
-                ),
+          : shiftResumable(s)
+            ? translate(msg, 'nextResume')
+            : !i.reviewAcknowledged
+              ? translate(msg, 'nextHearComparison')
+              : !i.verdict
+                ? translate(msg, 'nextVerdicts')
+                : translate(
+                    msg,
+                    i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES
+                      ? 'nextCloseExperiment'
+                      : 'nextOpenShift'
+                  ),
   };
 }
 
@@ -386,7 +389,10 @@ export function improvementLearningReview(s: WorkplaceState) {
   evidence.push(
     advice
       ? advice.reasonToAbstain
-        ? translate(msg, 'evidenceAbstained', { reason: advice.reasonToAbstain })
+        ? // Frozen sentences, shown in the language chosen now (as beside it).
+          translate(msg, 'evidenceAbstained', {
+            reason: displayAdviceText(advice.reasonToAbstain),
+          })
         : translate(msg, 'evidenceBound', { kg: formatFixed(advice.dispatchUpperKg, 1) })
       : translate(msg, 'evidenceNoForecast')
   );

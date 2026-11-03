@@ -7,6 +7,10 @@ export const qcLabStoreMessages = defineMessages({
     testReason: 'Test {id}: {grade}',
     retestReason: 'Retest {id}: {grade}',
     contaminationNoteDefault: 'Foreign material investigation opened',
+    // The campaign's supplier incident files its hold note with this key.
+    supplierTraceabilityNote:
+      'Supplier notification requires traceability review before dispatch release.',
+    holdReason: '{alertId}: {note}',
     recallReason: 'Material recalled under {alertId}',
     clearedReason: 'Investigation {alertId} cleared material',
   },
@@ -16,6 +20,9 @@ export const qcLabStoreMessages = defineMessages({
     testReason: 'Teste {id}: {grade}',
     retestReason: 'Reteste {id}: {grade}',
     contaminationNoteDefault: 'Investigação de material estranho aberta',
+    supplierTraceabilityNote:
+      'A notificação do fornecedor exige revisão de rastreabilidade antes da liberação para expedição.',
+    holdReason: '{alertId}: {note}',
     recallReason: 'Material recolhido conforme {alertId}',
     clearedReason: 'A investigação {alertId} liberou o material',
   },

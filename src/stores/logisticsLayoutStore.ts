@@ -47,10 +47,58 @@ const emptyObservation = (): LogisticsObservation => ({
   completedUnloads: 0,
   conditions: [],
 });
+/**
+ * The planner's observed before/after comparison. It belongs to the material
+ * session it was measured in, which a reload restores with the same id, so it
+ * travels with the layout. Absent on records saved before it did.
+ * Working if a reload mid-trial still shows the sealed "before" column.
+ */
+export interface SavedLogisticsComparison {
+  sessionId: string;
+  observation: LogisticsObservation;
+  before: LogisticsObservation | null;
+  retainedAfter: LogisticsObservation | null;
+}
 export interface SavedLogisticsLayout {
   layout: LogisticsProposal;
   previous: LogisticsProposal | null;
   revision: number;
+  comparison?: SavedLogisticsComparison;
+}
+
+const isObservation = (raw: unknown): raw is LogisticsObservation => {
+  if (!raw || typeof raw !== 'object') return false;
+  const o = raw as Record<string, unknown>;
+  return (
+    (
+      [
+        'activeSeconds',
+        'materialSeconds',
+        'packedKg',
+        'shippedKg',
+        'vehicleMetres',
+        'completedUnloads',
+      ] as const
+    ).every((k) => typeof o[k] === 'number' && Number.isFinite(o[k]) && (o[k] as number) >= 0) &&
+    Array.isArray(o.conditions) &&
+    o.conditions.length <= 20 &&
+    o.conditions.every((c) => typeof c === 'string')
+  );
+};
+
+/** A malformed comparison is dropped rather than halting the whole restore. */
+function validComparison(raw: unknown): SavedLogisticsComparison | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const c = raw as Record<string, unknown>;
+  if (typeof c.sessionId !== 'string' || !isObservation(c.observation)) return undefined;
+  if (c.before !== null && !isObservation(c.before)) return undefined;
+  if (c.retainedAfter !== null && !isObservation(c.retainedAfter)) return undefined;
+  return {
+    sessionId: c.sessionId,
+    observation: c.observation,
+    before: c.before as LogisticsObservation | null,
+    retainedAfter: c.retainedAfter as LogisticsObservation | null,
+  };
 }
 export const defaultSavedLogisticsLayout = (): SavedLogisticsLayout => ({
   layout: currentLogisticsLayout(),
@@ -181,25 +229,50 @@ export function validateSavedLogisticsLayout(
     if (!candidate || !feasible(candidate))
       throw new Error('Saved logistics layout has invalid clearance');
   }
+  const comparison = validComparison(saved.comparison);
   return structuredClone({
     layout: layout as LogisticsProposal,
     previous,
     revision: saved.revision,
+    ...(comparison ? { comparison } : {}),
   });
 }
 
-export function logisticsControlHold(): string | null {
-  if (isPhysicalSessionRestoring())
-    return translate(logisticsLayoutStoreMessages, 'sessionRestoring');
+type LayoutStoreReasonKey = keyof typeof logisticsLayoutStoreMessages.en;
+/** A refusal the planner can translate at render, so a language switch reaches it. */
+export type LogisticsReasonKey = LayoutStoreReasonKey | 'fleetNotReady';
+export function logisticsReasonText(key: LogisticsReasonKey): string {
+  return key === 'fleetNotReady'
+    ? translate(logisticsRuntimeMessages, 'fleetNotReady')
+    : translate(logisticsLayoutStoreMessages, key);
+}
+
+export function logisticsControlHoldKey(): LayoutStoreReasonKey | null {
+  if (isPhysicalSessionRestoring()) return 'sessionRestoring';
   const game = useGameSimulationStore.getState();
   if (selectSafetyHoldActive(game) || useSafetyStore.getState().forkliftEmergencyStop)
-    return translate(logisticsLayoutStoreMessages, 'safetyHold');
-  if (isWorkplaceReplayActive() || isWorkplaceReplayRestoring())
-    return translate(logisticsLayoutStoreMessages, 'replayActive');
+    return 'safetyHold';
+  if (isWorkplaceReplayActive() || isWorkplaceReplayRestoring()) return 'replayActive';
   const service = peekSCADAService();
   if (service ? service.getState().mode !== 'simulation' : useProductionStore.getState().scadaLive)
-    return translate(logisticsLayoutStoreMessages, 'localControlOnly');
+    return 'localControlOnly';
   return null;
+}
+
+export function logisticsControlHold(): string | null {
+  const key = logisticsControlHoldKey();
+  return key ? logisticsReasonText(key) : null;
+}
+
+/**
+ * `reason` is the text in the language active when the call was made;
+ * `reasonKey` is set whenever the reason is this store's own copy. A reason a
+ * forklift controller gives has no key and stays as text.
+ */
+export interface LogisticsApplyResult {
+  changed: boolean;
+  reason: string | null;
+  reasonKey?: LogisticsReasonKey;
 }
 
 interface LogisticsLayoutState extends SavedLogisticsLayout {
@@ -211,11 +284,8 @@ interface LogisticsLayoutState extends SavedLogisticsLayout {
     proposal: LogisticsProposal,
     revision: number,
     machineKey: string
-  ) => { changed: boolean; reason: string | null };
-  undoApplied: (
-    revision: number,
-    machineKey: string
-  ) => { changed: boolean; reason: string | null };
+  ) => LogisticsApplyResult;
+  undoApplied: (revision: number, machineKey: string) => LogisticsApplyResult;
   restoreSaved: (saved: SavedLogisticsLayout) => void;
   recordVehicle: (dock: Dock, metres: number, completedUnload?: boolean) => void;
   observe: (
@@ -245,29 +315,27 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
     revision: number,
     machineKey: string,
     undo: boolean
-  ) => {
+  ): LogisticsApplyResult => {
     const state = get();
-    let reason = logisticsControlHold();
-    if (!reason && useGameSimulationStore.getState().gameSpeed !== 0)
-      reason = translate(logisticsLayoutStoreMessages, 'pauseFirst');
+    let reasonKey: LogisticsReasonKey | null = logisticsControlHoldKey();
+    if (!reasonKey && useGameSimulationStore.getState().gameSpeed !== 0) reasonKey = 'pauseFirst';
     const machines = useProductionStore.getState().machines;
     if (
-      !reason &&
+      !reasonKey &&
       (!machines.length || state.revision !== revision || spoutMachineKey(machines) !== machineKey)
     )
-      reason = translate(logisticsLayoutStoreMessages, 'layoutChanged');
+      reasonKey = 'layoutChanged';
     if (
-      !reason &&
+      !reasonKey &&
       !scoreLogisticsLayout(
         proposal,
         DEFAULT_PLANNING_ASSUMPTIONS,
         capturedPlanningObstacles(machines, positionRegistry.getAllObstacles())
       ).feasible
     )
-      reason = translate(logisticsLayoutStoreMessages, 'clearanceFailed');
-    if (!reason && !logisticsFleetReady())
-      reason = translate(logisticsRuntimeMessages, 'fleetNotReady');
-    if (reason) return { changed: false, reason };
+      reasonKey = 'clearanceFailed';
+    if (!reasonKey && !logisticsFleetReady()) reasonKey = 'fleetNotReady';
+    if (reasonKey) return { changed: false, reason: logisticsReasonText(reasonKey), reasonKey };
     const install = prepareLogisticsFleet(proposal);
     if (typeof install === 'string') return { changed: false, reason: install };
     // Both mounted controllers prepare without writes, then install synchronously
@@ -297,17 +365,25 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
       const previous = get().previous;
       return previous
         ? commit(previous, revision, machineKey, true)
-        : { changed: false, reason: translate(logisticsLayoutStoreMessages, 'nothingToUndo') };
+        : {
+            changed: false,
+            reason: logisticsReasonText('nothingToUndo'),
+            reasonKey: 'nothingToUndo',
+          };
     },
     restoreSaved: (saved) => {
       pendingMetres = pendingUnloads = 0;
       restoreLogisticsFleet(saved.layout);
+      const { layout, previous, revision } = structuredClone(saved);
+      const comparison = validComparison(structuredClone(saved.comparison));
       set({
-        ...structuredClone(saved),
-        sessionId: '',
-        observation: emptyObservation(),
-        before: null,
-        retainedAfter: null,
+        layout,
+        previous,
+        revision,
+        sessionId: comparison?.sessionId ?? '',
+        observation: comparison?.observation ?? emptyObservation(),
+        before: comparison?.before ?? null,
+        retainedAfter: comparison?.retainedAfter ?? null,
       });
     },
     recordVehicle: (_dock, metres, completedUnload = false) => {
@@ -344,6 +420,12 @@ export const useLogisticsLayoutStore = create<LogisticsLayoutState>((set, get) =
 });
 
 export function captureSavedLogisticsLayout(): SavedLogisticsLayout {
-  const { layout, previous, revision } = useLogisticsLayoutStore.getState();
-  return structuredClone({ layout, previous, revision });
+  const { layout, previous, revision, sessionId, observation, before, retainedAfter } =
+    useLogisticsLayoutStore.getState();
+  return structuredClone({
+    layout,
+    previous,
+    revision,
+    comparison: { sessionId, observation, before, retainedAfter },
+  });
 }

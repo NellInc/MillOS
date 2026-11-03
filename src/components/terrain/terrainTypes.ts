@@ -37,7 +37,9 @@ export type RegionShape =
       radius: number;
     }
   | { type: 'circle'; x: number; z: number; radius: number }
-  | { type: 'ellipse'; x: number; z: number; radiusX: number; radiusZ: number };
+  | { type: 'ellipse'; x: number; z: number; radiusX: number; radiusZ: number }
+  /** A band of `halfWidth` either side of an open polyline (the railway's curve). */
+  | { type: 'path'; points: readonly (readonly [number, number])[]; halfWidth: number };
 
 /**
  * A region definition for the splat map

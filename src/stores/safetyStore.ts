@@ -3,6 +3,35 @@ import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { translate } from '../i18n';
 import { safetyStoreMessages as msg } from './safetyStore.messages';
+import { gameSimulationStoreMessages } from './gameSimulationStore.messages';
+import { readPlantClock, type PlantClock } from '../utils/timeFormatting';
+
+/** Incident copy kept as a key, so the log reads in the language active now. */
+export type SafetyIncidentDescriptionKey =
+  | 'forkliftRouteBlocked'
+  | 'keyboardEmergencyStop'
+  | 'facilityStop';
+
+const DESCRIPTION_KEYS: ReadonlySet<string> = new Set<SafetyIncidentDescriptionKey>([
+  'forkliftRouteBlocked',
+  'keyboardEmergencyStop',
+  'facilityStop',
+]);
+
+/**
+ * An incident's description in the language active now. The stored text was
+ * resolved when the incident was logged; it stands for a record with no key
+ * (a crisis, an older build's entry).
+ */
+export function incidentDescription(
+  incident: Pick<SafetyIncident, 'description' | 'descriptionKey' | 'crisisType'>
+): string {
+  // A crisis reads through the crisis catalogue, with its type.
+  if (incident.crisisType)
+    return translate(gameSimulationStoreMessages, 'crisisCause', { type: incident.crisisType });
+  const key = incident.descriptionKey;
+  return key && DESCRIPTION_KEYS.has(key) ? translate(msg, key) : incident.description;
+}
 
 interface IncidentHeatMapIndex {
   incidentHeatMapIndex: Map<string, { x: number; z: number; intensity: number; type: string }>;
@@ -45,11 +74,60 @@ function defaultSpeedZones(): SafetyStore['speedZones'] {
   ];
 }
 
+const DEFAULT_ZONE_NAME_KEYS: Readonly<Record<string, keyof typeof msg.en>> = {
+  'zone-1': 'zoneCentralArea',
+  'zone-2': 'zoneNorthLoading',
+  'zone-3': 'zoneSouthLoading',
+  'zone-4': 'zoneWestCorridor',
+  'zone-5': 'zoneEastCorridor',
+  'zone-6': 'zonePackingZone',
+};
+
+/**
+ * A speed zone's name in the language active now. A default zone still
+ * carrying its default name (in either language) was named by the app, not
+ * the player, and no control renames it, so it follows a language switch; any
+ * other name is the player's and is shown as stored.
+ */
+export function speedZoneName(zone: { id: string; name: string }): string {
+  const key = DEFAULT_ZONE_NAME_KEYS[zone.id];
+  if (!key) return zone.name;
+  return zone.name === msg.en[key] || zone.name === msg['pt-BR'][key]
+    ? translate(msg, key)
+    : zone.name;
+}
+
+type SafetyIncident = SafetyStore['safetyIncidents'][number];
+
+/**
+ * The log with one more entry at its head, under a unique id, capped at 50,
+ * stamped with the plant clock it happened at (what the log shows).
+ */
+function prependIncident(
+  incidents: SafetyIncident[],
+  timestamp: number,
+  entry: Omit<SafetyIncident, 'id' | 'timestamp'>
+): SafetyIncident[] {
+  const gameClock = entry.gameClock ?? readPlantClock();
+  const incident = gameClock ? { ...entry, gameClock } : entry;
+  const baseId = `incident-${timestamp}-${Math.random().toString(36).slice(2, 7)}`;
+  const existingIds = new Set(incidents.map((entry) => entry.id));
+  let id = baseId;
+  let suffix = 1;
+  while (existingIds.has(id)) {
+    id = `${baseId}-${suffix}`;
+    suffix += 1;
+  }
+  return [{ ...incident, id, timestamp }, ...incidents].slice(0, 50);
+}
+
 export interface SafetyMetrics {
   nearMisses: number;
   safetyStops: number;
   routeConflicts: number;
   lastIncidentTime: number | null;
+  /** The plant clock at the last event; the card ages on it (absent in older saves). */
+  lastIncidentClock?: PlantClock | null;
   daysSinceIncident: number;
 }
 
@@ -73,7 +151,8 @@ export const computeSafetyScore = (metrics?: Partial<SafetyMetrics> | null): num
 interface SafetyStore {
   // Safety metrics
   safetyMetrics: SafetyMetrics;
-  recordSafetyStop: () => void;
+  /** A blocked-route stop: counted, and logged where it happened when that is known. */
+  recordSafetyStop: (detail?: { location?: { x: number; z: number }; forkliftId?: string }) => void;
   recordRouteConflict: () => void;
   incrementDaysSafe: () => void;
   recordNearMiss: () => void;
@@ -83,7 +162,13 @@ interface SafetyStore {
     id: string;
     type: 'stop' | 'evasion' | 'near_miss' | 'emergency';
     timestamp: number;
+    /** Resolved when logged; read through incidentDescription(). */
     description: string;
+    descriptionKey?: SafetyIncidentDescriptionKey;
+    /** For a crisis stop: its type, so the line reads in the language active now. */
+    crisisType?: string;
+    /** The plant clock at logging; absent on an entry from before it was kept. */
+    gameClock?: PlantClock;
     location?: { x: number; z: number };
     forkliftId?: string;
     conflictingVehicleId?: string;
@@ -92,6 +177,12 @@ interface SafetyStore {
     incident: Omit<SafetyStore['safetyIncidents'][0], 'id' | 'timestamp'>
   ) => void;
   clearSafetyIncidents: () => void;
+  /**
+   * Incidents logged this session. The log is capped at 50 and can be
+   * cleared, so its length is not a count; this rises with every logged
+   * incident and is reset only by a new session (Reset Simulation reloads).
+   */
+  sessionIncidentCount: number;
 
   // Forklift emergency stop
   forkliftEmergencyStop: boolean;
@@ -154,16 +245,34 @@ export const useSafetyStore = create<SafetyStore>()(
         lastIncidentTime: null,
         daysSinceIncident: 0,
       },
-      recordSafetyStop: () =>
-        set((state) => ({
-          safetyMetrics: {
-            ...state.safetyMetrics,
-            safetyStops: state.safetyMetrics.safetyStops + 1,
-            nearMisses: state.safetyMetrics.nearMisses + 1,
-            lastIncidentTime: Date.now(),
-            daysSinceIncident: 0,
-          },
-        })),
+      // A blocked-route stop is counted, and logged as the same event, so the
+      // Stops card, the Incident Log and the report's byType.stop agree.
+      recordSafetyStop: (detail) =>
+        set((state) => {
+          const timestamp = Date.now();
+          return {
+            safetyMetrics: {
+              ...state.safetyMetrics,
+              safetyStops: state.safetyMetrics.safetyStops + 1,
+              nearMisses: state.safetyMetrics.nearMisses + 1,
+              lastIncidentTime: timestamp,
+              lastIncidentClock: readPlantClock() ?? null,
+              daysSinceIncident: 0,
+            },
+            sessionIncidentCount: state.sessionIncidentCount + 1,
+            safetyIncidents: prependIncident(state.safetyIncidents, timestamp, {
+              ...(detail?.location &&
+              Number.isFinite(detail.location.x) &&
+              Number.isFinite(detail.location.z)
+                ? { location: { x: detail.location.x, z: detail.location.z } }
+                : {}),
+              ...(detail?.forkliftId ? { forkliftId: detail.forkliftId } : {}),
+              type: 'stop',
+              description: translate(msg, 'forkliftRouteBlocked'),
+              descriptionKey: 'forkliftRouteBlocked',
+            }),
+          };
+        }),
       recordRouteConflict: () =>
         set((state) => ({
           safetyMetrics: {
@@ -184,31 +293,32 @@ export const useSafetyStore = create<SafetyStore>()(
             ...state.safetyMetrics,
             nearMisses: state.safetyMetrics.nearMisses + 1,
             lastIncidentTime: Date.now(),
+            lastIncidentClock: readPlantClock() ?? null,
             daysSinceIncident: 0,
           },
         })),
 
       // Safety incident history
       safetyIncidents: [],
+      // Every logged incident is the Last Event. Counters, near misses and
+      // Days Safe stay with their recorders: a stop the operator chose is not
+      // a safety lapse and must not lower the safety score.
       addSafetyIncident: (incident) =>
         set((state) => {
           const timestamp = Date.now();
-          const baseId = `incident-${timestamp}-${Math.random().toString(36).slice(2, 7)}`;
-          const existingIds = new Set(state.safetyIncidents.map((entry) => entry.id));
-          let id = baseId;
-          let suffix = 1;
-          while (existingIds.has(id)) {
-            id = `${baseId}-${suffix}`;
-            suffix += 1;
-          }
           return {
-            safetyIncidents: [{ ...incident, id, timestamp }, ...state.safetyIncidents].slice(
-              0,
-              50
-            ),
+            safetyMetrics: {
+              ...state.safetyMetrics,
+              lastIncidentTime: timestamp,
+              lastIncidentClock: readPlantClock() ?? null,
+            },
+            sessionIncidentCount: state.sessionIncidentCount + 1,
+            safetyIncidents: prependIncident(state.safetyIncidents, timestamp, incident),
           };
         }),
+      // Clearing the log leaves the session's count: the incidents happened.
       clearSafetyIncidents: () => set({ safetyIncidents: [] }),
+      sessionIncidentCount: 0,
 
       // Forklift emergency stop
       forkliftEmergencyStop: false,

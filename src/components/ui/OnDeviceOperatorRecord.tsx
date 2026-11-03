@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react';
 import { Bot } from 'lucide-react';
-import { formatFixed, useT } from '../../i18n';
+import { formatFixed, useLocale, useT } from '../../i18n';
+import { jevQueueLabel } from '../../utils/jevClient.messages';
+import { incidentTitle } from '../../stores/incidentText';
 import {
   INCIDENT_QUEUE,
   onDeviceOperatorRecords,
@@ -16,9 +18,14 @@ const VISIBLE = 20;
  */
 export function OnDeviceOperatorRecord() {
   const t = useT(onDeviceOperatorRecordMessages);
+  const locale = useLocale();
   const records = useSyncExternalStore(subscribeOnDeviceOperator, onDeviceOperatorRecords);
   if (records.length === 0) return null;
-  const handled = records.filter((record) => record.outcome === 'handled').length;
+  // By incident, from its latest record: one held at a boundary is filed again
+  // with its outcome once the boundary clears.
+  const latestOutcome = new Map(records.map((record) => [record.incidentId, record.outcome]));
+  const handled = [...latestOutcome.values()].filter((outcome) => outcome === 'handled').length;
+  const left = latestOutcome.size - handled;
   return (
     <section
       aria-labelledby="on-device-record-heading"
@@ -35,7 +42,7 @@ export function OnDeviceOperatorRecord() {
         <span className="text-slate-400">
           {t('summary', {
             handled: formatFixed(handled, 0),
-            left: formatFixed(records.length - handled, 0),
+            left: formatFixed(left, 0),
           })}
         </span>
       </div>
@@ -50,14 +57,17 @@ export function OnDeviceOperatorRecord() {
               className="rounded-lg border border-slate-700/60 bg-slate-900/60 p-2"
             >
               <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-                <span className="font-medium text-slate-100">{record.title}</span>
+                {/* By kind, in the language chosen now; the stored title is the fallback. */}
+                <span className="font-medium text-slate-100">{incidentTitle(record)}</span>
                 <span className="text-slate-500">
                   {t('minute', { minute: formatFixed(record.minute, 0) })}
                 </span>
               </div>
               <p className="text-slate-300">
-                {record.queue ?? t('noRoute')} ·{' '}
-                {t(record.outcome, { expected: INCIDENT_QUEUE[record.kind] })}
+                {record.queue ? jevQueueLabel(record.queue, locale) : t('noRoute')} ·{' '}
+                {t(record.outcome, {
+                  expected: jevQueueLabel(INCIDENT_QUEUE[record.kind], locale),
+                })}
               </p>
               <p className={record.outcome === 'handled' ? 'text-emerald-300' : 'text-amber-200'}>
                 {record.outcome === 'handled' ? t('peopleHandled') : t('peopleLeft')}

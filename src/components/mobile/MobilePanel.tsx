@@ -3,6 +3,7 @@ import { ProcessInspectionCard } from '../ui-new/widgets/ProcessInspectionCard';
 import { useWindmillLearningStore } from '../../stores/windmillLearningStore';
 import { WindmillLearningCard } from '../ui-new/widgets/WindmillLearningCard';
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -28,14 +29,23 @@ import {
   Route,
   ScrollText,
 } from 'lucide-react';
+import { useMobileControlStore } from '../../stores/mobileControlStore';
 import { ChroniclePanel } from '../chronicle/ChroniclePanel';
 import type { DockMode } from '../ui-new/dock/Dock';
 import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
-import { selectChosenPace, useGameSimulationStore } from '../../stores/gameSimulationStore';
-import { useSafetyStore } from '../../stores/safetyStore';
-import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
+import {
+  selectChosenPace,
+  selectPaceUnderPause,
+  useGameSimulationStore,
+} from '../../stores/gameSimulationStore';
+import { computeSafetyScore, useSafetyStore } from '../../stores/safetyStore';
+import {
+  recordOperatorAction,
+  useOperationsCampaignStore,
+} from '../../stores/operationsCampaignStore';
 import { SafetyPanel } from '../ui-new/panels/SafetyPanel';
+import { SettingsPanel } from '../ui-new/panels/SettingsPanel';
 import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
 import { OnDeviceOperatorRecord } from '../ui/OnDeviceOperatorRecord';
 import { WorkplaceLab } from '../ui-new/widgets/WorkplaceLab';
@@ -49,11 +59,19 @@ import {
   type Translator,
 } from '../../i18n';
 import { mobilePanelMessages } from './MobilePanel.messages';
-import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
+import { aiCommandCenterMessages } from '../AICommandCenter.messages';
+import { AISettingsModal } from '../AISettingsModal';
+import { applyDecisionEffects, decisionCardText } from '../../utils/aiEngine';
+import { alertText } from '../../i18n/alertCopy';
+import { formatPaceRatio, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
+import { useRunningThroughput } from '../../hooks/useRunningThroughput';
 import { paceMessages } from '../../simulation/pace.messages';
 
 import { OperationsPlayCard, PaceHoldNote, ShiftDebrief } from '../ui-new/onboarding/PlayableShift';
 import { BatchGenealogySection, MaintenanceSection } from '../ui-new/panels/OverviewPanel';
+import { plantReadinessIndex } from '../../simulation/plantReadiness';
+import { deriveOperationsPlay } from '../../simulation/operationsPlay';
+import { REPLAY_GETTING_STARTED_EVENT } from '../ui-new/onboarding/replayGettingStarted';
 
 interface MobilePanelProps {
   isVisible: boolean;
@@ -181,10 +199,23 @@ const formatMaterial = (material: string, t: PanelT) => {
   return key ? t(key) : material.replaceAll('_', ' ');
 };
 
+// The guided delivery reads the hold from the line, not from the shift card,
+// whose alarm and recovery steps outrank quality. Working if the guide's QC
+// step unfolds the batches with an alarm up.
+const qualityIsNext = () => {
+  const state = useOperationsCampaignStore.getState();
+  return (
+    state.execution.stage === 'quality_hold' ||
+    deriveOperationsPlay(state).nextAction.kind === 'quality'
+  );
+};
+
 // Overview panel content - comprehensive version matching desktop
 const MOBILE_PACE_LABELS: Record<number, string> = { 15: '1/2x', 30: '1x', 60: '2x', 120: '4x' };
 const OverviewContent: React.FC = () => {
   const t = useT(mobilePanelMessages);
+  // 0 while the clock is held: a paused plant packs nothing.
+  const shownThroughput = useRunningThroughput();
   const pace = useT(paceMessages);
   const locale = useLocale();
   const metrics = useProductionStore((s) => s.metrics);
@@ -214,14 +245,8 @@ const OverviewContent: React.FC = () => {
     idle: machines.filter((m) => m.status === 'idle').length,
   };
 
-  // Safety score calculation
-  const safetyScore = Math.max(
-    0,
-    Math.min(
-      100,
-      100 - (safetyMetrics?.nearMisses ?? 0) * 5 - (safetyMetrics?.safetyStops ?? 0) * 2
-    )
-  );
+  // The one safety score the HUD and the desktop Overview show.
+  const safetyScore = computeSafetyScore(safetyMetrics);
 
   // Format game time
   const formatGameTime = (time: number) => {
@@ -229,6 +254,23 @@ const OverviewContent: React.FC = () => {
     const minutes = Math.floor((time % 1) * 60);
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
+
+  // The quality hold lives in the batch section, folded here to save room.
+  // The shift card's quality next action and the guide's QC step land on this
+  // sheet, so it opens while quality is the next action and again when that
+  // action is pressed here. Working if 'Review the quality hold in Overview'
+  // always shows the batches it names.
+  const batchRef = React.useRef<HTMLDetailsElement>(null);
+  const [batchOpen, setBatchOpen] = React.useState(qualityIsNext);
+  React.useEffect(() => {
+    const reveal = (event: Event) => {
+      if ((event as CustomEvent<unknown>).detail !== 'overview' || !qualityIsNext()) return;
+      setBatchOpen(true);
+      requestAnimationFrame(() => batchRef.current?.scrollIntoView?.({ block: 'start' }));
+    };
+    window.addEventListener('millos:open-operations-workspace', reveal);
+    return () => window.removeEventListener('millos:open-operations-workspace', reveal);
+  }, []);
 
   // Target progress
   const targetProgress = productionTarget
@@ -247,7 +289,12 @@ const OverviewContent: React.FC = () => {
       >
         <Route size={18} aria-hidden="true" /> {t('planLogistics')}
       </button>
-      <details className="rounded-xl border border-slate-700 p-3">
+      <details
+        ref={batchRef}
+        open={batchOpen}
+        onToggle={(event) => setBatchOpen(event.currentTarget.open)}
+        className="rounded-xl border border-slate-700 p-3"
+      >
         <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-cyan-200">
           {t('batchTraceability')}
         </summary>
@@ -270,9 +317,7 @@ const OverviewContent: React.FC = () => {
           <span
             className={`text-[10px] font-bold ${gameSpeed === 0 ? 'text-red-400' : 'text-green-400'}`}
           >
-            {gameSpeed === 0
-              ? t('paused')
-              : `${formatGrouped(Number((gameSpeed / STANDARD_GAME_SPEED).toFixed(1)), { useGrouping: false })}x`}
+            {gameSpeed === 0 ? t('paused') : formatPaceRatio(gameSpeed)}
           </span>
         </div>
         {/* The same paces and words as Shift pace (src/simulation/pace.ts). */}
@@ -280,7 +325,13 @@ const OverviewContent: React.FC = () => {
           {PACE_GAME_SPEEDS.map((value) => (
             <button
               key={value}
-              onClick={() => setGameSpeed(value)}
+              onClick={() => {
+                // A new running pace is the player's decision; a pause is not.
+                const before = selectPaceUnderPause(useGameSimulationStore.getState());
+                setGameSpeed(value);
+                if (value > 0 && value !== before)
+                  recordOperatorAction({ kind: 'pace', gameSpeed: value });
+              }}
               aria-label={pace(`pace${value}`)}
               aria-pressed={chosenPace === value}
               className={`flex-1 min-w-0 min-h-11 py-1.5 rounded text-[10px] font-bold flex items-center justify-center gap-1 ${
@@ -307,7 +358,7 @@ const OverviewContent: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         <MiniMetric
           label={t('throughput')}
-          value={formatFixed(metrics.throughput, 0)}
+          value={formatGrouped(Math.round(shownThroughput))}
           icon={<Package className="w-3 h-3" />}
           color="cyan"
         />
@@ -351,7 +402,9 @@ const OverviewContent: React.FC = () => {
           <div className="bg-slate-800/50 rounded-lg p-2">
             <div className="flex justify-between text-[10px] mb-1">
               <span className="text-slate-400">{t('dailyTarget')}</span>
-              <span className="text-cyan-400 font-mono">{formatFixed(targetProgress, 0)}%</span>
+              {/* One decimal, as the desktop Overview: rounded whole, 99.6%
+                  read 100% beside an unmet count. */}
+              <span className="text-cyan-400 font-mono">{formatFixed(targetProgress, 1)}%</span>
             </div>
             <div className="w-full h-1.5 bg-slate-700 rounded-full">
               <div
@@ -360,8 +413,8 @@ const OverviewContent: React.FC = () => {
               />
             </div>
             <div className="text-[10px] text-slate-400 mt-1">
-              {formatFixed(productionTarget.producedBags, 0)}/
-              {formatFixed(productionTarget.targetBags, 0)}
+              {formatGrouped(productionTarget.producedBags)}/
+              {formatGrouped(productionTarget.targetBags)}
             </div>
           </div>
         )}
@@ -428,7 +481,7 @@ const OverviewContent: React.FC = () => {
           <div className="text-slate-400">
             {t('revenue')}{' '}
             <span className="font-semibold text-emerald-300">
-              £{formatFixed(campaignEconomics.revenue, 0)}
+              £{formatGrouped(Math.round(campaignEconomics.revenue))}
             </span>
           </div>
         </div>
@@ -448,8 +501,8 @@ const OverviewContent: React.FC = () => {
               <Truck className="h-3 w-3" aria-hidden="true" /> {t('outbound')}
             </span>
             <span className="font-mono">
-              {formatFixed(campaignExecution.dispatchLoad.loadedKg, 0)} /{' '}
-              {formatFixed(campaignExecution.dispatchLoad.capacityKg, 0)} kg
+              {formatGrouped(Math.round(campaignExecution.dispatchLoad.loadedKg))} /{' '}
+              {formatGrouped(Math.round(campaignExecution.dispatchLoad.capacityKg))} kg
             </span>
           </div>
         </div>
@@ -514,48 +567,83 @@ const MachineStatusBadge: React.FC<{ label: string; count: number; color: string
   );
 };
 
-// Settings panel content
+// Settings panel content. Under 768 px this sheet is the only Settings there
+// is, so it carries the desktop panel whole, as it does Safety and Chronicle:
+// language, the tour, simulation resets, graphics, motion, sound and captions.
 const SettingsContent: React.FC = () => {
-  const t = useT(mobilePanelMessages);
+  const productionSpeed = useProductionStore((s) => s.productionSpeed);
+  const setProductionSpeed = useProductionStore((s) => s.setProductionSpeed);
   const showZones = useUIStore((s) => s.showZones);
   const setShowZones = useUIStore((s) => s.setShowZones);
-
+  const hasSeenIntro = useUIStore((s) => s.hasSeenIntro);
+  // This sheet sits above the tour card, so Replay getting started closes it
+  // for the tour to be read. Only the replay's own change does: a sheet opened
+  // while the tour is already up stays open.
+  // Working if Replay closes the sheet and opening Settings mid-tour does not.
+  const sawIntro = React.useRef(hasSeenIntro);
+  React.useEffect(() => {
+    if (sawIntro.current && !hasSeenIntro) useMobileControlStore.getState().closeMobilePanel();
+    sawIntro.current = hasSeenIntro;
+  }, [hasSeenIntro]);
+  // A replay after an X close changes no store value; it announces itself.
+  React.useEffect(() => {
+    const close = () => useMobileControlStore.getState().closeMobilePanel();
+    window.addEventListener(REPLAY_GETTING_STARTED_EVENT, close);
+    return () => window.removeEventListener(REPLAY_GETTING_STARTED_EVENT, close);
+  }, []);
   return (
-    <div className="space-y-4">
-      <div className="bg-slate-800/50 rounded-lg p-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-cyan-400" />
-            <span className="text-sm">{t('safetyZones')}</span>
-          </div>
-          <button
-            onClick={() => setShowZones(!showZones)}
-            role="switch"
-            aria-checked={showZones}
-            aria-label={t('safetyZones')}
-            className={`w-12 h-6 rounded-full transition-colors ${
-              showZones ? 'bg-cyan-600' : 'bg-slate-600'
-            }`}
-          >
-            <div
-              className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                showZones ? 'translate-x-6' : 'translate-x-0.5'
-              }`}
-            />
-          </button>
-        </div>
-      </div>
-    </div>
+    <SettingsPanel
+      productionSpeed={productionSpeed}
+      setProductionSpeed={setProductionSpeed}
+      showZones={showZones}
+      setShowZones={setShowZones}
+    />
   );
 };
 
-// AI Partner panel content
+// AI Partner panel content. Under 768 px this sheet is the AI workspace, so it
+// carries what the desktop AI Partner offers a player: AI settings and an
+// answer (Accept, Defer once, Reject) on each card still waiting for one.
+// Working if a phone player can pick a model and answer every pending card.
 const AIContent: React.FC = () => {
   const t = useT(mobilePanelMessages);
+  const card = useT(aiCommandCenterMessages);
+  const locale = useLocale();
   const aiDecisions = useProductionStore((s) => s.aiDecisions);
+  const recordDecisionResponse = useProductionStore((s) => s.recordDecisionResponse);
   const latestAlert = useUIStore((s) => s.alerts[0]);
   const [activeTab, setActiveTab] = React.useState<'decisions' | 'advisory'>('decisions');
-  const recentDecisions = aiDecisions.slice(0, 5);
+  const [showAISettings, setShowAISettings] = React.useState(false);
+  // Five rows fit the sheet, so cards still waiting for an answer come first
+  // (a returned deferral ahead of the rest, as on the desktop): newer settled
+  // cards must not push an unanswered one out of reach.
+  const recentDecisions = React.useMemo(() => {
+    const returned = aiDecisions.filter(
+      (decision) =>
+        decision.status === 'pending' &&
+        decision.response?.disposition === 'deferred' &&
+        decision.response.deferralReturned === true
+    );
+    const pending = aiDecisions.filter(
+      (decision) => decision.status === 'pending' && !returned.includes(decision)
+    );
+    const settled = aiDecisions.filter((decision) => decision.status !== 'pending');
+    return [...returned, ...pending, ...settled].slice(0, 5);
+  }, [aiDecisions]);
+
+  // Answering removes the pressed button with the card's pending state; focus
+  // moves to that card (or the list) rather than dropping to <body>.
+  const [refocusDecisionId, setRefocusDecisionId] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!refocusDecisionId) return;
+    setRefocusDecisionId(null);
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    (
+      document.getElementById(`mobile-ai-card-${refocusDecisionId}`) ??
+      document.getElementById('mobile-ai-tabpanel')
+    )?.focus();
+  }, [aiDecisions, refocusDecisionId]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -572,6 +660,13 @@ const AIContent: React.FC = () => {
 
   return (
     <div className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setShowAISettings(true)}
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+      >
+        <Settings className="h-4 w-4" aria-hidden="true" /> {t('aiSettings')}
+      </button>
       <div role="tablist" aria-label={t('aiViews')} className="flex gap-2">
         {(['decisions', 'advisory'] as const).map((tab) => (
           <button
@@ -592,13 +687,18 @@ const AIContent: React.FC = () => {
       <div
         id="mobile-ai-tabpanel"
         role="tabpanel"
+        tabIndex={-1}
         aria-labelledby={`mobile-ai-${activeTab}-tab`}
-        className="space-y-3"
+        className="space-y-3 focus:outline-none"
       >
         {activeTab === 'advisory' ? (
           <>
             <JevAdvisoryPanel
-              latestAlert={latestAlert ? `${latestAlert.title}\n${latestAlert.message}` : undefined}
+              latestAlert={
+                latestAlert
+                  ? `${alertText(latestAlert).title}\n${alertText(latestAlert).message}`
+                  : undefined
+              }
             />
             <OnDeviceOperatorRecord />
           </>
@@ -611,26 +711,80 @@ const AIContent: React.FC = () => {
             {recentDecisions.length === 0 ? (
               <div className="text-center py-4 text-slate-400 text-sm">{t('noDecisions')}</div>
             ) : (
-              <div className="space-y-2">
-                {recentDecisions.map((decision) => (
-                  <div
-                    key={decision.id}
-                    className="bg-slate-800/50 rounded-lg p-2 flex items-start gap-2"
-                  >
-                    {getStatusIcon(decision.status)}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-white truncate">{decision.action}</div>
-                      <div className="text-[10px] text-slate-400 truncate">
-                        {decision.reasoning}
+              <ul className="space-y-2">
+                {recentDecisions.map((decision) => {
+                  // The card's keyed copy, in the language active now, as on desktop.
+                  const text = decisionCardText(decision, locale);
+                  return (
+                    <li
+                      key={decision.id}
+                      id={`mobile-ai-card-${decision.id}`}
+                      tabIndex={-1}
+                      className="bg-slate-800/50 rounded-lg p-2 flex items-start gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                    >
+                      {getStatusIcon(decision.status)}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-white truncate">{text.action}</div>
+                        <div className="text-[10px] text-slate-400 truncate">{text.reasoning}</div>
+                        {decision.status === 'pending' && text.note && (
+                          <div className="mt-0.5 text-[10px] text-slate-400">{text.note}</div>
+                        )}
+                        {decision.status === 'pending' && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRefocusDecisionId(decision.id);
+                                applyDecisionEffects(decision, 'accepted');
+                              }}
+                              className="inline-flex min-h-11 items-center gap-1 rounded-md bg-emerald-500/15 px-3 text-xs text-emerald-300 hover:bg-emerald-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                              {card('accept')}
+                            </button>
+                            {/* A card is deferred once; the engine brings it back. */}
+                            {decision.response?.disposition !== 'deferred' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRefocusDecisionId(decision.id);
+                                  recordDecisionResponse(decision.id, 'deferred');
+                                }}
+                                className="inline-flex min-h-11 items-center gap-1 rounded-md bg-amber-500/15 px-3 text-xs text-amber-300 hover:bg-amber-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                              >
+                                <Clock className="h-3.5 w-3.5" aria-hidden="true" />
+                                {card('defer')}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRefocusDecisionId(decision.id);
+                                recordDecisionResponse(decision.id, 'rejected');
+                              }}
+                              className="inline-flex min-h-11 items-center gap-1 rounded-md bg-red-500/15 px-3 text-xs text-red-300 hover:bg-red-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                            >
+                              <X className="h-3.5 w-3.5" aria-hidden="true" />
+                              {card('reject')}
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </>
         )}
       </div>
+      {/* Portalled: the sheet's transform and backdrop blur would otherwise
+          make the full-screen modal a clipped box inside the sheet. */}
+      {showAISettings &&
+        createPortal(
+          <AISettingsModal isOpen onClose={() => setShowAISettings(false)} />,
+          document.body
+        )}
     </div>
   );
 };
@@ -658,6 +812,7 @@ const MetricCard: React.FC<{
 // Simulated SCADA panel content
 const SCADAContent: React.FC = () => {
   const t = useT(mobilePanelMessages);
+  const shownThroughput = useRunningThroughput();
   const locale = useLocale();
   const metrics = useProductionStore((s) => s.metrics);
   const scadaLive = useProductionStore((s) => s.scadaLive);
@@ -681,7 +836,7 @@ const SCADAContent: React.FC = () => {
       <div className="grid grid-cols-2 gap-2">
         <MetricCard
           label={t('throughput')}
-          value={formatFixed(metrics.throughput, 0)}
+          value={formatGrouped(Math.round(shownThroughput))}
           unit={t('bagsPerHrUnit')}
           icon={<Zap className="w-3 h-3" />}
         />
@@ -724,7 +879,7 @@ const SCADAContent: React.FC = () => {
         <div className="mt-1 text-[10px] text-slate-400">
           {t('qcStatus', {
             released: Boolean(campaignExecution.qualityReleased),
-            kg: formatFixed(campaignExecution.releasedFinishedKg, 0),
+            kg: formatGrouped(Math.round(campaignExecution.releasedFinishedKg)),
           })}
         </div>
       </div>
@@ -753,12 +908,15 @@ const SCADAContent: React.FC = () => {
 // Autonomous plant status for compact layouts
 const ManagementContent: React.FC = () => {
   const t = useT(mobilePanelMessages);
+  const shownThroughput = useRunningThroughput();
   const machines = useProductionStore((state) => state.machines);
   const metrics = useProductionStore((state) => state.metrics);
   const incidents = useOperationsCampaignStore((state) => state.incidents);
   const activeAssets = machines.filter((machine) => machine.status === 'running').length;
   const openIncidents = incidents.filter((incident) => incident.phase !== 'resolved').length;
-  const readiness = Math.max(0, Math.round(metrics.uptime - openIncidents * 8));
+  // The desktop Autonomy panel's readiness index (the same Management dock
+  // button), so the phone never reads a different number for the same plant.
+  const readiness = plantReadinessIndex(metrics);
 
   return (
     <div className="space-y-3">
@@ -779,7 +937,7 @@ const ManagementContent: React.FC = () => {
         </div>
         <div className="rounded bg-slate-800/50 p-2 text-center">
           <div className="text-sm font-bold text-cyan-400">
-            {formatFixed(metrics.throughput, 0)}
+            {formatGrouped(Math.round(shownThroughput))}
           </div>
           <div className="text-[10px] text-slate-400">{t('bagsPerHour')}</div>
         </div>
@@ -823,8 +981,21 @@ const getPanelContent = (mode: DockMode | null) => {
   }
 };
 
+// Phones play landscape only, where the old 33vh of the SCADA sheet was about
+// 129 px with the header, and the AI sheet's bare 70vh overshot 100dvh past
+// the 100 px bottom offset, so every sheet takes the capped tall height.
+// Working if SCADA and AI read in full on an 844x390 phone.
+const SHEET_MAX_HEIGHT = 'min(70dvh, calc(100dvh - 116px - env(safe-area-inset-bottom)))';
+// Sheets that carry a whole desktop panel pad themselves, so the sheet adds no
+// second p-4 around them. Working if Settings and Chronicle have one padding.
+const SELF_PADDED_SHEETS: ReadonlySet<DockMode> = new Set<DockMode>([
+  'safety',
+  'settings',
+  'chronicle',
+]);
+
 /**
- * Mobile panel component - centered modal at 1/3 screen height
+ * Mobile panel component - a bottom sheet capped by SHEET_MAX_HEIGHT
  * Shows simplified versions of sidebar content
  */
 export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, onClose }) => {
@@ -847,6 +1018,12 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
   const closeButtonRef = React.useRef<HTMLButtonElement>(null);
   const reducedMotion = useReducedMotion();
   const t = useT(mobilePanelMessages);
+
+  // The sheet is mounted only on a compact layout. Widening the window (or
+  // turning a tablet) unmounts it; a sheet flag left set would keep hiding the
+  // production target card and AI reflections on the desktop layout.
+  // Working if no store flag claims a sheet that is not on screen.
+  React.useEffect(() => () => useMobileControlStore.getState().closeMobilePanel(), []);
 
   // Modal behavior: Escape to dismiss, move focus into the panel on open,
   // and restore focus to the previously-focused element on close.
@@ -940,19 +1117,14 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
             className="fixed left-4 right-4 z-50 pointer-events-auto"
             style={{
               bottom: 'max(100px, calc(env(safe-area-inset-bottom) + 90px))',
-              maxHeight:
-                content === 'safety' || content === 'management'
-                  ? 'min(70dvh, calc(100dvh - 116px - env(safe-area-inset-bottom)))'
-                  : content === 'ai'
-                    ? '70vh'
-                    : '33vh',
+              maxHeight: SHEET_MAX_HEIGHT,
             }}
             aria-label={t('panelAriaLabel', { title: getPanelTitle(content, t) })}
             role="dialog"
             aria-modal="true"
           >
             <div
-              className={`flex flex-col ${content === 'safety' || content === 'management' ? 'max-h-[min(70dvh,calc(100dvh-116px-env(safe-area-inset-bottom)))]' : content === 'ai' ? 'max-h-[70vh]' : 'max-h-[33vh]'} bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl`}
+              className={`flex flex-col max-h-[min(70dvh,calc(100dvh-116px-env(safe-area-inset-bottom)))] bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl`}
             >
               {/* Header */}
               <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-slate-700/50">
@@ -972,7 +1144,7 @@ export const MobilePanel: React.FC<MobilePanelProps> = ({ isVisible, content, on
 
               {/* Content */}
               <div
-                className={`flex-1 min-h-0 overflow-y-auto ${content === 'safety' ? '' : 'p-4'}`}
+                className={`flex-1 min-h-0 overflow-y-auto ${SELF_PADDED_SHEETS.has(content) ? '' : 'p-4'}`}
               >
                 {getPanelContent(content)}
               </div>

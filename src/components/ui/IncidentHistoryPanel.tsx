@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { History, ChevronDown, ChevronUp, Clock } from 'lucide-react';
-import { useSafetyStore } from '../../stores/safetyStore';
+import { incidentDescription, useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
 import { formatFixed, useLocale, useT } from '../../i18n';
+import { formatPlantStamp } from '../../utils/timeFormatting';
 import { incidentHistoryPanelMessages } from './IncidentHistoryPanel.messages';
 
 export const IncidentHistoryPanel: React.FC = () => {
@@ -14,13 +15,27 @@ export const IncidentHistoryPanel: React.FC = () => {
   const theme = useUIStore((state) => state.theme);
   const t = useT(incidentHistoryPanelMessages);
   const locale = useLocale();
+  // Each step of the clear removes the button that was pressed. Focus follows
+  // to the control that replaces it, once that control has mounted.
+  // Working if a keyboard user never lands on <body> during a clear.
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const clearRef = useRef<HTMLButtonElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+  const focusNext = useRef<React.RefObject<HTMLButtonElement | null> | null>(null);
+  useEffect(() => {
+    if (!focusNext.current) return;
+    focusNext.current.current?.focus();
+    focusNext.current = null;
+  });
 
   const handleClearClick = () => {
     if (confirmingClear) {
       clearSafetyIncidents();
       setConfirmingClear(false);
+      focusNext.current = toggleRef;
     } else {
       setConfirmingClear(true);
+      focusNext.current = confirmRef;
     }
   };
 
@@ -68,6 +83,7 @@ export const IncidentHistoryPanel: React.FC = () => {
       className={`border-t pt-2 mt-2 ${theme === 'light' ? 'border-slate-200' : 'border-slate-700/50'}`}
     >
       <button
+        ref={toggleRef}
         onClick={() => {
           setExpanded(!expanded);
           setConfirmingClear(false);
@@ -105,23 +121,30 @@ export const IncidentHistoryPanel: React.FC = () => {
             ) : (
               <>
                 <div className="max-h-40 overflow-y-auto space-y-1">
-                  {safetyIncidents.slice(0, 20).map((incident) => (
-                    <div
-                      key={incident.id}
-                      className={`flex items-start gap-2 p-1.5 rounded text-[10px] ${getIncidentColor(incident.type)}`}
-                    >
-                      <Clock className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium">{formatTime(incident.timestamp)}</div>
-                        <div
-                          title={incident.description}
-                          className={`truncate ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}
-                        >
-                          {incident.description}
+                  {safetyIncidents.slice(0, 20).map((incident) => {
+                    // Read now, so a language switch after the incident applies;
+                    // an entry without a plant clock keeps its wall time.
+                    const description = incidentDescription(incident);
+                    return (
+                      <div
+                        key={incident.id}
+                        className={`flex items-start gap-2 p-1.5 rounded text-[10px] ${getIncidentColor(incident.type)}`}
+                      >
+                        <Clock className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium">
+                            {formatPlantStamp(incident.gameClock) ?? formatTime(incident.timestamp)}
+                          </div>
+                          <div
+                            title={description}
+                            className={`truncate ${theme === 'light' ? 'text-slate-600' : 'text-slate-300'}`}
+                          >
+                            {description}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {safetyIncidents.length > 20 && (
                   <div
@@ -134,6 +157,7 @@ export const IncidentHistoryPanel: React.FC = () => {
                   (confirmingClear ? (
                     <div className="flex items-center gap-2 pt-1">
                       <button
+                        ref={confirmRef}
                         onClick={handleClearClick}
                         className={`flex-1 text-[10px] font-medium transition-colors py-1 rounded ${
                           theme === 'light'
@@ -144,7 +168,10 @@ export const IncidentHistoryPanel: React.FC = () => {
                         {t('confirmClear')}
                       </button>
                       <button
-                        onClick={() => setConfirmingClear(false)}
+                        onClick={() => {
+                          setConfirmingClear(false);
+                          focusNext.current = clearRef;
+                        }}
                         className={`flex-1 text-[10px] transition-colors py-1 rounded ${
                           theme === 'light'
                             ? 'text-slate-600 bg-slate-100 hover:bg-slate-200'
@@ -156,6 +183,7 @@ export const IncidentHistoryPanel: React.FC = () => {
                     </div>
                   ) : (
                     <button
+                      ref={clearRef}
                       onClick={handleClearClick}
                       className={`w-full text-[10px] transition-colors py-1 ${
                         theme === 'light'

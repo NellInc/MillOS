@@ -4,7 +4,9 @@ import { defineMessages } from '../i18n';
 const EN_CAUSE: Record<string, string> = {
   quality: 'a quality failure',
   unsafe: 'an unresolved incident',
+  unsafeMany: 'unresolved incidents',
   late: 'a late delivery',
+  lateMany: 'late deliveries',
   risks: 'risks carried into the next shift',
   margin: 'costs above revenue',
   kg: 'too little dispatched for the time on commitments',
@@ -13,7 +15,9 @@ const EN_CAUSE: Record<string, string> = {
 const PT_CAUSE: Record<string, string> = {
   quality: 'uma falha de qualidade',
   unsafe: 'uma ocorrência não resolvida',
+  unsafeMany: 'ocorrências não resolvidas',
   late: 'uma entrega atrasada',
+  lateMany: 'o atraso de entregas',
   risks: 'o risco transferido para o próximo turno',
   margin: 'o custo acima da receita',
   kg: 'a pouca expedição para o tempo com compromissos',
@@ -60,6 +64,8 @@ export const shiftReviewMessages = defineMessages({
     noCommitment: 'No customer commitments this shift.',
     noCommitmentIncident:
       'No customer commitments this shift, but an unresolved incident held it back.',
+    noCommitmentIncidents:
+      'No customer commitments this shift, but unresolved incidents held it back.',
     openIncidentReason: (p: OpenIncidentParams) =>
       `Still open at close, ${EN_OPEN_PHASE[p.phase] ?? EN_OPEN_PHASE.raised}: ${p.title}. ${p.detail}`,
     openIncidentTitleReason: 'Still open at close: {title}.',
@@ -104,8 +110,10 @@ export const shiftReviewMessages = defineMessages({
       'Try next: accept the next delivery programme in Overview, so the shift has a customer to serve.',
     tryQuality:
       'Try next: hold loading until QC releases the batch, and check the recipe quality target in Overview before a truck leaves.',
-    tryUnsafe:
-      'Try next: acknowledge and mitigate {titles} in Overview as soon as it is raised, then resolve it before the shift closes.',
+    tryUnsafe: (p: { titles: string; count: number }) =>
+      p.count > 1
+        ? `Try next: acknowledge and mitigate ${p.titles} in Overview as soon as each is raised, then resolve them before the shift closes.`
+        : `Try next: acknowledge and mitigate ${p.titles} in Overview as soon as it is raised, then resolve it before the shift closes.`,
     tryLate:
       'Try next: serve the earliest-due customer first; the line starts the next order while a truck loads, so keep the recipe feed stocked.',
     tryRisk: 'Try next: clear "{risk}" before the shift closes.',
@@ -123,6 +131,8 @@ export const shiftReviewMessages = defineMessages({
     noCommitment: 'Nenhum compromisso com clientes neste turno.',
     noCommitmentIncident:
       'Nenhum compromisso com clientes neste turno, mas uma ocorrência não resolvida o prejudicou.',
+    noCommitmentIncidents:
+      'Nenhum compromisso com clientes neste turno, mas ocorrências não resolvidas o prejudicaram.',
     openIncidentReason: (p: OpenIncidentParams) =>
       `Ainda aberta no fechamento, ${PT_OPEN_PHASE[p.phase] ?? PT_OPEN_PHASE.raised}: ${p.title}. ${p.detail}`,
     openIncidentTitleReason: 'Ainda aberta no fechamento: {title}.',
@@ -141,7 +151,7 @@ export const shiftReviewMessages = defineMessages({
     headlineGood:
       '{kg} kg expedidos com contribuição não negativa e risco transferido sob controle.',
     headlineHeldBack: (p: { kg: string; cause: string }) =>
-      `${p.kg} kg expedidos; ${PT_CAUSE[p.cause] ?? PT_CAUSE.risks} impediu uma nota melhor.`,
+      `${p.kg} kg expedidos; ${PT_CAUSE[p.cause] ?? PT_CAUSE.risks} ${p.cause === 'unsafeMany' ? 'impediram' : 'impediu'} uma nota melhor.`,
     gradeLabel: 'Nota {grade}',
     gapQuality: '{next} exige que toda carga atinja a meta de qualidade da receita.',
     gapUnsafe: '{next} exige resolver {titles} antes de o turno fechar.',
@@ -172,8 +182,10 @@ export const shiftReviewMessages = defineMessages({
       'Tente a seguir: aceite o próximo programa de entregas na Visão geral, para que o turno tenha um cliente a atender.',
     tryQuality:
       'Tente a seguir: segure o carregamento até o CQ liberar o lote e confira a meta de qualidade da receita na Visão geral antes de o caminhão sair.',
-    tryUnsafe:
-      'Tente a seguir: reconheça e mitigue {titles} na Visão geral assim que surgir, e resolva antes de o turno fechar.',
+    tryUnsafe: (p: { titles: string; count: number }) =>
+      p.count > 1
+        ? `Tente a seguir: reconheça e mitigue ${p.titles} na Visão geral assim que cada uma surgir, e resolva todas antes de o turno fechar.`
+        : `Tente a seguir: reconheça e mitigue ${p.titles} na Visão geral assim que surgir, e resolva antes de o turno fechar.`,
     tryLate:
       'Tente a seguir: atenda primeiro o cliente com o prazo mais próximo; a linha começa o próximo pedido enquanto o caminhão carrega, então mantenha a alimentação da receita abastecida.',
     tryRisk: 'Tente a seguir: resolva "{risk}" antes de o turno fechar.',

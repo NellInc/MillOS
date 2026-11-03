@@ -9,6 +9,8 @@
 import { create } from 'zustand';
 import { persist, subscribeWithSelector } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
+import { readPlantClock, sanitizePlantClock, type PlantClock } from '../utils/timeFormatting';
+import { sanitizeKeyedLine, type KeyedLine } from '../i18n/alertCopy';
 
 export type PAMode = 'focused' | 'characterful' | 'off';
 export type PAChannel = 'operational' | 'safety' | 'logistics' | 'flavor';
@@ -19,6 +21,8 @@ export interface PAContext {
   scadaFocus: boolean;
   userInput: boolean;
   safetyCritical: boolean;
+  /** The plant clock is paused: routine cycle bells would say it is running. */
+  plantPaused?: boolean;
 }
 
 export interface Announcement {
@@ -26,6 +30,8 @@ export interface Announcement {
   type: 'info' | 'warning' | 'success' | 'emergency';
   message: string;
   timestamp: Date;
+  /** The plant clock when the line was made, which the transcript shows. */
+  gameClock?: PlantClock;
   dismissed: boolean;
   source?: string;
   priority: number;
@@ -38,11 +44,23 @@ export interface Announcement {
    * readers hear, so the PA live region does not read it a second time.
    */
   captionOnly?: boolean;
+  /**
+   * The plant state this line describes ('plant-stop', 'forklift-stop',
+   * 'machine:<id>'). A newer line on the same topic retires the older ones,
+   * and the producer retires the topic when the state ends, so a queued
+   * caption can never describe a state the plant has already left.
+   */
+  topic?: string;
+  /**
+   * Keyed copy (src/i18n/alertCopy.ts keyedText): the caption and the spoken
+   * line read in the language active now; `message` is the fallback.
+   */
+  copy?: KeyedLine;
 }
 
 export type AnnouncementInput = Omit<
   Announcement,
-  'id' | 'timestamp' | 'dismissed' | 'channel' | 'tone' | 'audience' | 'cooldownMs'
+  'id' | 'timestamp' | 'gameClock' | 'dismissed' | 'channel' | 'tone' | 'audience' | 'cooldownMs'
 > &
   Partial<Pick<Announcement, 'channel' | 'tone' | 'audience' | 'cooldownMs'>>;
 
@@ -54,6 +72,8 @@ export interface AnnouncementsStore {
   context: PAContext;
   addAnnouncement: (announcement: AnnouncementInput) => void;
   dismissAnnouncement: (announcementId: string) => void;
+  /** Retire every queued or showing line that matches; the transcript keeps them. */
+  dismissMatching: (predicate: (announcement: Announcement) => boolean) => void;
   clearOldAnnouncements: () => void;
   clearTranscript: () => void;
   setMode: (mode: PAMode) => void;
@@ -85,6 +105,13 @@ function inferChannel(announcement: AnnouncementInput): PAChannel {
   return 'operational';
 }
 
+/** What identifies a line for cooldowns: its key when it has one, else its text. */
+function announcementLineKey(line: Pick<Announcement, 'message' | 'copy'>): string {
+  return line.copy
+    ? `${line.copy.catalog}:${line.copy.key}:${JSON.stringify(line.copy.params ?? {})}`
+    : line.message;
+}
+
 function sanitizePersistedAnnouncements(value: unknown): Announcement[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -114,7 +141,10 @@ function sanitizePersistedAnnouncements(value: unknown): Announcement[] {
         entry.tone === 'reassuring' || entry.tone === 'characterful' || entry.tone === 'literal'
           ? entry.tone
           : 'literal';
+      const gameClock = sanitizePlantClock(entry.gameClock);
+      const copy = sanitizeKeyedLine(entry.copy);
       return {
+        ...(copy ? { copy } : {}),
         id:
           typeof entry.id === 'string'
             ? entry.id
@@ -122,6 +152,7 @@ function sanitizePersistedAnnouncements(value: unknown): Announcement[] {
         type,
         message: String(entry.message),
         timestamp,
+        ...(gameClock ? { gameClock } : {}),
         // Restored entries are transcript history, not live captions: replaying
         // a queued 'Emergency stop activated' from a previous session misleads.
         dismissed: true,
@@ -175,13 +206,37 @@ export const useAnnouncementsStore = create<AnnouncementsStore>()(
 
           const now = Date.now();
           const cooldownMs = Math.max(0, announcement.cooldownMs ?? ANNOUNCEMENT_COOLDOWN_MS);
-          const messageKey = `${announcement.type}-${announcement.message}`;
+          // A keyed line is the same line whatever language it was worded in,
+          // so a language switch does not let it repeat inside its cooldown.
+          const lineKey = announcementLineKey(announcement);
+          const messageKey = `${announcement.type}-${lineKey}`;
           const lastTime = state.lastAnnouncementTime[messageKey] || 0;
-          if (now - lastTime < cooldownMs) return;
+          const topic = announcement.topic;
+          // A topic line repeats within its cooldown only when the state it
+          // describes changed in between (a drill restarted seconds after it
+          // ended); a plain repeat of the newest line is still held.
+          const previousOnTopic = topic
+            ? [...state.announcements].reverse().find((entry) => entry.topic === topic)
+            : undefined;
+          // A retired line counts too: producers retire a topic when its state
+          // ends (a forklift stop released has no line of its own), and they
+          // only send a topic line on an edge, so the same line again is a
+          // new event. Working if Space, release, Space captions both stops.
+          const stateChanged =
+            previousOnTopic !== undefined &&
+            (previousOnTopic.dismissed || announcementLineKey(previousOnTopic) !== lineKey);
+          if (now - lastTime < cooldownMs && !stateChanged) return;
 
+          const gameClock = readPlantClock();
           set((current) => ({
             announcements: [
-              ...current.announcements.slice(-(MAX_ANNOUNCEMENTS - 1)),
+              ...current.announcements
+                .slice(-(MAX_ANNOUNCEMENTS - 1))
+                .map((entry) =>
+                  topic && entry.topic === topic && !entry.dismissed
+                    ? { ...entry, dismissed: true }
+                    : entry
+                ),
               {
                 ...announcement,
                 priority,
@@ -191,6 +246,7 @@ export const useAnnouncementsStore = create<AnnouncementsStore>()(
                 cooldownMs,
                 id: `ann-${now}-${Math.random().toString(36).slice(2, 7)}`,
                 timestamp: new Date(now),
+                ...(gameClock ? { gameClock } : {}),
                 dismissed: false,
               },
             ],
@@ -210,6 +266,17 @@ export const useAnnouncementsStore = create<AnnouncementsStore>()(
             ),
           })),
 
+        dismissMatching: (predicate) =>
+          set((state) =>
+            state.announcements.some((entry) => !entry.dismissed && predicate(entry))
+              ? {
+                  announcements: state.announcements.map((entry) =>
+                    !entry.dismissed && predicate(entry) ? { ...entry, dismissed: true } : entry
+                  ),
+                }
+              : state
+          ),
+
         clearOldAnnouncements: () => {
           const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
           set((state) => ({
@@ -221,7 +288,21 @@ export const useAnnouncementsStore = create<AnnouncementsStore>()(
         },
 
         clearTranscript: () => set({ announcements: [], lastAnnouncementTime: {} }),
-        setMode: (mode) => set({ mode }),
+        // Off quiets routine traffic already queued as well as new lines (the
+        // same test addAnnouncement applies); the transcript keeps them.
+        setMode: (mode) =>
+          set((state) => ({
+            mode,
+            ...(mode === 'off'
+              ? {
+                  announcements: state.announcements.map((entry) =>
+                    !entry.dismissed && entry.type !== 'emergency' && entry.priority < 4
+                      ? { ...entry, dismissed: true }
+                      : entry
+                  ),
+                }
+              : {}),
+          })),
         setCaptionsEnabled: (captionsEnabled) => set({ captionsEnabled }),
         setContext: (context) => set((state) => ({ context: { ...state.context, ...context } })),
 

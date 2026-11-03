@@ -39,16 +39,30 @@ export const operationsCampaignMessages = defineMessages({
     sourceProductionExecution: 'Production execution',
     sourceControlLayer: 'Control layer',
     sourceScada: 'SCADA',
+    sourceOperator: 'Operator',
 
     // Logbook messages
     logChallengeStarted: 'Started the recovery challenge: {label}.',
     logChallengeAbandoned: 'Challenge abandoned; its incident controls remain active.',
+    logChallengeCompleted: 'Recovery challenge completed: {label}.',
+    logChallengeFailed: 'Recovery challenge failed: {label}.',
     logProgrammeAccepted:
       'Accepted programme {number}: rush {customer} {rushKg} kg, {totalKg} kg in all. Existing material and genealogy remain unchanged.',
     logProgrammeInitialized: 'Production programme initialized from equipment and inventory state.',
     logOrderActivated: '{customer}: {recipe} is now the active commitment.',
     logIncidentAcknowledged: '{title} acknowledged.',
     logSetpointWritten: '{tag} set to {reading}.',
+    logOperatorMaintenance: 'Performed maintenance on {machine}.',
+    logOperatorRestart: 'Restarted {machine}.',
+    logOperatorDrillStarted: 'Started an egress verification drill.',
+    logOperatorDrillEnded: 'Ended the egress verification drill.',
+    logOperatorEmergencyStop: 'Pressed the facility emergency stop.',
+    logOperatorEmergencyCleared: 'Released the facility emergency stop.',
+    logOperatorPace: 'Set the shift pace to {pace}.',
+    logOperatorBatchTest: 'Tested {batch} in the lab.',
+    logOperatorBatchHold: 'Put {batch} on quality hold.',
+    logOperatorBatchRetest: 'Retested {batch}.',
+    logOperatorBatchRecall: 'Recalled {batch} and wrote it off.',
     logIncidentMitigated: '{title} mitigated; residual effect halved.',
     logIncidentResolved: '{title} resolved and controls returned to normal.',
     logManifestAllocated:
@@ -82,9 +96,11 @@ export const operationsCampaignMessages = defineMessages({
     constraintOverdueLabel: 'Commitment overdue',
     constraintDueSoonLabel: 'Commitment due soon',
     constraintOverdueDetail: (p: { customer: string; minutes: string; count: number }) =>
-      `${p.customer} is ${p.minutes} simulated minutes overdue.`,
+      `${p.customer} is ${p.minutes} ${p.count === 1 ? 'simulated minute' : 'simulated minutes'} overdue.`,
     constraintDueSoonDetail: (p: { customer: string; minutes: string; count: number }) =>
-      `${p.minutes} simulated minutes remain for ${p.customer}.`,
+      p.count === 1
+        ? `${p.minutes} simulated minute remains for ${p.customer}.`
+        : `${p.minutes} simulated minutes remain for ${p.customer}.`,
     constraintDispatchLabel: 'Dispatch isolated',
     constraintDispatchDetail:
       'An active incident requires the shipping quality gate to remain closed.',
@@ -139,9 +155,12 @@ export const operationsCampaignMessages = defineMessages({
     sourceProductionExecution: 'Execução da produção',
     sourceControlLayer: 'Camada de controle',
     sourceScada: 'SCADA',
+    sourceOperator: 'Operador',
 
     logChallengeStarted: 'Desafio de recuperação iniciado: {label}.',
     logChallengeAbandoned: 'Desafio abandonado; os controles da ocorrência continuam ativos.',
+    logChallengeCompleted: 'Desafio de recuperação concluído: {label}.',
+    logChallengeFailed: 'Desafio de recuperação não cumprido: {label}.',
     logProgrammeAccepted:
       'Programa {number} aceito: urgência {customer} {rushKg} kg, {totalKg} kg no total. O material e a genealogia existentes permanecem inalterados.',
     logProgrammeInitialized:
@@ -149,6 +168,17 @@ export const operationsCampaignMessages = defineMessages({
     logOrderActivated: '{customer}: {recipe} agora é o compromisso ativo.',
     logIncidentAcknowledged: 'Ocorrência reconhecida: {title}.',
     logSetpointWritten: '{tag} ajustado para {reading}.',
+    logOperatorMaintenance: 'Manutenção feita em {machine}.',
+    logOperatorRestart: 'Reinício da unidade {machine}.',
+    logOperatorDrillStarted: 'Simulado de verificação das rotas de saída iniciado.',
+    logOperatorDrillEnded: 'Simulado de verificação das rotas de saída encerrado.',
+    logOperatorEmergencyStop: 'Parada de emergência da unidade acionada.',
+    logOperatorEmergencyCleared: 'Parada de emergência da unidade liberada.',
+    logOperatorPace: 'Ritmo do turno ajustado para {pace}.',
+    logOperatorBatchTest: '{batch} testado no laboratório.',
+    logOperatorBatchHold: '{batch} colocado em retenção de qualidade.',
+    logOperatorBatchRetest: '{batch} retestado.',
+    logOperatorBatchRecall: '{batch} recolhido e baixado como perda.',
     logIncidentMitigated: 'Ocorrência mitigada: {title}; efeito residual reduzido à metade.',
     logIncidentResolved: 'Ocorrência resolvida: {title}; controles de volta ao normal.',
     logManifestAllocated:

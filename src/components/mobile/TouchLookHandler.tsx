@@ -116,6 +116,16 @@ export const TouchLookHandler: React.FC<TouchLookHandlerProps> = ({
       if (e.touches.length === 0) {
         touchStartRef.current = null;
         setIsTouchLooking(false);
+        return;
+      }
+      // A pinch ending with one finger still on the canvas hands the look back
+      // to that finger, from where it is now (never the pre-pinch start).
+      // Working if pinch, lift one finger, drag the other turns the view.
+      if (e.targetTouches.length === 1) {
+        touchStartRef.current = {
+          x: e.targetTouches[0].clientX,
+          y: e.targetTouches[0].clientY,
+        };
       }
     };
 

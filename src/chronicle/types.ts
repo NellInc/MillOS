@@ -54,7 +54,11 @@ export type FundSource =
   | 'installs'
   | 'contractors'
   | 'refunds'
-  | 'suppression';
+  | 'suppression'
+  | 'treatment'
+  | 'federation'
+  | 'reserve'
+  | 'concessions';
 
 export type KnowHowSource =
   | 'grades'
@@ -66,14 +70,18 @@ export type KnowHowSource =
   | 'plans'
   | 'forced_maintenance'
   | 'library'
-  | 'event_costs';
+  | 'event_costs'
+  | 'policies';
 
 export interface ChronicleLedger {
   fund: Record<FundSource, number>;
   knowHow: Record<KnowHowSource, number>;
-  /** Totals for the most recently closed shift, for the "last shift" column. */
+  /** What the most recent shift close itself moved, and nothing after it. */
   lastShiftFund: Partial<Record<FundSource, number>>;
   lastShiftKnowHow: Partial<Record<KnowHowSource, number>>;
+  /** What has moved since that close (decisions, installs, refunds), until the next one. */
+  sinceCloseFund: Partial<Record<FundSource, number>>;
+  sinceCloseKnowHow: Partial<Record<KnowHowSource, number>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +108,11 @@ export interface ModifierValues {
   forecastChance?: number;
   /** Upkeep multiplier. */
   upkeep?: number;
+  /**
+   * A ceiling on the production multiplier (Mao's Legacy: "Industry does not
+   * rise above 50.0"). It costs nothing until the plant would run above it.
+   */
+  productionCeiling?: number;
 }
 
 export interface TimedModifier extends ModifierValues {
@@ -391,6 +404,8 @@ export interface ChronicleEventRequirements {
   deliveredTo?: CustomerId;
   modes?: ChronicleMode[];
   marks?: MarkCondition;
+  /** Requires the food-standards approval to be suspended (true) or in force (false). */
+  suspended?: boolean;
 }
 
 export interface ChronicleEventDefinition {
@@ -538,7 +553,11 @@ export type HistoryTrigger =
   | 'fire'
   | 'delegation'
   | 'contractor_hired'
-  | 'chronicle_end';
+  | 'chronicle_end'
+  | 'first_return'
+  | 'quota_raised'
+  | 'brief_set'
+  | 'assembly_vote';
 
 export interface HistoryNote {
   id: string;
@@ -587,8 +606,171 @@ export interface ChronicleNotice {
 
 export type ChronicleCommand =
   | { type: 'raise_incident'; kind: IncidentKind; reason: string }
-  | { type: 'resolve_incident'; incidentId: string }
+  /** `actor: 'operator'` when the player chose it, so the shift review counts it. */
+  | { type: 'resolve_incident'; incidentId: string; actor?: 'operator' }
   | { type: 'start_fire' }
   | { type: 'resolve_fire' }
   | { type: 'unlock_note'; noteId: string }
   | { type: 'clear_weather' };
+
+// ---------------------------------------------------------------------------
+// Part three: standing orders (docs/CHRONICLE.md, systems 25-32), after
+// Kremlingames' Crisis in the Kremlin, Ostalgie and Mao's Legacy
+// ---------------------------------------------------------------------------
+
+/** The mill's policy ladders (CiK doctrines; ML `Doctr_en`). */
+export type PolicyLadder = 'maintenance' | 'intake' | 'stock' | 'orders';
+/** A step on a ladder: 0 and 2 are the ends, 1 the middle every chronicle starts on. */
+export type PolicyRung = 0 | 1 | 2;
+export type Policies = Record<PolicyLadder, PolicyRung>;
+
+/** The AI partner's declared priorities (CiK: "views ... help to predict their actions"). */
+export type BriefId = 'conventional' | 'standards' | 'thrift' | 'neighbour';
+
+export type StandingConditionId =
+  | 'tired-machinery'
+  | 'deferred-maintenance'
+  | 'worn-rolls'
+  | 'thin-stocks'
+  | 'behind-plan'
+  | 'administration';
+
+/** An ongoing condition that names its own way out (ML `old_modify_opis_en`: "To deactivate:"). */
+export interface StandingCondition {
+  id: StandingConditionId;
+  sinceShift: number;
+}
+
+/** Counts the conditions read: how long each policy or state has held. */
+export interface GovernanceStreaks {
+  outOfAusterity: number;
+  runToFailure: number;
+  offRunToFailure: number;
+  stockedUp: number;
+}
+
+/** An organisation's warning that a policy crosses its red line (ML: "In {0} months..."). */
+export interface Countdown {
+  id: string;
+  party: StakeholderId;
+  ladder: PolicyLadder;
+  rung: PolicyRung;
+  dueShift: number;
+}
+
+export type CrewRoleId =
+  | 'head-miller'
+  | 'roll-fitter'
+  | 'intake-grader'
+  | 'lab'
+  | 'packing'
+  | 'yard';
+export type Temperament = 'cautious' | 'eager' | 'even';
+
+/**
+ * A member of the crew: an anonymous role with a temperament, a value, a
+ * preference and a need. None of it is a score. Their values predict their
+ * votes and objections; nothing rises or falls with how they are treated.
+ */
+export interface CrewMember {
+  id: CrewRoleId;
+  role: string;
+  temperament: Temperament;
+  value: string;
+  prefers: { ladder: PolicyLadder; rung: PolicyRung };
+  need: {
+    text: string;
+    /** The step that would cut against the need. */
+    ladder: PolicyLadder;
+    rung: PolicyRung;
+    /** What meeting the need another way costs, and what it is. */
+    concession: string;
+    fund: number;
+  };
+}
+
+export type CrewVote = 'for' | 'against' | 'abstain';
+
+export interface CrewBallot {
+  memberId: CrewRoleId;
+  vote: CrewVote;
+  reason: string;
+}
+
+/** A change to one policy, put to the members' assembly. */
+export interface PolicyProposal {
+  ladder: PolicyLadder;
+  from: PolicyRung;
+  to: PolicyRung;
+  proposedShift: number;
+  /** Members whose need the steward has met another way. */
+  concessions: CrewRoleId[];
+}
+
+/** A member outvoted on a need. It stands until the need is met or the policy moves off. */
+export interface CrewObjection {
+  memberId: CrewRoleId;
+  ladder: PolicyLadder;
+  rung: PolicyRung;
+  raisedShift: number;
+}
+
+/** One crop year's return to the federation, drawn from recorded evidence only. */
+export interface CropYearReturn {
+  year: number;
+  shifts: number;
+  dispatchedKg: number;
+  quotaKg: number | null;
+  met: boolean | null;
+  nextQuotaKg: number | null;
+  qualityFailureKg: number;
+  energyCost: number;
+  averageGrade: number | null;
+  fundReinvested: number;
+  knowHowEarned: number;
+  policies: Policies;
+  conditions: StandingConditionId[];
+}
+
+export interface CropYearTally {
+  year: number;
+  shifts: number;
+  dispatchedKg: number;
+  qualityFailureKg: number;
+  energyCost: number;
+  gradePoints: number[];
+  fundReinvested: number;
+  /** Know-how earned since signing when the year began; the return counts from here. */
+  knowHowStart: number;
+}
+
+/** The co-op's indivisible reserve (CiK gold reserve, "ON/OFF Autofill reserve"). */
+export interface ReserveState {
+  balance: number;
+  autofill: boolean;
+  drawn: number;
+}
+
+export interface GovernanceState {
+  policies: Policies;
+  /** Shift each ladder last changed, for its lock. */
+  changedShift: Record<PolicyLadder, number | null>;
+  streaks: GovernanceStreaks;
+  crew: CrewMember[];
+  proposal: PolicyProposal | null;
+  objections: CrewObjection[];
+  conditions: StandingCondition[];
+  countdowns: Countdown[];
+  /** Red lines already acted on, by `${party}:${ladder}:${rung}`, so each is crossed once. */
+  brokenOff: string[];
+  brief: BriefId;
+  tally: CropYearTally;
+  returns: CropYearReturn[];
+  quotaKg: number | null;
+  missedInRow: number;
+  reserve: ReserveState;
+  /** The federation's administrator: shift it leaves, and the delegation it found. */
+  administration: { untilShift: number; previousDelegation: DelegationLevel } | null;
+  /** The charter's tired machinery has been renewed. */
+  machineryRenewed: boolean;
+}

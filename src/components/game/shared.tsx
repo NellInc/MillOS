@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef } from 'react';
-import { useProductionStore } from '../../stores/productionStore';
+import { DAILY_TARGET_BAGS, useProductionStore } from '../../stores/productionStore';
 import { isStandingCriticalAlert, useUIStore } from '../../stores/uiStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -8,9 +8,20 @@ import { audioManager } from '../../utils/audioManager';
 import { peekSCADAService } from '../../scada/SCADAService';
 import { isStandingCriticalAlarm } from '../../scada/SCADABridge';
 import { translate } from '../../i18n';
+import { registerAlertCatalog, type KeyedLine } from '../../i18n/alertCopy';
 import { sharedMessages } from './shared.messages';
 
 type SharedMessageKey = keyof typeof sharedMessages.en;
+
+// PA lines are filed with their key, so a line queued before a language
+// switch, or restored from the transcript, reads in the language active now.
+export const SHARED_PA_CATALOG = 'gameSharedPA';
+registerAlertCatalog(SHARED_PA_CATALOG, sharedMessages);
+const keyed = (key: SharedMessageKey, params?: KeyedLine['params']): KeyedLine => ({
+  catalog: SHARED_PA_CATALOG,
+  key,
+  ...(params ? { params } : {}),
+});
 
 // Notice text is a getter so it resolves in the language active when spoken;
 // a plain string here would freeze the language at import time.
@@ -30,6 +41,8 @@ type NoticeType = 'general' | 'production' | 'safety' | 'emergency';
 type NoticePriority = 'low' | 'medium' | 'high' | 'critical';
 
 interface AnnouncementConfig {
+  /** The catalogue key, filed as the line's keyed copy. */
+  key: SharedMessageKey;
   message: string;
   type: NoticeType;
   category: AnnouncementCategory;
@@ -39,6 +52,8 @@ interface AnnouncementConfig {
 }
 
 interface EventAnnouncementConfig {
+  /** The catalogue key, filed as the line's keyed copy. */
+  key: SharedMessageKey;
   message: string;
   type: NoticeType;
   priority: NoticePriority;
@@ -59,6 +74,7 @@ export const getRandomMachineOfType = (type: keyof typeof MACHINE_IDS): string =
 
 const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
   {
+    key: 'processPathVerified',
     get message() {
       return say('processPathVerified');
     },
@@ -68,6 +84,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     reassuring: true,
   },
   {
+    key: 'siloInventoryReconciled',
     get message() {
       return say('siloInventoryReconciled');
     },
@@ -76,6 +93,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.15,
   },
   {
+    key: 'rollerGapStable',
     get message() {
       return say('rollerGapStable');
     },
@@ -84,6 +102,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.2,
   },
   {
+    key: 'plansifterPressureNominal',
     get message() {
       return say('plansifterPressureNominal');
     },
@@ -92,6 +111,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.2,
   },
   {
+    key: 'packingLineVerified',
     get message() {
       return say('packingLineVerified');
     },
@@ -100,6 +120,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.2,
   },
   {
+    key: 'dockSequencingCleared',
     get message() {
       return say('dockSequencingCleared');
     },
@@ -108,6 +129,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.25,
   },
   {
+    key: 'forkliftRoutesDeconflicted',
     get message() {
       return say('forkliftRoutesDeconflicted');
     },
@@ -116,6 +138,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.35,
   },
   {
+    key: 'geofencesMatch',
     get message() {
       return say('geofencesMatch');
     },
@@ -124,6 +147,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.3,
   },
   {
+    key: 'dustExtractionStable',
     get message() {
       return say('dustExtractionStable');
     },
@@ -132,6 +156,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.25,
   },
   {
+    key: 'waterwayHealthy',
     get message() {
       return say('waterwayHealthy');
     },
@@ -140,6 +165,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.1,
   },
   {
+    key: 'weatherFeedChecked',
     get message() {
       return say('weatherFeedChecked');
     },
@@ -148,6 +174,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.2,
   },
   {
+    key: 'millIsCalm',
     get message() {
       return say('millIsCalm');
     },
@@ -157,6 +184,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     reassuring: true,
   },
   {
+    key: 'vibrationTrendReviewed',
     get message() {
       return say('vibrationTrendReviewed');
     },
@@ -165,6 +193,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.45,
   },
   {
+    key: 'constraintAnalysisUpdated',
     get message() {
       return say('constraintAnalysisUpdated');
     },
@@ -173,6 +202,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.45,
   },
   {
+    key: 'cycleTimeVarianceCorrected',
     get message() {
       return say('cycleTimeVarianceCorrected');
     },
@@ -181,6 +211,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
     stressWeight: 0.55,
   },
   {
+    key: 'housekeepingComplete',
     get message() {
       return say('housekeepingComplete');
     },
@@ -193,6 +224,7 @@ const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
 const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
   day: [
     {
+      key: 'daylightControlActive',
       get message() {
         return say('daylightControlActive');
       },
@@ -201,6 +233,7 @@ const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
       stressWeight: 0.1,
     },
     {
+      key: 'solarLoadingApplied',
       get message() {
         return say('solarLoadingApplied');
       },
@@ -211,6 +244,7 @@ const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
   ],
   night: [
     {
+      key: 'nightProfileActive',
       get message() {
         return say('nightProfileActive');
       },
@@ -219,6 +253,7 @@ const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
       stressWeight: 0.25,
     },
     {
+      key: 'lightingTrackingSky',
       get message() {
         return say('lightingTrackingSky');
       },
@@ -232,7 +267,9 @@ const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
 const MACHINE_STATUS_NOTICES = {
   warning: {
     messageKey: 'machineWarning' as const,
-    type: 'production' as const,
+    // Maps to a 'warning' line. 'production' filed it as 'success' (the
+    // packed-bag icon) for a machine that has just gone wrong.
+    type: 'safety' as const,
     priority: 'high' as const,
   },
   critical: {
@@ -257,6 +294,7 @@ const MILESTONE_MESSAGES: Record<number, SharedMessageKey> = {
 
 export const SAFETY_INCIDENT_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
+    key: 'safetyInterlockLogged',
     get message() {
       return say('safetyInterlockLogged');
     },
@@ -265,6 +303,7 @@ export const SAFETY_INCIDENT_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
     duration: 20,
   },
   {
+    key: 'nearMissTriggered',
     get message() {
       return say('nearMissTriggered');
     },
@@ -273,6 +312,7 @@ export const SAFETY_INCIDENT_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
     duration: 20,
   },
   {
+    key: 'vehicleProximity',
     get message() {
       return say('vehicleProximity');
     },
@@ -284,6 +324,7 @@ export const SAFETY_INCIDENT_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
 
 export const FIRE_DRILL_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
+    key: 'drillStarted',
     get message() {
       return say('drillStarted');
     },
@@ -292,6 +333,7 @@ export const FIRE_DRILL_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
     duration: 20,
   },
   {
+    key: 'drillSensorsUnderTest',
     get message() {
       return say('drillSensorsUnderTest');
     },
@@ -300,6 +342,7 @@ export const FIRE_DRILL_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
     duration: 20,
   },
   {
+    key: 'drillComplete',
     get message() {
       return say('drillComplete');
     },
@@ -311,6 +354,7 @@ export const FIRE_DRILL_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
 
 export const EMERGENCY_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
+    key: 'emergencyStopActivated',
     get message() {
       return say('emergencyStopActivated');
     },
@@ -319,6 +363,7 @@ export const EMERGENCY_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
     duration: 20,
   },
   {
+    key: 'facilityStopEngaged',
     get message() {
       return say('facilityStopEngaged');
     },
@@ -327,6 +372,7 @@ export const EMERGENCY_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
     duration: 20,
   },
   {
+    key: 'vehiclesSecure',
     get message() {
       return say('vehiclesSecure');
     },
@@ -340,6 +386,7 @@ export const EMERGENCY_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
 // while production keeps running, so it must not claim the whole site stopped.
 export const FORKLIFT_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
+    key: 'forkliftStop',
     get message() {
       return say('forkliftStop');
     },
@@ -419,10 +466,36 @@ export const PA_ANNOUNCEMENT_COUNT =
   AUTONOMOUS_NOTICES.length + TIME_NOTICES.day.length + TIME_NOTICES.night.length;
 
 let lastMilestoneReached = 0;
+
+const DAILY_MILESTONES = [25, 50, 75, 90, 100] as const;
+
+// The same count and target the tick's milestone celebrations read, so a
+// caption and its toast mark the same moment.
+const dailyTargetProgress = (): number | null => {
+  const produced = useProductionStore.getState().dailyBagsProduced;
+  if (!(DAILY_TARGET_BAGS > 0) || !Number.isFinite(produced)) return null;
+  return Math.floor((produced / DAILY_TARGET_BAGS) * 100);
+};
+
+/**
+ * Treat every milestone already passed when the scheduler starts as announced.
+ * A reload restores dailyBagsProduced, and the PA has no saved record of what it
+ * said, so without this the first poll captioned a milestone crossed before it.
+ * Working if a reload at 60% stays quiet and the 75% crossing is still captioned.
+ */
+const seedMilestones = (): void => {
+  const progress = dailyTargetProgress();
+  lastMilestoneReached =
+    progress === null ? 0 : (DAILY_MILESTONES.filter((m) => progress >= m).pop() ?? 0);
+};
+
 const lastMachineStatuses: Record<string, string> = {};
 const lastMachineStatusAnnouncementTime: Record<string, number> = {};
 const MACHINE_STATUS_COOLDOWN_MS = 30000;
 const DRILL_CAPTION_COOLDOWN_MS = 15000;
+// Drills and facility stops are one state: the plant is held or it is not.
+export const PLANT_STOP_TOPIC = 'plant-stop';
+export const FORKLIFT_STOP_TOPIC = 'forklift-stop';
 
 type DrillSnapshot = { active: boolean; verificationComplete: boolean };
 
@@ -434,28 +507,56 @@ const announceDrillTransition = (
   addAnnouncement: (input: AnnouncementInput) => void
 ): void => {
   if (audioManager.muted) return;
-  let message: string | null = null;
+  let key: SharedMessageKey | null = null;
   let priority = 3;
   if (drill.active && !previous.active) {
-    message = FIRE_DRILL_ANNOUNCEMENTS[0].message;
+    key = FIRE_DRILL_ANNOUNCEMENTS[0].key;
     priority = 4;
   } else if (drill.verificationComplete && !previous.verificationComplete) {
-    message = FIRE_DRILL_ANNOUNCEMENTS[2].message;
+    key = FIRE_DRILL_ANNOUNCEMENTS[2].key;
   } else if (previous.active && !drill.active && !previous.verificationComplete) {
-    message = say('drillEndedEarly');
+    key = 'drillEndedEarly';
   }
-  if (!message) return;
+  if (!key) return;
   // Emergency items are allowed in every PA mode, so there is no mode gate.
+  // On the plant-stop topic, so this line retires the previous drill or stop
+  // line rather than queueing behind it.
   addAnnouncement({
     type: 'emergency',
-    message,
+    message: say(key),
     priority,
     source: 'Safety controller',
     channel: 'safety',
     tone: 'literal',
     audience: 'control',
     cooldownMs: DRILL_CAPTION_COOLDOWN_MS,
+    topic: PLANT_STOP_TOPIC,
+    copy: keyed(key),
   });
+};
+
+/**
+ * The forklift-only stop is announced by the Space key and the panel E-STOP;
+ * the panel tags no topic, so its corpus is matched too, by key and in every
+ * language (the line keeps the words it was filed in, and the player may have
+ * switched since), so the line goes when the forklifts are released.
+ */
+const retireForkliftStopLines = (): void => {
+  const keys = new Set<string>(FORKLIFT_STOP_ANNOUNCEMENTS.map((notice) => notice.key));
+  const lines = new Set<unknown>(
+    FORKLIFT_STOP_ANNOUNCEMENTS.flatMap((notice) =>
+      Object.values(sharedMessages).map((table) => (table as Record<string, unknown>)[notice.key])
+    )
+  );
+  useAnnouncementsStore
+    .getState()
+    .dismissMatching(
+      (announcement) =>
+        announcement.topic === FORKLIFT_STOP_TOPIC ||
+        (announcement.type === 'emergency' &&
+          ((announcement.copy !== undefined && keys.has(announcement.copy.key)) ||
+            lines.has(announcement.message)))
+    );
 };
 
 // How long a filed bell alert counts as the screen-reader voice of a status change.
@@ -479,24 +580,60 @@ const bellReadsMachineAlert = (machineId: string, now: number): boolean =>
         now - new Date(alert.timestamp).getTime() < BELL_ALERT_PAIRING_MS
     );
 
-const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => void): void => {
-  if (useAnnouncementsStore.getState().mode === 'off') return;
-  const state = useProductionStore.getState();
-  const target = state.productionTarget;
+const MACHINE_TOPIC_PREFIX = 'machine:';
 
-  if (target && target.targetBags > 0) {
-    const progress = Math.floor((target.producedBags / target.targetBags) * 100);
-    // Announce only the highest milestone newly crossed: a fast game speed or a
-    // reload part-way through the day would otherwise queue several at once.
-    const reached = [25, 50, 75, 90, 100]
-      .filter((milestone) => progress >= milestone && lastMilestoneReached < milestone)
-      .pop();
+/**
+ * Retire each live fault line whose machine is no longer in a fault. The
+ * recovery line also retires it, but that line can be held by its cooldown,
+ * and the 5 s poll does not run at all while the PA is muted or off (a
+ * critical caption still shows with the PA off), so the caption must not
+ * depend on it. Working if 'Critical alarm at R.M. 101' never stays on screen
+ * after R.M. 101 is running or idle again.
+ */
+const retireRecoveredFaultLines = (): void => {
+  const announcements = useAnnouncementsStore.getState();
+  const faultTopics = announcements.announcements.filter(
+    (entry) =>
+      !entry.dismissed && entry.type !== 'success' && entry.topic?.startsWith(MACHINE_TOPIC_PREFIX)
+  );
+  if (faultTopics.length === 0) return;
+  const machines = useProductionStore.getState().machines ?? [];
+  const recovered = new Set<string>();
+  for (const entry of faultTopics) {
+    const machineId = entry.topic!.slice(MACHINE_TOPIC_PREFIX.length);
+    const status = machines.find((machine) => machine.id === machineId)?.status;
+    if (status !== 'warning' && status !== 'critical') recovered.add(entry.topic!);
+  }
+  if (recovered.size === 0) return;
+  announcements.dismissMatching(
+    (entry) => entry.type !== 'success' && entry.topic !== undefined && recovered.has(entry.topic)
+  );
+};
+
+const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => void): void => {
+  // With the PA Off, milestones stay quiet (and unsaid, for later), while the
+  // machine poll still runs: a critical alarm is safety-critical, which the PA
+  // store keeps in every mode, as it does a facility E-STOP; its own Off filter
+  // drops the routine status lines.
+  const paOff = useAnnouncementsStore.getState().mode === 'off';
+  const state = useProductionStore.getState();
+  const progress = paOff ? null : dailyTargetProgress();
+
+  if (progress !== null) {
+    // Announce only the highest milestone newly crossed: a fast game speed
+    // would otherwise queue several at once.
+    const reached = DAILY_MILESTONES.filter(
+      (milestone) => progress >= milestone && lastMilestoneReached < milestone
+    ).pop();
     if (reached !== undefined) {
       lastMilestoneReached = reached;
       addAnnouncement({
         type: 'success',
         message: say(MILESTONE_MESSAGES[reached]),
-        priority: reached === 100 ? 4 : reached >= 50 ? 3 : 2,
+        copy: keyed(MILESTONE_MESSAGES[reached]),
+        // Never 4: that tier is the red pulsing alarm, an assertive interrupt
+        // and the caption that ignores "PA captions: off". This is good news.
+        priority: reached >= 50 ? 3 : 2,
         source: 'Production controller',
         channel: 'operational',
         tone: 'literal',
@@ -504,7 +641,6 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
         cooldownMs: 90000,
       });
     }
-    if (progress < 10 && lastMilestoneReached > 0) lastMilestoneReached = 0;
   }
 
   const now = Date.now();
@@ -530,12 +666,15 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
           message: translate(sharedMessages, notice.messageKey, {
             machine: machine.name || machine.id,
           }),
+          copy: keyed(notice.messageKey, { machine: machine.name || machine.id }),
           priority: mapPriority(notice.priority),
           source: 'Asset diagnostics',
           channel: 'operational',
           tone: 'literal',
           audience: 'control',
           cooldownMs: 90000,
+          // A recovery retires the fault line still queued for this machine.
+          topic: `${MACHINE_TOPIC_PREFIX}${machine.id}`,
           ...(current !== 'running' && bellReadsMachineAlert(machine.id, now)
             ? { captionOnly: true }
             : {}),
@@ -550,9 +689,18 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
 const useEventAnnouncementScheduler = () => {
   const addAnnouncement = useProductionStore((state) => state.addAnnouncement);
   useEffect(() => {
+    seedMilestones();
     const interval = setInterval(() => {
       if (!audioManager.muted) checkEventAnnouncements(addAnnouncement);
     }, 5000);
+    // A fall in the day's count is a new day (or a restore). Watched by
+    // subscription because the poll skips while muted or off, and a skipped
+    // rollover left yesterday's milestones marked as said all the next day.
+    // Working if muting across midnight still captions the next day's 25%.
+    const unsubscribeDay = useProductionStore.subscribe((state, previous) => {
+      if (state.dailyBagsProduced < previous.dailyBagsProduced) seedMilestones();
+      if (state.machines !== previous.machines) retireRecoveredFaultLines();
+    });
     const unsubscribeDrill = useGameSimulationStore.subscribe((state, previous) => {
       if (state.drillMetrics !== previous.drillMetrics) {
         announceDrillTransition(state.drillMetrics, previous.drillMetrics, addAnnouncement);
@@ -578,12 +726,42 @@ const useEventAnnouncementScheduler = () => {
           tone: 'literal',
           audience: 'control',
           cooldownMs: DRILL_CAPTION_COOLDOWN_MS,
+          topic: PLANT_STOP_TOPIC,
+          copy: keyed(notice.key),
         });
+      }
+      // Its falling edge: the stop lines describe a plant that is running
+      // again. The clear gets its own line, so nothing left over from an
+      // earlier drill is read as the reason the plant restarted.
+      if (previous.emergencyActive && !state.emergencyActive && !previous.emergencyDrillMode) {
+        const announcements = useAnnouncementsStore.getState();
+        announcements.dismissMatching((announcement) => announcement.topic === PLANT_STOP_TOPIC);
+        if (!audioManager.muted) {
+          addAnnouncement({
+            type: 'emergency',
+            message: say('facilityStopCleared'),
+            copy: keyed('facilityStopCleared'),
+            priority: 3,
+            source: 'Safety controller',
+            channel: 'safety',
+            tone: 'literal',
+            audience: 'control',
+            cooldownMs: DRILL_CAPTION_COOLDOWN_MS,
+            topic: PLANT_STOP_TOPIC,
+          });
+        }
+      }
+    });
+    const unsubscribeForklifts = useSafetyStore.subscribe((state, previous) => {
+      if (previous.forkliftEmergencyStop && !state.forkliftEmergencyStop) {
+        retireForkliftStopLines();
       }
     });
     return () => {
       clearInterval(interval);
       unsubscribeDrill();
+      unsubscribeDay();
+      unsubscribeForklifts();
     };
   }, [addAnnouncement]);
 };
@@ -633,6 +811,7 @@ const usePAScheduler = () => {
             addAnnouncement({
               type: mapAnnouncementType(notice.type),
               message: notice.message,
+              copy: keyed(notice.key),
               priority,
               source: 'Autonomous plant notice',
               channel:

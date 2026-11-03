@@ -48,6 +48,10 @@ export function commandActor(command: RoleCommand): string {
 export const TURN_CHECK_IDS = ['mandate', 'refusal', 'duty'] as const;
 export type TurnCheckId = (typeof TURN_CHECK_IDS)[number];
 export function turnChecks(state: WorkplaceState) {
+  const mandateKey =
+    state.aiAuthority === 'advice' ? 'mandateClarifyAdvice' : 'mandateClarifyBounded';
+  // `clarificationKey` keys a clarification kept on a status line, so it can
+  // be shown in the language chosen after it was given.
   return [
     {
       id: 'mandate' as const,
@@ -58,10 +62,8 @@ export function turnChecks(state: WorkplaceState) {
         { value: 'bounded', label: translate(msg, 'mandateBounded') },
         { value: 'unlimited', label: translate(msg, 'mandateUnlimited') },
       ],
-      clarification:
-        state.aiAuthority === 'advice'
-          ? translate(msg, 'mandateClarifyAdvice')
-          : translate(msg, 'mandateClarifyBounded'),
+      clarification: translate(msg, mandateKey),
+      clarificationKey: mandateKey,
     },
     {
       id: 'refusal' as const,
@@ -72,6 +74,7 @@ export function turnChecks(state: WorkplaceState) {
         { value: 'forfeit', label: translate(msg, 'refusalForfeit') },
       ],
       clarification: translate(msg, 'refusalClarify'),
+      clarificationKey: 'refusalClarify',
     },
     {
       id: 'duty' as const,
@@ -82,6 +85,7 @@ export function turnChecks(state: WorkplaceState) {
         { value: 'automatic', label: translate(msg, 'dutyAutomatic') },
       ],
       clarification: translate(msg, 'dutyClarify'),
+      clarificationKey: 'dutyClarify',
     },
   ];
 }

@@ -14,7 +14,12 @@ import { logger } from './utils/logger';
 import { scadaToStoreMetrics } from './scada/SCADABridge';
 import {
   getTagById,
+  MILL_FEED_TAG_IDS,
+  MILL_THROUGHPUT_TAG_ID,
   OPERATION_TAG_IDS,
+  PACKER_FEED_TAG_IDS,
+  SILO_LEVEL_TAG_IDS,
+  TOTAL_POWER_TAG_ID,
   UTILITY_ASSET_TAG_IDS,
   VEHICLE_TAG_IDS,
 } from './scada/tagDatabase';
@@ -24,7 +29,8 @@ import {
 } from './simulation/vehicles/vehicleTelemetryRegistry';
 import type { AlertData, MachineData } from './types';
 import type { Alarm } from './scada/types';
-import { formatFixed, translate } from './i18n';
+import { defineMessages, formatFixed, translate } from './i18n';
+import { registerAlertCatalog } from './i18n/alertCopy';
 import { storeMessages as msg } from './store.messages';
 
 // Re-export everything from the new stores
@@ -46,7 +52,8 @@ export type { GraphicsQuality, GraphicsSettings } from './stores/graphicsStore';
 // =========================================================================
 
 import { initializeSCADA, shutdownSCADA } from './scada/SCADAService';
-import { useProductionStore, useUIStore } from './stores';
+import { ALARM_STARTUP_WARMUP_MS } from './scada/AlarmManager';
+import { useGameSimulationStore, useProductionStore, useUIStore } from './stores';
 import {
   getRecalledStock,
   useMaterialFlowStore,
@@ -62,9 +69,22 @@ import {
   type PartsInventory,
 } from './stores/breakdownStore';
 import { getDispatchQualityStatus, useQCLabStore, type QCLabState } from './stores/qcLabStore';
+import { useChronicleStore } from './stores/chronicleStore';
+import { getSiteDemandKw } from './utils/energyCalculations';
 import { shallow } from 'zustand/shallow';
 import { isWorkplaceReplayActive } from './simulation/workplaceReplayRuntime';
 import { storeOwnedLoad } from './simulation/machineLoad';
+import { PLANT_SECONDS_PER_GAME_SECOND, plantSecondsForRealSeconds } from './simulation/pace';
+
+/**
+ * kg per plant second as t per GAME hour, the clock the HUD, the daily target
+ * and the deadlines are read on (src/simulation/pace.ts): three packers at
+ * 25 kg/s read 9 t/h, not 270.
+ */
+const tonnesPerGameHour = (kgPerPlantSecond: number): number =>
+  Number.isFinite(kgPerPlantSecond)
+    ? (Math.max(0, kgPerPlantSecond) * 3600 * PLANT_SECONDS_PER_GAME_SECOND) / 1000
+    : 0;
 
 // Debounced machine state sync to prevent flooding SCADA with updates
 let lastMachineSyncTime = 0;
@@ -111,6 +131,65 @@ function scadaAlarmTypeLabel(type: Alarm['type']): string {
   return type.replaceAll('_', ' ');
 }
 
+/*
+ * Keyed bell copy for a SCADA alarm, so a standing row (restored with the
+ * session) reads in the language active now. The params are the alarm's raw
+ * facts; the tag name is looked up again, since tag names follow the language.
+ */
+const SCADA_ALARM_ALERT_CATALOG = 'store.scadaAlarm';
+type ScadaAlarmCopyParams = {
+  tagId: string;
+  tagName: string;
+  type: string;
+  value: number;
+  threshold: number;
+  unit: string;
+};
+const alarmFromCopy = (p: ScadaAlarmCopyParams): Alarm =>
+  ({
+    tagId: p.tagId,
+    tagName: getTagById(p.tagId)?.name ?? p.tagName,
+    type: p.type as Alarm['type'],
+    value: p.value,
+    threshold: p.threshold,
+    ...(p.unit ? { unit: p.unit } : {}),
+  }) as Alarm;
+// The same functions serve both languages: each translates through `msg`.
+const scadaAlarmLines = {
+  title: (p: ScadaAlarmCopyParams) =>
+    translate(msg, 'scadaAlertTitle', { type: scadaAlarmTypeLabel(p.type as Alarm['type']) }),
+  standing: (p: ScadaAlarmCopyParams) => formatAlarmMessage(alarmFromCopy(p)),
+  returned: (p: ScadaAlarmCopyParams) =>
+    `${formatAlarmMessage(alarmFromCopy(p))} ${translate(msg, 'alarmReturnedToNormal')}`,
+};
+registerAlertCatalog(
+  SCADA_ALARM_ALERT_CATALOG,
+  defineMessages({ en: scadaAlarmLines, 'pt-BR': scadaAlarmLines })
+);
+
+const scadaAlarmAlertCopy = (alarm: Alarm, returned: boolean): NonNullable<AlertData['copy']> => ({
+  catalog: SCADA_ALARM_ALERT_CATALOG,
+  title: 'title',
+  message: returned ? 'returned' : 'standing',
+  params: {
+    tagId: alarm.tagId,
+    tagName: alarm.tagName,
+    type: alarm.type,
+    value: alarm.value,
+    threshold: alarm.threshold,
+    unit: alarm.unit ?? '',
+  },
+});
+
+/** A SCADA alarm's bell title, message and keyed copy. */
+export function scadaAlarmAlert(alarm: Alarm): Pick<AlertData, 'title' | 'message' | 'copy'> {
+  return {
+    title: translate(msg, 'scadaAlertTitle', { type: scadaAlarmTypeLabel(alarm.type) }),
+    message: formatAlarmMessage(alarm),
+    copy: scadaAlarmAlertCopy(alarm, false),
+  };
+}
+
 /** One alert per alarm occurrence: occurrenceCount rises only when the condition re-enters. */
 const alarmOccurrenceKey = (alarm: Alarm): string => `${alarm.id}:${alarm.occurrenceCount ?? 1}`;
 
@@ -124,9 +203,14 @@ const alarmOccurrenceKey = (alarm: Alarm): string => `${alarm.id}:${alarm.occurr
 export function reconcileReturnedAlarmAlerts(
   alerts: readonly AlertData[],
   alarms: readonly Alarm[]
-): Array<{ id: string; returned: boolean; message: string }> {
+): Array<{ id: string; returned: boolean; message: string; copy?: AlertData['copy'] }> {
   const alarmById = new Map(alarms.map((alarm) => [alarm.id, alarm]));
-  const changes: Array<{ id: string; returned: boolean; message: string }> = [];
+  const changes: Array<{
+    id: string;
+    returned: boolean;
+    message: string;
+    copy?: AlertData['copy'];
+  }> = [];
   for (const alert of alerts) {
     if (!alert.id.startsWith('scada-') || alert.acknowledged) continue;
     const alarm = alarmById.get(alert.id.slice('scada-'.length));
@@ -139,6 +223,13 @@ export function reconcileReturnedAlarmAlerts(
         alarm && standing
           ? formatAlarmMessage(alarm)
           : `${alert.message} ${translate(msg, 'alarmReturnedToNormal')}`,
+      // A keyed row swaps its message key too, or the bell would prefer the
+      // standing wording over the 'returned to normal' one.
+      ...(alarm && standing
+        ? { copy: scadaAlarmAlertCopy(alarm, false) }
+        : alert.copy
+          ? { copy: { ...alert.copy, message: 'returned' } }
+          : {}),
     });
   }
   return changes;
@@ -190,7 +281,9 @@ export function buildOperationalTelemetry(
   qcLab: QCLabState,
   workOrders: MaintenanceWorkOrder[] = [],
   utilityAssets: readonly UtilityAssetTelemetry[] = [],
-  vehicleTelemetry: readonly VehicleTelemetrySnapshot[] = []
+  vehicleTelemetry: readonly VehicleTelemetrySnapshot[] = [],
+  /** Billed site demand (kW), the Energy dashboard's headline; omitted, the tag is not published. */
+  siteDemandKw?: number
 ): Record<string, number> {
   let totalInventoryKg = 0;
   let rawInventoryKg = 0;
@@ -251,7 +344,7 @@ export function buildOperationalTelemetry(
     [OPERATION_TAG_IDS.rawInventory]: rawInventoryKg / 1000,
     [OPERATION_TAG_IDS.inProcess]: inProcessKg / 1000,
     [OPERATION_TAG_IDS.finishedGoods]: finishedGoodsKg / 1000,
-    [OPERATION_TAG_IDS.packerFlow]: flow.currentPackerFlowRate * 3.6,
+    [OPERATION_TAG_IDS.packerFlow]: tonnesPerGameHour(flow.currentPackerFlowRate),
     [OPERATION_TAG_IDS.materialBalanceError]: flow.getMaterialBalance().errorKg,
     [OPERATION_TAG_IDS.lastReceiving]: (lastReceiving?.actualKg ?? 0) / 1000,
     [OPERATION_TAG_IDS.lastShipping]: (lastShipping?.actualKg ?? 0) / 1000,
@@ -268,6 +361,30 @@ export function buildOperationalTelemetry(
       0
     ),
   };
+
+  // Each mill's feed is the grain its rolls processed in the material model
+  // over the last few plant seconds, so the Machine Inspector and its trend say
+  // what the mill is doing; the combined tag is their sum.
+  let millThroughputTph = 0;
+  Object.entries(MILL_FEED_TAG_IDS).forEach(([machineId, tagId]) => {
+    const feedTph = tonnesPerGameHour(flow.getMachineFeedRate?.(machineId) ?? 0);
+    values[tagId] = feedTph;
+    millThroughputTph += feedTph;
+  });
+  values[MILL_THROUGHPUT_TAG_ID] = millThroughputTph;
+  // Each silo's level: its stock as a share of its capacity.
+  Object.entries(SILO_LEVEL_TAG_IDS).forEach(([machineId, tagId]) => {
+    const silo = flow.machineBuffers.get(machineId);
+    if (!silo || !(silo.outputCapacity > 0)) return;
+    const stockKg = silo.outputBuffer.reduce((sum, material) => sum + material.amount, 0);
+    values[tagId] = Math.max(0, Math.min(100, (stockKg / silo.outputCapacity) * 100));
+  });
+  // Each packing line's feed, on the same window: the three sum to packer flow.
+  Object.entries(PACKER_FEED_TAG_IDS).forEach(([machineId, tagId]) => {
+    values[tagId] = tonnesPerGameHour(flow.getMachineFeedRate?.(machineId) ?? 0);
+  });
+  if (siteDemandKw !== undefined && Number.isFinite(siteDemandKw))
+    values[TOTAL_POWER_TAG_ID] = Math.max(0, siteDemandKw);
 
   utilityAssets.forEach((asset) => {
     const tagIds = UTILITY_ASSET_TAG_IDS[asset.id];
@@ -341,6 +458,35 @@ export function buildOperationalTelemetry(
   });
 
   return values;
+}
+
+/**
+ * The site demand the campaign bills (UnifiedGameTick, tickCampaign) and the
+ * Energy dashboard shows: machines and facility load, times the Chronicle and
+ * incident energy multipliers.
+ */
+function billedSiteDemandKw(): number {
+  const game = useGameSimulationStore.getState();
+  const campaign = useOperationsCampaignStore.getState();
+  const wheatRecipe = campaign.getActiveProductionPlan()?.sourceMaterial === 'wheat_grain';
+  return (
+    getSiteDemandKw(useProductionStore.getState().machines, game.gameTime, game.emergencyActive) *
+    useChronicleStore.getState().getEffect(wheatRecipe).energyMultiplier *
+    campaign.getIncidentEffect().energyMultiplier
+  );
+}
+
+/** The plant values the SCADA bridge publishes now, read from the live stores. */
+export function currentOperationalTelemetry(): Record<string, number> {
+  return buildOperationalTelemetry(
+    useMaterialFlowStore.getState(),
+    useBreakdownStore.getState().partsInventory,
+    useQCLabStore.getState().qcLab,
+    useBreakdownStore.getState().workOrders,
+    useOperationsCampaignStore.getState().utilityAssets,
+    vehicleTelemetryRegistry.getAll(),
+    billedSiteDemandKw()
+  );
 }
 
 /**
@@ -426,14 +572,7 @@ export function initializeSCADASync(): () => void {
       // history, so overview cards, trends and alarms share one source.
       let operationalSignature = '';
       const syncOperationalTelemetry = (): void => {
-        const values = buildOperationalTelemetry(
-          useMaterialFlowStore.getState(),
-          useBreakdownStore.getState().partsInventory,
-          useQCLabStore.getState().qcLab,
-          useBreakdownStore.getState().workOrders,
-          useOperationsCampaignStore.getState().utilityAssets,
-          vehicleTelemetryRegistry.getAll()
-        );
+        const values = currentOperationalTelemetry();
         const nextSignature = Object.values(values)
           .map((value) => value.toFixed(3))
           .join(':');
@@ -450,11 +589,41 @@ export function initializeSCADASync(): () => void {
       );
       const unsubUtilityAssets = useOperationsCampaignStore.subscribe(syncOperationalTelemetry);
       syncOperationalTelemetry();
-      cleanupFunctions.push(unsubMaterialFlow, unsubMaintenance, unsubQuality, unsubUtilityAssets);
+      // A stopped line writes the material store once and then stays silent
+      // while its feed window drains to zero, so the bridge also samples at the
+      // adapter's 1 Hz. The signature check keeps an unchanged plant quiet.
+      const operationalPulse = setInterval(syncOperationalTelemetry, 1000);
+      cleanupFunctions.push(
+        unsubMaterialFlow,
+        unsubMaintenance,
+        unsubQuality,
+        unsubUtilityAssets,
+        () => clearInterval(operationalPulse)
+      );
 
       // 3. SCADA → STORE: Sync critical alarms to alerts
       // This displays SCADA alarms in the main UI alert system
       const announcedAlarmOccurrences = new Set<string>();
+      // A reload restores the bell, but a fresh AlarmManager raises nothing
+      // during its warm-up. Until that has passed (with a sample to spare), an
+      // alarm missing from the list is not yet known to have returned, so a
+      // restored standing row keeps its wording and raise time.
+      const alarmSettleMs = ALARM_STARTUP_WARMUP_MS + 2000;
+      const alarmSyncStartedAt = Date.now();
+      const reconcileAlarmAlerts = (alarms: readonly Alarm[]): void => {
+        const uiStore = useUIStore.getState();
+        const settled = Date.now() - alarmSyncStartedAt >= alarmSettleMs;
+        const listed = new Set(alarms.map((alarm) => `scada-${alarm.id}`));
+        reconcileReturnedAlarmAlerts(uiStore.alerts, alarms).forEach((change) => {
+          if (!settled && change.returned && !listed.has(change.id)) return;
+          uiStore.setAlertReturnedToNormal(change.id, change.returned, change.message, change.copy);
+        });
+      };
+      // Nothing may be notified once the warm-up ends; look again then.
+      const alarmSettleCheck = setTimeout(() => {
+        if (!isWorkplaceReplayActive()) reconcileAlarmAlerts(service.getActiveAlarms());
+      }, alarmSettleMs);
+      cleanupFunctions.push(() => clearTimeout(alarmSettleCheck));
       const unsubAlarms = service.subscribeToAlarms((alarms) => {
         if (isWorkplaceReplayActive()) return;
         const uiStore = useUIStore.getState();
@@ -462,17 +631,14 @@ export function initializeSCADASync(): () => void {
         // New critical/high occurrences only (3 per notify); dismissed ones stay dismissed.
         const existingAlertIds = new Set(uiStore.alerts.map((a) => a.id));
 
-        reconcileReturnedAlarmAlerts(uiStore.alerts, alarms).forEach((change) =>
-          uiStore.setAlertReturnedToNormal(change.id, change.returned, change.message)
-        );
+        reconcileAlarmAlerts(alarms);
 
         selectSCADAAlarmsToAlert(alarms, existingAlertIds, announcedAlarmOccurrences).forEach(
           (alarm) => {
             uiStore.addAlert({
               id: `scada-${alarm.id}`,
               type: alarm.priority === 'CRITICAL' ? 'critical' : 'warning',
-              title: translate(msg, 'scadaAlertTitle', { type: scadaAlarmTypeLabel(alarm.type) }),
-              message: formatAlarmMessage(alarm),
+              ...scadaAlarmAlert(alarm),
               timestamp: new Date(alarm.lastOccurrenceAt ?? alarm.timestamp),
               machineId: alarm.machineId,
               acknowledged: false,
@@ -492,7 +658,28 @@ export function initializeSCADASync(): () => void {
         if (isWorkplaceReplayActive()) return;
         const now = Date.now();
         if (now - lastMachineUpdate < 1000) return;
+        // Load eases on plant time (10% per plant second, the authored 1 Hz
+        // step at standard pace): it drives wear and the energy bill, which
+        // run on game time, so it holds while paused and keeps pace with 4x.
+        // The first sample adds nothing (the offline model owned load until
+        // it); a gap longer than two samples (hidden tab) counts as one, as
+        // the game clock resyncs rather than catching up.
+        const sampleRealSeconds =
+          lastMachineUpdate === 0
+            ? 0
+            : now - lastMachineUpdate <= 2000
+              ? (now - lastMachineUpdate) / 1000
+              : 1;
         lastMachineUpdate = now;
+        const loadEase =
+          1 -
+          Math.pow(
+            0.9,
+            plantSecondsForRealSeconds(
+              sampleRealSeconds,
+              useGameSimulationStore.getState().gameSpeed
+            )
+          );
 
         const store = useProductionStore.getState();
         const machines = store.machines;
@@ -518,7 +705,7 @@ export function initializeSCADASync(): () => void {
           // level is a fixed synthetic baseline. The store keeps owning load,
           // as it does offline.
           if (storeOwnsStatus) {
-            sync.metrics.load = storeOwnedLoad(machine, store.productionSpeed);
+            sync.metrics.load = storeOwnedLoad(machine, store.productionSpeed, loadEase);
           }
 
           if (sync.metrics && Object.keys(sync.metrics).length > 0) {
@@ -572,6 +759,20 @@ export function initializeSCADASync(): () => void {
         }
       });
       cleanupFunctions.push(unsubValueSync);
+
+      // A connection Apply whose adapter never connects, or a live link that
+      // drops, stops every sample without publishing anything. scadaLive must
+      // then fall, or the offline machine model stays off and the plant's
+      // metrics freeze for the session. The first sample after recovery sets
+      // it again. This reads the adapter's link state, not sample age: a
+      // healthy REST poll or an on-change broker can be quiet for a minute.
+      const liveWatchdog = setInterval(() => {
+        const production = useProductionStore.getState();
+        if (production.scadaLive && !service.getState().connected) {
+          production.setScadaLive(false);
+        }
+      }, 1000);
+      cleanupFunctions.push(() => clearInterval(liveWatchdog));
 
       logger.info('[SCADA Sync] Bidirectional sync established');
     })

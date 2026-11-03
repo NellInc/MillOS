@@ -7,9 +7,12 @@ import {
   createSouvenirMugGeometry,
   createSouvenirFabricTextures,
   SHOP_KIT_GEOMETRY,
+  SHOP_KIT_FAR_GEOMETRY,
+  SOUVENIR_LOD_FRAME,
   PLUSH_STOCK,
   STATION_SOUVENIR_ART,
 } from './StationSouvenirs';
+import { STATION_SHOP_LOD } from './StationRetailDetails';
 
 const material = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 function mesh(g: THREE.BufferGeometry) {
@@ -212,5 +215,48 @@ describe('Dead Dino plush and stationary shop kit', () => {
     const bytes = readFileSync('public/textures/signage/dead-dino-shop-kit-v1.webp');
     expect(bytes.length).toBeLessThan(350000);
     expect(bytes.subarray(8, 12).toString()).toBe('WEBP');
+  });
+});
+
+describe('souvenir stock at distance', () => {
+  const triangles = (g: THREE.BufferGeometry) =>
+    (g.index?.count ?? g.getAttribute('position').count) / 3;
+
+  it('builds the far kit without leaking its detail into later plush (the forecourt statue)', () => {
+    const plush = createDeadDinoPlushGeometry().getAttribute('position').count;
+    // Three full plush make up nearly all the near plush draw, and far exceed the far one.
+    expect(plush * PLUSH_STOCK.length).toBeLessThanOrEqual(
+      SHOP_KIT_GEOMETRY.plush.getAttribute('position').count
+    );
+    expect(plush * PLUSH_STOCK.length).toBeGreaterThan(
+      4 * SHOP_KIT_FAR_GEOMETRY.plush.getAttribute('position').count
+    );
+  });
+
+  it('draws every far batch at under 40% of the near triangles, inside its bounds', () => {
+    const keys = Object.keys(SHOP_KIT_FAR_GEOMETRY) as (keyof typeof SHOP_KIT_FAR_GEOMETRY)[];
+    expect(keys.sort()).toEqual(
+      Object.keys(SHOP_KIT_GEOMETRY)
+        .filter((k) => k !== 'prints')
+        .sort()
+    );
+    let near = 0,
+      far = 0;
+    for (const key of keys) {
+      const n = SHOP_KIT_GEOMETRY[key],
+        f = SHOP_KIT_FAR_GEOMETRY[key];
+      for (const name of ['position', 'normal', 'uv', 'color'])
+        expect(Array.from(f.getAttribute(name).array).every(Number.isFinite)).toBe(true);
+      near += triangles(n);
+      far += triangles(f);
+      expect(n.boundingBox!.clone().expandByScalar(0.005).containsBox(f.boundingBox!)).toBe(true);
+    }
+    expect(far).toBeLessThan(0.4 * near);
+  });
+
+  it('switches on the kit itself, so far stock is never nearer than 20 m', () => {
+    expect(
+      STATION_SHOP_LOD.distance * (1 - STATION_SHOP_LOD.hysteresis) - SOUVENIR_LOD_FRAME.reach
+    ).toBeGreaterThan(20);
   });
 });

@@ -25,10 +25,23 @@ import {
   WORLD_CRAFT_PALETTE,
   FARM_FURROW_PITCH,
   inRealmPatch,
+  onRealmWalk,
 } from '../../constants/publicRealmLayout';
 import { VILLAGE_STREET_CORRIDORS, villageRealmClear } from '../VillageArea';
-import { GRAIN_FIELD_COUNT, GRAIN_PLANT_GEOMETRY, populateGrainField } from '../FarmArea';
+import {
+  GRAIN_FIELD_COUNT,
+  GRAIN_PLANT_GEOMETRY,
+  PADDOCK_LONG_RUNS,
+  PADDOCK_SIDE_RUNS,
+  populateGrainField,
+} from '../FarmArea';
 import { CULVERT_BANK, CULVERT_BANK_MATERIAL } from './Tunnel';
+import {
+  FENCE_POST_PITCH,
+  fencePanelCount,
+  farmFencePosts,
+  type FarmFenceEnd,
+} from './farmFenceGeometry';
 import { VILLAGE_HOMES } from './VillageGardens';
 import { landscapeGrassSpec } from '../exterior/LandscapeDressing';
 import { CANAL_BOAT_BERTH, SITE_LAYOUT, landmarkLocalToWorld } from '../../constants/siteLayout';
@@ -391,6 +404,24 @@ describe('world public realm', () => {
     }
   });
 
+  it('finds every world, village and farm walk from world coordinates', () => {
+    // Village and farm walks are stored in their landmark's frame; a world
+    // point tested against them raw finds factory machines "on" village lanes.
+    for (const [paths, anchor] of [
+      [WORLD_REALM_PATHS, null],
+      [VILLAGE_REALM_PATHS, SITE_LAYOUT.landmarks.village],
+      [FARM_REALM_PATHS, SITE_LAYOUT.landmarks.farm],
+    ] as const)
+      for (const path of paths)
+        for (let i = 0; i <= 10; i++) {
+          const lx = path.start[0] + ((path.end[0] - path.start[0]) * i) / 10;
+          const lz = path.start[1] + ((path.end[1] - path.start[1]) * i) / 10;
+          const [x, , z] = anchor ? landmarkLocalToWorld(anchor, [lx, 0, lz]) : [lx, 0, lz];
+          expect(onRealmWalk(x, z), `${lx},${lz}`).toBe(true);
+        }
+    // The first village lane, read raw in world coordinates, is the mill floor.
+    expect(onRealmWalk(0, -20)).toBe(false);
+  });
   it('ties the alongside hull to its measured fittings with a clear navigation channel', async () => {
     for (const line of CANAL_MOORING_LINES) {
       const curve = canalMooringCurve(line);
@@ -848,11 +879,74 @@ it('grounds every actual retained crop matrix in one soil sheet clear of the hea
   // Nearest resting sheep home is z5; the transverse yard bank begins at6.44.
   expect(8 - CULVERT_BANK.boundingBox!.max.z * 0.6 - 5).toBeGreaterThan(1.4);
   const source = readFileSync('src/components/FarmArea.tsx', 'utf8');
-  // The headland culvert drained nothing (no ditch or track at either mouth)
-  // and read as a bare primitive in the farm frame; only the road culvert stays.
-  expect(source.match(/<DrainageCulvert /g)).toHaveLength(1);
-  expect(source).toContain('<DrainageCulvert position={[8, -0.3, 8]} length={6} radius={0.6} />');
+  // Neither farm culvert drained anything. The headland one had no ditch or
+  // track at either mouth; the yard one had no road over it, lay along the
+  // paddock fence under its posts and opened against the barn wall.
+  expect(source.match(/<DrainageCulvert /g)).toBeNull();
   material.dispose();
+});
+
+it('closes the paddock with exactly one post at every joint and corner', () => {
+  // Post centres the runs actually draw (farmFencePosts drives createFarmFenceRun).
+  // Rotated a quarter turn, a side run's local +x points to world -z.
+  const posts: Array<[number, number]> = [];
+  const run = (
+    at: (local: number) => [number, number],
+    length: number,
+    start: FarmFenceEnd,
+    end: FarmFenceEnd
+  ) => {
+    const { centres, drawn } = farmFencePosts(length, start, end);
+    centres.forEach((c, i) => drawn[i] && posts.push(at(c)));
+  };
+  PADDOCK_LONG_RUNS.forEach((x, index) => {
+    for (const z of [-6, 6]) run((c) => [x + c, z], 5, index === 0 ? 'post' : 'open', 'post');
+  });
+  for (const x of [-10, 10])
+    for (const { z, start, end } of PADDOCK_SIDE_RUNS) run((c) => [x, z - c], 4, start, end);
+
+  // The runs tile both 20 m sides and both 12 m sides with no gap or overlap.
+  expect(PADDOCK_LONG_RUNS.map((x) => [x - 2.5, x + 2.5])).toEqual([
+    [-10, -5],
+    [-5, 0],
+    [0, 5],
+    [5, 10],
+  ]);
+  expect(PADDOCK_SIDE_RUNS.map(({ z }) => [z - 2, z + 2])).toEqual([
+    [-6, -2],
+    [-2, 2],
+    [2, 6],
+  ]);
+  for (const corner of [
+    [-10, -6],
+    [10, -6],
+    [-10, 6],
+    [10, 6],
+  ])
+    expect(posts.filter(([x, z]) => Math.hypot(x - corner[0], z - corner[1]) < 1e-6)).toHaveLength(
+      1
+    );
+  // Every joint between runs carries exactly one post as well.
+  for (const joint of [
+    ...[-5, 0, 5].flatMap((x) => [
+      [x, -6],
+      [x, 6],
+    ]),
+    ...[-2, 2].flatMap((z) => [
+      [-10, z],
+      [10, z],
+    ]),
+  ])
+    expect(posts.filter(([x, z]) => Math.hypot(x - joint[0], z - joint[1]) < 1e-6)).toHaveLength(1);
+  for (let i = 0; i < posts.length; i++)
+    for (let j = i + 1; j < posts.length; j++)
+      expect(Math.hypot(posts[i][0] - posts[j][0], posts[i][1] - posts[j][1])).toBeGreaterThan(1);
+  // Spacing stays within a fifth of the panel's own 1.44 m post pitch.
+  expect(FENCE_POST_PITCH).toBeCloseTo(1.44, 6);
+  for (const length of [4, 5, 6]) {
+    const pitch = length / fencePanelCount(length);
+    expect(Math.abs(Math.log(pitch / 1.44))).toBeLessThan(0.2);
+  }
 });
 
 it('uses softened, metre-scale drill bands without new textures or raised crop roots', () => {
