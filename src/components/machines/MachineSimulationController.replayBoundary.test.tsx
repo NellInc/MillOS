@@ -114,10 +114,12 @@ describe('machine metrics replay pause boundary', () => {
     tick(5);
     expect(participant().capture().replayTicks).toBe(4);
     expect(update).toHaveBeenCalledTimes(1);
+    // Four replay ticks at the 4x cap are 8 plant seconds: four standard
+    // two-second steps, so load eases 0 -> 8 -> 15.2 -> 21.7 -> 27.5.
     expect(useProductionStore.getState().machines[0].metrics).toMatchObject({
-      load: 8,
-      temperature: 21.2,
-      vibration: 0.1,
+      load: 27.5,
+      temperature: 24.8,
+      vibration: 0.38,
     });
   });
 

@@ -203,8 +203,13 @@ Spawn the judge as a subagent, pointed at the capture directory and nothing else
 Do not tell it what changed, which iteration this is, or what you hope it says.
 It writes `verdict.md` into the capture directory.
 
-**PASS = every axis ≥ 7/10 and zero blocking defects.** The seven axes and their
+**PASS = every axis ≥ 7/10 and zero blocking defects.** The eight axes and their
 anchors are in the agent file.
+
+**Rubric change, 2026-11-02 (D-016 in `docs/DECISIONS.md`):** axis 8, style
+coherence, was added. It is never `n/a`. Verdicts from before that date were
+graded on seven axes, so don't compare them with later ones as like for like;
+re-judge the old capture if you need a baseline.
 
 ### 2. Fix
 

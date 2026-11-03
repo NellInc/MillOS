@@ -536,6 +536,31 @@ describe('autonomous operations programme', () => {
     expect(useOperationsCampaignStore.getState().challengeHistory.at(-1)?.status).toBe('completed');
   });
 
+  // The credited mass already passed release when it shipped. A later hold on
+  // the plant's current dispatch (a QC failure on a newer batch, an expired
+  // certificate) left the card at 1,000 / 1,000 kg with the controller
+  // restored, and the run failed at its deadline. Working if it completes.
+  it('completes a recovery whose target has shipped even while dispatch is now held', () => {
+    const store = useOperationsCampaignStore.getState();
+    store.tickCampaign(60, context());
+    expect(store.startChallenge('power_recovery')).toBe(true);
+    const run = useOperationsCampaignStore.getState().activeChallenge!;
+    store.acknowledgeIncident(run.incidentId);
+    store.mitigateIncident(run.incidentId);
+    store.markIncidentEffectApplied(run.incidentId);
+    expect(store.finishChallengeRecovery()).toBe(true);
+    store.tickCampaign(
+      60,
+      context({
+        manifests: [shippingManifest],
+        productionBatches: [flourBatch],
+        dispatchReleased: false,
+      })
+    );
+    expect(useOperationsCampaignStore.getState().activeChallenge).toBeNull();
+    expect(useOperationsCampaignStore.getState().challengeHistory.at(-1)?.status).toBe('completed');
+  });
+
   it('expires and abandons challenges without erasing incident controls', () => {
     const store = useOperationsCampaignStore.getState();
     store.tickCampaign(60, context());

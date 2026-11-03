@@ -3412,7 +3412,8 @@ VILLAGE_GROUND_MATERIAL.customProgramCacheKey = () => 'villageCobble_feather_v4'
 /** Same seven trees as before, now drawn by the instanced card-canopy field. */
 const VILLAGE_TREES: readonly TreeInstance[] = [
   { position: [-30, 0, -55], scale: 1.2, type: 'oak' },
-  { position: [30, 0, -60], scale: 1.0, type: 'birch' },
+  // At z -60 it stood in the lane to the towpath (village-local z -59).
+  { position: [27, 0, -63], scale: 1.0, type: 'birch' },
   { position: [-30, 0, 55], scale: 1.3, type: 'oak' },
   { position: [30, 0, 65], scale: 1.1, type: 'oak' },
   { position: [-30, 0, 0], scale: 0.9, type: 'birch' },
@@ -3496,7 +3497,7 @@ const VILLAGE_WALL_BASES: readonly (readonly [number, number])[] = [
   [0, 8.6],
   [2.6, 6],
   [-30, -55],
-  [30, -60],
+  [27, -63],
   [-30, 55],
   [30, 65],
   [-30, 0],

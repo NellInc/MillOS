@@ -12,6 +12,8 @@ import {
   getCommunityHours,
 } from '../constants/communityLayout';
 import type { Vec3Tuple } from '../constants/siteLayout';
+import { BUS_TURNAROUND } from '../constants/publicRealmLayout';
+import { FORKLIFT_CREW_SITES } from '../constants/forkliftCrewLayout';
 import type { WorkplaceState } from '../types/workplace';
 import { improvementArrangement } from './workplaceImprovement';
 import { translate } from '../i18n';
@@ -544,6 +546,21 @@ const millLoop = (
     via([work[0], 0, aisle]),
   ]);
 
+/** A forklift operator's day: the driving spell at the crew point (stops[0], the
+ * stand beside the cab, where the forklift collects them), then a walk to their
+ * own bench and back. While the spell runs they are in the cab, not at the
+ * stand: CommunityLife seats them there, and their personal hour holds at both
+ * ends of the spell until the forklift is parked at the crew point
+ * (forkliftCrew.ts). Their strip is used by no one else, because a held hour
+ * puts them out of step with everyone, so only distance keeps them apart.
+ */
+export const FORKLIFT_OPERATOR_REST_HOURS = 0.6;
+const forkliftOperatorRoutine = (site: (typeof FORKLIFT_CREW_SITES)[number]): CommunityStop[] =>
+  fitPeriod([
+    stop(site.stand, site.standRotation, 0, `Driving ${site.tag}`),
+    rest(site.bench, site.benchRotation, FORKLIFT_OPERATOR_REST_HOURS),
+  ]);
+
 /** Closed, authored pedestrian circuits stay on the mill side of conveyors.
  * Working if sampled segments clear machine/belt footprints and vehicle lanes.
  *
@@ -711,6 +728,16 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
   { id: 'village-cyclist', role: 'Cyclist', district: 'village', phase: 0, stops: [] },
   { id: 'bus-arriving', role: 'Passenger', district: 'bus', phase: 0, stops: [] },
   { id: 'bus-departing', role: 'Passenger', district: 'bus', phase: 0.4, stops: [] },
+  // Last: personnel saves restore residents by index, so new people go at the end.
+  ...FORKLIFT_CREW_SITES.map(
+    (site): CommunityPerson => ({
+      id: site.operatorId,
+      role: 'Operator',
+      district: 'mill',
+      phase: site.phase,
+      stops: forkliftOperatorRoutine(site),
+    })
+  ),
 ];
 
 export const communityHour = (hour: number): number =>
@@ -742,9 +769,18 @@ const BUS_DOORS_CLOSE = 1.9;
 /** 115 m out of the tunnel, braking evenly from about 12 m/s to the stop. */
 const BUS_APPROACH_HOURS = standardSeconds(19);
 const BUS_APPROACH_START = BUS_DOORS_OPEN - BUS_APPROACH_HOURS;
-const BUS_TURN_LEGS = [Math.hypot(4, 22), 7 * PI, Math.hypot(4, 22)] as const;
+/** Out of the stop to the turn's east tangent, half round it, back to the lane. */
+const BUS_TURN_EAST = BUS_TURNAROUND.centre[0] + BUS_TURNAROUND.radius;
+const BUS_TURN_WEST = BUS_TURNAROUND.centre[0] - BUS_TURNAROUND.radius;
+const BUS_TURN_Z = BUS_TURNAROUND.centre[1];
+const [BUS_REJOIN_X, BUS_REJOIN_Z] = BUS_TURNAROUND.rejoin;
+const BUS_TURN_LEGS = [
+  Math.hypot(BUS_TURN_EAST - 23, BUS_TURN_Z - 140),
+  BUS_TURNAROUND.radius * PI,
+  Math.hypot(BUS_REJOIN_X - BUS_TURN_WEST, BUS_REJOIN_Z - BUS_TURN_Z),
+] as const;
 const BUS_TURN_METRES = BUS_TURN_LEGS[0] + BUS_TURN_LEGS[1] + BUS_TURN_LEGS[2];
-const BUS_DEPARTURE_METRES = BUS_TURN_METRES + 115;
+const BUS_DEPARTURE_METRES = BUS_TURN_METRES + (255 - BUS_REJOIN_Z);
 /** Turnaround and return, accelerating evenly from the stop into the tunnel. */
 const BUS_DEPARTURE_HOURS = standardSeconds(40);
 const BUS_DEPARTURE_END = BUS_DOORS_CLOSE + BUS_DEPARTURE_HOURS;
@@ -772,22 +808,22 @@ export function sampleCommunityBus(hour: number) {
     let s = BUS_DEPARTURE_METRES * u * u;
     if (s < BUS_TURN_LEGS[0]) {
       const t = s / BUS_TURN_LEGS[0];
-      x = 23 + 4 * t;
-      z = 140 - 22 * t;
-      rotation = Math.atan2(4, -22);
+      x = 23 + (BUS_TURN_EAST - 23) * t;
+      z = 140 + (BUS_TURN_Z - 140) * t;
+      rotation = Math.atan2(BUS_TURN_EAST - 23, BUS_TURN_Z - 140);
     } else if ((s -= BUS_TURN_LEGS[0]) < BUS_TURN_LEGS[1]) {
       const angle = -PI * (s / BUS_TURN_LEGS[1]);
-      x = 20 + 7 * Math.cos(angle);
-      z = 118 + 7 * Math.sin(angle);
+      x = BUS_TURNAROUND.centre[0] + BUS_TURNAROUND.radius * Math.cos(angle);
+      z = BUS_TURN_Z + BUS_TURNAROUND.radius * Math.sin(angle);
       rotation = PI - angle;
     } else if ((s -= BUS_TURN_LEGS[1]) < BUS_TURN_LEGS[2]) {
       const t = s / BUS_TURN_LEGS[2];
-      x = 13 + 4 * t;
-      z = 118 + 22 * t;
-      rotation = Math.atan2(4, 22);
+      x = BUS_TURN_WEST + (BUS_REJOIN_X - BUS_TURN_WEST) * t;
+      z = BUS_TURN_Z + (BUS_REJOIN_Z - BUS_TURN_Z) * t;
+      rotation = Math.atan2(BUS_REJOIN_X - BUS_TURN_WEST, BUS_REJOIN_Z - BUS_TURN_Z);
     } else {
-      x = 17;
-      z = 140 + Math.min(115, s - BUS_TURN_LEGS[2]);
+      x = BUS_REJOIN_X;
+      z = BUS_REJOIN_Z + Math.min(255 - BUS_REJOIN_Z, s - BUS_TURN_LEGS[2]);
       rotation = 0;
     }
   }

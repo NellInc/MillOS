@@ -5,8 +5,12 @@ import { createPosterStationGeometry } from './AuthoredPropTrim';
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
+  RETAIL_FAR_GEOMETRY,
   RETAIL_GEOMETRY,
+  RETAIL_LOD_FRAME,
   RETAIL_PRODUCTS,
+  STATION_SHOP_LOD,
+  buildShopFarKit,
   RETAIL_LIGHT,
   createRetailBottleGeometry,
   createRetailPacketGeometry,
@@ -211,5 +215,47 @@ describe('visible retail printing', () => {
     }
     (goods.material as THREE.Material).dispose();
     (hardware.material as THREE.Material).dispose();
+  });
+});
+
+describe('shop dressing at distance', () => {
+  const triangles = (g: THREE.BufferGeometry) =>
+    (g.index?.count ?? g.getAttribute('position').count) / 3;
+  const positions = (g: THREE.BufferGeometry) => Array.from(g.getAttribute('position').array);
+
+  it('leaves every builder at full detail outside the far build, even after one throws', () => {
+    const before = positions(createRetailPacketGeometry());
+    const far = buildShopFarKit(() => createRetailPacketGeometry());
+    expect(far.getAttribute('position').count).toBeLessThan(before.length / 3);
+    expect(() =>
+      buildShopFarKit(() => {
+        throw new Error('interrupted');
+      })
+    ).toThrow('interrupted');
+    expect(positions(createRetailPacketGeometry())).toEqual(before);
+  });
+
+  it('draws the far goods and hardware at under 40% of the near triangles, inside their bounds', () => {
+    for (const key of ['goods', 'hardware'] as const) {
+      const near = RETAIL_GEOMETRY[key],
+        far = RETAIL_FAR_GEOMETRY[key];
+      for (const name of ['position', 'normal', 'uv', 'color']) {
+        expect(far.getAttribute(name).count).toBe(far.getAttribute('position').count);
+        expect(Array.from(far.getAttribute(name).array).every(Number.isFinite)).toBe(true);
+      }
+      expect(triangles(far)).toBeLessThan(0.4 * triangles(near));
+      // Plain boxes keep a bevelled box's extents; coarser curves sit inside.
+      near.computeBoundingBox();
+      far.computeBoundingBox();
+      expect(near.boundingBox!.clone().expandByScalar(0.005).containsBox(far.boundingBox!)).toBe(
+        true
+      );
+    }
+  });
+
+  it('switches on the kit itself, so far stock is never nearer than 20 m', () => {
+    expect(
+      STATION_SHOP_LOD.distance * (1 - STATION_SHOP_LOD.hysteresis) - RETAIL_LOD_FRAME.reach
+    ).toBeGreaterThan(20);
   });
 });

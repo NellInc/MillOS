@@ -2,6 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { SHADOW_CONFIG } from '../../constants/renderLayers';
 
 /**
  * Sun shadow rig.
@@ -140,6 +141,52 @@ export const NORMAL_BIAS_RANGE = { min: 0.02, max: 0.4 };
 /** World units of slack between the shadow camera's near plane and the box. */
 export const SHADOW_DEPTH_MARGIN = 25;
 
+/**
+ * UP-SUN CASTERS NEED DEPTH, NOT WIDTH.
+ *
+ * A directional shadow and the thing casting it share light-space XY, so any
+ * caster whose shadow lands inside the fitted box is already inside the shadow
+ * camera's XY window, wherever it stands. What can cut it is the NEAR plane,
+ * which used to sit exactly on the box's up-sun face. A caster of height h whose
+ * shadow reaches a receiver on the ground is h / sin(elevation) up the light
+ * ray from it, so a low sun pushes tall casters past that face and their
+ * shadows vanish inside the frame. The site-latitude orbit keeps the sun below
+ * 30 degrees before about 09:30 and after 14:30, which is where this showed.
+ *
+ * The near side is therefore extended by that reach for the tallest structure
+ * on the site. It costs no texels (the XY window is unchanged), only depth range
+ * (a FloatType depth texture, so precision is not the limit) and whatever extra
+ * casters the longer volume takes into the 1-in-3 shadow pass, which are
+ * exactly the ones whose shadows were missing.
+ */
+export const SHADOW_CASTER_CEILING = SITE_LAYOUT.bulkStorage.elevator.height;
+
+/**
+ * Cap on the up-sun reach, in world units. Holds the elevator's full shadow
+ * down to about 10.6 degrees of sun; lower than that the key is the dim golden
+ * sliver of dawn or dusk and anything farther up-sun is off-site scenery.
+ */
+export const SHADOW_CASTER_REACH_MAX = 300;
+
+/** Extra up-sun depth for the tallest caster at a given sin(elevation). */
+export function upSunCasterReach(sinElevation: number): number {
+  if (!Number.isFinite(sinElevation) || sinElevation <= 0) return SHADOW_CASTER_REACH_MAX;
+  return Math.min(SHADOW_CASTER_REACH_MAX, SHADOW_CASTER_CEILING / sinElevation);
+}
+
+/**
+ * `shadow.bias` is added to the NORMALISED depth, so its world size is
+ * bias x (far - near). Lengthening the range would otherwise grow the offset
+ * and detach every contact shadow. This holds the world-space bias at what the
+ * box-only range (2 x the box's light-depth half extent) has always produced.
+ */
+export function rangeCompensatedBias(boxDepthHalf: number, reach: number): number {
+  const box = 2 * Math.max(0, boxDepthHalf);
+  if (!(box > 0) || !(reach > 0)) return SHADOW_CONFIG.bias;
+  const range = box + reach;
+  return (SHADOW_CONFIG.bias * box) / range;
+}
+
 /** Frames between full refits. Repositioning still happens every frame. */
 export const SHADOW_REFIT_INTERVAL = 3;
 
@@ -162,9 +209,10 @@ export const CASTER_PATCH_ATTEMPTS = 240;
 /**
  * Above this |sunDir.y| the default up vector is degenerate.
  *
- * At clear noon `sampleCelestial` returns a solar direction of exactly (0, 1, 0)
- * - the existing atmosphere test asserts it, and the benchmark harness defaults
- * to `--time=12`. `Matrix4.lookAt` perturbs its way out of the zero cross
+ * The solar orbit used to pass through (0, 1, 0) at noon. Since the site-latitude
+ * orbit (`SITE_LATITUDE_DEG` in `atmosphere.ts`) the sun peaks at 38.5 degrees,
+ * so this band is no longer reached in normal play; it stays as a guard for any
+ * key that is ever aimed straight down. `Matrix4.lookAt` perturbs its way out of the zero cross
  * product rather than producing NaN, but the basis it lands on flips
  * discontinuously as the sun crosses vertical, which rotates the texel grid and
  * pops every shadow edge. Switching the up vector to +Z through the degenerate
@@ -293,7 +341,10 @@ export function SunShadowRig(): null {
       // off on a light this rig no longer drives freezes the shadow map at
       // whatever it last contained, which is what an HMR swap or a StrictMode
       // remount would otherwise produce.
-      if (light) light.shadow.autoUpdate = true;
+      if (light) {
+        light.shadow.autoUpdate = true;
+        light.shadow.bias = SHADOW_CONFIG.bias;
+      }
       lightRef.current = null;
       for (const object of castersPatchedRef.current) object.castShadow = false;
       castersPatchedRef.current = [];
@@ -324,9 +375,10 @@ export function SunShadowRig(): null {
     // `OptimizedFactoryInfrastructure` marks the roof slabs and the columns
     // `castShadow` but leaves the wall segments `receiveShadow` only. That was
     // invisible while the shadow pass was off. With it on it is a hard bug: at
-    // the app's default 10:00 the sun sits at 60 degrees, the roof's shadow is
-    // displaced 19 units downsun, and a 19 x 100 band of interior floor along
-    // the upsun wall gets lit straight through a solid wall.
+    // the app's default 10:00 the sun then sat at 60 degrees (33 since the
+    // site-latitude orbit, which displaces the roof shadow further), the roof's
+    // shadow is displaced downsun, and a band of interior floor along the
+    // upsun wall gets lit straight through a solid wall.
     //
     // Patched here rather than in that file both because this rig owns scene
     // shadow configuration and because the file is out of scope. Transparent
@@ -429,7 +481,10 @@ export function SunShadowRig(): null {
       _lightSpaceCentre.setY(snapToTexel(_lightSpaceCentre.y, texel));
       centreRef.current.copy(_lightSpaceCentre).applyMatrix4(_worldFromLight);
 
-      const distance = extentZ + SHADOW_DEPTH_MARGIN;
+      // The light sits `reach` farther up-sun, so the near plane clears the
+      // tallest up-sun caster; the down-sun face is where it always was.
+      const reach = upSunCasterReach(_sunDirection.y);
+      const distance = extentZ + reach + SHADOW_DEPTH_MARGIN;
       distanceRef.current = distance;
 
       const shadowCamera = light.shadow.camera;
@@ -442,6 +497,7 @@ export function SunShadowRig(): null {
       shadowCamera.updateProjectionMatrix();
 
       light.shadow.normalBias = normalBiasForTexel(texel);
+      light.shadow.bias = rangeCompensatedBias(extentZ, reach);
 
       // THE SHADOW MAP IS RE-RENDERED ON REFIT FRAMES ONLY.
       //

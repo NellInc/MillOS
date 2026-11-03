@@ -230,7 +230,9 @@ describe('ledger', () => {
     ledger = recordKnowHow(ledger, 'plans', -8);
     expect(fundBalance(ledger)).toBe(280);
     expect(knowHowEarned(ledger)).toBe(10);
-    expect(ledger.lastShiftFund).toEqual({ upkeep: -20 });
+    // Only a shift close turns the running tally into the last close's.
+    expect(ledger.sinceCloseFund).toEqual({ upkeep: -20 });
+    expect(ledger.lastShiftFund).toEqual({});
   });
   it('renders the plant economics as revenue in and costs out', () => {
     const lines = economicsLines({

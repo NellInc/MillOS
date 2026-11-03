@@ -73,7 +73,6 @@ export interface PersistedUIState {
   journeyOrderId?: string | null;
   inspectedMachineIds?: string[];
   showZones?: boolean;
-  showAIPanel?: boolean;
   panelMinimized?: boolean;
   theme?: 'dark' | 'light';
   uiScale?: number;
@@ -90,7 +89,8 @@ export function sanitizeUIState(value: unknown): PersistedUIState {
     'hasSeenIntro',
     'journeyVisible',
     'showZones',
-    'showAIPanel',
+    // showAIPanel is no longer saved (App owns the AI panel); an older
+    // record's value is dropped here rather than restored into a dead field.
     'panelMinimized',
     'showMiniMap',
     // First-person and blueprint views are never restored, so an older

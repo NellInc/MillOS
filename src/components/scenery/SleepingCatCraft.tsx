@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
+import { DistanceLod } from '../performance/DistanceLod';
 
 type Point = [number, number, number];
 export const SLEEPING_CAT_HEAD = new THREE.Matrix4().compose(
@@ -15,6 +16,9 @@ const MATERIAL = new THREE.MeshStandardMaterial({
 });
 const CREAM = '#ebcf9e';
 const INK = '#51372c';
+/** True only inside `createSleepingCatFarDetails`: sweeps and spheres coarsen
+ * and the ink and claw tubes (0.9-1.5 mm) are left out. */
+let farDetail = false;
 
 /** Closed, variable-section curves in cat metres, rather than a torus handle.
  * Working if both ends are capped and the tail tapers into the original nook.
@@ -23,8 +27,8 @@ function sweep(points: Point[], width: (t: number) => number, height: (t: number
   const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)));
   const positions: number[] = [],
     indices: number[] = [],
-    rows = 36,
-    sides = 16;
+    rows = farDetail ? 12 : 36,
+    sides = farDetail ? 6 : 16;
   for (let row = 0; row <= rows; row++) {
     const t = row / rows,
       p = curve.getPoint(t),
@@ -80,7 +84,7 @@ function coat(g: THREE.BufferGeometry, colour: string, tail = false) {
 }
 
 export function createSleepingCatHeadGeometry() {
-  return new THREE.SphereGeometry(1, 20, 12)
+  return new THREE.SphereGeometry(1, farDetail ? 8 : 20, farDetail ? 6 : 12)
     .scale(0.09, 0.065, 0.08)
     .applyMatrix4(SLEEPING_CAT_HEAD);
 }
@@ -107,23 +111,24 @@ export function createSleepingCatGeometry(colour: string) {
     b.add(g, c);
   };
   const sphere = (r: Point, p: Point) =>
-    new THREE.SphereGeometry(1, 20, 12).scale(...r).translate(...p);
+    new THREE.SphereGeometry(1, farDetail ? 8 : 20, farDetail ? 6 : 12).scale(...r).translate(...p);
   b.parts.push(coat(createSleepingCatHeadGeometry(), colour));
   for (const x of [-0.016, 0.045]) {
     add(sphere([0.037, 0.022, 0.05], [x, 0.026, 0.14]), CREAM);
-    for (const dx of [-0.011, 0.008])
-      add(
-        new THREE.TubeGeometry(
-          new THREE.LineCurve3(
-            new THREE.Vector3(x + dx, 0.04, 0.165),
-            new THREE.Vector3(x + dx, 0.039, 0.18)
+    if (!farDetail)
+      for (const dx of [-0.011, 0.008])
+        add(
+          new THREE.TubeGeometry(
+            new THREE.LineCurve3(
+              new THREE.Vector3(x + dx, 0.04, 0.165),
+              new THREE.Vector3(x + dx, 0.039, 0.18)
+            ),
+            3,
+            0.0009,
+            4
           ),
-          3,
-          0.0009,
-          4
-        ),
-        '#bc956a'
-      );
+          '#bc956a'
+        );
   }
   b.parts.push(
     coat(
@@ -157,30 +162,32 @@ export function createSleepingCatGeometry(colour: string) {
       .intersectObject(skull)[0]
       .point.applyMatrix4(inverseHead).z;
   };
-  for (const side of [-1, 1]) {
-    const points = Array.from({ length: 9 }, (_, i) => {
-      const x = side * (0.023 + (i / 8) * 0.033),
-        y = 0.003 - Math.sin((i / 8) * Math.PI) * 0.005;
-      return new THREE.Vector3(x, y, surface(x, y) + 0.0006);
-    });
-    add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 10, 0.0015, 5), INK, true);
-  }
+  if (!farDetail)
+    for (const side of [-1, 1]) {
+      const points = Array.from({ length: 9 }, (_, i) => {
+        const x = side * (0.023 + (i / 8) * 0.033),
+          y = 0.003 - Math.sin((i / 8) * Math.PI) * 0.005;
+        return new THREE.Vector3(x, y, surface(x, y) + 0.0006);
+      });
+      add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 10, 0.0015, 5), INK, true);
+    }
   skull.geometry.dispose();
   skull.material.dispose();
   add(sphere([0.009, 0.005, 0.004], [0, -0.021, 0.091]), '#a46c61', true);
-  add(
-    new THREE.TubeGeometry(
-      new THREE.LineCurve3(
-        new THREE.Vector3(0, -0.024, 0.091),
-        new THREE.Vector3(0, -0.035, 0.087)
+  if (!farDetail)
+    add(
+      new THREE.TubeGeometry(
+        new THREE.LineCurve3(
+          new THREE.Vector3(0, -0.024, 0.091),
+          new THREE.Vector3(0, -0.035, 0.087)
+        ),
+        3,
+        0.0011,
+        4
       ),
-      3,
-      0.0011,
-      4
-    ),
-    INK,
-    true
-  );
+      INK,
+      true
+    );
   const ear = (side: number) => {
     const e = new PlotGeometry(),
       shape = new THREE.Shape();
@@ -228,6 +235,20 @@ export function createSleepingCatGeometry(colour: string) {
   return { body, details, leftEar, rightEar };
 }
 
+/** The settled details (head, tail, paws, muzzle) for distance: 12 x 6 sweeps
+ * and 8 x 6 spheres, no ink or claw lines. */
+export function createSleepingCatFarDetails(colour: string) {
+  farDetail = true;
+  try {
+    const { body, details, leftEar, rightEar } = createSleepingCatGeometry(colour);
+    for (const g of [body, leftEar, rightEar]) g.dispose();
+    return details;
+  } finally {
+    farDetail = false;
+  }
+}
+export const SLEEPING_CAT_LOD = { distance: 15, hysteresis: 0.1 } as const;
+
 /** Only local transforms, sampled by the existing Cat owner. No timer/driver.
  * Working if the base, paws and head stay settled while the flank rises <4mm.
  */
@@ -250,10 +271,12 @@ export interface SleepingCatHandle {
 export const SleepingCatCraft = forwardRef<SleepingCatHandle, { colour: string }>(
   ({ colour }, ref) => {
     const g = useMemo(() => createSleepingCatGeometry(colour), [colour]),
+      farDetails = useMemo(() => createSleepingCatFarDetails(colour), [colour]),
       body = useRef<THREE.Mesh>(null),
       left = useRef<THREE.Group>(null),
       right = useRef<THREE.Group>(null);
     useEffect(() => () => Object.values(g).forEach((part) => part.dispose()), [g]);
+    useEffect(() => () => farDetails.dispose(), [farDetails]);
     useImperativeHandle(
       ref,
       () => ({
@@ -276,13 +299,22 @@ export const SleepingCatCraft = forwardRef<SleepingCatHandle, { colour: string }
           castShadow
           receiveShadow
         />
-        <mesh
-          name="sleeping-cat-settled-details"
-          geometry={g.details}
-          material={MATERIAL}
-          castShadow
-          receiveShadow
-        />
+        <DistanceLod
+          name="sleeping-cat-lod"
+          distances={[0, SLEEPING_CAT_LOD.distance]}
+          hysteresis={SLEEPING_CAT_LOD.hysteresis}
+        >
+          {[g.details, farDetails].map((geometry, far) => (
+            <mesh
+              key={far}
+              name={far ? 'sleeping-cat-settled-details-far' : 'sleeping-cat-settled-details'}
+              geometry={geometry}
+              material={MATERIAL}
+              castShadow
+              receiveShadow
+            />
+          ))}
+        </DistanceLod>
         <group matrix={SLEEPING_CAT_HEAD} matrixAutoUpdate={false}>
           <group name="sleeping-cat-left-ear" ref={left} position={[0.054, 0.042, -0.014]}>
             <mesh geometry={g.leftEar} material={MATERIAL} castShadow />

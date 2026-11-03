@@ -34,6 +34,11 @@ export const aiEngineMessages = defineMessages({
       'Lowers the line rate by 2% (never below 55%) to smooth material flow, limit recirculation and protect downstream capacity.',
     completedAutomatic: 'Completed by autonomous control layer',
     completedConfirmed: 'Completed after control confirmation',
+    deferralReturned:
+      'Deferred {hours} plant hour and back for a decision. It lapses if left another {lapse} plant hours.',
+    deferralLapsed:
+      'Deferred and not taken up within {hours} plant hours; superseded. A fresh card follows if the condition holds.',
+    completedModified: 'Completed after operator modification',
     strategicReasoningFallback: 'Strategic analysis complete.',
     strategicAction: 'Strategic: {priority}',
     strategicAdditionalPriorities: 'Additional priorities: {priorities}',
@@ -67,6 +72,11 @@ export const aiEngineMessages = defineMessages({
       'Reduz a taxa da linha em 2% (nunca abaixo de 55%) para suavizar o fluxo de material, limitar a recirculação e proteger a capacidade a jusante.',
     completedAutomatic: 'Concluída pela camada de controle autônoma',
     completedConfirmed: 'Concluída após confirmação do controle',
+    deferralReturned:
+      'Adiada por {hours} hora de planta e de volta para decisão. Expira se ficar mais {lapse} horas de planta.',
+    deferralLapsed:
+      'Adiada e não retomada em {hours} horas de planta; substituída. Um novo cartão vem se a condição continuar.',
+    completedModified: 'Concluída após modificação do operador',
     strategicReasoningFallback: 'Análise estratégica concluída.',
     strategicAction: 'Estratégia: {priority}',
     strategicAdditionalPriorities: 'Prioridades adicionais: {priorities}',

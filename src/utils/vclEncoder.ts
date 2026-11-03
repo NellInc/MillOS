@@ -104,7 +104,7 @@ export function encodeFactoryContextVCL(
   currentRunWindow: string,
   weather: string,
   gameTime: number,
-  alerts: Array<{ type: string }>
+  alerts: Array<{ type: string; acknowledged?: boolean; returnedToNormal?: boolean }>
 ): string {
   const timeGlyph =
     gameTime < 6
@@ -118,8 +118,13 @@ export function encodeFactoryContextVCL(
             : TIME_GLYPH.night;
   const runWindow = RUN_WINDOW_GLYPH[currentRunWindow] ?? '?';
   const weatherGlyph = WEATHER_GLYPH[weather] ?? WEATHER_GLYPH.clear;
+  // Active alarms only: an acknowledged alert, or one whose condition cleared,
+  // stays listed for the record but no longer stands.
   const criticalAlerts = alerts.filter(
-    (alert) => alert.type === 'critical' || alert.type === 'safety'
+    (alert) =>
+      (alert.type === 'critical' || alert.type === 'safety') &&
+      !alert.acknowledged &&
+      !alert.returnedToNormal
   ).length;
   const alertGlyph = criticalAlerts > 0 ? `|🚨${criticalAlerts}` : '|✅0';
   return `${timeGlyph}W${runWindow}${weatherGlyph}|${encodeMachinesVCL(machines)}${alertGlyph}`;

@@ -88,7 +88,19 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     if (!isVisible) return;
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      // A dialog that took this Escape (the keyboard help, which has no exit
+      // animation) is already gone from the page by the time it reaches here.
+      if (event.defaultPrevented) return;
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      // A text field owns Escape (it clears a search natively), as the global
+      // shortcut hook already assumes; closing here lost the panel and its draft.
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
+        )
+      )
+        return;
       event.preventDefault();
       onClose();
     };
@@ -110,6 +122,22 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
     });
     return () => cancelAnimationFrame(frame);
   }, [panelFocusRequested, isVisible]);
+
+  // A second I or O press hides the panel through its flag, not Close, so
+  // nothing handed focus on and a control focused inside fell to <body>. The
+  // aside is still on the page here (it animates out); the dock takes focus.
+  // Close's own return to its opener runs a frame later and still wins.
+  // Working if Tab continues from the dock after I, Tab, I.
+  React.useLayoutEffect(() => {
+    if (isVisible) return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !active.closest('#context-sidebar')) return;
+    (
+      document.querySelector<HTMLElement>(`[data-dock-mode="${mode}"]`) ??
+      document.querySelector<HTMLElement>('[data-dock-mode="overview"]')
+    )?.focus();
+    // Keyed on visibility alone: a mode change must not move focus.
+  }, [isVisible]);
 
   // Preload panels related to current mode when it changes
   React.useEffect(() => {
@@ -204,6 +232,7 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '100%', opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            data-context-sidebar=""
             className="fixed top-12 right-0 bottom-0 w-[var(--millos-sidebar-width,min(24rem,42vw))] bg-[#071722]/98 backdrop-blur-xl border-l border-cyan-100/15 shadow-2xl z-40 overflow-hidden flex flex-col pointer-events-auto"
             aria-label={t('panelLabel', { title: headerTitle })}
             role="complementary"
@@ -255,8 +284,9 @@ export const ContextSidebar: React.FC<ContextSidebarProps> = ({
               </RecoverableFeatureBoundary>
             </div>
 
-            {/* Footer with branding */}
-            <div className="p-3 border-t border-white/10 bg-black/10">
+            {/* Footer with branding. src/index.css hides it in the compact layout,
+                where the short Inspector needs the room. */}
+            <div data-sidebar-footer="" className="p-3 border-t border-white/10 bg-black/10">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <div

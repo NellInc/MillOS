@@ -236,7 +236,8 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     reads: ['simulation.gameSpeed'],
     writes: ['simulation.gameSpeed'],
     sideEffects: ['Changes future simulated-time advancement while preserving wall time.'],
-    verifier: 'The sanitized game speed equals the requested value.',
+    verifier:
+      'The sanitized chosen pace (the handoff resume pace while it holds the clock) equals the requested value.',
     sourcePath: 'src/stores/gameSimulationStore.ts',
     sourceSymbol: 'setGameSpeed',
   }),

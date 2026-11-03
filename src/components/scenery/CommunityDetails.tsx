@@ -9,6 +9,7 @@ import {
   type CommunityAnchor,
 } from '../../constants/communityLayout';
 import { SITE_LAYOUT, landmarkLocalToWorld, type Vec3Tuple } from '../../constants/siteLayout';
+import { FORKLIFT_CREW_SITES } from '../../constants/forkliftCrewLayout';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { applyBatchWorldSurface } from '../../utils/worldSurface';
@@ -63,10 +64,10 @@ export function addCommunityTimber(
   geometry.translate(...position);
 }
 
-function seat(b: PlotGeometry, width: number) {
+function seat(b: PlotGeometry, width: number, eased = true) {
   // Seat top exactly .46; a seated root at ground needs no compensating lift.
-  for (const z of [-0.18, 0, 0.18]) addCommunityTimber(b, [width, 0.08, 0.15], [0, 0.42, z], true);
-  for (const y of [0.66, 0.86]) addCommunityTimber(b, [width, 0.14, 0.07], [0, y, -0.24], true);
+  for (const z of [-0.18, 0, 0.18]) addCommunityTimber(b, [width, 0.08, 0.15], [0, 0.42, z], eased);
+  for (const y of [0.66, 0.86]) addCommunityTimber(b, [width, 0.14, 0.07], [0, y, -0.24], eased);
   for (const x of [-width * 0.36, width * 0.36]) {
     b.box([0.065, 0.9, 0.07], [x, 0.45, -0.25], IRON);
     b.box([0.065, 0.39, 0.07], [x, 0.195, 0.2], IRON);
@@ -154,6 +155,12 @@ function buildMillDetails() {
     { position: [-34, 0, -4] as Vec3Tuple, rotation: Math.PI / 2 },
   ])
     at(b, anchor, (g) => seat(g, 1.8));
+  // Each forklift operator's own single bench, beside their strip
+  // (forkliftCrewLayout.ts): the seat centre is where they sit.
+  for (const site of FORKLIFT_CREW_SITES)
+    // Square-edged boards: the mill batch is near its vertex budget, and eased
+    // boards (~1,100 vertices a bench) took it past 12,000.
+    at(b, { position: site.bench, rotation: site.benchRotation }, (g) => seat(g, 1, false));
   // End table and two closed lunch tins, outside both occupied seat rectangles.
   at(b, { position: [-34, 0, -10], rotation: 0 }, (g) => {
     table(g, 0.62, 0.62);

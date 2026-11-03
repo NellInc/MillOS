@@ -76,13 +76,17 @@ export const FEATURE_FLAGS = {
 
 /** Anonymous, locally rendered people inhabit the site. Autonomous testing was
  * the original constraint, never an instruction to remove simulated residents.
- * Vehicles remain autonomous; no real-person portraits, remote avatars or voices.
- * The workplace laboratory accepts only typed synthetic role inputs. Working if
- * local agreements are visible while the asset, voice and remote-person gates hold.
+ * Forklifts are crewed (2026-10-31, Nell's decision, reversing the v0.40
+ * uncrewed vehicles): each has an anonymous operator from the roster who boards
+ * at its crew point and steps down for breaks (src/simulation/forkliftCrew.ts).
+ * Trucks and the bus stay as they are. Still no real-person portraits, remote
+ * avatars or voices. The workplace laboratory accepts only typed synthetic role
+ * inputs. Working if local agreements are visible while the asset, voice and
+ * remote-person gates hold.
  */
 export const HUMAN_PRESENCE_POLICY = Object.freeze({
   personnelModels: true,
-  vehicleOperators: false,
+  vehicleOperators: true,
   remoteAvatars: false,
   humanVoiceAudio: false,
   workforceUI: true,

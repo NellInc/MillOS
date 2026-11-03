@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getOvercastWeight,
   overcastKeyScatter,
+  SITE_LATITUDE_DEG,
   sampleAtmosphere,
   sampleCelestial,
 } from '../atmosphere';
@@ -72,7 +73,22 @@ describe('atmosphere sampling', () => {
 
     expect(dawn.sunDirection[0]).toBeGreaterThan(0);
     expect(dusk.sunDirection[0]).toBeLessThan(0);
-    expect(noon.sunDirection[1]).toBeCloseTo(1, 8);
+    // An equinox sun at the site latitude: never the zenith.
+    expect(noon.sunDirection[1]).toBeCloseTo(Math.cos((SITE_LATITUDE_DEG * Math.PI) / 180), 8);
+  });
+
+  it('peaks at 90 minus the site latitude, toward site south, at noon', () => {
+    const noon = sampleCelestial(sampleAtmosphere(0, 12, 'clear'));
+    const elevationDeg = (Math.asin(noon.sunDirection[1]) * 180) / Math.PI;
+    expect(elevationDeg).toBeCloseTo(90 - SITE_LATITUDE_DEG, 6);
+    // Southern England / Benelux: a 38.5 degree noon, well clear of vertical.
+    expect(elevationDeg).toBeGreaterThan(35);
+    expect(elevationDeg).toBeLessThan(42);
+    // The noon sun stands to site south, so shadows fall toward -Z.
+    expect(noon.sunDirection[2]).toBeGreaterThan(0.6);
+    // Sunrise and sunset do not move: the hour keys stay where they were.
+    const dawn = sampleCelestial(sampleAtmosphere(0, 6, 'clear'));
+    expect(dawn.sunDirection[1]).toBeCloseTo(0, 8);
   });
 
   it('crossfades celestial bodies and lights through the complete day', () => {

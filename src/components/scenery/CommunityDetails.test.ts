@@ -26,6 +26,13 @@ import {
   busShelterWalkingHeight,
 } from '../../constants/publicRealmLayout';
 import { sampleWalkingGroundHeight } from '../../utils/castleNavigation';
+import { FORKLIFT_CREW_SITES } from '../../constants/forkliftCrewLayout';
+import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { drivenLogisticsRoute } from '../../simulation/logisticsRuntime';
+import {
+  buildAisleLines,
+  buildWalkwayLanes,
+} from '../infrastructure/OptimizedFactoryInfrastructure';
 
 function heightAt(geometry: THREE.BufferGeometry, x: number, z: number) {
   const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
@@ -222,6 +229,121 @@ describe('authored community details', () => {
         expect(
           heightAt(COMMUNITY_GEOMETRY.mill, anchor.position[0], anchor.position[2] + offset)
         ).toBeCloseTo(anchor.seatHeight!, 5);
+  });
+  /**
+   * sync-check-20261103 milling (1700-1810, 1010-1115): FLT01's bench stood
+   * across the dock-end walkway's north edge line, in the open band the
+   * shipping forklift works. FLT02's stood on the west lane's edge line.
+   * Every vertex of the built mill props is checked, against the painted lanes
+   * as the floor builds them and each forklift's driven path as the vehicle
+   * follows it, widened by the route's own half width.
+   */
+  it('keeps every mill prop off the walkway lanes and out of the forklift aisles', () => {
+    const lanes = buildWalkwayLanes();
+    const paths = (['shipping', 'receiving'] as const).map((dock) => {
+      const route = SITE_LAYOUT.routes.forklifts[dock];
+      return {
+        dock,
+        halfWidth: route.halfWidth,
+        samples: drivenLogisticsRoute(dock, route.points).plan.path.samples,
+      };
+    });
+    const position = COMMUNITY_GEOMETRY.mill.getAttribute('position');
+    expect(position.count).toBeGreaterThan(0);
+    // The crew benches are in the geometry being checked, not beside it.
+    for (const site of FORKLIFT_CREW_SITES)
+      expect(heightAt(COMMUNITY_GEOMETRY.mill, site.bench[0], site.bench[2])).toBeCloseTo(0.46, 5);
+    const pathGap = (x: number, z: number, samples: readonly { x: number; z: number }[]) => {
+      let gap = Infinity;
+      for (let i = 1; i < samples.length; i++) {
+        const a = samples[i - 1],
+          b = samples[i];
+        const dx = b.x - a.x,
+          dz = b.z - a.z;
+        const length = dx * dx + dz * dz;
+        const t =
+          length > 0 ? Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / length)) : 0;
+        gap = Math.min(gap, Math.hypot(x - a.x - dx * t, z - a.z - dz * t));
+      }
+      return gap;
+    };
+    for (let i = 0; i < position.count; i++) {
+      const x = position.getX(i),
+        z = position.getZ(i);
+      for (const lane of lanes)
+        expect(
+          Math.abs(x - lane.position[0]) < lane.scale[0] / 2 &&
+            Math.abs(z - lane.position[2]) < lane.scale[2] / 2,
+          `prop vertex (${x.toFixed(2)}, ${z.toFixed(2)}) on the walkway lane at ${lane.position}`
+        ).toBe(false);
+      for (const { dock, halfWidth, samples } of paths)
+        expect(
+          pathGap(x, z, samples),
+          `prop vertex (${x.toFixed(2)}, ${z.toFixed(2)}) in the ${dock} forklift aisle`
+        ).toBeGreaterThan(halfWidth);
+    }
+  });
+  it('keeps every mill prop face off the painted yellow aisle lines', () => {
+    // Faces, not vertices: a bench can straddle a 0.16 m line with no vertex on it.
+    // 2D separating-axis test of each prop triangle (plan view) against each line.
+    const lines = buildAisleLines();
+    const geometry = COMMUNITY_GEOMETRY.mill;
+    const position = geometry.getAttribute('position');
+    const index = geometry.getIndex();
+    const count = index ? index.count : position.count;
+    const vertex = (i: number) => {
+      const v = index ? index.getX(i) : i;
+      return [position.getX(v), position.getZ(v)] as const;
+    };
+    const project = (points: readonly (readonly [number, number])[], ax: number, az: number) => {
+      let min = Infinity,
+        max = -Infinity;
+      for (const [x, z] of points) {
+        const d = x * ax + z * az;
+        min = Math.min(min, d);
+        max = Math.max(max, d);
+      }
+      return [min, max] as const;
+    };
+    const overlaps = (
+      tri: readonly (readonly [number, number])[],
+      rect: readonly (readonly [number, number])[]
+    ) => {
+      const axes: (readonly [number, number])[] = [
+        [1, 0],
+        [0, 1],
+      ];
+      for (let k = 0; k < 3; k++) {
+        const [x0, z0] = tri[k],
+          [x1, z1] = tri[(k + 1) % 3];
+        axes.push([z0 - z1, x1 - x0]);
+      }
+      return axes.every(([ax, az]) => {
+        if (ax === 0 && az === 0) return true;
+        const [a0, a1] = project(tri, ax, az);
+        const [b0, b1] = project(rect, ax, az);
+        return a1 > b0 && b1 > a0;
+      });
+    };
+    expect(count).toBeGreaterThan(0);
+    for (const line of lines) {
+      const [cx, , cz] = line.position;
+      const hx = line.scale[0] / 2,
+        hz = line.scale[2] / 2;
+      const rect = [
+        [cx - hx, cz - hz],
+        [cx + hx, cz - hz],
+        [cx + hx, cz + hz],
+        [cx - hx, cz + hz],
+      ] as const;
+      for (let i = 0; i + 2 < count; i += 3) {
+        const tri = [vertex(i), vertex(i + 1), vertex(i + 2)];
+        expect(
+          overlaps(tri, rect),
+          `prop face (${tri.map(([x, z]) => `${x.toFixed(2)},${z.toFixed(2)}`).join(' / ')}) on the aisle line at ${line.position}`
+        ).toBe(false);
+      }
+    }
   });
   it('physically seats pub patrons separately from their tables', () => {
     for (const anchor of [A.pubSeatNorth, A.pubSeatSouth]) {

@@ -59,7 +59,11 @@ export const VCLDebugPanel: React.FC = () => {
         currentShift,
         weather,
         gameTime,
-        alerts.map((a) => ({ type: a.type }))
+        alerts.map((a) => ({
+          type: a.type,
+          acknowledged: a.acknowledged,
+          returnedToNormal: a.returnedToNormal,
+        }))
       );
     } catch {
       return null;

@@ -1,6 +1,7 @@
 import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import React, { useEffect, useLayoutEffect, useMemo } from 'react';
 import { useTexture } from '@react-three/drei';
+import { DistanceLod } from '../performance/DistanceLod';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -10,6 +11,7 @@ import {
   hash,
 } from '../../utils/textureGenerator';
 import { STATION_SOUVENIR_ART } from '../../constants/worldAssetUrls';
+import { SHOP_LOD_USER_DATA, shopLodFrame, STATION_SHOP_LOD } from './StationRetailDetails';
 
 /** Static shop souvenirs, in station-local metres. The source counter/rack keep
  * their bodies. Seven material batches, one shared print atlas, no new light,
@@ -49,26 +51,38 @@ function join(parts: THREE.BufferGeometry[]) {
   merged.computeBoundingSphere();
   return merged;
 }
+/** True only while `SHOP_KIT_FAR_GEOMETRY` is built: the helpers drop bevels
+ * and cut curve segments for stock seen from >= 20 m (`STATION_SHOP_LOD`). The
+ * pastries, biscuits and paper cups follow it too; the handle torus and the
+ * printed bands (shared by both levels) keep full detail. */
+let farDetail = false;
 function ball(size: V3, at: V3, color: string, segments = 18) {
-  return coloured(new THREE.SphereGeometry(1, segments, 12).scale(...size).translate(...at), color);
+  const sphere = farDetail
+    ? new THREE.SphereGeometry(1, Math.max(6, Math.round(segments / 3)), 6)
+    : new THREE.SphereGeometry(1, segments, 12);
+  return coloured(sphere.scale(...size).translate(...at), color);
 }
 function box(size: V3, at: V3, color: string, radius = 0.004) {
   return coloured(
-    new RoundedBoxGeometry(...size, 1, Math.min(radius, ...size.map((v) => v / 3))).translate(
-      ...at
-    ),
+    (farDetail
+      ? new THREE.BoxGeometry(...size)
+      : new RoundedBoxGeometry(...size, 1, Math.min(radius, ...size.map((v) => v / 3)))
+    ).translate(...at),
     color
   );
 }
 function tube(points: V3[], radius: number, color: string, segments = 18) {
   const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)));
-  return coloured(new THREE.TubeGeometry(curve, segments, radius, 6, false), color);
+  const g = farDetail
+    ? new THREE.TubeGeometry(curve, Math.max(2, Math.round(segments / 4)), radius, 3, false)
+    : new THREE.TubeGeometry(curve, segments, radius, 6, false);
+  return coloured(g, color);
 }
 function lathe(profile: [number, number][], at: V3, color: string) {
   return coloured(
     new THREE.LatheGeometry(
       profile.map((p) => new THREE.Vector2(...p)),
-      20
+      farDetail ? 8 : 20
     ).translate(...at),
     color
   );
@@ -88,9 +102,9 @@ function pad(x: number, height: number) {
     bevelEnabled: true,
     bevelSize: 0.008,
     bevelThickness: 0.008,
-    bevelSegments: 2,
+    bevelSegments: farDetail ? 1 : 2,
     steps: 1,
-    curveSegments: 3,
+    curveSegments: farDetail ? 1 : 3,
   });
   const y = 0.153 + 0.108 * Math.sqrt(Math.max(0, 1 - ((x + 0.075) / 0.205) ** 2));
   g.translate(x, y - 0.008, -0.0125);
@@ -339,7 +353,11 @@ export function createSouvenirMugGeometry(at: V3 = [0, 0, 0]) {
   ]);
 }
 function pastry(at: V3) {
-  const g = new THREE.SphereGeometry(1, 24, 14).scale(0.058, 0.036, 0.101);
+  const g = new THREE.SphereGeometry(1, farDetail ? 8 : 24, farDetail ? 6 : 14).scale(
+    0.058,
+    0.036,
+    0.101
+  );
   const p = g.getAttribute('position');
   for (let i = 0; i < p.count; i++) {
     const y = Math.max(0, p.getY(i) + 0.022);
@@ -465,7 +483,10 @@ function createKitGeometry() {
   for (let i = 0; i < 6; i++) {
     const at: V3 = [-11.46 + (i % 3) * 0.089, 1.0405 + Math.floor(i / 3) * 0.011, -2.693];
     p.baked.push(
-      coloured(new THREE.CylinderGeometry(0.034, 0.034, 0.011, 20).translate(...at), '#cfa358')
+      coloured(
+        new THREE.CylinderGeometry(0.034, 0.034, 0.011, farDetail ? 8 : 20).translate(...at),
+        '#cfa358'
+      )
     );
     for (const x of [-0.013, 0.012])
       p.baked.push(
@@ -501,7 +522,11 @@ function createKitGeometry() {
     );
     p.paper.push(
       coloured(
-        new THREE.CylinderGeometry(0.0387, 0.0352, 0.046, 20, 1, true).translate(-10.82, 1.0844, z),
+        new THREE.CylinderGeometry(0.0387, 0.0352, 0.046, farDetail ? 8 : 20, 1, true).translate(
+          -10.82,
+          1.0844,
+          z
+        ),
         '#c0a780'
       )
     );
@@ -577,6 +602,22 @@ function createKitGeometry() {
   >;
 }
 export const SHOP_KIT_GEOMETRY = createKitGeometry();
+/** The same stock for the far level; its prints are not built (the near
+ * prints are shared by both levels). */
+export const SHOP_KIT_FAR_GEOMETRY = (() => {
+  const previous = farDetail;
+  farDetail = true;
+  try {
+    const { prints, ...kit } = createKitGeometry();
+    prints.dispose();
+    return kit;
+  } finally {
+    farDetail = previous;
+  }
+})();
+export const SOUVENIR_LOD_FRAME = shopLodFrame(
+  (Object.keys(MATERIALS) as (keyof typeof MATERIALS)[]).map((key) => SHOP_KIT_GEOMETRY[key])
+);
 
 export const StationSouvenirs = React.memo(() => {
   const texture = useTexture(STATION_SOUVENIR_ART);
@@ -600,16 +641,32 @@ export const StationSouvenirs = React.memo(() => {
   useEffect(() => () => print.dispose(), [print]);
   return (
     <group name="station-dead-dino-souvenir-kit">
-      {(Object.keys(MATERIALS) as (keyof typeof MATERIALS)[]).map((key) => (
-        <mesh
-          key={key}
-          name={`station-souvenir-${key}`}
-          geometry={SHOP_KIT_GEOMETRY[key]}
-          material={MATERIALS[key]}
-          castShadow
-          receiveShadow
-        />
-      ))}
+      <DistanceLod
+        name="station-souvenir-lod"
+        position={SOUVENIR_LOD_FRAME.centre}
+        distances={[0, STATION_SHOP_LOD.distance]}
+        hysteresis={STATION_SHOP_LOD.hysteresis}
+        userData={SHOP_LOD_USER_DATA}
+      >
+        {[SHOP_KIT_GEOMETRY, SHOP_KIT_FAR_GEOMETRY].map((kit, far) => (
+          <group
+            key={far}
+            name={far ? 'station-souvenir-far' : 'station-souvenir-near'}
+            position={SOUVENIR_LOD_FRAME.inverse}
+          >
+            {(Object.keys(MATERIALS) as (keyof typeof MATERIALS)[]).map((key) => (
+              <mesh
+                key={key}
+                name={far ? `station-souvenir-far-${key}` : `station-souvenir-${key}`}
+                geometry={kit[key]}
+                material={MATERIALS[key]}
+                castShadow
+                receiveShadow
+              />
+            ))}
+          </group>
+        ))}
+      </DistanceLod>
       <mesh
         name="station-souvenir-raster-prints"
         geometry={SHOP_KIT_GEOMETRY.prints}

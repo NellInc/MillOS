@@ -60,6 +60,17 @@ const PT_MEASUREMENTS: Record<string, string> = {
 // An unknown camelCase key still reads as words: "someMetric" -> "some metric".
 const spacedKey = (key: string): string => key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
 
+/* Text values and units productionStore records in an evidence snapshot. */
+const PT_OBSERVATION_TEXT: Record<string, string> = {
+  running: 'em operação',
+  idle: 'em espera',
+  warning: 'em alerta',
+  critical: 'em estado crítico',
+};
+const PT_UNITS: Record<string, string> = {
+  'bags/h': 'sacos/h',
+};
+
 export const decisionReplayMessages = defineMessages({
   en: {
     dialogLabel: 'Decision replay',
@@ -76,6 +87,8 @@ export const decisionReplayMessages = defineMessages({
     value: 'Value',
     sourceAndQuality: 'Source and quality',
     sourceQuality: (p: { source: string; quality: string }) => `${p.source}, ${p.quality}`,
+    observationText: (p: { value: string }) => p.value,
+    observationUnit: (p: { unit: string }) => p.unit,
     assumptions: 'Assumptions',
     alternativesConsidered: 'Alternatives considered',
     affectedSystems: 'Affected systems',
@@ -107,6 +120,8 @@ export const decisionReplayMessages = defineMessages({
     sourceAndQuality: 'Fonte e qualidade',
     sourceQuality: (p: { source: string; quality: string }) =>
       `${PT_SOURCES[p.source] ?? p.source}, ${PT_QUALITIES[p.quality] ?? p.quality}`,
+    observationText: (p: { value: string }) => PT_OBSERVATION_TEXT[p.value] ?? p.value,
+    observationUnit: (p: { unit: string }) => PT_UNITS[p.unit] ?? p.unit,
     assumptions: 'Premissas',
     alternativesConsidered: 'Alternativas consideradas',
     affectedSystems: 'Sistemas afetados',

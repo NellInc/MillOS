@@ -45,6 +45,10 @@ const answerFacts: Record<string, [string, string]> = {
   'history-flour-sacks': ['roupas', 'sacos de papel'],
   'history-ergot': ['centeio', 'fogo de santo antão'],
   'history-corn-laws': ['oitenta xelins por quarter', 'sir robert peel'],
+  'history-ogas': ['viktor glushkov', 'cada ministério'],
+  'history-cybersyn': ['telex', 'prazo definido'],
+  'history-ratchet': ['acréscimo para o crescimento', 'martin weitzman'],
+  'history-assembly': ['um cooperado, um voto', 'cooperativa como um todo'],
   'history-long-view': ['mó de vaivém', 'secos e limpos'],
 };
 
@@ -63,8 +67,8 @@ describe('authored Chronicle history and quiz localization', () => {
     setLocale('pt-BR');
     const notes = getHistoryNotes();
     const questions = getQuizQuestions();
-    expect(notes).toHaveLength(33);
-    expect(questions).toHaveLength(66);
+    expect(notes).toHaveLength(37);
+    expect(questions).toHaveLength(74);
     expect(notes.map((note) => note.id)).toEqual(HISTORY_NOTES.map((note) => note.id));
     expect(questions.map((question) => question.id)).toEqual(
       QUIZ_QUESTIONS.map((question) => question.id)
@@ -91,7 +95,7 @@ describe('authored Chronicle history and quiz localization', () => {
     expect(QUIZ_QUESTIONS).toEqual(canonicalQuiz);
   });
 
-  it('keeps the correct Portuguese option consistent with its note for all 66 questions', () => {
+  it('keeps the correct Portuguese option consistent with its note for all 74 questions', () => {
     setLocale('pt-BR');
     const notes = new Map(getHistoryNotes().map((note) => [note.id, note]));
     const questions = getQuizQuestions();

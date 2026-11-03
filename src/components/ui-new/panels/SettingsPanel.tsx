@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Volume2,
   Monitor,
@@ -27,15 +27,18 @@ import { suspendResourcePersistence } from '../../../utils/resourcePersistence';
 import { AUDIO_SETTINGS_KEY } from '../../../utils/audioManager';
 import { LOCALE_STORAGE_KEY, formatFixed, useT } from '../../../i18n';
 import { LanguageSwitcher } from '../../../i18n/LanguageSwitcher';
-import { formatTime } from '../../../utils/timeFormatting';
+import { keyedText } from '../../../i18n/alertCopy';
+import { formatPlantStamp, formatTime } from '../../../utils/timeFormatting';
 import { useShallow } from 'zustand/react/shallow';
 // Import optimized audio hook (uses useSyncExternalStore instead of forceUpdate)
 import { useAudioStateWithControls as useAudioState } from '../../../hooks/useAudioState';
+import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { useKnowledgeStore } from '../../../stores/knowledgeStore';
 import { useAINarrationStore } from '../../../stores/aiNarrationStore';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
-import { useUIStore } from '../../../stores/uiStore';
+import { UI_STORAGE_KEY, UI_STORAGE_VERSION, useUIStore } from '../../../stores/uiStore';
+import { sanitizeUIState } from '../../../stores/persistenceMigrations';
 import {
   MOTION_PREFERENCE_STORAGE_KEY,
   useMotionPreferenceStore,
@@ -45,6 +48,71 @@ import { useAnnouncementsStore, type PAMode } from '../../../stores/announcement
 import { BuildCacheDiagnostics } from './BuildCacheDiagnostics';
 import { useIncidentReplayStore } from '../../../stores/incidentReplayStore';
 import { settingsPanelMessages } from './SettingsPanel.messages';
+import { HistoryStore } from '../../../scada/HistoryStore';
+import { peekSCADAService } from '../../../scada/SCADAService';
+import { REPLAY_GETTING_STARTED_EVENT } from '../onboarding/replayGettingStarted';
+
+// Settles when the work does, or after `ms`, whichever is first; never rejects.
+const settleWithin = (work: Promise<unknown>, ms: number): Promise<void> => {
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    work.then(
+      () => undefined,
+      () => undefined
+    ),
+    new Promise<void>((resolve) => {
+      deadline = setTimeout(resolve, ms);
+    }),
+  ]).finally(() => clearTimeout(deadline));
+};
+
+// A live link that will not disconnect must not cost the clear, and a blocked
+// or wedged IndexedDB must not hold Reset Simulation's reload for the
+// historian's own 10 s operation timeout.
+const SCADA_STOP_DEADLINE_MS = 1_500;
+const SCADA_LATE_STOP_MS = 2_000;
+const SCADA_HISTORY_CLEAR_DEADLINE_MS = 4_000;
+
+const clearHistoryOnce = async (): Promise<void> => {
+  const history = new HistoryStore();
+  try {
+    await history.init();
+    await history.clearAll();
+  } finally {
+    await history.close(false);
+  }
+};
+
+// The SCADA trend history lives in IndexedDB (MillOS_SCADA), outside the
+// millos-* localStorage sweep, so History replay after a reset showed the plant
+// from before it. Stop the live service first: it flushes what it has buffered
+// and closes its connection, so nothing it holds is written back after the
+// clear. Then clear through a connection of our own. A stop that runs past its
+// deadline flushes when it finally closes, which can land after the clear, so
+// once it settles (within a bound) the history is cleared again.
+const clearScadaHistory = async (): Promise<void> => {
+  const service = peekSCADAService();
+  let stopped = !service;
+  const stopping = service
+    ? service.stop().then(
+        () => {
+          stopped = true;
+        },
+        () => {
+          stopped = true;
+        }
+      )
+    : Promise.resolve();
+  await settleWithin(stopping, SCADA_STOP_DEADLINE_MS);
+  const stoppedInTime = stopped;
+  await clearHistoryOnce();
+  if (stoppedInTime) return;
+  await settleWithin(stopping, SCADA_LATE_STOP_MS);
+  if (stopped) await clearHistoryOnce();
+};
+
+const clearScadaHistoryBounded = (): Promise<void> =>
+  settleWithin(clearScadaHistory(), SCADA_HISTORY_CLEAR_DEADLINE_MS);
 
 export const SettingsPanel: React.FC<{
   productionSpeed: number;
@@ -66,6 +134,9 @@ export const SettingsPanel: React.FC<{
   const replayGettingStarted = useUIStore((state) => state.setHasSeenIntro);
   const uiScale = useUIStore((state) => state.uiScale);
   const setUIScale = useUIStore((state) => state.setUIScale);
+  const showFPSCounter = useUIStore((state) => state.showFPSCounter);
+  const setShowFPSCounter = useUIStore((state) => state.setShowFPSCounter);
+  const { isCompactLayout } = useMobileDetection();
   const motionMode = useMotionPreferenceStore((state) => state.mode);
   const setMotionMode = useMotionPreferenceStore((state) => state.setMode);
   const audio = useAudioState();
@@ -76,6 +147,8 @@ export const SettingsPanel: React.FC<{
   const transcript = useAnnouncementsStore((state) => state.announcements);
   const clearTranscript = useAnnouncementsStore((state) => state.clearTranscript);
   const [transcriptQuery, setTranscriptQuery] = useState('');
+  const fullResetStartedRef = useRef(false);
+  const [fullResetRunning, setFullResetRunning] = useState(false);
   const replayFrames = useIncidentReplayStore((state) => state.replayFrames);
   const diagnosticCommands = useIncidentReplayStore((state) => state.commands);
   const createDiagnosticExport = useIncidentReplayStore((state) => state.createDiagnosticExport);
@@ -86,13 +159,15 @@ export const SettingsPanel: React.FC<{
     return transcript
       .filter((announcement) => {
         if (!query) return true;
-        return `${announcement.message} ${announcement.source ?? ''} ${announcement.channel}`
+        // The channel as shown (translated) as well as its id, so the word on
+        // the line is a word the search finds.
+        return `${keyedText(announcement.copy, announcement.message)} ${announcement.source ?? ''} ${announcement.channel} ${t('paChannel', { channel: announcement.channel })}`
           .toLocaleLowerCase()
           .includes(query);
       })
       .slice(-30)
       .reverse();
-  }, [transcript, transcriptQuery]);
+  }, [transcript, transcriptQuery, t]);
 
   // Which reset confirmation dialog is open ('day' = back to 10am, 'full' = wipe
   // all saved data). null = no dialog. Replaces the native window.confirm() calls.
@@ -360,10 +435,14 @@ export const SettingsPanel: React.FC<{
                       <div className="mb-1 flex items-center justify-between gap-2 text-[9px] uppercase tracking-wider text-slate-500">
                         <span>{t('paChannel', { channel: announcement.channel })}</span>
                         <time dateTime={announcement.timestamp.toISOString()}>
-                          {formatTime(announcement.timestamp)}
+                          {formatPlantStamp(announcement.gameClock) ??
+                            formatTime(announcement.timestamp)}
                         </time>
                       </div>
-                      <p className="text-[11px] leading-4 text-slate-300">{announcement.message}</p>
+                      {/* Keyed lines read in the language active now. */}
+                      <p className="text-[11px] leading-4 text-slate-300">
+                        {keyedText(announcement.copy, announcement.message)}
+                      </p>
                     </article>
                   ))
                 )}
@@ -392,7 +471,13 @@ export const SettingsPanel: React.FC<{
           <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-1">
             <button
               type="button"
-              onClick={() => replayGettingStarted(false)}
+              onClick={() => {
+                // After an X close hasSeenIntro is already false, so setting it
+                // again notifies nothing: announce the replay for that case.
+                const seen = useUIStore.getState().hasSeenIntro;
+                replayGettingStarted(false);
+                if (!seen) window.dispatchEvent(new Event(REPLAY_GETTING_STARTED_EVENT));
+              }}
               className="mb-2 flex min-h-11 w-full items-center justify-between rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-3 text-left text-xs text-cyan-200 transition-colors hover:bg-cyan-500/20"
             >
               <span>{t('replayGettingStarted')}</span>
@@ -596,6 +681,16 @@ export const SettingsPanel: React.FC<{
                 icon={<Grid3X3 size={12} />}
                 value={showZones ?? true}
                 onChange={setShowZones}
+              />
+            )}
+            {/* The status bar's readout; millos-ui keeps the choice. The compact
+                layout mounts no status bar, so the switch is not offered there. */}
+            {!isCompactLayout && (
+              <Toggle
+                label={t('fpsCounter')}
+                icon={<Activity size={12} />}
+                value={showFPSCounter}
+                onChange={setShowFPSCounter}
               />
             )}
           </div>
@@ -827,7 +922,8 @@ export const SettingsPanel: React.FC<{
         isOpen={resetConfirm === 'full'}
         title={t('resetSimulation')}
         tone="red"
-        confirmLabel={t('resetEverything')}
+        busy={fullResetRunning}
+        confirmLabel={fullResetRunning ? t('resetting') : t('resetEverything')}
         message={
           FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED
             ? t('resetFullMessageWithMotion')
@@ -835,6 +931,13 @@ export const SettingsPanel: React.FC<{
         }
         onCancel={() => setResetConfirm(null)}
         onConfirm={() => {
+          // The reload waits on the historian clear; a second press meanwhile
+          // must not stop the service or clear again.
+          if (fullResetStartedRef.current) return;
+          fullResetStartedRef.current = true;
+          // Cancel, the backdrop and Escape would close the dialog over a
+          // paused plant that reloads anyway; it says the reset is running.
+          setFullResetRunning(true);
           // Clear every persisted MillOS store (keys are namespaced "millos-*").
           // This includes millos-graphics and millos-ai-config (AI preferences).
           // Cloud API keys live in page memory and vanish on the reload below.
@@ -844,7 +947,8 @@ export const SettingsPanel: React.FC<{
           // storage, so it is suspended separately. Sound (mute, volume, music),
           // language and reduced motion are the person's preferences, not
           // simulation state.
-          // Working if: no millos-* key survives the reload except those three.
+          // Working if: no millos-* key survives the reload except those three
+          // and the interface scale, and the SCADA trend history is empty after it.
           useGameSimulationStore.getState().setGameSpeed(0);
           suspendPersistence();
           suspendResourcePersistence();
@@ -853,12 +957,36 @@ export const SettingsPanel: React.FC<{
             AUDIO_SETTINGS_KEY,
             MOTION_PREFERENCE_STORAGE_KEY,
           ]);
-          Object.keys(localStorage)
-            .filter((key) => key.startsWith('millos-') && !keptKeys.has(key))
-            .forEach((key) => localStorage.removeItem(key));
+          // Interface scale is an accessibility preference too, but it shares
+          // millos-ui with tour and journey state: carry the scale alone
+          // across the sweep. An unreadable record costs the scale, never the
+          // sweep (the store already rehydrates past one).
+          let uiScale: number | undefined;
+          try {
+            uiScale = sanitizeUIState(
+              JSON.parse(localStorage.getItem(UI_STORAGE_KEY) ?? 'null')?.state
+            ).uiScale;
+          } catch {
+            uiScale = undefined;
+          }
+          // Blocked site data throws on the first read. Nothing was saved then,
+          // so the reload alone is the reset; it must still happen.
+          try {
+            Object.keys(localStorage)
+              .filter((key) => key.startsWith('millos-') && !keptKeys.has(key))
+              .forEach((key) => localStorage.removeItem(key));
+            if (uiScale !== undefined && uiScale !== 1) {
+              localStorage.setItem(
+                UI_STORAGE_KEY,
+                JSON.stringify({ state: { uiScale }, version: UI_STORAGE_VERSION })
+              );
+            }
+          } catch {
+            // Nothing to sweep: storage is unavailable.
+          }
           // No graphics write here: the reload boots the default medium preset,
           // and any store write would persist millos-graphics straight back.
-          window.location.reload();
+          void clearScadaHistoryBounded().then(() => window.location.reload());
         }}
       />
     </div>

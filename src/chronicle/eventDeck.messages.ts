@@ -175,7 +175,7 @@ export const eventDeckMessages = defineMessages({
       'The signs are noted and the store waits for the next scheduled visit.',
     'evt-inspector-visit.title': 'The food-safety inspector',
     'evt-inspector-visit.text':
-      'A food-safety inspector from the county arrives unannounced and asks for the traceability records, the cleaning schedule and a walk of the packing hall. The visit is open until the inspector signs off. How the mill meets it shapes what the report says.',
+      'A food-safety inspector from the county arrives unannounced and asks for the traceability records, the cleaning schedule and a walk of the packing hall. The visit is open until the inspector signs off. The report depends on how the mill handles it.',
     'evt-inspector-visit.choices.records.label': 'Walk them through the records',
     'evt-inspector-visit.choices.records.effect.result':
       'The inspector follows a lot from intake to dispatch and signs off with no actions.',
@@ -414,7 +414,7 @@ export const eventDeckMessages = defineMessages({
       'Os sinais são registrados e o depósito aguarda a próxima visita programada.',
     'evt-inspector-visit.title': 'A inspeção de segurança dos alimentos',
     'evt-inspector-visit.text':
-      'Um inspetor de segurança dos alimentos do condado chega sem aviso e pede os registros de rastreabilidade, o cronograma de limpeza e uma visita ao salão de ensaque. A visita permanece aberta até sua aprovação. A forma como o moinho o recebe molda o relatório.',
+      'Um inspetor de segurança dos alimentos do condado chega sem aviso e pede os registros de rastreabilidade, o cronograma de limpeza e uma visita ao salão de ensaque. A visita permanece aberta até sua aprovação. O relatório depende de como o moinho conduz a visita.',
     'evt-inspector-visit.choices.records.label': 'Apresentar os registros em detalhe',
     'evt-inspector-visit.choices.records.effect.result':
       'O inspetor acompanha um lote da recepção à expedição e encerra a inspeção sem pendências.',

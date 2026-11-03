@@ -252,7 +252,17 @@ export const RENDER_ORDER = {
   /** Floor transient effects (puddles, tracks, ripples) */
   floorEffects: 5,
 
-  /** Floor markings */
+  /**
+   * Floor markings, including OPAQUE ground paint that does not write depth
+   * (road markings, yard hazard bands, the dark of a pit under its grating).
+   *
+   * Such paint must draw after the terrain, which is ordered last of the
+   * ordinary opaque surfaces (`TerrainGround`, renderOrder 1). At the default 0
+   * it drew first, left no depth behind, and the terrain at the same height
+   * painted straight over it. Measured 2026-10-31 by toggling each overlay in
+   * one held frame: the car-park and tunnel road paint, the approach-road edge
+   * lines and the yard intake's pit changed zero pixels.
+   */
   floorMarkings: 10,
 
   /** Floor text labels */

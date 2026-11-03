@@ -115,6 +115,8 @@ describe('SafetyStore', () => {
         ...mockIncidents[0],
         id: expect.stringMatching(/^incident-/),
         timestamp: FIXED_NOW.getTime(),
+        // The plant clock at logging (a fresh plant reads day 0, 10:00).
+        gameClock: { day: 0, hour: 10 },
       });
     });
 

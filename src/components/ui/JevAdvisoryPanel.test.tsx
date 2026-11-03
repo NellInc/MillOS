@@ -1,7 +1,14 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JevAdvisoryPanel } from './JevAdvisoryPanel';
-import { JEV_RESULT_TTL_MS, requestJevAdvice, type JevAdvice } from '../../utils/jevClient';
+import {
+  JEV_CLIENT_CATALOG,
+  JEV_RESULT_TTL_MS,
+  requestJevAdvice,
+  type JevAdvice,
+} from '../../utils/jevClient';
+import { KeyedError } from '../../utils/cloudAIClient';
+import { setLocale } from '../../i18n';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 
 vi.mock('../../utils/jevClient', async (importOriginal) => ({
@@ -99,6 +106,22 @@ describe('Jev advisory consent and lifecycle', () => {
     }
   );
 
+  // Cancel leaves with the pending state it ends, and focus fell to the page
+  // body. It belongs back on the send button, which is usable again.
+  it('returns focus to the send button when a request is cancelled', async () => {
+    requestMock.mockReturnValue(new Promise<JevAdvice>(() => undefined));
+    render(<JevAdvisoryPanel />);
+    prepare();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send to Jev' }));
+    });
+    const cancelButton = screen.getByRole('button', { name: 'Cancel request' });
+    cancelButton.focus();
+    fireEvent.click(cancelButton);
+    expect(screen.queryByRole('button', { name: 'Cancel request' })).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Send to Jev' }));
+  });
+
   it('expires advice and does not persist a key across remounts', async () => {
     requestMock.mockResolvedValue(advice());
     const { unmount } = render(<JevAdvisoryPanel />);
@@ -116,6 +139,29 @@ describe('Jev advisory consent and lifecycle', () => {
     render(<JevAdvisoryPanel />);
     expect(screen.getByLabelText('Your OpenRouter API key')).toHaveValue('');
     expect(screen.getByRole('checkbox')).not.toBeChecked();
+  });
+
+  // The panel kept a failure's resolved text, so after a switch to pt-BR its
+  // alert stayed English. Working if a keyed failure reads in the language now.
+  it('shows a kept failure in the language active now', async () => {
+    requestMock.mockRejectedValue(
+      new KeyedError('Request cancelled or timed out.', {
+        catalog: JEV_CLIENT_CATALOG,
+        key: 'cancelledOrTimedOut',
+      })
+    );
+    render(<JevAdvisoryPanel />);
+    prepare();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send to Jev' }));
+    });
+    const english = screen.getByRole('alert').textContent;
+    act(() => setLocale('pt-BR'));
+    try {
+      expect(screen.getByRole('alert').textContent).not.toBe(english);
+    } finally {
+      act(() => setLocale('en'));
+    }
   });
 
   it('shows failures without silently retrying', async () => {
@@ -169,5 +215,17 @@ describe('on-device advisory', () => {
     act(() => useAIConfigStore.setState({ webgpuModelReady: false }));
     expect(screen.getByRole('button', { name: 'Send to Jev' })).toBeInTheDocument();
     expect(screen.getByLabelText('Your OpenRouter API key')).toBeInTheDocument();
+  });
+
+  // Forget key leaves with the key it forgets; focus fell to <body>.
+  it('moves focus to the key field after Forget key', () => {
+    render(<JevAdvisoryPanel />);
+    const field = screen.getByLabelText('Your OpenRouter API key');
+    fireEvent.change(field, { target: { value: key } });
+    const forget = screen.getByRole('button', { name: 'Forget key' });
+    forget.focus();
+    fireEvent.click(forget);
+    expect(screen.queryByRole('button', { name: 'Forget key' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByLabelText('Your OpenRouter API key'));
   });
 });

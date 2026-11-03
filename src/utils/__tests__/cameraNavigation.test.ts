@@ -63,14 +63,19 @@ describe('camera navigation input', () => {
     expect(shouldPreventNavigationDefault('KeyW')).toBe(false);
   });
 
-  it('leaves navigation keys with native disclosures and their children', () => {
+  // A disclosure keeps its arrows (they scroll its panel); W has no use there,
+  // so it drives the camera (cameraNavigation.focusedControl.gameplay.test).
+  it('leaves the arrows with native disclosures and their children', () => {
     const summary = document.createElement('summary');
     const child = document.createElement('span');
     summary.append(child);
     for (const target of [summary, child]) {
       expect(isNavigationBlockedTarget(target)).toBe(true);
-      for (const code of ['ArrowDown', 'KeyW']) {
-        let accepted = true;
+      for (const [code, expected] of [
+        ['ArrowDown', false],
+        ['KeyW', true],
+      ] as const) {
+        let accepted = !expected;
         target.addEventListener(
           'keydown',
           (event) => {
@@ -80,7 +85,7 @@ describe('camera navigation input', () => {
         );
         const event = new KeyboardEvent('keydown', { code, bubbles: true, cancelable: true });
         target.dispatchEvent(event);
-        expect(accepted).toBe(false);
+        expect(accepted).toBe(expected);
         expect(event.defaultPrevented).toBe(false);
       }
     }

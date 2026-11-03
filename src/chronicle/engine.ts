@@ -37,7 +37,6 @@ import {
 } from './cropYears';
 import {
   AI_KNOW_HOW_SHARE,
-  AI_MITIGATION_THRESHOLD,
   AI_UPKEEP_RESERVE_SHIFTS,
   aiShiftBudget,
   canAnswerEvents,
@@ -57,8 +56,42 @@ import {
   SUSPENSION_CUSTOMER_DELTA,
 } from './certifier';
 import { canAffordAttention, initialDesks, refillDesks, spendAttention, type Desks } from './desks';
-import { chronicleTotals } from './effects';
+import { chronicleTotals, relievedCropKinds } from './effects';
 import { FORECAST_ISSUE_CHANCE, FORECAST_KINDS, FORECASTS, forecastChance } from './forecasts';
+import {
+  ADMINISTRATION_COOL_ORGANISATIONS,
+  ADMINISTRATION_MISSED_QUOTAS,
+  ADMINISTRATION_SHIFTS,
+  assemblyBallots,
+  assemblyCount,
+  assessConditions,
+  BREAK_OFF_DELTA,
+  briefInstallRank,
+  briefLabel,
+  briefMitigationThreshold,
+  briefScore,
+  BRIEFS,
+  COUNTDOWN_SHIFTS,
+  createGovernance,
+  emptyTally,
+  FEDERATION_PREMIUM,
+  ladderById,
+  nextQuota,
+  outvotedNeeds,
+  POLICY_COUNCIL,
+  POLICY_KNOW_HOW,
+  policyForecastShift,
+  policyYearly,
+  QUOTA_RELATIONSHIP,
+  RED_LINES,
+  redLineKey,
+  redLinesCrossed,
+  RESERVE_AUTOFILL_SHARE,
+  RESERVE_DEPOSIT,
+  rungOf,
+  shiftsUntilUnlocked,
+  STANDING_CONDITIONS,
+} from './governance';
 import {
   CUSTOMERS,
   clampRelationship,
@@ -68,9 +101,12 @@ import {
   RELATIONSHIP_DELTAS,
   relationshipTier,
 } from './customers';
+import { formatGrouped } from '../i18n';
 import { HISTORY_NOTES } from './history';
 import {
   emptyLedger,
+  finishShiftClose,
+  openShiftClose,
   fundBalance,
   knowHowBalance,
   knowHowEarned,
@@ -90,12 +126,13 @@ import {
   otherFront,
 } from './longNight';
 import { eraById, ERAS, improvementById, IMPROVEMENTS, reachedEra } from './plans';
-import { conditionMet, hasMark, markForecastRelief, millCharacter } from './record';
+import { conditionMet, hasMark, MARKS, markForecastRelief, millCharacter } from './record';
 import { chronicleChance, weightedPick } from './rng';
 import { scoreChronicle, type ScoreBreakdown } from './scoring';
 import {
   initialStakeholders,
   stakeholderForecastShift,
+  stakeholderPhrase,
   stakeholderReinvestment,
   treatmentMultiplier,
 } from './stakeholders';
@@ -112,6 +149,7 @@ import {
 } from './trials';
 import type {
   Actor,
+  BriefId,
   CertifierState,
   Charter,
   ChronicleCommand,
@@ -123,6 +161,8 @@ import type {
   Cost,
   CropAttributes,
   CropYearState,
+  CropYearReturn,
+  CrewRoleId,
   CustomerId,
   CustomerRelationship,
   DecisionMark,
@@ -132,14 +172,18 @@ import type {
   ForecastKind,
   ForecastState,
   FrontId,
+  GovernanceState,
   HistoryTrigger,
   ImprovementProgress,
   Initiative,
   Medal,
   NoticeKind,
   PendingEvent,
+  PolicyLadder,
+  PolicyRung,
   RelationshipDelta,
   ScheduledFollowUp,
+  StakeholderId,
   StakeholderRelationship,
   TimedModifier,
   TrialProgress,
@@ -178,6 +222,13 @@ export const FIRE_SUPPRESSION_COST = 70;
 export const FIRE_SUPPRESSION_MINUTES = 45;
 /** Cleaning the duct by hand costs nothing but takes longer; a fire never deadlocks the mill. */
 export const FIRE_HAND_CLEAN_MINUTES = 120;
+
+/**
+ * A window closed again after a restore ends within a tick of its first close,
+ * on either side; a new window ends at least 240 campaign minutes after the
+ * last (10:00 to 14:00 is the shortest), so this cannot swallow a real shift.
+ */
+const RECLOSE_TOLERANCE_MINUTES = 30;
 
 const MAX_NOTICES = 80;
 const MAX_INITIATIVES = 30;
@@ -246,6 +297,8 @@ export interface ChronicleState {
   notices: ChronicleNotice[];
   unlockedNotes: string[];
   readNotes: string[];
+  /** Unlocked notes the player has seen listed in the Notes tab; the tab's badge counts the rest. */
+  seenNotes: string[];
   quizAnswered: string[];
   quizBest: number | null;
   sequence: number;
@@ -261,6 +314,8 @@ export interface ChronicleState {
   certifier: CertifierState;
   desks: Desks;
   longNightTelegraphed: boolean;
+  // Part three (docs/CHRONICLE.md, systems 25-32)
+  governance: GovernanceState;
 }
 
 export interface Step {
@@ -312,6 +367,7 @@ export function createInitialState(): ChronicleState {
     notices: [],
     unlockedNotes: [],
     readNotes: [],
+    seenNotes: [],
     quizAnswered: [],
     quizBest: null,
     sequence: 0,
@@ -323,6 +379,7 @@ export function createInitialState(): ChronicleState {
     certifier: initialCertifier(),
     desks: initialDesks(),
     longNightTelegraphed: false,
+    governance: createGovernance(null),
   };
 }
 
@@ -398,7 +455,7 @@ export function canAfford(state: ChronicleState, cost: Cost | undefined): boolea
 function pay(
   state: ChronicleState,
   cost: Cost | undefined,
-  fundSource: 'events' | 'mitigation' | 'installs' | 'contractors' | 'suppression'
+  fundSource: 'events' | 'mitigation' | 'installs' | 'contractors' | 'suppression' | 'treatment'
 ): ChronicleState {
   if (!cost) return state;
   let ledger = state.ledger;
@@ -456,6 +513,9 @@ export function effectInput(state: ChronicleState) {
     modifiers: state.modifiers,
     austerity: state.austerity.active,
     crop: state.crop,
+    policies: state.governance.policies,
+    conditions: state.governance.conditions,
+    machineryRenewed: state.governance.machineryRenewed,
   };
 }
 
@@ -494,6 +554,7 @@ export function signCharter(
     seenIncidentIds: (baseline.incidentIds ?? []).slice(-MAX_SEEN_IDS),
     // Notes already read in an earlier chronicle stay read.
     readNotes: previous.readNotes,
+    seenNotes: previous.seenNotes,
     unlockedNotes: previous.unlockedNotes,
     quizAnswered: previous.quizAnswered,
     quizBest: previous.quizBest,
@@ -502,6 +563,7 @@ export function signCharter(
     crop: createCropYear(charter, 0),
     customers: initialRelationships(charterStartingRelationship(charter.customers)),
     stakeholders: initialStakeholders(),
+    governance: createGovernance(charter),
     contractorOffers: contractorCandidates(seed, 0),
     trials:
       charter.mode === 'historical'
@@ -580,11 +642,20 @@ export function closeShift(
   if (previous.lastReportId === evidence.report.id) return { state: previous, commands: [] };
   if (
     previous.lastReportEndedAt !== null &&
-    evidence.report.endedAtMinute <= previous.lastReportEndedAt
+    evidence.report.endedAtMinute <= previous.lastReportEndedAt + RECLOSE_TOLERANCE_MINUTES
   ) {
     // A replay or session restore rewound the campaign: its reports, QC ids
-    // and shipments are not new history. Re-baseline instead of crediting.
-    return { state: resyncBaseline(previous, evidence), commands: [] };
+    // and shipments are not new history. Re-baseline instead of crediting, but
+    // keep the mark where history reached: a plant restored from a save taken
+    // before the last close closes those windows again, and a mark moved back
+    // to the first of them credited every later one a second time.
+    return {
+      state: {
+        ...resyncBaseline(previous, evidence),
+        lastReportEndedAt: Math.max(previous.lastReportEndedAt, evidence.report.endedAtMinute),
+      },
+      commands: [],
+    };
   }
   const charter = previous.charter;
   let step: Step = {
@@ -594,7 +665,7 @@ export function closeShift(
       lastReportId: evidence.report.id,
       lastReportEndedAt: evidence.report.endedAtMinute,
       aiSpentThisShift: 0,
-      ledger: { ...previous.ledger, lastShiftFund: {}, lastShiftKnowHow: {} },
+      ledger: openShiftClose(previous.ledger),
     },
     commands: [],
   };
@@ -610,10 +681,13 @@ export function closeShift(
     commands: step.commands,
   };
   step = updateRelationships(step, evidence);
+  step = autofillReserve(step);
   step = chargeUpkeep(step);
   step = ageModifiers(step);
   step = advanceInstalls(step);
+  step = tallyShift(step, evidence);
   step = advanceCropYear(step);
+  step = retireMootEvents(step, deck);
   if (charter.mode === 'historical') step = advanceTrials(step, evidence, qcPassedThisShift);
   step = recordChallengeMedals(step, evidence);
   if (charter.mode !== 'sandbox') {
@@ -625,10 +699,16 @@ export function closeShift(
     step = drawEvent(step, deck);
   }
   step = rollFire(step, evidence);
+  step = closeGovernance(step, previous);
+  step = adoptCarriedProposal(step);
   step = delegatedInitiatives(step, evidence, deck);
   step = advanceEra(step);
   step = endIfDue(step);
-  return step;
+  // Everything above is this close's doing; what is spent from here on is not.
+  return {
+    state: { ...step.state, ledger: finishShiftClose(step.state.ledger) },
+    commands: step.commands,
+  };
 }
 
 function creditShift(step: Step, evidence: ShiftCloseEvidence): Step {
@@ -729,8 +809,16 @@ function updateRelationships(step: Step, evidence: ShiftCloseEvidence): Step {
 function chargeUpkeep(step: Step): Step {
   let state = step.state;
   if (state.upkeepShortfall !== null) {
-    // An unanswered shortfall lapses to conservation, the cautious default.
-    state = { ...state, upkeepShortfall: null, austerity: { active: true, shifts: 0 } };
+    // An unanswered shortfall lapses to conservation, the cautious default, and
+    // pays for its shift what answering Conserve would have: leaving the prompt
+    // must not be cheaper than answering it.
+    const paid = Math.min(Math.max(0, fundOf(state)), Math.round(state.upkeepShortfall * 0.5));
+    state = {
+      ...state,
+      upkeepShortfall: null,
+      austerity: { active: true, shifts: 0 },
+      ledger: recordFund(state.ledger, 'upkeep', -paid),
+    };
     state = notice(
       state,
       'ledger',
@@ -755,12 +843,41 @@ function chargeUpkeep(step: Step): Step {
       commands: step.commands,
     };
   }
+  // The co-op reserve is drawn before austerity is asked for (CiK: "money will be
+  // taken from here"). What it cannot cover is still a shortfall.
+  const gap = due - Math.max(0, fund);
+  const reserve = state.governance.reserve;
+  const draw = Math.min(reserve.balance, gap);
+  if (draw > 0) {
+    state = notice(
+      leaveMarks(
+        withGovernance(
+          { ...state, ledger: recordFund(state.ledger, 'reserve', draw) },
+          { reserve: { ...reserve, balance: reserve.balance - draw, drawn: reserve.drawn + draw } }
+        ),
+        ['reserve-drawn'],
+        'reserve',
+        'shortfall',
+        'chronicle'
+      ),
+      'ledger',
+      'Drawn from the co-op reserve',
+      draw >= gap
+        ? `Upkeep of ${due} was due and the fund held ${Math.max(0, Math.floor(fund))}; the reserve covered ${draw}.`
+        : `Upkeep of ${due} was due; the reserve gave its last ${draw}, and the rest is short.`
+    );
+    if (draw >= gap)
+      return {
+        state: { ...state, ledger: recordFund(state.ledger, 'upkeep', -due) },
+        commands: step.commands,
+      };
+  }
   state = { ...state, upkeepShortfall: due };
   state = notice(
     state,
     'ledger',
     'Lack of material',
-    `Upkeep of ${due} is due and the fund holds ${Math.max(0, Math.floor(fund))}. Decrepit plant raises the chance of breakdown and fire.`
+    `Upkeep of ${due} is due and the fund holds ${Math.max(0, Math.floor(fundOf(state)))}. Decrepit plant raises the chance of breakdown and fire.`
   );
   return { state, commands: step.commands };
 }
@@ -824,13 +941,16 @@ function advanceInstalls(step: Step): Step {
 function advanceCropYear(step: Step): Step {
   const state = step.state;
   if (!state.charter || state.shift % SHIFTS_PER_CROP_YEAR !== 0) return step;
+  // The closing shift ends the last crop year; it does not begin another.
+  if (state.shift >= CHRONICLE_SHIFTS) return step;
   const index = cropYearIndexForShift(state.shift);
   if (state.crop?.index === index) return step;
+  const filed = applyYearlyPolicies(fileReturn(step, false));
   const crop = createCropYear(state.charter, index);
   let next: Step = {
     state: notice(
       {
-        ...state,
+        ...filed.state,
         crop,
         contractorOffers: contractorCandidates(state.charter.seed, index),
       },
@@ -838,7 +958,7 @@ function advanceCropYear(step: Step): Step {
       `Crop year ${index + 1}: ${CROP_YEARS[crop.kind].label.toLowerCase()}`,
       cropYearSummary(crop)
     ),
-    commands: step.commands,
+    commands: filed.commands,
   };
   next = unlockTrigger(next, `crop:${crop.kind}`);
   return next;
@@ -983,7 +1103,7 @@ function offerTraining(step: Step): Step {
       { ...step.state, trainingOffered: true },
       'trial',
       'Training mode is available',
-      `Fund costs -25%, forecast chance -25%, final score -${TRAINING_MODE.scorePenalty}.`
+      `Fund costs -25%, forecast chance -25 points, final score -${TRAINING_MODE.scorePenalty}.`
     ),
     commands: step.commands,
   };
@@ -1030,7 +1150,10 @@ function forecastRelief(state: ChronicleState, kind: ForecastKind): number {
   );
   // Standing cover from the record, and organisations that show up (or hold back).
   return (
-    plans + markForecastRelief(state, kind) - stakeholderForecastShift(state.stakeholders, kind)
+    plans +
+    markForecastRelief(state, kind) -
+    stakeholderForecastShift(state.stakeholders, kind) -
+    policyForecastShift(state.governance.policies, kind)
   );
 }
 
@@ -1044,6 +1167,19 @@ export function currentForecastChance(state: ChronicleState, forecast: ForecastS
     relief: forecastRelief(state, forecast.kind),
     mitigated: forecast.mitigated,
   });
+}
+
+/**
+ * Chance a mitigation would still take off. A forecast never drops below the 5%
+ * floor, so near it the full relief is not there to buy, and at it there is none.
+ */
+export function mitigationRelief(state: ChronicleState, forecast: ForecastState): number {
+  if (forecast.mitigated) return 0;
+  return Math.max(
+    0,
+    currentForecastChance(state, forecast) -
+      currentForecastChance(state, { ...forecast, mitigated: true })
+  );
 }
 
 function resolveForecasts(step: Step, evidence: ShiftCloseEvidence): Step {
@@ -1162,6 +1298,7 @@ function requirementsMet(state: ChronicleState, event: ChronicleEventDefinition)
   if (requires.minEra && eraById(state.era).order < eraById(requires.minEra).order) return false;
   if (requires.cropKinds && (!state.crop || !requires.cropKinds.includes(state.crop.kind)))
     return false;
+  if (cropEventMoot(state, event)) return false;
   if (requires.minShift !== undefined && state.shift < requires.minShift) return false;
   if (requires.maxShift !== undefined && state.shift > requires.maxShift) return false;
   if (requires.modes && state.charter && !requires.modes.includes(state.charter.mode)) return false;
@@ -1173,7 +1310,80 @@ function requirementsMet(state: ChronicleState, event: ChronicleEventDefinition)
   if (requires.deliveredTo && !state.fulfilledCustomers.includes(requires.deliveredTo))
     return false;
   if (requires.marks && !conditionMet(state, { marks: requires.marks })) return false;
+  if (requires.suspended !== undefined && state.certifier.suspended !== requires.suspended)
+    return false;
   return true;
+}
+
+/** The current crop year's grain needs no treatment: already treated, or a plan relieves it. */
+export function cropTreatmentMoot(state: ChronicleState): boolean {
+  return (
+    !state.crop ||
+    state.crop.treated ||
+    relievedCropKinds(state.improvements).includes(state.crop.kind)
+  );
+}
+
+/**
+ * A crop-year event the crop has overtaken: its year has passed, or the grain
+ * it would treat needs no treatment. Nothing it offers would do what it says,
+ * so it is neither drawn nor left pending.
+ */
+export function cropEventMoot(state: ChronicleState, event: ChronicleEventDefinition): boolean {
+  const kinds = event.requires?.cropKinds;
+  if (!kinds) return false;
+  if (!state.crop || !kinds.includes(state.crop.kind)) return true;
+  return event.choices.some((choice) => choice.effect.treatCrop) && cropTreatmentMoot(state);
+}
+
+/**
+ * An event the record has overtaken while it waited: a ruling since it appeared
+ * broke what it was drawn on (Valley Haulage's lorry, once its contract is ended).
+ */
+export function recordOvertakes(state: ChronicleState, event: ChronicleEventDefinition): boolean {
+  const marks = event.requires?.marks;
+  return !!marks && !conditionMet(state, { marks });
+}
+
+/**
+ * The pending events a player can answer: still in the deck (a save can name
+ * one a later version dropped) and not overtaken by the crop or the record. The
+ * rest are cleared at the next close.
+ */
+export function answerablePending(
+  state: ChronicleState,
+  deck: readonly ChronicleEventDefinition[]
+): Array<{ pending: PendingEvent; event: ChronicleEventDefinition }> {
+  return state.pendingEvents.flatMap((pending) => {
+    const event = deck.find((candidate) => candidate.id === pending.eventId);
+    return event && !cropEventMoot(state, event) && !recordOvertakes(state, event)
+      ? [{ pending, event }]
+      : [];
+  });
+}
+
+/** Take overtaken events off the desk, without applying their defaults. */
+function retireMootEvents(step: Step, deck: readonly ChronicleEventDefinition[]): Step {
+  let state = step.state;
+  for (const pending of step.state.pendingEvents) {
+    const event = deck.find((candidate) => candidate.id === pending.eventId);
+    if (!event) continue;
+    const crop = cropEventMoot(state, event);
+    if (!crop && !recordOvertakes(state, event)) continue;
+    state = notice(
+      {
+        ...state,
+        pendingEvents: state.pendingEvents.filter((p) => p.instanceId !== pending.instanceId),
+      },
+      'event',
+      `${event.title}: no longer needed`,
+      crop
+        ? 'The crop year it asked about has passed, or its grain needs no more treatment.'
+        : 'A later ruling has overtaken it.',
+      pending.instanceId
+    );
+  }
+  return state === step.state ? step : { state, commands: step.commands };
 }
 
 /** Drawn events: never a scheduled or chained one, never the same event twice running. */
@@ -1405,13 +1615,16 @@ function applyChoiceInternal(
   state = notice(
     state,
     'event',
-    lapsed ? `${event.title}: the moment passed` : `${event.title}: ${choice.label}`,
+    lapsed ? `${event.title}: lapsed` : `${event.title}: ${choice.label}`,
     because ? `${because}. ${effect.result}` : effect.result,
     instanceId
   );
   let next: Step = { state, commands: [...step.commands, ...applied.commands] };
   next = unlockNoteById(next, effect.unlockNote);
   if (effect.resolveChain?.length) next = resolveChain(next, effect.resolveChain, deck);
+  // A treatment or a ruling can overtake other decisions still on the desk.
+  if (effect.treatCrop || effect.marks?.length || effect.resolveChain?.length)
+    next = retireMootEvents(next, deck);
   return next;
 }
 
@@ -1637,7 +1850,7 @@ function holdTheNight(
     'trial',
     `${FRONTS[other].label} ${holds ? 'held' : 'fell'}`,
     holds
-      ? `What was built for ${FRONTS[other].pronoun} carried ${FRONTS[other].pronoun} through the night (${prepared} of ${FRONT_HOLD_THRESHOLD} prepared).`
+      ? `Held on preparation alone (${prepared} of ${FRONT_HOLD_THRESHOLD} prepared).`
       : `${capitalise(FRONTS[other].subject)} needed ${FRONT_HOLD_THRESHOLD} preparation and had ${prepared}. Recover the incident under Incidents raised by the chronicle.`,
     LONG_NIGHT_EVENT_ID
   );
@@ -1689,8 +1902,36 @@ function rollFire(step: Step, evidence: ShiftCloseEvidence): Step {
   return next;
 }
 
+const NO_FIRE: ChronicleState['fire'] = {
+  active: false,
+  suppressing: false,
+  resolveAtMinute: null,
+};
+
+/** Another stop held the interlock, so the fire's own stop never started. */
 export function fireDidNotStart(state: ChronicleState): ChronicleState {
-  return { ...state, fire: { active: false, suppressing: false, resolveAtMinute: null } };
+  if (!state.fire.active) return state;
+  return notice(
+    { ...state, fire: NO_FIRE },
+    'event',
+    'Duct cleared during the stop',
+    'The plant was already stopped when the smouldering was found, so it was cleared then. No fire stop or suppression is needed.'
+  );
+}
+
+/**
+ * The plant's fire stop is gone (a reload does not persist it; a game reset
+ * clears it), so nothing is left to suppress: release the chronicle's fire
+ * rather than ask the fund to pay for one that is out.
+ */
+export function releaseStrandedFire(state: ChronicleState): ChronicleState {
+  if (!state.fire.active) return state;
+  return notice(
+    { ...state, fire: NO_FIRE },
+    'event',
+    'Duct fire stop released',
+    'The plant stop for the duct fire was cleared outside the chronicle. Nothing is left to suppress.'
+  );
 }
 
 export function suppressFire(
@@ -1722,8 +1963,11 @@ export function suppressFire(
     next = initiative(next, {
       kind: 'suppression',
       targetId: 'fire',
-      summary: 'Funded fire suppression',
-      reason: 'Production was stopped by a duct fire and the fund could cover suppression.',
+      summary: method === 'suppress' ? 'Funded fire suppression' : 'Cleaned the duct by hand',
+      reason:
+        method === 'suppress'
+          ? 'Production was stopped by a duct fire; safety does not wait on the delegated share.'
+          : 'Production was stopped by a duct fire and the fund could not cover suppression.',
       reversible: false,
     });
   return { state: next, commands: [] };
@@ -1733,8 +1977,18 @@ export function suppressFire(
 export function tickMinute(state: ChronicleState, nowMinute: number): Step {
   if (state.status !== 'active') return { state, commands: [] };
   if (state.fire.active && !state.fire.suppressing && canFundMitigations(state.delegation)) {
+    // Safety does not wait on the 15% share (docs/CHRONICLE.md, delegation level 2):
+    // on a charter-sized fund the share never reaches the price, and the plant
+    // would always stand stopped for the slow clean. The spend is still logged
+    // as the partner's for the shift. Only a fund that cannot cover suppression
+    // sends the duct to be cleaned by hand.
+    const cost = price(state, FIRE_SUPPRESSION_COST);
     const funded = suppressFire(state, nowMinute, 'ai-partner');
-    if (funded.state !== state) return funded;
+    if (funded.state !== state)
+      return {
+        state: { ...funded.state, aiSpentThisShift: funded.state.aiSpentThisShift + cost },
+        commands: funded.commands,
+      };
     const byHand = suppressFire(state, nowMinute, 'ai-partner', 'by_hand');
     if (byHand.state !== state) return byHand;
   }
@@ -1761,6 +2015,15 @@ export function tickMinute(state: ChronicleState, nowMinute: number): Step {
 // Delegated initiatives
 // ---------------------------------------------------------------------------
 
+/**
+ * What is left of the partner's share this shift. The share is of the fund as
+ * the shift's decisions began, so its own spending does not shrink it: a free
+ * answer is always within it.
+ */
+function aiShareLeft(state: ChronicleState): number {
+  return aiShiftBudget(fundOf(state) + state.aiSpentThisShift) - state.aiSpentThisShift;
+}
+
 function delegatedInitiatives(
   step: Step,
   evidence: ShiftCloseEvidence,
@@ -1771,15 +2034,18 @@ function delegatedInitiatives(
   if (level === 0) return next;
   if (canAnswerEvents(level)) {
     for (const pending of next.state.pendingEvents) {
+      // An earlier answer this close can take a decision off the desk (treating the
+      // crop retires the other crop event); there is nothing left to answer or log.
+      if (!next.state.pendingEvents.some((p) => p.instanceId === pending.instanceId)) continue;
       const event = deck.find((e) => e.id === pending.eventId);
       if (!event?.routine) continue;
-      const choice =
-        event.choices.find((c) => c.aiRecommended && choiceAvailable(next.state, c)) ??
-        event.choices.find((c) => c.id === event.defaultChoiceId);
+      // The answer its brief picks; the conventional brief takes the cheapest
+      // recommended answer, so a free answer beats a paid one.
+      const choice = partnerChoice(next.state, event);
       if (!choice || !canAfford(next.state, choice.cost) || !choiceAvailable(next.state, choice))
         continue;
       const cost = price(next.state, choice.cost?.fund ?? 0);
-      if (cost > aiShiftBudget(fundOf(next.state)) - next.state.aiSpentThisShift) continue;
+      if (cost > aiShareLeft(next.state)) continue;
       next = applyChoiceInternal(next, pending.instanceId, choice.id, 'ai-partner', false, deck);
       next = {
         state: initiative(
@@ -1788,7 +2054,10 @@ function delegatedInitiatives(
             kind: 'event',
             targetId: pending.instanceId,
             summary: `${event.title}: ${choice.label}`,
-            reason: 'Routine event within the delegated budget; the recommended choice.',
+            reason:
+              next.state.governance.brief === 'conventional'
+                ? 'Routine event within the delegated budget; the recommended choice.'
+                : `Routine event within the delegated budget; the ${briefLabel(next.state.governance.brief).toLowerCase()} brief: ${BRIEFS.find((b) => b.id === next.state.governance.brief)?.rule ?? ''}.`,
             reversible: false,
           }
         ),
@@ -1801,9 +2070,10 @@ function delegatedInitiatives(
       if (forecast.status !== 'pending' || forecast.mitigated) continue;
       const chance = currentForecastChance(next.state, forecast);
       const cost = price(next.state, FORECASTS[forecast.kind].mitigationCost);
-      if (chance < AI_MITIGATION_THRESHOLD) continue;
-      if (cost > aiShiftBudget(fundOf(next.state)) - next.state.aiSpentThisShift) continue;
-      const mitigated = mitigateForecast(next.state, forecast.id, 'ai-partner');
+      // The partner's brief decides how early it guards each hazard (system 29).
+      if (chance < briefMitigationThreshold(next.state.governance.brief, forecast.kind)) continue;
+      if (cost > aiShareLeft(next.state)) continue;
+      const mitigated = mitigateForecast(next.state, forecast.id, 'ai-partner', chance);
       if (mitigated.state === next.state) continue;
       next = {
         state: { ...mitigated.state, aiSpentThisShift: mitigated.state.aiSpentThisShift + cost },
@@ -1826,7 +2096,11 @@ function delegatedInitiatives(
         (plan): plan is NonNullable<typeof plan> =>
           !!plan && installBlockReason(next.state, plan.id) === null
       )
-      .sort((a, b) => a.installCost - b.installCost);
+      .sort(
+        (a, b) =>
+          briefInstallRank(next.state.governance.brief, a) -
+            briefInstallRank(next.state.governance.brief, b) || a.installCost - b.installCost
+      );
     const plan = candidates[0];
     if (plan && fundOf(next.state) - installPrice(next.state, plan.id) >= reserve) {
       const started = startInstall(next.state, plan.id, 'ai-partner');
@@ -1840,13 +2114,21 @@ function delegatedInitiatives(
 // Player and delegated actions
 // ---------------------------------------------------------------------------
 
-export function mitigateForecast(state: ChronicleState, forecastId: string, actor: Actor): Step {
+export function mitigateForecast(
+  state: ChronicleState,
+  forecastId: string,
+  actor: Actor,
+  /** The chance the AI partner judged against the threshold, for its reason. */
+  judgedChance?: number
+): Step {
   const forecast = state.forecasts.find((f) => f.id === forecastId);
   if (!forecast || forecast.status !== 'pending' || forecast.mitigated)
     return { state, commands: [] };
   const definition = FORECASTS[forecast.kind];
   const cost = { fund: definition.mitigationCost };
   if (!canAfford(state, cost)) return { state, commands: [] };
+  // At the floor a mitigation changes nothing; it is not sold.
+  if (mitigationRelief(state, forecast) <= 0) return { state, commands: [] };
   const paid = price(state, definition.mitigationCost);
   let next = pay(state, cost, 'mitigation');
   next = {
@@ -1866,7 +2148,7 @@ export function mitigateForecast(state: ChronicleState, forecastId: string, acto
       kind: 'mitigation',
       targetId: forecastId,
       summary: `${definition.mitigationLabel} (${definition.title.toLowerCase()})`,
-      reason: `The forecast stood at ${Math.round(forecast.chance * 100)}%, above the ${Math.round(AI_MITIGATION_THRESHOLD * 100)}% threshold.`,
+      reason: `The forecast stood at ${Math.round((judgedChance ?? currentForecastChance(state, forecast)) * 100)}%, at or above the ${Math.round(briefMitigationThreshold(state.governance.brief, forecast.kind) * 100)}% threshold${state.governance.brief === 'conventional' ? '' : ` of the ${briefLabel(state.governance.brief).toLowerCase()} brief`}.`,
       reversible: true,
     });
   return { state: next, commands: [] };
@@ -1949,7 +2231,11 @@ export function restoreIncident(
       reason: 'The incident was mitigated and its effects applied.',
       reversible: false,
     });
-  const commands: ChronicleCommand[] = [{ type: 'resolve_incident', incidentId }];
+  const commands: ChronicleCommand[] = [
+    actor === 'player'
+      ? { type: 'resolve_incident', incidentId, actor: 'operator' }
+      : { type: 'resolve_incident', incidentId },
+  ];
   if (kind === 'severe_rain') commands.push({ type: 'clear_weather' });
   return { state: next, commands };
 }
@@ -2093,7 +2379,8 @@ export function cancelInstall(state: ChronicleState, id: string): Step {
 
 export function hireContractor(state: ChronicleState, contractorId: string): Step {
   const offer = state.contractorOffers.find((c) => c.id === contractorId);
-  if (!offer || state.contractor?.id === contractorId) return { state, commands: [] };
+  if (state.status !== 'active' || !offer || state.contractor?.id === contractorId)
+    return { state, commands: [] };
   if (state.improvements.some((p) => p.phase === 'installing')) return { state, commands: [] };
   const cost = { fund: offer.retainer };
   if (!canAfford(state, cost)) return { state, commands: [] };
@@ -2194,20 +2481,26 @@ export function resolveShortfall(state: ChronicleState, choice: 'conserve' | 'fo
   const gap = Math.max(0, due - fund);
   const knowHowNeeded = Math.ceil(gap / FORCED_FUND_PER_KNOW_HOW);
   if (knowHowNeeded > knowHowOf(state)) return resolveShortfall(state, 'conserve');
-  let ledger = recordFund(state.ledger, 'upkeep', -fund);
+  // A refund can land between the shortfall and the answer: pay what is due, not the fund.
+  const paid = Math.min(fund, due);
+  let ledger = recordFund(state.ledger, 'upkeep', -paid);
   ledger = recordKnowHow(ledger, 'forced_maintenance', -knowHowNeeded);
   return {
     state: notice(
       { ...state, upkeepShortfall: null, ledger },
       'ledger',
       'Forced maintenance',
-      `Upkeep paid in full: ${Math.round(fund)} from the fund and ${knowHowNeeded} know-how in members' extra effort.`
+      knowHowNeeded > 0
+        ? `Upkeep paid in full: ${Math.round(paid)} from the fund and ${knowHowNeeded} know-how in members' extra effort.`
+        : `Upkeep paid in full: ${Math.round(paid)} from the fund.`
     ),
     commands: [],
   };
 }
 
 export function setAusterity(state: ChronicleState, active: boolean): ChronicleState {
+  // An ended chronicle charges no upkeep and applies no effect: there is no policy left to set.
+  if (state.status !== 'active') return state;
   if (active && state.upkeepShortfall !== null) return resolveShortfall(state, 'conserve').state;
   if (state.austerity.active === active) return state;
   return notice(
@@ -2226,25 +2519,32 @@ export function treatmentPrice(state: ChronicleState): number {
   return Math.round(cropTreatmentCost(state.crop.kind) * treatmentMultiplier(state.stakeholders));
 }
 
-export function treatCropDirectly(state: ChronicleState): Step {
-  if (!state.crop || state.crop.treated) return { state, commands: [] };
+export function treatCropDirectly(
+  state: ChronicleState,
+  /** The deck whose crop decisions this treatment overtakes, as an event's treatment does. */
+  deck: readonly ChronicleEventDefinition[] = []
+): Step {
+  if (state.status !== 'active' || !state.crop || cropTreatmentMoot(state))
+    return { state, commands: [] };
   const base = treatmentPrice(state);
   if (base <= 0) return { state, commands: [] };
   const cost = { fund: base };
   if (!canAfford(state, cost)) return { state, commands: [] };
   const next = notice(
-    { ...pay(state, cost, 'events'), crop: { ...state.crop, treated: true } },
+    { ...pay(state, cost, 'treatment'), crop: { ...state.crop, treated: true } },
     'event',
     state.crop.kind === 'sprouted' ? 'Grain blended' : 'Grain conditioned',
     CROP_YEARS[state.crop.kind].treatedPenalty > 0
       ? `This crop year’s grain is treated; its quality penalty is eased to ${CROP_YEARS[state.crop.kind].treatedPenalty}.`
       : 'This crop year’s grain is treated; its quality penalty is lifted.'
   );
-  return { state: next, commands: [] };
+  return retireMootEvents({ state: next, commands: [] }, deck);
 }
 
 export function setDelegation(state: ChronicleState, level: DelegationLevel): Step {
-  if (state.delegation === level) return { state, commands: [] };
+  if (state.status !== 'active' || state.delegation === level) return { state, commands: [] };
+  // The federation's administrator keeps the partner acting at Forecasts or above.
+  if (state.governance.administration && level < 2) return { state, commands: [] };
   const next = notice(
     { ...state, delegation: level },
     'initiative',
@@ -2259,13 +2559,22 @@ export function setDelegation(state: ChronicleState, level: DelegationLevel): St
 }
 
 export function acceptTraining(state: ChronicleState): ChronicleState {
-  if (!state.trainingOffered || state.trainingMode) return state;
+  // The final score is fixed once the chronicle ends; training could no longer change it.
+  if (state.status !== 'active' || !state.trainingOffered || state.trainingMode) return state;
   return notice(
     { ...state, trainingMode: true },
     'trial',
     'Training mode on',
-    `Fund costs -25%, forecast chance -25%, final score -${TRAINING_MODE.scorePenalty}.`
+    `Fund costs -25%, forecast chance -25 points, final score -${TRAINING_MODE.scorePenalty}.`
   );
+}
+
+/** The Notes tab was opened: every unlocked note has now been seen in its list. Earns nothing. */
+export function markNotesSeen(state: ChronicleState): ChronicleState {
+  const seen = new Set(state.seenNotes);
+  const fresh = state.unlockedNotes.filter((id) => !seen.has(id));
+  if (fresh.length === 0) return state;
+  return { ...state, seenNotes: [...state.seenNotes, ...fresh] };
 }
 
 export function markNoteRead(state: ChronicleState, noteId: string): ChronicleState {
@@ -2365,11 +2674,49 @@ export function releaseHazards(state: ChronicleState): Step {
   };
 }
 
+/**
+ * An install a closing-shift snag pushed past the end can never be commissioned:
+ * hand its fund back rather than leave it "installing" in a finished chronicle.
+ */
+export function settleUnfinishedInstalls(state: ChronicleState): ChronicleState {
+  let settled = state;
+  for (const progress of state.improvements) {
+    if (progress.phase !== 'installing') continue;
+    settled = notice(
+      cancelInstall(settled, progress.id).state,
+      'event',
+      `${improvementById(progress.id)?.label ?? progress.id} not commissioned`,
+      'The chronicle closed before the install could be commissioned, so its fund was refunded.'
+    );
+  }
+  return settled;
+}
+
 function endIfDue(step: Step): Step {
-  const released = releaseHazards(step.state);
   if (step.state.shift < CHRONICLE_SHIFTS) return step;
-  // Decisions still open when the chronicle closes are dropped, not left to answer afterwards.
-  const state: ChronicleState = { ...released.state, pendingEvents: [], followUps: [] };
+  // The last crop year's return is filed with the close, and the reserve is counted.
+  const filed = fileReturn(step, true);
+  step = {
+    state:
+      filed.state.governance.reserve.balance > 0
+        ? leaveMarks(filed.state, ['reserve-kept'], 'reserve', 'close', 'chronicle')
+        : filed.state,
+    commands: filed.commands,
+  };
+  const released = releaseHazards(step.state);
+  const settled = settleUnfinishedInstalls(released.state);
+  // Decisions still open when the chronicle closes are dropped, not left to answer
+  // afterwards: events, an upkeep shortfall, and forecasts a challenge or fire deferred.
+  const state: ChronicleState = {
+    ...settled,
+    pendingEvents: [],
+    followUps: [],
+    upkeepShortfall: null,
+    governance: { ...settled.governance, proposal: null, countdowns: [] },
+    forecasts: released.state.forecasts.map((f) =>
+      f.status === 'pending' ? { ...f, status: 'passed' as const } : f
+    ),
+  };
   const finalScore = currentScore(state);
   let next: Step = {
     state: notice(
@@ -2412,6 +2759,669 @@ export function currentScore(state: ChronicleState): ScoreBreakdown {
 /** Points for holding the front the mill did not choose (docs/CHRONICLE.md, system 21). */
 export function longNightScore(state: Pick<ChronicleState, 'marks'>): number {
   return hasMark(state, 'held-intake') && hasMark(state, 'held-floor') ? LONG_NIGHT_SCORE : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Part three: standing orders (docs/CHRONICLE.md, systems 25-32)
+// ---------------------------------------------------------------------------
+
+function withGovernance(
+  state: ChronicleState,
+  governance: Partial<GovernanceState>
+): ChronicleState {
+  return { ...state, governance: { ...state.governance, ...governance } };
+}
+
+function installedIds(state: ChronicleState): string[] {
+  return state.improvements.filter((p) => p.phase === 'installed').map((p) => p.id);
+}
+
+function applyRelationshipDeltas(
+  state: ChronicleState,
+  deltas: readonly RelationshipDelta[]
+): ChronicleState {
+  let next = state;
+  for (const { customer, delta } of deltas) {
+    next = {
+      ...next,
+      customers: next.customers.map((c) =>
+        customer === 'all' || c.id === customer
+          ? { ...c, value: clampRelationship(c.value + delta) }
+          : c
+      ),
+      stakeholders: next.stakeholders.map((party) =>
+        party.id === customer ? { ...party, value: clampRelationship(party.value + delta) } : party
+      ),
+    };
+  }
+  return next;
+}
+
+/** 31. Autofill moves a share of this close's reinvestment into the co-op reserve. */
+function autofillReserve(step: Step): Step {
+  const state = step.state;
+  const reserve = state.governance.reserve;
+  if (!reserve.autofill) return step;
+  const reinvested = state.ledger.sinceCloseFund.reinvestment ?? 0;
+  const amount = Math.floor(Math.max(0, reinvested) * RESERVE_AUTOFILL_SHARE);
+  if (amount <= 0) return step;
+  return {
+    state: withGovernance(
+      { ...state, ledger: recordFund(state.ledger, 'reserve', -amount) },
+      { reserve: { ...reserve, balance: reserve.balance + amount } }
+    ),
+    commands: step.commands,
+  };
+}
+
+/** 30. Each close adds its recorded evidence to the crop year's tally. */
+function tallyShift(step: Step, evidence: ShiftCloseEvidence): Step {
+  const state = step.state;
+  const metrics = evidence.report.metrics;
+  const tally = state.governance.tally;
+  const grade = evidence.report.grade;
+  return {
+    state: withGovernance(state, {
+      tally: {
+        ...tally,
+        shifts: tally.shifts + 1,
+        dispatchedKg: tally.dispatchedKg + Math.max(0, metrics.dispatchedKg ?? 0),
+        qualityFailureKg: tally.qualityFailureKg + Math.max(0, metrics.qualityFailureKg ?? 0),
+        energyCost: tally.energyCost + Math.max(0, metrics.energyCost ?? 0),
+        gradePoints: grade ? [...tally.gradePoints, GRADE_POINTS[grade]] : tally.gradePoints,
+        fundReinvested: tally.fundReinvested + (state.ledger.sinceCloseFund.reinvestment ?? 0),
+      },
+    }),
+    commands: step.commands,
+  };
+}
+
+/**
+ * 30. The crop-year return, filed from the tally alone: nothing in it can be
+ * edited, so the only figures the federation sees are the recorded ones. The
+ * quota ratchets: a year that beat it becomes the next year's floor.
+ */
+function fileReturn(step: Step, final: boolean): Step {
+  const state = step.state;
+  const gov = state.governance;
+  const tally = gov.tally;
+  if (tally.shifts === 0) return step;
+  const planned = state.charter?.mode !== 'sandbox';
+  const quota = planned ? gov.quotaKg : null;
+  const met = quota === null ? null : tally.dispatchedKg >= quota;
+  const following = planned && !final ? nextQuota(quota, tally.dispatchedKg) : null;
+  const filed: CropYearReturn = {
+    year: tally.year,
+    shifts: tally.shifts,
+    dispatchedKg: Math.round(tally.dispatchedKg),
+    quotaKg: quota,
+    met,
+    nextQuotaKg: following,
+    qualityFailureKg: Math.round(tally.qualityFailureKg),
+    energyCost: Math.round(tally.energyCost),
+    averageGrade: tally.gradePoints.length
+      ? Math.round(
+          (tally.gradePoints.reduce((sum, value) => sum + value, 0) / tally.gradePoints.length) * 10
+        ) / 10
+      : null,
+    fundReinvested: Math.round(tally.fundReinvested),
+    knowHowEarned: Math.round((knowHowEarned(state.ledger) - tally.knowHowStart) * 10) / 10,
+    policies: { ...gov.policies },
+    conditions: gov.conditions.map((c) => c.id),
+  };
+  let next: ChronicleState = withGovernance(state, {
+    returns: [...gov.returns, filed],
+    tally: emptyTally(tally.year + 1, knowHowEarned(state.ledger)),
+    quotaKg: final ? gov.quotaKg : following,
+  });
+  const first = gov.returns.length === 0;
+  const parts = [
+    `${whole(filed.dispatchedKg)} kg dispatched in ${filed.shifts} shifts${quota !== null ? ` against a quota of ${whole(quota)} kg` : ''}.`,
+  ];
+  if (met === true) {
+    next = applyRelationshipDeltas(
+      { ...next, ledger: recordFund(next.ledger, 'federation', FEDERATION_PREMIUM) },
+      [{ customer: 'federation', delta: QUOTA_RELATIONSHIP }]
+    );
+    next = withGovernance(next, {
+      missedInRow: 0,
+      conditions: next.governance.conditions.filter((c) => c.id !== 'behind-plan'),
+    });
+    parts.push(`Quota met: the federation pays ${FEDERATION_PREMIUM}.`);
+  } else if (met === false) {
+    next = applyRelationshipDeltas(next, [{ customer: 'federation', delta: -QUOTA_RELATIONSHIP }]);
+    next = withGovernance(next, {
+      missedInRow: next.governance.missedInRow + 1,
+      conditions: next.governance.conditions.some((c) => c.id === 'behind-plan')
+        ? next.governance.conditions
+        : [...next.governance.conditions, { id: 'behind-plan', sinceShift: next.shift }],
+    });
+    next = leaveMarks(next, ['quota-missed'], 'return', `year-${filed.year}`, 'chronicle');
+    parts.push(`Quota missed by ${whole(quota! - filed.dispatchedKg)} kg.`);
+  }
+  const raised = quota !== null && following !== null && following > quota;
+  if (raised) {
+    next = leaveMarks(next, ['quota-raised'], 'return', `year-${filed.year}`, 'chronicle');
+    parts.push(`The federation raises next year’s quota to ${whole(following)} kg.`);
+  } else if (following !== null) {
+    parts.push(`Next year’s quota: ${whole(following)} kg.`);
+  }
+  next = notice(next, 'ledger', `Crop year ${filed.year + 1} return filed`, parts.join(' '));
+  let result: Step = { state: next, commands: step.commands };
+  if (first) result = unlockTrigger(result, 'first_return');
+  if (raised) result = unlockTrigger(result, 'quota_raised');
+  return result;
+}
+
+/** 25. What the standing policies do to the parties at each crop year's turn. */
+function applyYearlyPolicies(step: Step): Step {
+  const deltas = policyYearly(step.state.governance.policies);
+  if (!deltas.length) return step;
+  return { state: applyRelationshipDeltas(step.state, deltas), commands: step.commands };
+}
+
+function whole(value: number): string {
+  // The Chronicle's copy is English only so far, so its numbers are too.
+  return formatGrouped(Math.round(value), undefined, 'en');
+}
+
+/** 27, 28, 32. Conditions, countdowns and the administrator, read at each close. */
+function closeGovernance(step: Step, previous: ChronicleState): Step {
+  let state = step.state;
+  const gov = state.governance;
+  // Conditions the plant raises and clears.
+  const struck = state.forecasts.some(
+    (f) =>
+      f.kind === 'delayed_truck' &&
+      f.status === 'struck' &&
+      previous.forecasts.some((p) => p.id === f.id && p.status === 'pending')
+  );
+  const assessed = assessConditions({
+    shift: state.shift,
+    conditions: gov.conditions,
+    streaks: gov.streaks,
+    policies: gov.policies,
+    austerity: state.austerity,
+    installed: installedIds(state),
+    delayedTruckStruck: struck,
+    machineryRenewed: gov.machineryRenewed,
+  });
+  state = withGovernance(state, {
+    conditions: assessed.conditions,
+    streaks: assessed.streaks,
+    machineryRenewed: assessed.machineryRenewed,
+  });
+  for (const id of assessed.raised) {
+    const definition = STANDING_CONDITIONS[id];
+    state = notice(
+      state,
+      'ledger',
+      definition.label,
+      `${capitalise(definition.effectText)}. To clear: ${definition.clearText}.`,
+      id
+    );
+  }
+  for (const id of assessed.cleared)
+    state = notice(
+      state,
+      'ledger',
+      `${STANDING_CONDITIONS[id].label}: cleared`,
+      'Its effect has lifted.',
+      id
+    );
+
+  // Red lines whose countdown has run out.
+  for (const countdown of state.governance.countdowns) {
+    if (countdown.dueShift > state.shift) continue;
+    const line = RED_LINES.find(
+      (candidate) =>
+        candidate.party === countdown.party &&
+        candidate.ladder === countdown.ladder &&
+        candidate.rung === countdown.rung
+    );
+    state = withGovernance(state, {
+      countdowns: state.governance.countdowns.filter((c) => c.id !== countdown.id),
+    });
+    if (!line || state.governance.policies[line.ladder] !== line.rung) continue;
+    state = applyRelationshipDeltas(state, [{ customer: line.party, delta: BREAK_OFF_DELTA }]);
+    state = withGovernance(state, {
+      brokenOff: [...state.governance.brokenOff, redLineKey(line)],
+    });
+    state = leaveMarks(state, [line.mark], 'countdown', countdown.id, 'chronicle');
+    state = notice(
+      state,
+      'event',
+      `${partyNameOf(line.party)} acts on its warning`,
+      `${capitalise(line.reason)}. Relationship ${BREAK_OFF_DELTA}.`,
+      countdown.id
+    );
+  }
+
+  // The administrator leaves, or arrives.
+  const administration = state.governance.administration;
+  if (administration && state.shift >= administration.untilShift) {
+    // Only the grant it imposed is handed back; one the steward chose while it
+    // stayed (Plans, say) is the steward's and stands.
+    const imposed = Math.max(2, administration.previousDelegation);
+    const restored = state.delegation === imposed;
+    state = notice(
+      withGovernance(
+        { ...state, delegation: restored ? administration.previousDelegation : state.delegation },
+        {
+          administration: null,
+          missedInRow: 0,
+          conditions: state.governance.conditions.filter((c) => c.id !== 'administration'),
+        }
+      ),
+      'era',
+      'The administrator leaves',
+      restored
+        ? 'The mill’s policies are its own again, and the AI partner’s grant is back where it was.'
+        : 'The mill’s policies are its own again, and the AI partner keeps the grant you set.'
+    );
+  } else if (
+    !administration &&
+    !hasMark(state, 'administered') &&
+    state.charter?.mode !== 'sandbox' &&
+    state.shift < CHRONICLE_SHIFTS
+  ) {
+    const cool = state.stakeholders.filter((party) => relationshipTier(party.value) === 'cool');
+    const missed = state.governance.missedInRow >= ADMINISTRATION_MISSED_QUOTAS;
+    if (cool.length >= ADMINISTRATION_COOL_ORGANISATIONS || missed) {
+      const previousDelegation = state.delegation;
+      // The locked policies take the steward's open proposal with them: say so.
+      const setAside = state.governance.proposal
+        ? ` The ${ladderById(state.governance.proposal.ladder).label.toLowerCase()} change before the assembly is set aside.`
+        : '';
+      state = withGovernance(
+        { ...state, delegation: Math.max(2, state.delegation) as DelegationLevel },
+        {
+          administration: { untilShift: state.shift + ADMINISTRATION_SHIFTS, previousDelegation },
+          proposal: null,
+          conditions: [
+            ...state.governance.conditions,
+            { id: 'administration', sinceShift: state.shift },
+          ],
+        }
+      );
+      state = leaveMarks(state, ['administered'], 'administration', 'arrived', 'chronicle');
+      state = notice(
+        state,
+        'era',
+        'The federation sends an administrator',
+        (missed
+          ? `The mill missed ${ADMINISTRATION_MISSED_QUOTAS} quotas in a row. For ${ADMINISTRATION_SHIFTS} shifts its policies are locked, upkeep is x1.1 and the AI partner acts at Forecasts or above. Then it leaves.`
+          : `${cool.length} of the valley’s organisations have cooled on the mill. For ${ADMINISTRATION_SHIFTS} shifts its policies are locked, upkeep is x1.1 and the AI partner acts at Forecasts or above. Then it leaves.`) +
+          setAside
+      );
+    }
+  }
+  return { state, commands: step.commands };
+}
+
+function partyNameOf(id: StakeholderId): string {
+  return capitalise(stakeholderPhrase(id));
+}
+
+/** 28. Warnings follow the policies: a crossed red line counts down; an uncrossed one is withdrawn. */
+function refreshCountdowns(state: ChronicleState): ChronicleState {
+  const gov = state.governance;
+  const crossed = redLinesCrossed(gov.policies);
+  let next = state;
+  for (const countdown of gov.countdowns) {
+    if (crossed.some((line) => line.party === countdown.party && line.ladder === countdown.ladder))
+      continue;
+    next = withGovernance(next, {
+      countdowns: next.governance.countdowns.filter((c) => c.id !== countdown.id),
+    });
+    next = notice(
+      next,
+      'event',
+      `${partyNameOf(countdown.party)} withdraws its warning`,
+      `The ${ladderById(countdown.ladder).label.toLowerCase()} policy has moved off ${rungOf(countdown.ladder, countdown.rung).label.toLowerCase()}.`
+    );
+  }
+  for (const line of crossed) {
+    if (next.governance.countdowns.some((c) => c.party === line.party && c.ladder === line.ladder))
+      continue;
+    if (next.governance.brokenOff.includes(redLineKey(line))) continue;
+    const sequence = next.sequence + 1;
+    const dueShift = next.shift + COUNTDOWN_SHIFTS;
+    next = withGovernance(
+      { ...next, sequence },
+      {
+        countdowns: [
+          ...next.governance.countdowns,
+          {
+            id: `countdown-${sequence}`,
+            party: line.party,
+            ladder: line.ladder,
+            rung: line.rung,
+            dueShift,
+          },
+        ],
+      }
+    );
+    next = notice(
+      next,
+      'forecast',
+      `${partyNameOf(line.party)}: ${COUNTDOWN_SHIFTS} shifts`,
+      `${capitalise(line.reason)}. Unless the ${ladderById(line.ladder).label.toLowerCase()} policy moves off ${rungOf(line.ladder, line.rung).label.toLowerCase()} within ${COUNTDOWN_SHIFTS} shifts, it will act: relationship ${BREAK_OFF_DELTA}.`,
+      `countdown-${sequence}`
+    );
+  }
+  return next;
+}
+
+/** The cost of putting a change to the assembly. */
+export const POLICY_COST: Cost = {
+  knowHow: POLICY_KNOW_HOW,
+  attention: { council: POLICY_COUNCIL },
+};
+
+/** Why a ladder cannot move to this step now, or null if it can be proposed. */
+export function policyBlockReason(
+  state: ChronicleState,
+  ladder: PolicyLadder,
+  to: PolicyRung
+): string | null {
+  const gov = state.governance;
+  if (state.status !== 'active') return 'the chronicle is not running';
+  if (gov.administration) return 'the administrator has locked the policies';
+  const from = gov.policies[ladder];
+  if (Math.abs(to - from) !== 1) return 'one step at a time';
+  const locked = shiftsUntilUnlocked(gov, ladder, state.shift);
+  if (locked > 0) return `changed lately: ${locked} ${locked === 1 ? 'shift' : 'shifts'} more`;
+  const plan = rungOf(ladder, to).requiresPlan;
+  if (plan && !state.improvements.some((p) => p.id === plan && p.phase === 'installed'))
+    return `needs ${improvementById(plan)?.label ?? plan}`;
+  if (gov.proposal) return 'a change is already before the assembly';
+  if (!canAfford(state, POLICY_COST)) return 'needs 4 know-how and a council point';
+  return null;
+}
+
+/** How the assembly stands on the open proposal. */
+export function proposalStanding(state: ChronicleState) {
+  const proposal = state.governance.proposal;
+  if (!proposal) return null;
+  const ballots = assemblyBallots(state.governance, proposal);
+  return { proposal, ballots, ...assemblyCount(ballots) };
+}
+
+function adoptProposal(state: ChronicleState): Step {
+  const gov = state.governance;
+  const proposal = gov.proposal;
+  if (!proposal) return { state, commands: [] };
+  const ballots = assemblyBallots(gov, proposal);
+  const count = assemblyCount(ballots);
+  // A change carried by a concession still has to be paid for when it is adopted.
+  if (!count.carried || !canAfford(state, POLICY_COST)) return { state, commands: [] };
+  // The council point is spent as any decision's; the know-how is booked as policy.
+  let next = pay(state, { attention: POLICY_COST.attention }, 'events');
+  next = { ...next, ledger: recordKnowHow(next.ledger, 'policies', -POLICY_KNOW_HOW) };
+  const outvoted = outvotedNeeds(gov.crew, proposal.ladder, proposal.to, proposal.concessions);
+  const lifted = gov.objections.filter(
+    (objection) => objection.ladder === proposal.ladder && objection.rung !== proposal.to
+  );
+  next = withGovernance(next, {
+    policies: { ...gov.policies, [proposal.ladder]: proposal.to },
+    changedShift: { ...gov.changedShift, [proposal.ladder]: next.shift },
+    proposal: null,
+    objections: [
+      ...gov.objections.filter((objection) => !lifted.includes(objection)),
+      ...outvoted.map((member) => ({
+        memberId: member.id,
+        ladder: proposal.ladder,
+        rung: proposal.to,
+        raisedShift: next.shift,
+      })),
+    ],
+  });
+  if (outvoted.length)
+    next = leaveMarks(next, ['crew-overruled'], 'assembly', proposal.ladder, 'player');
+  const ladder = ladderById(proposal.ladder);
+  const parts = [
+    `Carried ${count.for} to ${count.against}${count.abstain ? `, ${count.abstain} abstaining` : ''}. ${ladder.label}: ${rungOf(proposal.ladder, proposal.to).label.toLowerCase()} (${rungOf(proposal.ladder, proposal.to).effectText}).`,
+  ];
+  for (const member of outvoted)
+    parts.push(
+      `The ${member.role.toLowerCase()} was outvoted on ${member.need.text}; the objection stands.`
+    );
+  for (const objection of lifted) {
+    const member = gov.crew.find((m) => m.id === objection.memberId);
+    if (member) parts.push(`The ${member.role.toLowerCase()}’s objection is lifted.`);
+  }
+  next = notice(
+    next,
+    'event',
+    `The assembly carries the ${ladder.label.toLowerCase()} change`,
+    parts.join(' ')
+  );
+  next = refreshCountdowns(next);
+  return unlockTrigger({ state: next, commands: [] }, 'assembly_vote');
+}
+
+/**
+ * A change a met need carried while the mill could not pay for it waits for its
+ * price; each close refills the council desk and brings know-how, so it is
+ * adopted at the first close that can pay. Nothing else would ever adopt it:
+ * its concessions are spent, and the steward could only withdraw it.
+ */
+function adoptCarriedProposal(step: Step): Step {
+  const state = step.state;
+  if (!state.governance.proposal || state.shift >= CHRONICLE_SHIFTS) return step;
+  if (state.governance.administration) return step;
+  const adopted = adoptProposal(state);
+  return adopted.state === state
+    ? step
+    : { state: adopted.state, commands: [...step.commands, ...adopted.commands] };
+}
+
+/**
+ * 25, 26. Put one step on one ladder to the members' assembly. Their values
+ * decide their votes; a carried change is adopted at once, and one that falls
+ * stays open for the steward to meet needs, or to withdraw.
+ */
+export function proposePolicy(state: ChronicleState, ladder: PolicyLadder, to: PolicyRung): Step {
+  if (policyBlockReason(state, ladder, to) !== null) return { state, commands: [] };
+  const from = state.governance.policies[ladder];
+  const proposal = {
+    ladder,
+    from,
+    to,
+    proposedShift: state.shift,
+    concessions: [] as CrewRoleId[],
+  };
+  const opened = withGovernance(state, { proposal });
+  const adopted = adoptProposal(opened);
+  if (adopted.state !== opened) return adopted;
+  const count = assemblyCount(assemblyBallots(opened.governance, proposal));
+  return unlockTrigger(
+    {
+      state: notice(
+        opened,
+        'event',
+        `The assembly does not carry the ${ladderById(ladder).label.toLowerCase()} change`,
+        `${count.for} for, ${count.against} against${count.abstain ? `, ${count.abstain} abstaining` : ''}. Meet a need another way, or withdraw it.`
+      ),
+      commands: [],
+    },
+    'assembly_vote'
+  );
+}
+
+export function withdrawProposal(state: ChronicleState): ChronicleState {
+  if (!state.governance.proposal) return state;
+  return notice(
+    withGovernance(state, { proposal: null }),
+    'event',
+    'Proposal withdrawn',
+    'The policy stays where it was.'
+  );
+}
+
+/** The fund a concession to this member costs, or null if none is open to them. */
+export function concessionFor(
+  state: ChronicleState,
+  memberId: CrewRoleId
+): { fund: number; text: string; kind: 'proposal' | 'objection' } | null {
+  const gov = state.governance;
+  const member = gov.crew.find((m) => m.id === memberId);
+  if (!member) return null;
+  const proposal = gov.proposal;
+  if (
+    proposal &&
+    member.need.ladder === proposal.ladder &&
+    member.need.rung === proposal.to &&
+    !proposal.concessions.includes(member.id)
+  )
+    return { fund: member.need.fund, text: member.need.concession, kind: 'proposal' };
+  if (gov.objections.some((o) => o.memberId === memberId))
+    return { fund: member.need.fund, text: member.need.concession, kind: 'objection' };
+  return null;
+}
+
+/**
+ * Meet a member's need another way: on an open proposal it turns their vote
+ * to an abstention; on a standing objection it lifts it. Either way it is paid
+ * for and written in the record.
+ */
+export function meetNeed(state: ChronicleState, memberId: CrewRoleId): Step {
+  if (state.status !== 'active') return { state, commands: [] };
+  const concession = concessionFor(state, memberId);
+  if (!concession) return { state, commands: [] };
+  const cost = { fund: concession.fund };
+  if (!canAfford(state, cost)) return { state, commands: [] };
+  const member = state.governance.crew.find((m) => m.id === memberId)!;
+  let next = {
+    ...state,
+    ledger: recordFund(state.ledger, 'concessions', -price(state, concession.fund)),
+  };
+  next = leaveMarks(next, ['crew-concession'], 'assembly', memberId, 'player');
+  if (concession.kind === 'proposal') {
+    const proposal = next.governance.proposal!;
+    next = withGovernance(next, {
+      proposal: { ...proposal, concessions: [...proposal.concessions, memberId] },
+    });
+    next = notice(
+      next,
+      'event',
+      `The ${member.role.toLowerCase()}’s need is met`,
+      `${capitalise(member.need.concession)}: their need for ${member.need.text} is met another way, and they abstain.`
+    );
+    const adopted = adoptProposal(next);
+    return adopted.state !== next ? adopted : { state: next, commands: [] };
+  }
+  next = withGovernance(next, {
+    objections: next.governance.objections.filter((o) => o.memberId !== memberId),
+  });
+  next = notice(
+    next,
+    'event',
+    `The ${member.role.toLowerCase()}’s objection is met`,
+    `${capitalise(member.need.concession)}: their need for ${member.need.text} is met another way, and the objection is lifted.`
+  );
+  // Lifting an objection can carry the change before the assembly.
+  if (next.governance.proposal) {
+    const adopted = adoptProposal(next);
+    if (adopted.state !== next) return adopted;
+  }
+  return { state: next, commands: [] };
+}
+
+/** 29. The brief the AI partner works to. Free to set; it changes how it rules, not what it may do. */
+export function setBrief(state: ChronicleState, brief: BriefId): Step {
+  if (state.status !== 'active' || state.governance.brief === brief) return { state, commands: [] };
+  const definition = BRIEFS.find((b) => b.id === brief);
+  const next = notice(
+    withGovernance(state, { brief }),
+    'initiative',
+    `The AI partner’s brief: ${briefLabel(brief).toLowerCase()}`,
+    `It ${definition?.rule ?? 'rules as briefed'}.`
+  );
+  return unlockTrigger({ state: next, commands: [] }, 'brief_set');
+}
+
+/** What an answer offers, as the briefs weigh it. */
+function weighChoice(state: ChronicleState, choice: ChronicleEventChoice) {
+  const { effect } = effectiveChoice(state, choice);
+  const deltas = relationshipDeltas(effect);
+  return {
+    fundNet: (effect.fund ?? 0) - price(state, choice.cost?.fund ?? 0),
+    knowHowCost: choice.cost?.knowHow ?? 0,
+    standing: (effect.standing ?? 0) - (effect.suspend ? 500 : 0) + (effect.reinstate ? 200 : 0),
+    neighbourly: deltas
+      .filter(
+        (d) => d.customer === 'growers' || d.customer === 'village' || d.customer === 'haulier'
+      )
+      .reduce((sum, d) => sum + d.delta, 0),
+    leanings: (effect.marks ?? []).flatMap((id) =>
+      MARKS[id]?.leaning ? [MARKS[id].leaning!] : []
+    ),
+  };
+}
+
+/**
+ * The answer the AI partner takes on a routine event under its brief. The
+ * conventional brief takes the cheapest recommended answer; the others weigh
+ * the answers it can take and fall back to that when they have no view.
+ */
+export function partnerChoice(
+  state: ChronicleState,
+  event: ChronicleEventDefinition
+): ChronicleEventChoice | null {
+  const conventional =
+    event.choices
+      .filter((c) => c.aiRecommended && choiceAvailable(state, c))
+      .sort((a, b) => (a.cost?.fund ?? 0) - (b.cost?.fund ?? 0))[0] ??
+    event.choices.find((c) => c.id === event.defaultChoiceId) ??
+    null;
+  const brief = state.governance.brief;
+  if (brief === 'conventional') return conventional;
+  let best: ChronicleEventChoice | null = null;
+  let bestScore = -Infinity;
+  const options = event.choices.filter(
+    (c) => choiceAvailable(state, c) && canAfford(state, c.cost)
+  );
+  // The conventional answer wins ties, so a brief only departs from it for a reason.
+  const ordered =
+    conventional && options.includes(conventional)
+      ? [conventional, ...options.filter((c) => c !== conventional)]
+      : options;
+  for (const choice of ordered) {
+    const score = briefScore(brief, weighChoice(state, choice));
+    if (score === null || score <= bestScore) continue;
+    best = choice;
+    bestScore = score;
+  }
+  return best ?? conventional;
+}
+
+/** 31. Autofill on or off. */
+export function setReserveAutofill(state: ChronicleState, autofill: boolean): ChronicleState {
+  if (state.status !== 'active' || state.governance.reserve.autofill === autofill) return state;
+  return notice(
+    withGovernance(state, { reserve: { ...state.governance.reserve, autofill } }),
+    'ledger',
+    autofill ? 'Reserve autofill on' : 'Reserve autofill off',
+    autofill
+      ? `${Math.round(RESERVE_AUTOFILL_SHARE * 100)}% of each shift’s reinvestment goes to the co-op reserve.`
+      : 'Reinvestment stays in the fund.'
+  );
+}
+
+/** 31. Put fund into the indivisible reserve. It comes back only to cover upkeep. */
+export function depositReserve(state: ChronicleState): ChronicleState {
+  if (state.status !== 'active' || fundOf(state) < RESERVE_DEPOSIT) return state;
+  return withGovernance(
+    { ...state, ledger: recordFund(state.ledger, 'reserve', -RESERVE_DEPOSIT) },
+    {
+      reserve: {
+        ...state.governance.reserve,
+        balance: state.governance.reserve.balance + RESERVE_DEPOSIT,
+      },
+    }
+  );
 }
 
 export { IMPROVEMENTS, CUSTOMERS, trialById };

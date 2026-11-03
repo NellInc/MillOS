@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { isValidSRI, prebuiltAppConfig } from '@mlc-ai/web-llm';
 import {
+  fastLaneDownloadGb,
   fastLaneModelId,
+  modelRecordFor,
   pinnedAppConfig,
   pinnedModelRecord,
   WEBGPU_MODEL_PROFILES,
   type WebGPUModelId,
 } from './webgpuClient';
 
-const ids = Object.keys(WEBGPU_MODEL_PROFILES) as WebGPUModelId[];
+const allIds = Object.keys(WEBGPU_MODEL_PROFILES) as WebGPUModelId[];
+const isDerived = (id: WebGPUModelId) => 'derived' in WEBGPU_MODEL_PROFILES[id];
+// Builds web-llm lists itself; derived MillOS builds are covered below.
+const ids = allIds.filter((id) => !isDerived(id));
+const derivedIds = allIds.filter(isDerived);
 const prebuilt = (id: string) => {
   const record = prebuiltAppConfig.model_list.find((entry) => entry.model_id === id);
   if (!record) throw new Error(`web-llm has no record for ${id}`);
@@ -63,17 +69,73 @@ describe('pinned model records', () => {
     expect(pinnedModelRecord(other!)).toBe(other);
   });
 
-  it('builds one app config with the pinned record and the fast lane copy', () => {
+  it.each(derivedIds)('%s borrows its base build record and loads its own pinned weights', (id) => {
+    const profile = WEBGPU_MODEL_PROFILES[id] as unknown as {
+      derived: { from: WebGPUModelId; repo: string };
+      pin: { modelCommit: string; integrity: unknown };
+    };
+    // web-llm must not list it, or the borrowed record would never be used.
+    expect(prebuiltAppConfig.model_list.some((entry) => entry.model_id === id)).toBe(false);
+    const base = prebuilt(profile.derived.from);
+    const record = modelRecordFor(prebuiltAppConfig, id)!;
+    expect(record).toEqual({
+      ...base,
+      model_id: id,
+      model: `https://huggingface.co/${profile.derived.repo}`,
+    });
+    const pinned = pinnedModelRecord(record);
+    expect(pinned.model).toBe(
+      `https://huggingface.co/${profile.derived.repo}/resolve/${profile.pin.modelCommit}/`
+    );
+    // Same library as the base build, at the same pinned commit.
+    expect(pinned.model_lib).toBe(pinnedModelRecord(base).model_lib);
+    expect(pinned.integrity).toEqual(profile.pin.integrity);
+    // The config and tokenizer are the base build's files unchanged.
+    expect(profile.pin.integrity).toEqual(
+      WEBGPU_MODEL_PROFILES[profile.derived.from].pin.integrity
+    );
+
+    const config = pinnedAppConfig(prebuiltAppConfig, id, fastLaneModelId(id));
+    expect(config.model_list).toHaveLength(prebuiltAppConfig.model_list.length + 2);
+    expect(config.model_list.find((entry) => entry.model_id === id)).toEqual(pinned);
+    expect(config.model_list.find((entry) => entry.model_id === fastLaneModelId(id))).toEqual({
+      ...pinned,
+      model_id: fastLaneModelId(id),
+    });
+    // The base build's own record is left as web-llm ships it.
+    expect(config.model_list.find((entry) => entry.model_id === profile.derived.from)).toBe(base);
+  });
+
+  it('gives the Qwen3.5 fast lane to the routing build, with its own pinned record', () => {
     const id: WebGPUModelId = 'Qwen3.5-4B-q4f16_1-MLC';
     const lane = fastLaneModelId(id);
+    expect(lane).toBe('Qwen3.5-4B-millos-routing-q4f16_1-MLC');
+    expect(fastLaneDownloadGb(id)).toBe(WEBGPU_MODEL_PROFILES[lane as WebGPUModelId].downloadGb);
     const config = pinnedAppConfig(prebuiltAppConfig, id, lane);
     const main = config.model_list.find((entry) => entry.model_id === id);
-    const copy = config.model_list.find((entry) => entry.model_id === lane);
+    const routing = config.model_list.find((entry) => entry.model_id === lane);
     expect(main).toEqual(pinnedModelRecord(prebuilt(id)));
-    expect(copy).toEqual({ ...main, model_id: lane });
+    expect(routing).toEqual(pinnedModelRecord(modelRecordFor(prebuiltAppConfig, lane)!));
+    // Its own weights, the main build's library.
+    expect(routing!.model).not.toBe(main!.model);
+    expect(routing!.model_lib).toBe(main!.model_lib);
     expect(config.model_list).toHaveLength(prebuiltAppConfig.model_list.length + 1);
     expect(pinnedAppConfig(prebuiltAppConfig, id).model_list).toHaveLength(
       prebuiltAppConfig.model_list.length
     );
+  });
+
+  it('keeps a same-build fast lane as a copy of the main record, sharing its download', () => {
+    const id: WebGPUModelId = 'Qwen3-4B-q4f16_1-MLC';
+    const lane = fastLaneModelId(id);
+    expect(lane).toBe(`${id}-fast-lane`);
+    expect(fastLaneDownloadGb(id)).toBe(0);
+    const config = pinnedAppConfig(prebuiltAppConfig, id, lane);
+    const main = config.model_list.find((entry) => entry.model_id === id);
+    expect(config.model_list.find((entry) => entry.model_id === lane)).toEqual({
+      ...main,
+      model_id: lane,
+    });
+    expect(config.model_list).toHaveLength(prebuiltAppConfig.model_list.length + 1);
   });
 });

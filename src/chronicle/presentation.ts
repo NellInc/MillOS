@@ -1,5 +1,5 @@
 /** Read-time views of canonical English records. No reducer or saved object is changed. */
-import { createTranslator, formatFixed, getLocale } from '../i18n';
+import { createTranslator, formatFixed, formatGrouped, getLocale, upperFirst } from '../i18n';
 import { EVENT_DECK, getEventDeck } from './eventDeck';
 import { HISTORY_NOTES, getHistoryNotes } from './history';
 import { ERAS, getEras, IMPROVEMENTS, getImprovements } from './plans';
@@ -10,8 +10,29 @@ import { FRONTS, getFronts, LONG_NIGHT_EVENT_ID } from './longNight';
 import { FIRM_NAMES } from './contractors';
 import { CHARACTERS, localizedCharacterTitle } from './record';
 import { RANKS } from './scoring';
+import {
+  BRIEFS,
+  CREW_PROFILES,
+  CREW_ROLE_IDS,
+  getBriefs,
+  getPolicyLadders,
+  getRedLines,
+  getStandingConditions,
+  localizedCrewMember,
+  POLICY_LADDERS,
+  RED_LINES,
+  STANDING_CONDITIONS,
+} from './governance';
+import { localizedStakeholderPhrase, stakeholderPhrase } from './stakeholders';
 import { presentationMessages as messages } from './presentation.messages';
-import type { ChronicleNotice, Initiative, NoticeKind } from './types';
+import type {
+  ChronicleNotice,
+  CrewMember,
+  Initiative,
+  NoticeKind,
+  PolicyLadder,
+  StakeholderId,
+} from './types';
 
 type Key = keyof typeof messages.en;
 type Params = Record<string, string>;
@@ -27,6 +48,8 @@ const rankKeys: Key[] = [
   'rank8',
 ];
 const numeric = '-?\\d+(?:\\.\\d+)?';
+/** An English-grouped whole number, as the engine's `whole()` writes it ("12,345"). */
+const grouped = '\\d{1,3}(?:,\\d{3})+|\\d+';
 
 /** Match the whole template. Only explicitly numeric slots accept saved values. */
 function capture(value: string, template: string, fixed: Params = {}): Params | null {
@@ -37,9 +60,9 @@ function capture(value: string, template: string, fixed: Params = {}): Params | 
       const name = /^\{(\w+)\}$/.exec(part)?.[1];
       if (!name) return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       if (fixed[name] !== undefined) return fixed[name].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      if (!/^n\d+$/.test(name)) return '(?!)';
+      if (!/^[ng]\d+$/.test(name)) return '(?!)';
       names.push(name);
-      return `(${numeric})`;
+      return name.startsWith('g') ? `(${grouped})` : `(${numeric})`;
     })
     .join('');
   const match = new RegExp(`^${pattern}$`).exec(value);
@@ -51,7 +74,9 @@ function render(key: Key, fixed: Params, values: Params = {}): string {
   const localized = Object.fromEntries(
     Object.entries(values).map(([name, value]) => [
       name,
-      formatFixed(Number(value), value.includes('.') ? value.split('.')[1].length : 0),
+      name.startsWith('g')
+        ? formatGrouped(Number(value.replaceAll(',', '')))
+        : formatFixed(Number(value), value.includes('.') ? value.split('.')[1].length : 0),
     ])
   );
   return createTranslator(messages, getLocale())(key, { ...fixed, ...localized });
@@ -81,7 +106,332 @@ const staticRules: Array<[NoticeKind, Key, Key]> = [
   ['trial', 't20', 'b20'],
   ['trial', 't21', 'b21'],
   ['trial', 't22', 'b22'],
+  ['event', 'proposalWithdrawn', 'proposalWithdrawnBody'],
+  ['era', 'adminLeaves', 'adminRestored'],
+  ['era', 'adminLeaves', 'adminKept'],
+  ['ledger', 'autofillOn', 'autofillOnBody'],
+  ['ledger', 'autofillOff', 'autofillOffBody'],
+  ['ledger', 'reserveDrawn', 'reserveCovered'],
+  ['ledger', 'reserveDrawn', 'reserveShort'],
 ];
+
+// ---------------------------------------------------------------------------
+// Part three (governance.ts). The engine writes these sentences in English from
+// the definitions; each is matched whole against its template, with every
+// word slot filled from a known definition, and re-rendered from the matching
+// presentation copy. Anything else is shown as stored.
+// ---------------------------------------------------------------------------
+
+type Option = [Key, Params, Params];
+type Rendered = { title: string; body: string };
+
+/** The one rendering whose English template is exactly `value`, or null. */
+function only(value: string, options: readonly Option[]): string | null {
+  const results = new Set<string>();
+  for (const [key, raw, local] of options) {
+    const values = capture(value, messages.en[key], raw);
+    if (values) results.add(render(key, local, values));
+  }
+  return results.size === 1 ? [...results][0] : null;
+}
+
+const lower = (text: string) => text.toLowerCase();
+/** The engine's own `capitalise`, so the English matches byte for byte. */
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+function ladderPairs() {
+  const local = getPolicyLadders();
+  return POLICY_LADDERS.map((raw, index) => ({ raw, local: local[index] }));
+}
+
+function crewPairs(): Array<{ raw: CrewMember; local: CrewMember }> {
+  return CREW_ROLE_IDS.flatMap((id) =>
+    CREW_PROFILES[id].map((raw) => ({ raw, local: localizedCrewMember(raw) }))
+  );
+}
+
+function partyPair(id: StakeholderId): Params {
+  return {
+    raw: capitalise(stakeholderPhrase(id)),
+    local: upperFirst(localizedStakeholderPhrase(id)),
+  };
+}
+
+/** Why a member votes as they do (`crewBallot`), in the current language. */
+export function localizedBallotReason(reason: string, member: CrewMember | undefined): string {
+  if (getLocale() === 'en') return reason;
+  const options: Option[] = [
+    ['ballotEager', {}, {}],
+    ['ballotCautious', {}, {}],
+    ['ballotUntouched', {}, {}],
+    ...ladderPairs().flatMap(({ raw, local }): Option[] => [
+      ['ballotLifts', { ladder: lower(raw.label) }, { ladder: lower(local.label) }],
+      ['ballotStands', { ladder: lower(raw.label) }, { ladder: lower(local.label) }],
+    ]),
+  ];
+  const local = member ? localizedCrewMember(member) : undefined;
+  // An unrecognised member's need and value are not guessed at.
+  if (member && local && local !== member) {
+    const need: Option[1] = { need: member.need.text };
+    const localNeed: Option[1] = { need: local.need.text };
+    options.push(
+      ['ballotMet', need, localNeed],
+      ['ballotCuts', need, localNeed],
+      ['ballotToward', { value: member.value }, { value: local.value }],
+      ['ballotAway', { value: member.value }, { value: local.value }]
+    );
+  }
+  return only(reason, options) ?? reason;
+}
+
+/** Why a step cannot be proposed now (`policyBlockReason`), in the current language. */
+export function localizedBlockReason(reason: string): string {
+  if (getLocale() === 'en') return reason;
+  const plans = getImprovements();
+  return (
+    only(reason, [
+      ['blockStopped', {}, {}],
+      ['blockAdministrator', {}, {}],
+      ['blockStep', {}, {}],
+      ['blockLockedOne', {}, {}],
+      ['blockLockedMany', {}, {}],
+      ['blockProposal', {}, {}],
+      ['blockCost', {}, {}],
+      ...IMPROVEMENTS.flatMap((plan): Option[] => {
+        const local = plans.find((item) => item.id === plan.id);
+        return local ? [['blockPlan', { label: plan.label }, { label: local.label }]] : [];
+      }),
+    ]) ?? reason
+  );
+}
+
+/** A concession (`concessionFor`) is the member's own need text; shown in their copy. */
+export function localizedConcession(text: string, member: CrewMember | undefined): string {
+  if (!member || text !== member.need.concession) return text;
+  return localizedCrewMember(member).need.concession;
+}
+
+/** "Carried 4 to 1. Ladder: step (effect)." then one sentence per outvoted or lifted member. */
+function carriedBody(
+  body: string,
+  ladder: ReturnType<typeof ladderPairs>[number],
+  crew: ReturnType<typeof crewPairs>
+): string | null {
+  const [first, ...rest] = body.split(/(?<=\.) (?=The )/);
+  const head = only(
+    first,
+    ladder.raw.rungs.flatMap((rung, index): Option[] => {
+      const local = ladder.local.rungs[index];
+      const raw = { ladder: ladder.raw.label, rung: lower(rung.label), effect: rung.effectText };
+      const translated = {
+        ladder: ladder.local.label,
+        rung: lower(local.label),
+        effect: local.effectText,
+      };
+      return [
+        ['carried', raw, translated],
+        ['carriedAbstain', raw, translated],
+      ];
+    })
+  );
+  if (head === null) return null;
+  const parts = [head];
+  for (const part of rest) {
+    const translated = only(
+      part,
+      crew.flatMap(({ raw, local }): Option[] => [
+        [
+          'outvoted',
+          { role: lower(raw.role), need: raw.need.text },
+          { role: local.role, need: local.need.text },
+        ],
+        ['objectionLifted', { role: lower(raw.role) }, { role: local.role }],
+      ])
+    );
+    if (translated === null) return null;
+    parts.push(translated);
+  }
+  return parts.join(' ');
+}
+
+/** A crop year's return: the dispatch, then what the quota did. */
+function returnBody(body: string): string | null {
+  const [first, ...rest] = body.split(/(?<=\.) /);
+  const head = only(first, [
+    ['returnDispatched', {}, {}],
+    ['returnDispatchedQuota', {}, {}],
+  ]);
+  if (head === null) return null;
+  const parts = [head];
+  for (const part of rest) {
+    const translated = only(part, [
+      ['returnMet', {}, {}],
+      ['returnMissed', {}, {}],
+      ['returnRaised', {}, {}],
+      ['returnNext', {}, {}],
+    ]);
+    if (translated === null) return null;
+    parts.push(translated);
+  }
+  return parts.join(' ');
+}
+
+function governanceCandidates(notice: ChronicleNotice): Rendered[] {
+  const out: Rendered[] = [];
+  const both = (title: string | null, body: string | null) => {
+    if (title !== null && body !== null) out.push({ title, body });
+  };
+  const ladders = ladderPairs();
+  const ladderOf = (id: PolicyLadder) => ladders.find((pair) => pair.raw.id === id)!;
+  const lines = getRedLines();
+  const lineCopy = RED_LINES.map((line, index) => {
+    const ladder = ladderOf(line.ladder);
+    return {
+      line,
+      party: partyPair(line.party),
+      reason: { raw: capitalise(line.reason), local: upperFirst(lines[index].reason) },
+      ladder: { raw: lower(ladder.raw.label), local: lower(ladder.local.label) },
+      rung: {
+        raw: lower(ladder.raw.rungs[line.rung].label),
+        local: lower(ladder.local.rungs[line.rung].label),
+      },
+    };
+  });
+
+  // 27. A standing condition raised or cleared, anchored by its id.
+  const condition = Object.values(STANDING_CONDITIONS).find((c) => c.id === notice.relatedId);
+  if (notice.kind === 'ledger' && condition) {
+    const local = getStandingConditions()[condition.id];
+    const label: Option[1] = { label: condition.label };
+    const localLabel: Option[1] = { label: local.label };
+    both(
+      only(notice.title, [['plain', label, localLabel]]),
+      only(notice.body, [
+        [
+          'conditionRaisedBody',
+          { effect: capitalise(condition.effectText), clear: condition.clearText },
+          { effect: upperFirst(local.effectText), clear: local.clearText },
+        ],
+      ])
+    );
+    both(
+      only(notice.title, [['conditionCleared', label, localLabel]]),
+      only(notice.body, [['conditionClearedBody', {}, {}]])
+    );
+  }
+
+  // 28. A red line's countdown issued, or acted on, anchored by the countdown's id.
+  if (/^countdown-\d+$/.test(notice.relatedId ?? '')) {
+    for (const copy of lineCopy) {
+      const party: Option[1] = { party: copy.party.raw };
+      const localParty: Option[1] = { party: copy.party.local };
+      if (notice.kind === 'event')
+        both(
+          only(notice.title, [['redLineActs', party, localParty]]),
+          only(notice.body, [
+            ['redLineActsBody', { reason: copy.reason.raw }, { reason: copy.reason.local }],
+          ])
+        );
+      if (notice.kind === 'forecast')
+        both(
+          only(notice.title, [['countdownIssued', party, localParty]]),
+          only(notice.body, [
+            [
+              'countdownBody',
+              { reason: copy.reason.raw, ladder: copy.ladder.raw, rung: copy.rung.raw },
+              { reason: copy.reason.local, ladder: copy.ladder.local, rung: copy.rung.local },
+            ],
+          ])
+        );
+    }
+  }
+
+  if (notice.relatedId !== null) return out;
+
+  if (notice.kind === 'event') {
+    for (const copy of lineCopy)
+      both(
+        only(notice.title, [
+          ['countdownWithdrawn', { party: copy.party.raw }, { party: copy.party.local }],
+        ]),
+        only(notice.body, [
+          [
+            'countdownWithdrawnBody',
+            { ladder: copy.ladder.raw, rung: copy.rung.raw },
+            { ladder: copy.ladder.local, rung: copy.rung.local },
+          ],
+        ])
+      );
+    const crew = crewPairs();
+    for (const ladder of ladders) {
+      const name: Option[1] = { ladder: lower(ladder.raw.label) };
+      const localName: Option[1] = { ladder: lower(ladder.local.label) };
+      both(
+        only(notice.title, [['assemblyFails', name, localName]]),
+        only(notice.body, [
+          ['notCarried', {}, {}],
+          ['notCarriedAbstain', {}, {}],
+        ])
+      );
+      const carries = only(notice.title, [['assemblyCarries', name, localName]]);
+      if (carries !== null) both(carries, carriedBody(notice.body, ladder, crew));
+    }
+    for (const { raw, local } of crew) {
+      const role: Option[1] = { role: lower(raw.role) };
+      const localRole: Option[1] = { role: local.role };
+      const need: Option[1] = { concession: capitalise(raw.need.concession), need: raw.need.text };
+      const localNeed: Option[1] = {
+        concession: upperFirst(local.need.concession),
+        need: local.need.text,
+      };
+      both(
+        only(notice.title, [['needMet', role, localRole]]),
+        only(notice.body, [['needMetBody', need, localNeed]])
+      );
+      both(
+        only(notice.title, [['objectionMet', role, localRole]]),
+        only(notice.body, [['objectionMetBody', need, localNeed]])
+      );
+    }
+  }
+
+  // 32. The administrator arrives; an open proposal is set aside with it.
+  if (notice.kind === 'era' && only(notice.title, [['adminArrives', {}, {}]]) !== null) {
+    const title = render('adminArrives', {});
+    const english = createTranslator(messages, 'en');
+    for (const base of ['adminMissed', 'adminCool'] as const) {
+      both(title, only(notice.body, [[base, {}, {}]]));
+      for (const ladder of ladders) {
+        const suffix = english('adminSetAside', { ladder: lower(ladder.raw.label) });
+        if (!notice.body.endsWith(suffix)) continue;
+        const head = only(notice.body.slice(0, -suffix.length), [[base, {}, {}]]);
+        if (head !== null)
+          both(title, head + render('adminSetAside', { ladder: lower(ladder.local.label) }));
+      }
+    }
+  }
+
+  // 29. The partner's brief set.
+  if (notice.kind === 'initiative') {
+    const local = getBriefs();
+    BRIEFS.forEach((brief, index) =>
+      both(
+        only(notice.title, [
+          ['briefSet', { label: lower(brief.label) }, { label: local[index].label }],
+        ]),
+        only(notice.body, [
+          ['briefSetBody', { rule: brief.rule }, { rule: upperFirst(local[index].rule) }],
+        ])
+      )
+    );
+  }
+
+  // 30. A crop year's return filed.
+  if (notice.kind === 'ledger' && only(notice.title, [['returnFiled', {}, {}]]) !== null)
+    both(only(notice.title, [['returnFiled', {}, {}]]), returnBody(notice.body));
+
+  return out;
+}
 
 /** Unknown, custom and ambiguous records retain their exact original copy. */
 export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
@@ -379,16 +729,12 @@ export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
       for (const id of ['intake', 'floor'] as const) {
         const raw = FRONTS[id];
         const local = localFronts[id];
-        template(
-          'held',
-          'heldBody',
-          { label: raw.label, pronoun: raw.pronoun },
-          { label: local.label }
-        );
+        template('held', 'heldBody', { label: raw.label }, { label: local.label });
         template('fell', 'fellBody', { label: raw.label }, { label: local.label });
       }
     }
   }
+  candidates.push(...governanceCandidates(notice));
   const unique = [
     ...new Map(candidates.map((candidate) => [JSON.stringify(candidate), candidate])).values(),
   ];
@@ -414,7 +760,12 @@ export function localizedInitiative(entry: Initiative): Initiative {
       : null;
   };
   if (entry.kind === 'suppression' && entry.targetId === 'fire')
-    return translated('suppressSummary', 'suppressReason') ?? entry;
+    return (
+      translated('suppressSummary', 'suppressReason') ??
+      translated('suppressSummary', 'suppressSafetyReason') ??
+      translated('handCleanSummary', 'handCleanReason') ??
+      entry
+    );
   if (entry.kind === 'restore' && entry.targetId.length > 0)
     return translated('restoreSummary', 'restoreReason') ?? entry;
   if (entry.kind === 'install') {
@@ -430,23 +781,48 @@ export function localizedInitiative(entry: Initiative): Initiative {
       : entry;
   }
   if (entry.kind === 'mitigation' && /^forecast-\d+$/.test(entry.targetId)) {
+    // Older saves say "above"; the engine now says "at or above", and names a non-conventional brief.
+    const localBriefs = getBriefs();
+    const reason = only(entry.reason, [
+      ['mitigationReason', {}, {}],
+      ['mitigationReasonAt', {}, {}],
+      ...BRIEFS.map(
+        (brief, index): Option => [
+          'mitigationReasonBrief',
+          { label: lower(brief.label) },
+          { label: localBriefs[index].label },
+        ]
+      ),
+    ]);
+    if (reason === null) return entry;
     const candidates = Object.values(FORECASTS).flatMap((raw) => {
       const local = getForecasts()[raw.kind];
-      const candidate = translated(
-        'mitigationSummary',
-        'mitigationReason',
-        { label: raw.mitigationLabel, title: raw.title.toLowerCase() },
-        { label: local.mitigationLabel, title: local.title.toLowerCase() }
-      );
-      return candidate ? [candidate] : [];
+      const summary = only(entry.summary, [
+        [
+          'mitigationSummary',
+          { label: raw.mitigationLabel, title: raw.title.toLowerCase() },
+          { label: local.mitigationLabel, title: local.title.toLowerCase() },
+        ],
+      ]);
+      return summary === null ? [] : [{ ...entry, summary, reason }];
     });
     return candidates.length === 1 ? candidates[0] : entry;
   }
-  if (
-    entry.kind === 'event' &&
-    /^event-\d+$/.test(entry.targetId) &&
-    entry.reason === messages.en.eventReason
-  ) {
+  const localBriefs = getBriefs();
+  const eventReason =
+    entry.kind === 'event'
+      ? only(entry.reason, [
+          ['eventReason', {}, {}],
+          ...BRIEFS.map(
+            (brief, index): Option => [
+              'eventBriefReason',
+              { label: lower(brief.label), rule: brief.rule },
+              { label: localBriefs[index].label, rule: localBriefs[index].rule },
+            ]
+          ),
+        ])
+      : null;
+  if (entry.kind === 'event' && /^event-\d+$/.test(entry.targetId) && eventReason !== null) {
     const candidates = EVENT_DECK.flatMap((raw) =>
       raw.choices.flatMap((choice) => {
         if (entry.summary !== `${raw.title}: ${choice.label}`) return [];
@@ -457,7 +833,7 @@ export function localizedInitiative(entry: Initiative): Initiative {
               {
                 ...entry,
                 summary: `${local.title}: ${localChoice.label}`,
-                reason: render('eventReason', {}),
+                reason: eventReason,
               },
             ]
           : [];

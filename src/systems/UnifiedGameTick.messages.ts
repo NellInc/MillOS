@@ -1,4 +1,4 @@
-import { defineMessages } from '../i18n';
+import { defineMessages, formatFixed } from '../i18n';
 import { PT_MACHINE_TYPES } from '../components/ui-new/sidebar/ContextSidebar.messages';
 
 const capitalise = (value: string): string => `${value[0].toUpperCase()}${value.slice(1)}`;
@@ -21,7 +21,10 @@ const PT_MATERIALS: Record<string, string> = {
   semolina: 'semolina liberada',
 };
 
-type BreakdownParams = { name: string; machineType: string; workOrderId: string; rate: string };
+type ShiftCaptionParams = { variant: string; shift: string; grade?: string };
+
+// rate is the raw cost; each language formats it, so a kept notice re-words it.
+type BreakdownParams = { name: string; machineType: string; workOrderId: string; rate: number };
 /* The MachineType enum ('ROLLER_MILL') in words, as the machine inspector shows it. */
 const machineTypeWords = (type: string): string => type.toLowerCase().replaceAll('_', ' ');
 
@@ -38,8 +41,21 @@ export const unifiedGameTickMessages = defineMessages({
       `${capitalise(p.shift)} shift closed: no customer commitments`,
     shiftClosedUngradedIncidentTitle: (p: { shift: string }) =>
       `${capitalise(p.shift)} shift closed: no customer commitments, an incident still open`,
+    shiftClosedNothingDueTitle: (p: { shift: string }) =>
+      `${capitalise(p.shift)} shift closed: nothing due yet`,
     shiftClosedMessage:
       'Its review is in Overview, under Shift debrief: which orders were on time, what held the grade back and what to try next.',
+    // The PA caption: the bell notice's title and message as one line.
+    shiftClosedCaption: (p: ShiftCaptionParams) =>
+      `${
+        p.variant === 'graded'
+          ? `${capitalise(p.shift)} shift closed: grade ${p.grade ?? ''}`
+          : p.variant === 'incident'
+            ? `${capitalise(p.shift)} shift closed: no customer commitments, an incident still open`
+            : p.variant === 'nothingDue'
+              ? `${capitalise(p.shift)} shift closed: nothing due yet`
+              : `${capitalise(p.shift)} shift closed: no customer commitments`
+      }. Its review is in Overview, under Shift debrief: which orders were on time, what held the grade back and what to try next.`,
     dailyTargetReached: 'Daily target reached: {target} bags!',
     dailyTargetMilestone: 'Daily target {threshold}% complete',
     certificationExpired: 'Quality certification is expired.',
@@ -61,7 +77,7 @@ export const unifiedGameTickMessages = defineMessages({
     shiftLabel: (p: { shift: string }) => capitalise(p.shift),
     breakdownTitle: 'Machine Breakdown',
     breakdownMessage: (p: BreakdownParams) =>
-      `${p.name} (${machineTypeWords(p.machineType)}) has broken down due to excessive wear. Open Mill Overview, Maintenance: work order ${p.workOrderId} needs service dispatched, the repair verified and a controlled restart. Each open work order costs £${p.rate} per game hour.`,
+      `${p.name} (${machineTypeWords(p.machineType)}) has broken down due to excessive wear. Open Mill Overview, Maintenance: work order ${p.workOrderId} needs service dispatched, the repair verified and a controlled restart. Each open work order costs £${formatFixed(p.rate, 2, 'en')} per game hour.`,
     wearWarningTitle: 'Wear warning',
     wearWarningMessage:
       '{name} has reached its wear warning and is losing efficiency. Schedule maintenance before it breaks down: Mill Overview, Maintenance and repairs.',
@@ -77,8 +93,20 @@ export const unifiedGameTickMessages = defineMessages({
       `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: sem compromissos com clientes`,
     shiftClosedUngradedIncidentTitle: (p: { shift: string }) =>
       `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: sem compromissos com clientes, ocorrência ainda aberta`,
+    shiftClosedNothingDueTitle: (p: { shift: string }) =>
+      `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: nada venceu ainda`,
     shiftClosedMessage:
       'A revisão está na Visão geral, em Balanço do turno: quais pedidos chegaram no prazo, o que impediu uma nota melhor e o que tentar a seguir.',
+    shiftClosedCaption: (p: ShiftCaptionParams) =>
+      `${
+        p.variant === 'graded'
+          ? `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: nota ${p.grade ?? ''}`
+          : p.variant === 'incident'
+            ? `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: sem compromissos com clientes, ocorrência ainda aberta`
+            : p.variant === 'nothingDue'
+              ? `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: nada venceu ainda`
+              : `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: sem compromissos com clientes`
+      }. A revisão está na Visão geral, em Balanço do turno: quais pedidos chegaram no prazo, o que impediu uma nota melhor e o que tentar a seguir.`,
     dailyTargetReached: 'Meta diária atingida: {target} sacos!',
     dailyTargetMilestone: 'Meta diária: {threshold}% concluída',
     certificationExpired: 'A certificação de qualidade está vencida.',
@@ -100,7 +128,7 @@ export const unifiedGameTickMessages = defineMessages({
     shiftLabel: (p: { shift: string }) => PT_SHIFT_LABELS[p.shift] ?? capitalise(p.shift),
     breakdownTitle: 'Pane de máquina',
     breakdownMessage: (p: BreakdownParams) =>
-      `${p.name} (${PT_MACHINE_TYPES[p.machineType] ?? machineTypeWords(p.machineType)}) entrou em pane por desgaste excessivo. Abra Visão geral do moinho, Manutenção: a ordem de serviço ${p.workOrderId} precisa do envio da equipe, da verificação do reparo e de um reinício controlado. Cada ordem de serviço aberta custa £${p.rate} por hora de jogo.`,
+      `${p.name} (${PT_MACHINE_TYPES[p.machineType] ?? machineTypeWords(p.machineType)}) entrou em pane por desgaste excessivo. Abra Visão geral do moinho, Manutenção: a ordem de serviço ${p.workOrderId} precisa do envio da equipe, da verificação do reparo e de um reinício controlado. Cada ordem de serviço aberta custa £${formatFixed(p.rate, 2, 'pt-BR')} por hora de jogo.`,
     wearWarningTitle: 'Alerta de desgaste',
     wearWarningMessage:
       '{name} atingiu o alerta de desgaste e está perdendo eficiência. Agende a manutenção antes que entre em pane: Visão geral do moinho, Manutenção e reparos.',

@@ -20,6 +20,10 @@ export const FUND_SOURCE_LABELS: Record<FundSource, string> = {
   contractors: 'Contractor retainers',
   refunds: 'Refunds',
   suppression: 'Fire suppression',
+  treatment: 'Crop treatment',
+  federation: 'Federation premium',
+  reserve: 'Co-op reserve',
+  concessions: 'Needs met',
 };
 
 export const KNOW_HOW_SOURCE_LABELS: Record<KnowHowSource, string> = {
@@ -33,6 +37,7 @@ export const KNOW_HOW_SOURCE_LABELS: Record<KnowHowSource, string> = {
   forced_maintenance: 'Forced maintenance',
   library: 'Members library',
   event_costs: 'Spent on events',
+  policies: 'Policy changes',
 };
 
 const zeroFund = (): Record<FundSource, number> => ({
@@ -46,6 +51,10 @@ const zeroFund = (): Record<FundSource, number> => ({
   contractors: 0,
   refunds: 0,
   suppression: 0,
+  treatment: 0,
+  federation: 0,
+  reserve: 0,
+  concessions: 0,
 });
 
 const zeroKnowHow = (): Record<KnowHowSource, number> => ({
@@ -59,10 +68,40 @@ const zeroKnowHow = (): Record<KnowHowSource, number> => ({
   forced_maintenance: 0,
   library: 0,
   event_costs: 0,
+  policies: 0,
 });
 
 export function emptyLedger(): ChronicleLedger {
-  return { fund: zeroFund(), knowHow: zeroKnowHow(), lastShiftFund: {}, lastShiftKnowHow: {} };
+  return {
+    fund: zeroFund(),
+    knowHow: zeroKnowHow(),
+    lastShiftFund: {},
+    lastShiftKnowHow: {},
+    sinceCloseFund: {},
+    sinceCloseKnowHow: {},
+  };
+}
+
+/**
+ * A shift close begins: what moved since the previous close is not this
+ * close's doing, so the running tally starts empty.
+ */
+export function openShiftClose(ledger: ChronicleLedger): ChronicleLedger {
+  return { ...ledger, sinceCloseFund: {}, sinceCloseKnowHow: {} };
+}
+
+/**
+ * A shift close ends: its tally becomes "the last close", and spending from
+ * here on is counted apart from it.
+ */
+export function finishShiftClose(ledger: ChronicleLedger): ChronicleLedger {
+  return {
+    ...ledger,
+    lastShiftFund: ledger.sinceCloseFund,
+    lastShiftKnowHow: ledger.sinceCloseKnowHow,
+    sinceCloseFund: {},
+    sinceCloseKnowHow: {},
+  };
 }
 
 function round(value: number): number {
@@ -79,9 +118,9 @@ export function recordFund(
   return {
     ...ledger,
     fund: { ...ledger.fund, [source]: round(ledger.fund[source] + amount) },
-    lastShiftFund: inShift
-      ? { ...ledger.lastShiftFund, [source]: round((ledger.lastShiftFund[source] ?? 0) + amount) }
-      : ledger.lastShiftFund,
+    sinceCloseFund: inShift
+      ? { ...ledger.sinceCloseFund, [source]: round((ledger.sinceCloseFund[source] ?? 0) + amount) }
+      : ledger.sinceCloseFund,
   };
 }
 
@@ -95,12 +134,12 @@ export function recordKnowHow(
   return {
     ...ledger,
     knowHow: { ...ledger.knowHow, [source]: round(ledger.knowHow[source] + amount) },
-    lastShiftKnowHow: inShift
+    sinceCloseKnowHow: inShift
       ? {
-          ...ledger.lastShiftKnowHow,
-          [source]: round((ledger.lastShiftKnowHow[source] ?? 0) + amount),
+          ...ledger.sinceCloseKnowHow,
+          [source]: round((ledger.sinceCloseKnowHow[source] ?? 0) + amount),
         }
-      : ledger.lastShiftKnowHow,
+      : ledger.sinceCloseKnowHow,
   };
 }
 

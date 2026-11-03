@@ -3,7 +3,7 @@ import { useT } from '../../i18n';
 import { messages } from './CharterScreen.messages';
 import { useState } from 'react';
 import { ScrollText } from 'lucide-react';
-import { charterScore, DEFAULT_CHARTER } from '../../chronicle/charter';
+import { charterScore, DEFAULT_CHARTER, fortuneCounts } from '../../chronicle/charter';
 import type { Charter, CharterTier } from '../../chronicle/types';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { BUTTON_PRIMARY, CARD } from './shared';
@@ -35,6 +35,9 @@ export function CharterScreen() {
           <div className="mt-1 grid gap-2">
             {column.options.map((option) => {
               const selected = choice[column.key] === option.id;
+              // A sandbox meets no fortune, so its fortune earns nothing (charterScore).
+              const score =
+                column.key === 'fortune' && !fortuneCounts(choice.mode) ? 0 : option.score;
               return (
                 <label
                   key={option.id}
@@ -59,7 +62,7 @@ export function CharterScreen() {
                     <span className="text-slate-200">: {option.effect}. </span>
                     <span className={TIER_CLASS[option.tier]}>
                       {t(TIER_LABEL[option.tier])}
-                      {option.score > 0 ? ` +${option.score}` : ''}
+                      {score > 0 ? ` +${score}` : ''}
                     </span>
                   </span>
                 </label>

@@ -58,7 +58,8 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     noPredictedFailures: 'No predicted failures',
     failureType: (p: { type: string }) => p.type.replaceAll('_', ' '),
     modelConfidence: 'model confidence',
-    estimatedWindow: 'Estimated window: {window} game time',
+    estimatedWindow: 'Estimated window: {window} game time left',
+    windowPassed: 'Estimated window passed',
     windowHours: '{hours} h',
     windowMinutes: '{minutes} min',
     alreadyScheduledFor: 'Maintenance already scheduled for {machine}',
@@ -81,6 +82,7 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     verifyRepair: 'Verify repair',
     restartMachine: 'Restart machine',
     restartQueued: 'Controlled restart queued',
+    restartHeldByStop: 'Controlled restart queued: it runs once the facility stop clears',
 
     scheduledMaintenance: 'Scheduled Maintenance',
     noScheduledMaintenance: 'No scheduled maintenance',
@@ -89,6 +91,7 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     priority: (p: { priority: string }) => p.priority,
     completeMaintenanceOn: 'Complete maintenance on {machine}',
     underRepairHint: 'Machine is under repair: complete the work order first',
+    facilityStopHint: 'The facility is stopped. Clear the stop before servicing a unit.',
     completeHint: 'Complete maintenance and consume listed parts',
     partsUnavailableHint: 'Required parts are unavailable',
     belowMinimumHint: 'Not needed yet: wear is below the {minimum}% service minimum',
@@ -111,7 +114,8 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     noPredictedFailures: 'Nenhuma falha prevista',
     failureType: (p: { type: string }) => PT_FAILURE[p.type] ?? p.type.replaceAll('_', ' '),
     modelConfidence: 'confiança do modelo',
-    estimatedWindow: 'Janela estimada: {window} no tempo de jogo',
+    estimatedWindow: 'Janela estimada: faltam {window} no tempo de jogo',
+    windowPassed: 'A janela estimada já passou',
     windowHours: '{hours} h',
     windowMinutes: '{minutes} min',
     alreadyScheduledFor: 'Manutenção já agendada para {machine}',
@@ -134,6 +138,8 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     verifyRepair: 'Verificar reparo',
     restartMachine: 'Reiniciar máquina',
     restartQueued: 'Reinício controlado na fila',
+    restartHeldByStop:
+      'Reinício controlado na fila: ele ocorre assim que a parada da unidade for liberada',
 
     scheduledMaintenance: 'Manutenção agendada',
     noScheduledMaintenance: 'Nenhuma manutenção agendada',
@@ -143,6 +149,8 @@ export const predictiveMaintenancePanelMessages = defineMessages({
     priority: (p: { priority: string }) => PT_PRIORITY[p.priority] ?? p.priority,
     completeMaintenanceOn: 'Concluir a manutenção de {machine}',
     underRepairHint: 'A máquina está em reparo: conclua primeiro a ordem de serviço',
+    facilityStopHint:
+      'A unidade está parada. Libere a parada antes de fazer manutenção em uma máquina.',
     completeHint: 'Concluir a manutenção e consumir as peças listadas',
     partsUnavailableHint: 'As peças necessárias não estão disponíveis',
     belowMinimumHint: 'Ainda não é necessária: o desgaste está abaixo do mínimo de {minimum}%',

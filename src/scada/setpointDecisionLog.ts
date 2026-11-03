@@ -21,13 +21,22 @@ export function recordSetpointDecision(
 ): void {
   const number = formatGrouped(value, { maximumFractionDigits: 1 });
   const reading = tag.engUnit ? `${number} ${tag.engUnit}` : number;
-  useOperationsCampaignStore
-    .getState()
-    .addLogEntry(
-      translate(operationsCampaignMessages, 'sourceScada'),
-      'operation',
-      translate(operationsCampaignMessages, 'logSetpointWritten', { tag: tag.name, reading }),
-      tag.id,
-      actor
-    );
+  useOperationsCampaignStore.getState().addLogEntry(
+    translate(operationsCampaignMessages, 'sourceScada'),
+    'operation',
+    translate(operationsCampaignMessages, 'logSetpointWritten', { tag: tag.name, reading }),
+    tag.id,
+    actor,
+    // Its wording, so the line follows the language like every other entry.
+    {
+      wording: {
+        key: 'logSetpointWritten',
+        tag: tag.name,
+        tagId: tag.id,
+        value,
+        engUnit: tag.engUnit ?? null,
+      },
+      sourceKey: 'sourceScada',
+    }
+  );
 }

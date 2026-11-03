@@ -58,6 +58,7 @@ function evidence(
         qualityFailureKg: 0,
         incidentsResolved: 0,
         automaticActions: 0,
+        commitmentMinutes: 0,
       },
     },
     orders: [],
@@ -267,6 +268,34 @@ describe('events', () => {
     expect(state.ledger.knowHow.events).toBe(2);
     expect(state.initiatives.some((i) => i.kind === 'event')).toBe(true);
   });
+  // A routine event can offer a free recommended answer beside a paid one (the
+  // counted supplier beside rush freight); the partner took whichever came first.
+  // Working if the partner takes the cheapest recommended answer it can.
+  it('lets the AI partner take the cheapest recommended answer', () => {
+    const deck = [
+      testEvent('evt-a', 'neutral', {
+        choices: [
+          {
+            id: 'pay',
+            label: 'Pay',
+            cost: { fund: 50 },
+            effect: { result: 'paid' },
+            aiRecommended: true,
+          },
+          { id: 'free', label: 'Free', effect: { result: 'free' }, aiRecommended: true },
+          { id: 'skip', label: 'Skip', effect: { result: 'skipped' } },
+        ],
+      }),
+    ];
+    let state = setDelegation(signed({ mode: 'no_trials' }), 1).state;
+    state = {
+      ...state,
+      ledger: { ...state.ledger, fund: { ...state.ledger.fund, charter: 2000 } },
+    };
+    for (let i = 0; i < 40 && !state.eventHistory.length; i++)
+      state = closeShift(state, evidence(), deck).state;
+    expect(state.eventHistory[0]).toMatchObject({ actor: 'ai-partner', choiceId: 'free' });
+  });
 });
 
 describe('forecasts and owned incidents', () => {
@@ -283,8 +312,9 @@ describe('forecasts and owned incidents', () => {
     expect(commands.length).toBeGreaterThan(0);
     const owned = recordOwnedIncident(state, 'incident-9', 'severe_rain');
     const restored = restoreIncident(owned, 'incident-9', 'severe_rain', 'player');
+    // The player chose the restore: the campaign logs it as an operator action.
     expect(restored.commands).toEqual([
-      { type: 'resolve_incident', incidentId: 'incident-9' },
+      { type: 'resolve_incident', incidentId: 'incident-9', actor: 'operator' },
       { type: 'clear_weather' },
     ]);
     expect(restored.state.ownedIncidents).toHaveLength(0);

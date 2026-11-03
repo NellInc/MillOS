@@ -44,6 +44,7 @@ const INTERACTIVE_TARGET_SELECTOR = [
   '[role="checkbox"]',
   '[role="combobox"]',
   '[role="link"]',
+  '[role="listbox"]',
   '[role="menuitem"]',
   '[role="radio"]',
   '[role="searchbox"]',
@@ -52,6 +53,33 @@ const INTERACTIVE_TARGET_SELECTOR = [
   '[role="switch"]',
   '[role="tab"]',
   '[role="textbox"]',
+  // A modal owns the keyboard, as it does for the shortcuts (useKeyboardShortcuts):
+  // its scroll regions and its focused container take the arrows, and the world
+  // behind it stays put. Working if arrows scroll the layout planner's drawing.
+  '[role="dialog"][aria-modal="true"]',
+].join(',');
+
+/**
+ * The controls that take letters (typing and type-ahead) or own every key (a
+ * modal). A button, link or disclosure has no use for W A S D, Q/E or Shift, so
+ * a mouse click on the tour's Next or a dock item no longer leaves the camera
+ * dead until the scene is clicked, as P, C and the number keys never were. The
+ * arrows still stay with every control above: they move its selection or
+ * scroll its panel. Working if W moves the camera after clicking Next.
+ */
+const LETTER_TARGET_SELECTOR = [
+  'input',
+  'textarea',
+  'select',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[role="combobox"]',
+  '[role="listbox"]',
+  '[role="menu"]',
+  '[role="menuitem"]',
+  '[role="searchbox"]',
+  '[role="spinbutton"]',
+  '[role="textbox"]',
+  '[role="dialog"][aria-modal="true"]',
 ].join(',');
 
 export interface NavigationIntent {
@@ -64,12 +92,26 @@ export interface NavigationIntent {
 
 /**
  * Camera movement must stay inactive while an operator is using an interface
- * control. This covers buttons and links as well as ordinary text fields, so a
- * focused modal or SCADA control cannot move the world behind it.
+ * control. The arrows (and a key whose code is not given) stay with buttons and
+ * links as well as text fields, so a focused SCADA control keeps its arrows and
+ * a modal keeps every key; letters and Shift stay only with text, type-ahead
+ * and modal controls (LETTER_TARGET_SELECTOR).
  */
-export function isNavigationBlockedTarget(target: EventTarget | null): boolean {
+export function isNavigationBlockedTarget(target: EventTarget | null, code?: string): boolean {
   if (typeof Element === 'undefined' || !(target instanceof Element)) return false;
-  return target.closest(INTERACTIVE_TARGET_SELECTOR) !== null;
+  // A click on a modal's text leaves focus on <body> when its box is not
+  // focusable (the knowledge library, the lyrics): the open modal still owns
+  // the keys, as it does for every shortcut (useKeyboardShortcuts).
+  if (
+    (target === document.body || target === document.documentElement) &&
+    document.querySelector('[role="dialog"][aria-modal="true"]')
+  )
+    return true;
+  const selector =
+    code === undefined || SCROLLING_NAVIGATION_CODES.has(code)
+      ? INTERACTIVE_TARGET_SELECTOR
+      : LETTER_TARGET_SELECTOR;
+  return target.closest(selector) !== null;
 }
 
 /** True when a keydown should enter the active camera key set. */
@@ -80,8 +122,21 @@ export function shouldHandleNavigationKey(event: KeyboardEvent): boolean {
     !event.altKey &&
     !event.ctrlKey &&
     !event.metaKey &&
-    !isNavigationBlockedTarget(event.target)
+    !isNavigationBlockedTarget(event.target, event.code)
   );
+}
+
+/**
+ * Take a released key out of the camera key set. macOS browsers send no keyup
+ * for a key let go while Cmd is held, so releasing Cmd releases everything
+ * (a key still physically held repeats its keydown and re-enters).
+ */
+export function releaseNavigationKey(
+  keys: Set<string>,
+  event: Pick<KeyboardEvent, 'key' | 'code'>
+): void {
+  if (event.key === 'Meta') keys.clear();
+  else keys.delete(event.code);
 }
 
 /** Arrow keys scroll the document unless the camera consumes their default. */

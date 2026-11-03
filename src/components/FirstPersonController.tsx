@@ -21,7 +21,7 @@ import {
 import { SITE_LAYOUT, getSiloAssemblyScale } from '../constants/siteLayout';
 import { useUIStore } from '../stores/uiStore';
 import { useT } from '../i18n';
-import { fpsInstructionsMessages } from './FirstPersonController.messages';
+import { forkliftPromptMessages, fpsInstructionsMessages } from './FirstPersonController.messages';
 import {
   FIRST_PERSON_EYE_HEIGHT,
   clampNavigationDelta,
@@ -29,6 +29,13 @@ import {
   shouldHandleNavigationKey,
   shouldPreventNavigationDefault,
 } from '../utils/cameraNavigation';
+import {
+  FORKLIFT_FLEET_TAGS,
+  manualForkliftInput,
+  resetManualForkliftInput,
+  useForkliftDriveStore,
+} from '../stores/forkliftDriveStore';
+import { forkliftInReach, forkliftStepDownPoint } from '../utils/forkliftBoarding';
 
 // Movement configuration
 const MOVE_SPEED = 12; // Units per second (walking speed)
@@ -108,10 +115,51 @@ const LADDER_ZONES = SITE_LAYOUT.machines.silos.map(({ position: [x, y, z] }) =>
 // Track pressed keys
 const pressedKeys = new Set<string>();
 
+/** Step down on the driver's (left) side of the forklift, on the nearest free ground. */
+const exitForklift = (camera: THREE.Camera, id: string): number | null => {
+  const point = forkliftStepDownPoint(id);
+  if (!point) return null;
+  const [x, z] = findFreeSpawn(point[0], point[1]);
+  const height =
+    PLAYER_HEIGHT +
+    sampleWalkingGroundHeight(
+      x,
+      z,
+      getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+    );
+  camera.position.set(x, height, z);
+  return height;
+};
+
 /** Vertical travel rate for Q/E, in units per second. */
 const VERTICAL_SPEED = 8;
 /** Ceiling for Q/E ascent, high enough to clear the roof but not the sky. */
 const MAX_FREE_HEIGHT = 60;
+
+/**
+ * The orbit target to mount the orbit rig with. The rig unmounts for walk mode
+ * and a fresh one took the fixed `initial` target, so leaving walk mode
+ * restored the camera position (below) while turning it to face the overview
+ * target. The store subscription runs inside `setFpsMode`, before React
+ * unmounts the rig, so every entry path (V, the dock, mobile landscape) is seen.
+ * Working if leaving walk mode looks at what the orbit view looked at.
+ */
+export function useOrbitTargetAcrossWalk(
+  orbitControlsRef: React.RefObject<{ target: THREE.Vector3 } | null>,
+  initial: readonly [number, number, number]
+): [number, number, number] {
+  const lastTarget = useRef<THREE.Vector3 | null>(null);
+  if (lastTarget.current === null) lastTarget.current = new THREE.Vector3(...initial);
+  useEffect(
+    () =>
+      useUIStore.subscribe((state, previous) => {
+        const target = orbitControlsRef.current?.target;
+        if (state.fpsMode && !previous.fpsMode && target) lastTarget.current?.copy(target);
+      }),
+    [orbitControlsRef]
+  );
+  return lastTarget.current.toArray() as [number, number, number];
+}
 
 interface FirstPersonControllerProps {
   onLockChange?: (locked: boolean) => void;
@@ -180,12 +228,40 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   // leaves movement completely dead for those users. `code` is positional and
   // identical on every layout, which is why it is the standard choice for
   // game movement. It is also immune to Shift and AltGr changing the character.
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (shouldHandleNavigationKey(e)) {
-      pressedKeys.add(e.code);
-      if (shouldPreventNavigationDefault(e.code)) e.preventDefault();
-    }
-  }, []);
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // F boards the forklift in reach, or leaves the one being driven. With
+      // neither, F stays the fullscreen shortcut (useKeyboardShortcuts).
+      if (
+        e.code === 'KeyF' &&
+        !e.repeat &&
+        isLocked.current &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        const drive = useForkliftDriveStore.getState();
+        if (drive.drivenId) {
+          e.preventDefault();
+          const height = exitForklift(camera, drive.drivenId);
+          if (height !== null) currentHeight.current = height;
+          seatedInRef.current = null;
+          drive.exit();
+          return;
+        }
+        if (drive.inReachId) {
+          e.preventDefault();
+          drive.board(drive.inReachId);
+          return;
+        }
+      }
+      if (shouldHandleNavigationKey(e)) {
+        pressedKeys.add(e.code);
+        if (shouldPreventNavigationDefault(e.code)) e.preventDefault();
+      }
+    },
+    [camera]
+  );
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     pressedKeys.delete(e.code);
@@ -210,6 +286,8 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
       window.removeEventListener('blur', handleBlur);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       pressedKeys.clear();
+      useForkliftDriveStore.getState().exit();
+      useForkliftDriveStore.getState().setInReach(null);
     };
   }, [handleKeyDown, handleKeyUp, handleBlur, handleVisibilityChange]);
 
@@ -217,6 +295,8 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   const checkCollision = collides;
 
   const currentHeight = useRef(PLAYER_HEIGHT);
+  // The forklift last driven, until the player is back on their feet.
+  const seatedInRef = useRef<string | null>(null);
   const isClimbing = useRef(false);
 
   // Check if player is in a ladder zone
@@ -234,6 +314,44 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     if (!isLocked.current) return;
     const movementDelta = clampNavigationDelta(delta);
     const keyboardIntent = getNavigationIntent(pressedKeys);
+
+    // In a forklift's seat the keys are its controls and the forklift carries
+    // the camera (ForkliftSystem): W/S drive, A/D steer, Q/E lower and raise.
+    const drivenId = useForkliftDriveStore.getState().drivenId;
+    if (drivenId) {
+      seatedInRef.current = drivenId;
+      manualForkliftInput.throttle = keyboardIntent.forward;
+      manualForkliftInput.steer = keyboardIntent.strafe;
+      manualForkliftInput.lift = keyboardIntent.vertical;
+      return;
+    }
+    if (seatedInRef.current) {
+      // Out of the seat without F (a save restored, the forklift gone): onto
+      // the ground beside it, or beneath the eye where it no longer stands.
+      const height = exitForklift(camera, seatedInRef.current);
+      if (height === null) {
+        const [x, z] = findFreeSpawn(camera.position.x, camera.position.z);
+        currentHeight.current =
+          PLAYER_HEIGHT +
+          sampleWalkingGroundHeight(
+            x,
+            z,
+            getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+          );
+        camera.position.set(x, currentHeight.current, z);
+      } else currentHeight.current = height;
+      seatedInRef.current = null;
+    }
+    useForkliftDriveStore
+      .getState()
+      .setInReach(
+        forkliftInReach(
+          camera.position.x,
+          camera.position.y,
+          camera.position.z,
+          getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
+        )
+      );
 
     // Get movement input
     direction.current.set(keyboardIntent.strafe, 0, -keyboardIntent.forward);
@@ -368,6 +486,8 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   const handleUnlock = useCallback(() => {
     isLocked.current = false;
     pressedKeys.clear();
+    resetManualForkliftInput();
+    useForkliftDriveStore.getState().exit();
     onLockChange?.(false);
 
     // Exit FPS mode when pointer lock is lost
@@ -389,15 +509,35 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
 };
 
 // Crosshair overlay for FPS mode
-export const FPSCrosshair: React.FC = () => {
+export const FPSCrosshair: React.FC<{ touch?: boolean }> = ({ touch = false }) => {
   const fpsMode = useUIStore((state) => state.fpsMode);
+  const drivenId = useForkliftDriveStore((state) => state.drivenId);
+  const inReachId = useForkliftDriveStore((state) => state.inReachId);
+  const t = useT(forkliftPromptMessages);
 
   if (!fpsMode) return null;
+
+  // A touch player has buttons for this (MobileControlsOverlay), not an F key.
+  const promptId = touch ? null : (drivenId ?? inReachId);
+  const prompt = drivenId
+    ? t('leave')
+    : inReachId
+      ? t('drive', { tag: FORKLIFT_FLEET_TAGS[inReachId] ?? inReachId })
+      : null;
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
       {/* Crosshair dot */}
       <div className="w-1.5 h-1.5 bg-white/80 rounded-full shadow-sm" />
+      {promptId && prompt && (
+        <div
+          data-testid="forklift-drive-prompt"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-8 flex items-center gap-2 rounded-lg bg-slate-900/80 px-3 py-1.5 text-sm text-white"
+        >
+          <kbd className="px-2 py-0.5 bg-slate-700 rounded font-mono">F</kbd>
+          <span>{prompt}</span>
+        </div>
+      )}
     </div>
   );
 };
@@ -521,7 +661,14 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
             <span className="text-slate-400 text-sm">{t('sprint')}</span>
           </div>
 
-          <div className="bg-slate-800/50 rounded-lg p-3 col-span-2">
+          <div className="bg-slate-800/50 rounded-lg p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">F</kbd>
+            </div>
+            <span className="text-slate-400 text-sm">{t('forklift')}</span>
+          </div>
+
+          <div className="bg-slate-800/50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
               <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">ESC</kbd>
             </div>

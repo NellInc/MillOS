@@ -218,7 +218,40 @@ const MATERIALS = {
     DOCK_FRAME_MIN_LUMINANCE
   ),
   headerFlange: steel('#374151', 0.8, { roughnessMap: HEADER_ORM }, DOCK_FRAME_MIN_LUMINANCE),
-  canopy: steel('#374151', 0.6, { roughnessMap: CANOPY_ORM, normalMap: CANOPY_NORMAL }),
+  /**
+   * The interior hood's sheet, which the hall sees from below as a soffit.
+   *
+   * It carried the frame's exterior coat, '#374151' at m 0.6, which the
+   * rebalance took to the 0.07 coal floor: linear albedo (0.052, 0.071, 0.111).
+   * The hood's underside is at y 15.4 and the work-light rows are at
+   * `ZONE_LIGHT_HEIGHT` (17.5 m), above it, so no row reaches a face looking
+   * down. That leaves fill alone, and at that albedo the soffit rendered at
+   * sRGB (7, 23, 29), red at 1.4 in its core, beside a roof liner at
+   * (63, 75, 75). It read as a hole in the roof in `milling`
+   * (sync-check-20261103). Probe picks: the face is reached by the IBL, its
+   * normal is (0, -1, 0) and envMapIntensity is 1.
+   * Same-page arms on the batched hood: indoor bounce alone (7, 21, 30); the
+   * frame's 0.21 floor (11, 35, 46); the roof liner's coil coat (37, 50, 45).
+   *
+   * So this sheet is the same construction as the roof deck it hangs under,
+   * a light coil-coated liner, the roof liner's '#b4b4b2' (see
+   * `roofLiner` in `OptimizedFactoryInfrastructure`). It is already a
+   * dielectric, so it takes no rebalance. It still sits about a stop under the
+   * liner, because the rows' uplight reaches the liner and not the hood.
+   *
+   * Lit by the same grass-green fill the liner was, it read olive (37, 50, 45),
+   * so it takes the liner's `indoorBounce`. `StaticMeshBatch` re-resolves a
+   * batched clone's profile from the source (it gave this one `masonry`) and
+   * drops every override, so the hood slab is kept out of the batch
+   * (`noStaticBatch` below): one more draw per dock.
+   */
+  canopy: steel(
+    '#b4b4b2',
+    0,
+    { roughnessMap: CANOPY_ORM, normalMap: CANOPY_NORMAL },
+    DOCK_PAINT_MIN_LUMINANCE,
+    { indoorBounce: 0.85 }
+  ),
   strut: steel('#475569', 0.8, { roughnessMap: POST_ORM }, DOCK_FRAME_MIN_LUMINANCE),
   /**
    * Web stiffeners: the flange's steel without ledge dust or edge wear. Their
@@ -688,6 +721,8 @@ export const OpenDockOpening: React.FC<OpenDockOpeningProps> = ({
             geometry={UNIT_BOX}
             material={MATERIALS.canopy}
             scale={[...dockHoodSlab(width, height).size]}
+            // Kept out of the batch so its own indoor bounce survives (MATERIALS.canopy).
+            userData={{ noStaticBatch: true }}
             castShadow
             receiveShadow
           />

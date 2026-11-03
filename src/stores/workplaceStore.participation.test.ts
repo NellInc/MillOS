@@ -42,7 +42,10 @@ describe('separate local participant turns', () => {
     get().start('workshop', 17);
     turn();
     const before = get().workplace;
-    const result = Reflect.get(get(), type)('packing', true);
+    const command = Reflect.get(get(), type) as (
+      ...args: unknown[]
+    ) => ReturnType<ReturnType<typeof get>['start']>;
+    const result = command('packing', true);
     expect(result.changed).toBe(false);
     expect(result.reason).toMatch(/current turn|Facilitators/);
     expect(get().workplace).toBe(before);

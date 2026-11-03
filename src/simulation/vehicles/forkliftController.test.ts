@@ -471,6 +471,10 @@ describe('forklift fleet-priority safety arbitration', () => {
     expect(
       resolveForkliftStopReason({ ...peerWait, nearby: [{ ...stoppedHigherPeer, kind: 'truck' }] })
     ).toBe('vehicle-queue');
+    // A player-driven (or self-returning) forklift will not move aside either.
+    expect(
+      resolveForkliftStopReason({ ...peerWait, nearby: [{ ...stoppedHigherPeer, manual: true }] })
+    ).toBe('vehicle-queue');
   });
 
   it('compares all peer IDs independently of registry insertion order', () => {

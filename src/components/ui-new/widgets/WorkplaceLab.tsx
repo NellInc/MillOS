@@ -19,6 +19,7 @@ import {
   pendingFollowOn,
   useWorkplaceStore,
   useWorkplaceControls,
+  workplaceReasonText,
 } from '../../../stores/workplaceStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -32,6 +33,7 @@ import {
   compareManagementApproaches,
   exportWorkplace,
   displayEventDetail,
+  workplaceActorName,
 } from '../../../simulation/bilateralWorkplace';
 import {
   CAMPAIGN_SHIFTS,
@@ -45,7 +47,10 @@ import {
   MANAGEMENT_APPROACHES,
   CAMPAIGN_PRESSURES,
   campaignRelationship,
+  pressureObjectionText,
   shiftResumable,
+  formatKg,
+  missionDelivery,
 } from '../../../simulation/workplaceCampaign';
 import { executeAgentCommand } from '../../../agent/client/executeAgentCommand';
 import { formatFixed, formatGrouped, getLocale, translate, useT } from '../../../i18n';
@@ -84,6 +89,11 @@ const formatPlain = (value: number) =>
     : getLocale() === 'en'
       ? String(value)
       : formatGrouped(value, { maximumFractionDigits: 6 });
+type LabMessageKey = {
+  [K in keyof typeof messages.en]: (typeof messages.en)[K] extends string ? K : never;
+}[keyof typeof messages.en];
+/** A keyed transition result, a laboratory acknowledgement, or free text kept as written. */
+type LabFeedback = string | WorkplaceTransitionResult | { labKey: LabMessageKey };
 const kinds: ObjectionKind[] = ['rest', 'burden', 'privacy', 'authority'];
 const destinations: SurplusDestination[] = ['members', 'reserve', 'community'];
 
@@ -96,10 +106,38 @@ export const WorkplaceLab: React.FC = () => {
   const [section, setSection] = useState<(typeof sections)[number]>(
     state.improvement ? 'Handoff' : 'Shift'
   );
+  const sectionNavRef = useRef<HTMLDivElement>(null);
+  // A control that unmounts itself (a section change from inside a section, a
+  // guide that ends, a resume that hides) drops focus to <body>, where Space is
+  // the forklift emergency stop. Focus lands on the open section's tab instead.
+  // Working if Tab and Space continue from the laboratory after such a control.
+  const keepFocus = () =>
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body) return;
+      sectionNavRef.current
+        ?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')
+        ?.focus({ preventScroll: true });
+    });
+  const navigateKeepingFocus = (name: (typeof sections)[number]) => {
+    setSection(name);
+    keepFocus();
+  };
   const [mode, setMode] = useState<WorkplaceMode>(state.mode);
   const [profile, setProfile] = useState<WorkplaceProfile>('toe-dip');
   const [seed, setSeed] = useState(String(state.seed));
-  const [feedback, setFeedback] = useState<string | null>(null);
+  // Kept keyed and resolved at render, so the status line reads in the language
+  // chosen after it was set; only free text (agent receipts) stays as written.
+  // Working if a refusal or "Recorded" follows a language switch.
+  const [feedback, setFeedback] = useState<LabFeedback | null>(null);
+  const feedbackText =
+    feedback === null
+      ? null
+      : typeof feedback === 'string'
+        ? feedback
+        : 'labKey' in feedback
+          ? t(feedback.labKey)
+          : workplaceReasonText(feedback);
   const [receipt, setReceipt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -155,14 +193,14 @@ export const WorkplaceLab: React.FC = () => {
   const sharedSurplus = state.practices.includes('gainsharing');
   const modeLabelKey = modes.find((item) => item.value === state.mode)?.labelKey;
   const freshExercise = () => {
-    setSection('Shift');
+    navigateKeepingFocus('Shift');
     setMode('game');
     setSeed(String(useWorkplaceStore.getState().workplace.seed));
-    setFeedback(translate(messages, 'freshExercise'));
+    setFeedback({ labKey: 'freshExercise' });
     setReceipt(null);
   };
   const report = (result: WorkplaceTransitionResult) => {
-    setFeedback(result.reason ?? translate(messages, result.changed ? 'recorded' : 'noChange'));
+    setFeedback(result.reason ? result : { labKey: result.changed ? 'recorded' : 'noChange' });
     setReceipt(null);
   };
   const begin = () => {
@@ -172,17 +210,31 @@ export const WorkplaceLab: React.FC = () => {
     if (result.changed && mode === 'game') {
       useGameSimulationStore.getState().setGameSpeed(15);
     }
+    // Starting closes the idle form this control sits in.
+    keepFocus();
   };
   const beginCampaign = () => {
     if (!validSeed || mode !== 'game' || state.phase !== 'idle') return;
     const result = store.startCampaign(profile, safeSeed);
     report(result);
     if (result.changed) useGameSimulationStore.getState().setGameSpeed(30);
+    keepFocus();
+  };
+  // A standalone exercise's only way back to the setup form (mode, seed,
+  // season). It removes the Review control that ran it, so focus moves on.
+  const returnToSetup = () => {
+    const result = store.endExercise(state.revision);
+    if (!result.changed) return report(result);
+    navigateKeepingFocus('Shift');
+    setMode('game');
+    setSeed(String(useWorkplaceStore.getState().workplace.seed));
+    setFeedback({ labKey: 'setupReturned' });
+    setReceipt(null);
   };
   const nextShift = () => {
     const result = store.nextCampaignShift();
     report(result);
-    if (result.changed) setSection('Shift');
+    if (result.changed) navigateKeepingFocus('Shift');
   };
   const comprehension = (actorId: string, role: string) => (
     <fieldset
@@ -297,16 +349,16 @@ export const WorkplaceLab: React.FC = () => {
     const before = useWorkplaceStore.getState().workplace;
     store.tick(5, 0, false);
     const changed = useWorkplaceStore.getState().workplace !== before;
-    report({
-      changed,
-      reason: translate(messages, changed ? 'rehearsalAdvanced' : 'rehearsalNoAdvance'),
-    });
+    setFeedback({ labKey: changed ? 'rehearsalAdvanced' : 'rehearsalNoAdvance' });
+    setReceipt(null);
+    // The last step (shift end, recovery delivered) removes this control.
+    keepFocus();
   };
   const replay = () => {
     const result = store.start(state.mode, state.seed);
     report(result);
     if (result.changed && state.mode === 'game') useGameSimulationStore.getState().setGameSpeed(15);
-    if (result.changed) setSection('Shift');
+    if (result.changed) navigateKeepingFocus('Shift');
   };
   const download = () => {
     const url = URL.createObjectURL(
@@ -317,7 +369,7 @@ export const WorkplaceLab: React.FC = () => {
     link.download = `millos-workplace-${state.seed}-r${state.revision}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    setFeedback(translate(messages, 'exported'));
+    setFeedback({ labKey: 'exported' });
   };
 
   return (
@@ -342,7 +394,7 @@ export const WorkplaceLab: React.FC = () => {
       <WorkplaceParticipation report={report} />
       <WorkplaceAutomaticDemo profile={profile} />
       <WorkplaceDemonstration navigate={setSection} report={report} />
-      <div className="flex flex-wrap gap-1" aria-label={t('sectionsLabel')}>
+      <div ref={sectionNavRef} className="flex flex-wrap gap-1" aria-label={t('sectionsLabel')}>
         {sections.map((name) => (
           <button
             key={name}
@@ -367,16 +419,16 @@ export const WorkplaceLab: React.FC = () => {
           revision: formatPlain(state.revision),
         })}
       </p>
-      {feedback && (
+      {feedbackText && (
         <p role="status" className="break-words text-amber-100">
-          {feedback}
+          {feedbackText}
         </p>
       )}
       {receipt && <p className="break-all text-cyan-100">{t('causalReceipt', { receipt })}</p>}
 
       {section === 'Handoff' && (
         <WorkplaceImprovementPanel
-          onSeasonStart={() => setSection('Shift')}
+          onSeasonStart={() => navigateKeepingFocus('Shift')}
           onReviewObjection={(id) => {
             setSection('Agreement / Voices');
             requestAnimationFrame(() => {
@@ -397,16 +449,21 @@ export const WorkplaceLab: React.FC = () => {
       {section === 'Shift' && (
         <div className="space-y-2 border-b border-slate-700 pb-4">
           <p>{t('shiftIntro')}</p>
-          <button type="button" className={buttonClass} onClick={() => setSection('Handoff')}>
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => navigateKeepingFocus('Handoff')}
+          >
             {t('openHandoff')}
           </button>
         </div>
       )}
       <WorkplaceReplayGuide
         section={section === 'Handoff' ? 'Shift' : section}
-        navigate={setSection}
+        navigate={navigateKeepingFocus}
+        onClosed={keepFocus}
       />
-      <WorkplaceReplayResume />
+      <WorkplaceReplayResume onResumed={keepFocus} />
       <WorkplacePressureChapter state={state} navigate={setSection} />
       <WorkplaceCampaignArchive onFreshExercise={freshExercise} />
       <WorkplaceLeaveSeason onLeft={freshExercise} />
@@ -490,16 +547,16 @@ export const WorkplaceLab: React.FC = () => {
                 {mission && campaign.shift === 0
                   ? t('missionBriefing', {
                       customer: mission.customer,
-                      kg: formatFixed(mission.originalTargetKg, 0),
+                      kg: formatKg(mission.originalTargetKg),
                     })
                   : episode.briefing}
               </p>
               <p className="text-cyan-100">
                 {mission && campaign.shift === 0
                   ? t('missionPrompt', {
-                      kg: formatFixed(mission.originalTargetKg, 0),
-                      installment: formatFixed(mission.originalTargetKg * 0.8, 0),
-                      deferred: formatFixed(mission.originalTargetKg * 0.2, 0),
+                      kg: formatKg(mission.originalTargetKg),
+                      installment: formatKg(mission.originalTargetKg * 0.8),
+                      deferred: formatKg(mission.originalTargetKg * 0.2),
                     })
                   : episode.prompt}
               </p>
@@ -529,13 +586,13 @@ export const WorkplaceLab: React.FC = () => {
                           campaign.shift === 2
                             ? 'negotiateInstallmentProtectPay'
                             : 'negotiateInstallment',
-                          { kg: formatFixed(mission.originalTargetKg * 0.8, 0) }
+                          { kg: formatKg(mission.originalTargetKg * 0.8) }
                         )
                       : mission && campaign.shift === 0
                         ? choice.id === 'keep-target'
-                          ? t('keepCommitment', { kg: formatFixed(mission.originalTargetKg, 0) })
+                          ? t('keepCommitment', { kg: formatKg(mission.originalTargetKg) })
                           : t('negotiateInstallment', {
-                              kg: formatFixed(mission.originalTargetKg * 0.8, 0),
+                              kg: formatKg(mission.originalTargetKg * 0.8),
                             })
                         : choice.label}
                   </button>
@@ -612,7 +669,10 @@ export const WorkplaceLab: React.FC = () => {
                 </div>
                 <p>{pressure.repair}</p>
                 <p>{t('pressureNote')}</p>
-                <button className={buttonClass} onClick={() => setSection('Agreement / Voices')}>
+                <button
+                  className={buttonClass}
+                  onClick={() => navigateKeepingFocus('Agreement / Voices')}
+                >
                   {t('reviewChallenge')}
                 </button>
               </div>
@@ -622,13 +682,10 @@ export const WorkplaceLab: React.FC = () => {
             <p className="tabular-nums">
               {t('missionCredit', {
                 customer: mission.customer,
-                credited: formatFixed(mission.creditedKg, 1),
-                target: formatFixed(mission.targetKg, 0),
-                deferred: formatFixed(Math.max(0, mission.originalTargetKg - mission.targetKg), 0),
-                remaining: formatFixed(
-                  Math.max(0, mission.originalTargetKg - mission.creditedKg),
-                  0
-                ),
+                credited: formatKg(mission.creditedKg, 1),
+                target: formatKg(missionDelivery(mission).targetKg),
+                deferred: formatKg(missionDelivery(mission).deferredKg),
+                remaining: formatKg(Math.max(0, mission.originalTargetKg - mission.creditedKg)),
               })}
               {mission.creditedKg >= mission.originalTargetKg && t('fullDispatchedSuffix')}
             </p>
@@ -638,7 +695,7 @@ export const WorkplaceLab: React.FC = () => {
               <p className="tabular-nums">
                 {t('followOnCredit', {
                   customer: campaign.followOn.customer,
-                  credited: formatFixed(campaign.followOn.creditedKg, 1),
+                  credited: formatKg(campaign.followOn.creditedKg, 1),
                 })}
               </p>
               <FollowOnNotice state={state} />
@@ -657,7 +714,7 @@ export const WorkplaceLab: React.FC = () => {
             <h4 className="font-semibold text-white">{t('chooseResponse')}</h4>
             <p className="mt-1">
               {t('targetLine', {
-                target: formatFixed(displayTarget, 0),
+                target: formatKg(displayTarget),
                 capacity: formatFixed(workplaceCapacity(state), 2),
               })}
             </p>
@@ -742,14 +799,14 @@ export const WorkplaceLab: React.FC = () => {
               {t('operationalExplanation', {
                 explanation: plan.explanation,
                 capacity: formatFixed(workplaceCapacity(state), 2),
-                target: formatFixed(displayTarget, 0),
+                target: formatKg(displayTarget),
               })}
             </p>
             <p className="mt-2">{t('alternativesNote')}</p>
             <p className="mt-2">{t('dispatchUncertain')}</p>
             <button
               className={`${buttonClass} mt-2`}
-              onClick={() => setSection('Agreement / Voices')}
+              onClick={() => navigateKeepingFocus('Agreement / Voices')}
             >
               {t('challengeProposal')}
             </button>
@@ -762,7 +819,13 @@ export const WorkplaceLab: React.FC = () => {
           {['deliberating', 'active'].includes(state.phase) && (
             // `stop` settles the shift into review and it cannot resume; the
             // plant clock controls own pausing. Working if the label says so.
-            <button className={buttonClass} onClick={() => report(store.stop())}>
+            <button
+              className={buttonClass}
+              onClick={() => {
+                report(store.stop());
+                keepFocus();
+              }}
+            >
               {t('endShift')}
             </button>
           )}
@@ -781,9 +844,13 @@ export const WorkplaceLab: React.FC = () => {
                 <button
                   className={buttonClass}
                   aria-pressed={
-                    JSON.stringify(approach.settings) ===
+                    // Practices compare as a set, as the engine does.
                     JSON.stringify({
-                      practices: state.practices,
+                      ...approach.settings,
+                      practices: [...approach.settings.practices].sort(),
+                    }) ===
+                    JSON.stringify({
+                      practices: [...state.practices].sort(),
                       workerAutonomy: state.workerAutonomy,
                       governance: state.governance,
                       aiAuthority: state.aiAuthority,
@@ -1120,7 +1187,8 @@ export const WorkplaceLab: React.FC = () => {
                 <p>
                   {state.members.find((member) => member.id === objection.actorId)?.role ??
                     t('aiMind')}
-                  : {objection.statement} ({t('objectionStatus', { status: objection.status })})
+                  : {pressureObjectionText(objection.statement)} (
+                  {t('objectionStatus', { status: objection.status })})
                 </p>
                 {objection.status === 'open' && (
                   <>
@@ -1157,7 +1225,7 @@ export const WorkplaceLab: React.FC = () => {
                           ? actor !== objection.actorId
                           : resolvers[objection.id] !== objection.actorId)
                       }
-                      onClick={() =>
+                      onClick={() => {
                         report(
                           store.resolveObjection(
                             objection.id,
@@ -1165,8 +1233,17 @@ export const WorkplaceLab: React.FC = () => {
                               ? actor
                               : resolvers[objection.id]
                           )
-                        )
-                      }
+                        );
+                        // Resolving removes this control; focus stays on the
+                        // record it resolved, which now reads "resolved".
+                        requestAnimationFrame(() => {
+                          if (document.activeElement && document.activeElement !== document.body)
+                            return;
+                          objectionTargets.current
+                            .get(objection.id)
+                            ?.focus({ preventScroll: true });
+                        });
+                      }}
                     >
                       {t('authorConfirms')}
                     </button>
@@ -1211,15 +1288,15 @@ export const WorkplaceLab: React.FC = () => {
               <p>
                 {t('deliveryLine', {
                   status: t('deliveryStatus', { status: outcomes.delivery.status }),
-                  delivered: formatFixed(outcomes.delivery.deliveredKg, 1),
-                  target: formatFixed(outcomes.delivery.targetKg, 0),
+                  delivered: formatKg(outcomes.delivery.deliveredKg, 1),
+                  target: formatKg(outcomes.delivery.targetKg),
                   customer: outcomes.delivery.customer,
                 })}
               </p>
               {mission && (
                 <p>
                   {t('remainingCommitment', {
-                    kg: formatFixed(outcomes.delivery.remainingKg, 0),
+                    kg: formatKg(outcomes.delivery.remainingKg),
                   })}
                   {outcomes.delivery.remainingKg === 0 && t('fullDispatchedSuffix')}
                 </p>
@@ -1231,7 +1308,7 @@ export const WorkplaceLab: React.FC = () => {
                 })}
               </p>
               {outcomes.delivery.deferredKg > 0 && (
-                <p>{t('agreedDeferral', { kg: formatFixed(outcomes.delivery.deferredKg, 0) })}</p>
+                <p>{t('agreedDeferral', { kg: formatKg(outcomes.delivery.deferredKg) })}</p>
               )}
               <p>
                 {t('accountsLine', {
@@ -1276,10 +1353,10 @@ export const WorkplaceLab: React.FC = () => {
                     number: formatFixed(shift.shift + 1, 0),
                     title: CAMPAIGN_SHIFTS[shift.shift]?.title ?? '',
                     shipped: mission
-                      ? t('shippedDuringShift', { kg: formatFixed(shift.shippedKg, 1) })
+                      ? t('shippedDuringShift', { kg: formatKg(shift.shippedKg, 1) })
                       : t('shippedOfTarget', {
-                          kg: formatFixed(shift.shippedKg, 1),
-                          target: formatPlain(shift.targetKg),
+                          kg: formatKg(shift.shippedKg, 1),
+                          target: formatKg(shift.targetKg),
                         }),
                     decision:
                       shift.decision != null
@@ -1341,7 +1418,7 @@ export const WorkplaceLab: React.FC = () => {
                 type="button"
                 className={buttonClass}
                 onClick={() => {
-                  setSection('Experiment');
+                  navigateKeepingFocus('Experiment');
                   labRef.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
                 }}
               >
@@ -1361,11 +1438,15 @@ export const WorkplaceLab: React.FC = () => {
                 state.members.some((member) => member.recoveryOwedMinutes > 0) && (
                   <p>{t('outstandingRecovery')}</p>
                 )}
+              {/* A handoff review continues or closes in Handoff; 'start' always
+                  refuses it, so no fresh-shift control is offered there. */}
               {campaign?.shift === 2 ? (
                 <p className="font-semibold text-cyan-100">
                   {campaignComplete(state) ? t('campaignCompleteMessage') : t('campaignIncomplete')}
                 </p>
-              ) : (
+              ) : state.improvement || shiftResumable(state) ? null : (
+                // A shift a reload paused resumes below; continuing would close
+                // it short and the season could never be honoured.
                 <button
                   className={buttonClass}
                   disabled={
@@ -1383,12 +1464,21 @@ export const WorkplaceLab: React.FC = () => {
                         : t('prepareNextPilot')}
                 </button>
               )}
+              {!campaign && !state.improvement && (
+                <button
+                  className={buttonClass}
+                  disabled={state.members.some((member) => member.recoveryOwedMinutes > 0)}
+                  onClick={returnToSetup}
+                >
+                  {t('returnToSetup')}
+                </button>
+              )}
             </div>
           )}
           <p>
             {t('shippedOf', {
-              shipped: formatFixed(mission?.creditedKg ?? state.shippedKg, 1),
-              target: formatFixed(displayTarget, 0),
+              shipped: formatKg(mission?.creditedKg ?? state.shippedKg, 1),
+              target: formatKg(mission ? missionDelivery(mission).targetKg : displayTarget),
             })}{' '}
             {state.reviewReason ? displayEventDetail(state.reviewReason) : t('reviewOpens')}
           </p>
@@ -1399,7 +1489,10 @@ export const WorkplaceLab: React.FC = () => {
               <p>{t('resumeAfterReloadNote', { minute: formatFixed(state.minute, 0) })}</p>
               <button
                 className={buttonClass}
-                onClick={() => report(store.resumeShift(state.revision))}
+                onClick={() => {
+                  report(store.resumeShift(state.revision));
+                  keepFocus();
+                }}
               >
                 {t('resumeShift')}
               </button>
@@ -1589,7 +1682,7 @@ export const WorkplaceLab: React.FC = () => {
                 <li key={event.id}>
                   {t('evidenceLine', {
                     minute: formatFixed(event.minute, 1),
-                    actor: event.actorId,
+                    actor: workplaceActorName(event.actorId),
                     detail: displayEventDetail(event.detail),
                   })}
                 </li>
@@ -1601,7 +1694,7 @@ export const WorkplaceLab: React.FC = () => {
 
       {section === 'Experiment' && (
         <div className="space-y-4">
-          <WorkplaceReplay seed={safeSeed} validSeed={validSeed} navigate={setSection} />
+          <WorkplaceReplay seed={safeSeed} validSeed={validSeed} navigate={navigateKeepingFocus} />
           <h4 className="font-semibold text-white">{t('teachingForecasts')}</h4>
           <div className="space-y-2">
             <h4 className="font-semibold text-white">{t('samePressure')}</h4>
@@ -1662,7 +1755,9 @@ export const WorkplaceLab: React.FC = () => {
             >
               {t('compareAllPlans')}
             </button>
-            {state.phase === 'deliberating' && (
+            {/* The engine refuses a standalone restart inside a season or a
+                handoff experiment, so it is offered only where it can work. */}
+            {state.phase === 'deliberating' && !campaign && !state.improvement && (
               <>
                 <button
                   className={buttonClass}
@@ -1677,7 +1772,10 @@ export const WorkplaceLab: React.FC = () => {
             <p>{t('illustrativeForecasts')}</p>
             {comparison?.map((arm) => (
               <p key={arm.planId} className="tabular-nums">
-                <strong className="text-white">{arm.title}</strong>
+                {/* Kept since the click: the title is read now, in the language chosen. */}
+                <strong className="text-white">
+                  {WORKPLACE_PLANS.find((item) => item.id === arm.planId)?.title ?? arm.title}
+                </strong>
                 {t('armLine', {
                   kg: formatFixed(arm.forecastKg, 1),
                   credits: formatFixed(arm.netCredits, 2),

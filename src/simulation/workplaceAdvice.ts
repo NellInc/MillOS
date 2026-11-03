@@ -15,8 +15,9 @@ import type {
   PackingRehearsals,
   PackingFirstObservation,
 } from '../types/workplaceAdvice';
-import { formatFixed, translate } from '../i18n';
+import { LOCALES, formatFixed, translate } from '../i18n';
 import { workplaceAdviceMessages as msg } from './workplaceAdvice.messages';
+import { formatKg } from './workplaceCampaign';
 export type {
   PackingAdvice,
   PackingArrangement,
@@ -45,6 +46,50 @@ const assumptions = () => [
   translate(msg, 'assumptionPacing'),
   translate(msg, 'assumptionDispatch'),
 ];
+
+/**
+ * Frozen advice keeps the sentences it was modelled with (assumptions, and the
+ * missing facts its abstention joins). Each of this catalogue's sentences, in
+ * either language, is shown in the language chosen now; the advice itself, and
+ * its fingerprint, are unchanged. Working if switching language rewrites a
+ * frozen assumption and an abstention reason, and leaves unknown text as stored.
+ */
+let adviceSentences: { pattern: RegExp; render: () => string }[] | null = null;
+// Earlier wordings of the same fixed-horizon sentence, which advice frozen by a
+// pre-release build may hold. The pace-dependent horizon sentence before them
+// ("physical seconds = 90 * 60 / selected resume game speed") states a
+// different model, so it is left as stored rather than reworded.
+const LEGACY_HORIZONS = [
+  '90 workplace minutes are {seconds} plant seconds at every pace.',
+  '90 minutos de trabalho correspondem a {seconds} segundos de operação do moinho em qualquer ritmo.',
+];
+export function displayAdviceText(text: string): string {
+  if (!adviceSentences) {
+    adviceSentences = [];
+    const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // The horizon is the one templated sentence; its numbers are constants.
+    const horizon = (value: string) => ({
+      pattern: new RegExp(
+        escape(value).replace('\\{minutes\\}', '[\\d.,]+').replace('\\{seconds\\}', '[\\d.,]+'),
+        'g'
+      ),
+      render: () => assumptions()[0],
+    });
+    for (const locale of LOCALES)
+      for (const [key, value] of Object.entries(msg[locale])) {
+        if (typeof value !== 'string' || value.length < 20) continue;
+        const escaped = escape(value);
+        if (key === 'assumptionHorizon') adviceSentences.push(horizon(value));
+        else if (!value.includes('{'))
+          adviceSentences.push({
+            pattern: new RegExp(escaped, 'g'),
+            render: () => translate(msg, key as keyof typeof msg.en),
+          });
+      }
+    for (const value of LEGACY_HORIZONS) adviceSentences.push(horizon(value));
+  }
+  return adviceSentences.reduce((out, { pattern, render }) => out.replace(pattern, render), text);
+}
 function canonical(value: unknown): unknown {
   if (value instanceof Map)
     return [...value.entries()]
@@ -445,8 +490,9 @@ export function packingInspectionPrompts(advice: PackingAdvice) {
       action: translate(msg, 'viewPackingFloor'),
       fact: known
         ? translate(msg, 'stockFact', {
-            released: formatFixed(e.releasedPackedKg, 0),
-            held: formatFixed(e.heldPackedKg, 0),
+            // Grouped like the modelled range printed beside these facts.
+            released: formatKg(e.releasedPackedKg),
+            held: formatKg(e.heldPackedKg),
           })
         : translate(msg, 'stockUnavailable'),
       question: translate(msg, 'packingQuestion'),
@@ -492,8 +538,8 @@ export function packingInspectionPrompts(advice: PackingAdvice) {
         known && e.truckStatus !== null && e.truckLoadedKg !== null && e.truckCapacityKg !== null
           ? translate(msg, 'truckFact', {
               status: translate(msg, TRUCK_STATUS_KEYS[e.truckStatus]),
-              loaded: formatFixed(e.truckLoadedKg, 0),
-              capacity: formatFixed(e.truckCapacityKg, 0),
+              loaded: formatKg(e.truckLoadedKg),
+              capacity: formatKg(e.truckCapacityKg),
             })
           : translate(msg, 'collectionUnavailable'),
       question: translate(msg, 'coordinatorQuestion'),

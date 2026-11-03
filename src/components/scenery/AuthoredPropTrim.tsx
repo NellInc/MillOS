@@ -742,9 +742,51 @@ function fountainSetts() {
   return joined(parts);
 }
 
-function fenceStraps() {
+/**
+ * Panel-local centre of each end post of the delivered farm fence panel.
+ *
+ * The panel carries a post at both ends (each 0.196 m across, spanning
+ * |x| 0.622-0.818), so tiling whole panels end to end stood two posts side by
+ * side at every joint. `FenceSection` now spaces panels at the post pitch and
+ * drops the posts a neighbour already supplies.
+ */
+export const FENCE_POST_X = 0.72;
+/** Any face whose centroid lies beyond this belongs to an end post; rails stop at 0.66. */
+const FENCE_POST_FACE_X = 0.6;
+
+/**
+ * The delivered fence panel without its leading (-x) and/or trailing (+x) post.
+ * Rail ends that entered the dropped post stay, inside the neighbour's post.
+ * Working if a run of panels shows exactly one post at each joint.
+ */
+export function createFencePanelGeometry(
+  source: THREE.BufferGeometry,
+  leading: boolean,
+  trailing: boolean
+): THREE.BufferGeometry {
+  if (leading && trailing) return source;
+  const position = source.getAttribute('position');
+  if (!position) return source;
+  const index = source.index;
+  const count = index ? index.count : position.count;
+  const retained: number[] = [];
+  for (let face = 0; face < count / 3; face++) {
+    const ids = [0, 1, 2].map((c) => (index ? index.getX(face * 3 + c) : face * 3 + c));
+    const x = ids.reduce((sum, i) => sum + position.getX(i), 0) / 3;
+    if ((!leading && x < -FENCE_POST_FACE_X) || (!trailing && x > FENCE_POST_FACE_X)) continue;
+    retained.push(...ids);
+  }
+  const geometry = source.clone();
+  geometry.setIndex(retained);
+  geometry.clearGroups();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function fenceStraps(posts: readonly number[] = [-FENCE_POST_X, FENCE_POST_X]) {
   const parts: THREE.BufferGeometry[] = [];
-  for (const x of [-0.72, 0.72]) {
+  for (const x of posts) {
     for (const y of [0.28, 0.59, 0.87]) {
       // Match the eight-sided post's linear taper, with 1 mm of iron proud of
       // timber. A solid hidden core keeps the exposed band closed and cheap.
@@ -811,6 +853,8 @@ export const AUTHORED_PROP_TRIM = {
   market: marketTrim(),
   fountain: fountainSetts(),
   fence: fenceStraps(),
+  fenceLeading: fenceStraps([-FENCE_POST_X]),
+  fenceTrailing: fenceStraps([FENCE_POST_X]),
   trough: troughRim(),
 };
 export const AUTHORED_MARKET_TRIM_VARIANTS = MARKET_CANVAS_COLOURS.map((colour, trade) =>
@@ -827,6 +871,8 @@ export const FOUNTAIN_SETT_DEPTH_LAYER = POLYGON_OFFSET.exteriorOverlay;
 export const AUTHORED_PROP_TRIM_MATERIALS = {
   market: TRIM_MATERIAL,
   fence: TRIM_MATERIAL,
+  fenceLeading: TRIM_MATERIAL,
+  fenceTrailing: TRIM_MATERIAL,
   trough: TRIM_MATERIAL,
   fountain: new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -1608,14 +1654,59 @@ export function createLockGateJoinery() {
   return geometry;
 }
 export const LOCK_GATE_JOINERY = createLockGateJoinery();
+
+/** One balance beam per leaf, as on a working lock: fixed on the leaf's top
+ * rail (y 1.735) at its heel and running back 4 m over the lockside, clear of
+ * the 0.5 m uprights at x +-5.05..5.55, z +-0.25. Black with a white tip.
+ * Lock-local metres, the frame of `LOCK_GATE_JOINERY`.
+ */
+export function createLockGateBalanceBeams() {
+  const parts: THREE.BufferGeometry[] = [];
+  // Yawed boxes rather than `beam()`, whose minimal rotation onto a
+  // horizontal axis also twists the square section off level.
+  const yawed = (from: THREE.Vector3, to: THREE.Vector3, size: number, hex: string) => {
+    const run = to.clone().sub(from);
+    return colored(
+      new THREE.BoxGeometry(size, size, run.length())
+        .rotateY(Math.atan2(run.x, run.z))
+        .translate(...from.clone().add(to).multiplyScalar(0.5).toArray()),
+      hex
+    );
+  };
+  for (const side of [-1, 1]) {
+    const heel = new THREE.Vector3(side * 4.8, 1.845, 0);
+    const tail = new THREE.Vector3(side * 6.4, 1.845, -3.9);
+    const tip = tail.clone().lerp(heel, 0.12);
+    parts.push(yawed(heel, tip, 0.22, '#2c3133'));
+    parts.push(yawed(tip, tail, 0.22, '#e9e5da'));
+  }
+  for (const part of parts) {
+    const uv = part.getAttribute('uv');
+    // The iron tile of the joinery atlas, with the same 3 px gutter.
+    for (let i = 0; i < uv.count; i++)
+      uv.setXY(i, (7 * 64 + 3 + uv.getX(i) * 57) / 512, (3 + uv.getY(i) * 249) / 256);
+  }
+  return joined(parts);
+}
+export const LOCK_GATE_BALANCE_BEAMS = createLockGateBalanceBeams();
+
 export const LockGateJoinery = React.memo(() => (
-  <mesh
-    name="lock-gate-oak-and-iron-joinery"
-    geometry={LOCK_GATE_JOINERY}
-    material={LOCK_GATE_MATERIAL}
-    castShadow
-    receiveShadow={false}
-  />
+  <>
+    <mesh
+      name="lock-gate-oak-and-iron-joinery"
+      geometry={LOCK_GATE_JOINERY}
+      material={LOCK_GATE_MATERIAL}
+      castShadow
+      receiveShadow={false}
+    />
+    <mesh
+      name="lock-gate-balance-beams"
+      geometry={LOCK_GATE_BALANCE_BEAMS}
+      material={LOCK_GATE_MATERIAL}
+      castShadow
+      receiveShadow
+    />
+  </>
 ));
 LockGateJoinery.displayName = 'LockGateJoinery';
 

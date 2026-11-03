@@ -31,6 +31,7 @@ export function effectSummary(plan: ImprovementDefinition): string {
   if (e.wear) parts.push(t('p14', { value: formatGrouped(e.wear) }));
   if (e.qualityPenalty) parts.push(t('p15', { value: formatGrouped(-e.qualityPenalty) }));
   if (e.upkeep) parts.push(t('p16', { value: formatGrouped(e.upkeep) }));
+  // Relief comes off the forecast's chance in points, as the forecast card counts it.
   for (const [kind, relief] of Object.entries(plan.forecastRelief ?? {}))
     parts.push(
       t('p17', {
@@ -57,6 +58,8 @@ export function PlansTab({ state }: { state: ChronicleState }) {
     useShallow((s) => ({ plan: s.plan, install: s.install, cancel: s.cancel, hire: s.hire }))
   );
   const installing = state.improvements.some((p) => p.phase === 'installing');
+  // An ended chronicle takes no more plans or contractors; the engine refuses them.
+  const active = state.status === 'active';
   return (
     <div className="space-y-3">
       <Section
@@ -91,7 +94,7 @@ export function PlansTab({ state }: { state: ChronicleState }) {
                 </ul>
                 <button
                   className={`${BUTTON} mt-2`}
-                  disabled={installing || !canAfford(state, { fund: offer.retainer })}
+                  disabled={!active || installing || !canAfford(state, { fund: offer.retainer })}
                   title={installing ? t('m2') : undefined}
                   onClick={() => actions.hire(offer.id)}
                 >
@@ -159,7 +162,7 @@ export function PlansTab({ state }: { state: ChronicleState }) {
                     {availability === 'available' && (
                       <button
                         className={BUTTON}
-                        disabled={knowHowOf(state) < plan.planCost}
+                        disabled={!active || knowHowOf(state) < plan.planCost}
                         onClick={() => actions.plan(plan.id)}
                       >
                         {t('m4')}

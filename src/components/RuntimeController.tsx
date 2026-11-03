@@ -19,6 +19,7 @@ import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useAnnouncementsStore } from '../stores/announcementsStore';
 import { getRuntimeMode, type BenchmarkScene, type RuntimeMode } from '../runtime/runtimeMode';
 import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
+import { RAILWAY_STATION } from '../constants/railwayLayout';
 import { inspectWorldIntegrity, type WorldIntegrityReport } from '../constants/worldContract';
 import { inspectCommunityPresence } from '../simulation/communityLife';
 import { sampleAtmosphere, sampleCelestial } from '../simulation/atmosphere';
@@ -641,9 +642,19 @@ const BENCHMARK_CAMERAS: Record<BenchmarkScene, BenchmarkCameraPose> = {
   carpark: SITE_LAYOUT.cameras.carpark,
   // Review-only close view: the parking-bay camera cannot see this roof light.
   // Working if both retained tables and the attached pendant fill the frame.
-  'picnic-shelter': { position: [150.7, 2.3, 39.6], target: [145, 1.45, 33], fov: 50 },
+  // The shelter moved onto the station forecourt (constants/railwayLayout.ts);
+  // the camera follows it from the forecourt, beside the taco truck.
+  'picnic-shelter': {
+    position: [
+      RAILWAY_STATION.shelter.position[0] + 3.05,
+      2.3,
+      RAILWAY_STATION.shelter.position[2] + 7.35,
+    ],
+    target: [RAILWAY_STATION.shelter.position[0], 1.45, RAILWAY_STATION.shelter.position[2] - 2],
+    fov: 50,
+  },
   river: SITE_LAYOUT.cameras.river,
-  tunnel: SITE_LAYOUT.cameras.tunnel,
+  railway: SITE_LAYOUT.cameras.railway,
   huts: SITE_LAYOUT.cameras.huts,
   offices: SITE_LAYOUT.cameras.offices,
   canal: SITE_LAYOUT.cameras.canal,

@@ -2150,8 +2150,9 @@ function FactoryShell() {
     // SHADOW FLAGS ARE SET HERE, AT SOURCE.
     //
     // Every opaque envelope mesh casts. The roof was the only thing that did,
-    // so at the default 10:00 sun - 60 degrees, roof shadow displaced 19 units
-    // down-sun - a 19 x 100 m band of interior floor was lit straight through a
+    // so at the default 10:00 sun - then 60 degrees, roof shadow displaced 19
+    // units down-sun; 33 degrees and further since the site-latitude orbit - a
+    // band of interior floor was lit straight through a
     // solid wall. The glazing and the skylights deliberately do NOT cast, which
     // is what turns the clerestory bays into real bands of sunlight on the slab
     // instead of a uniformly shadowed interior.
@@ -2778,6 +2779,16 @@ export function buildWalkwayLanes(): BoxInstance[] {
   ];
 }
 
+/** The four painted yellow aisle lines framing the process floor (exported for the prop guard). */
+export function buildAisleLines(): BoxInstance[] {
+  return [
+    { position: [-31, FLOOR_LAYERS.safetyCross, 0], scale: [0.16, 0.014, 88] },
+    { position: [31, FLOOR_LAYERS.safetyCross, 0], scale: [0.16, 0.014, 88] },
+    { position: [0, FLOOR_LAYERS.safetyCross, 43], scale: [58, 0.014, 0.16] },
+    { position: [0, FLOOR_LAYERS.safetyCross, -43], scale: [58, 0.014, 0.16] },
+  ];
+}
+
 /** Painted lane-edge line width, metres. Two px or more from every hall camera. */
 export const WALKWAY_EDGE_WIDTH = 0.2;
 /** How far each edge line sits inside its lane's side, so no two side faces share a plane. */
@@ -3021,15 +3032,7 @@ function ZoneOverlays() {
     ],
     []
   );
-  const aisleLines = useMemo<readonly BoxInstance[]>(
-    () => [
-      { position: [-31, FLOOR_LAYERS.safetyCross, 0], scale: [0.16, 0.014, 88] },
-      { position: [31, FLOOR_LAYERS.safetyCross, 0], scale: [0.16, 0.014, 88] },
-      { position: [0, FLOOR_LAYERS.safetyCross, 43], scale: [58, 0.014, 0.16] },
-      { position: [0, FLOOR_LAYERS.safetyCross, -43], scale: [58, 0.014, 0.16] },
-    ],
-    []
-  );
+  const aisleLines = useMemo<readonly BoxInstance[]>(() => buildAisleLines(), []);
 
   return (
     <group renderOrder={RENDER_ORDER.floorMarkings}>

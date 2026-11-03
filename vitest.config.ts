@@ -12,6 +12,12 @@ export default defineConfig({
     pool: 'forks',
     fileParallelism: false,
     maxWorkers: 1,
+    // Node 25+ installs its own global `localStorage`, which shadows jsdom's:
+    // under Node 26 the storage tests read stale values and storage spies see
+    // no writes, while Node 24 passes. The flag is accepted by both (Node 24
+    // rejects the newer `--no-webstorage`). Working if the storage tests pass
+    // identically under either version.
+    execArgv: ['--no-experimental-webstorage'],
     // The capture/benchmark harness under scripts/ enforces gates of its own
     // (see scripts/lib/diagnostics.mjs). A gate that has never been observed to
     // fail is not known to be a gate, so its logic is unit-tested alongside the

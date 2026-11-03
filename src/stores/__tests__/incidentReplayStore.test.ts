@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useIncidentReplayStore } from '../incidentReplayStore';
+import { useGameSimulationStore } from '../gameSimulationStore';
 
 const frame = (timestamp: number) => ({
   timestamp,
@@ -50,5 +51,16 @@ describe('incident replay diagnostics', () => {
       bounded: true,
     });
     expect(JSON.stringify(exported)).not.toMatch(/api[_-]?key|token|password/i);
+  });
+
+  // The replay bar reads a frame on the plant clock, as the maintenance log
+  // does; the recorder only sends a wall-clock timestamp.
+  it('stamps each recorded frame with the plant clock at capture', () => {
+    useGameSimulationStore.setState({ gameDay: 2, gameTime: 14.25 });
+    useIncidentReplayStore.getState().recordReplayFrame(frame(500));
+    expect(useIncidentReplayStore.getState().replayFrames.at(-1)?.gameClock).toEqual({
+      day: 2,
+      hour: 14.25,
+    });
   });
 });

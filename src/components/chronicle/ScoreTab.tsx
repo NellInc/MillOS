@@ -3,7 +3,7 @@ import { localizedEpilogue } from '../../chronicle/epilogue';
 import { getTrials } from '../../chronicle/trials';
 import { useT } from '../../i18n';
 import { messages } from './ScoreTab.messages';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Medal as MedalIcon } from 'lucide-react';
 import { currentScore, type ChronicleState } from '../../chronicle/engine';
 
@@ -21,6 +21,19 @@ export function ScoreTab({ state }: { state: ChronicleState }) {
   const t = useT(messages);
   const abandon = useChronicleStore((s) => s.abandon);
   const [confirming, setConfirming] = useState(false);
+  // Asking and declining swap the buttons out from under the focus: follow it.
+  const askRef = useRef<HTMLButtonElement>(null);
+  const keepRef = useRef<HTMLButtonElement>(null);
+  const swapped = useRef(false);
+  useEffect(() => {
+    if (!swapped.current) return;
+    swapped.current = false;
+    (confirming ? keepRef : askRef).current?.focus();
+  }, [confirming]);
+  const confirm = (next: boolean) => {
+    swapped.current = true;
+    setConfirming(next);
+  };
   const score = state.finalScore ?? currentScore(state);
   const lines: Array<[string, number]> = [
     [t('m0'), score.trials],
@@ -134,12 +147,12 @@ export function ScoreTab({ state }: { state: ChronicleState }) {
             <button className={BUTTON} onClick={abandon}>
               {state.status === 'ended' ? t('m16') : t('m17')}
             </button>
-            <button className={BUTTON} onClick={() => setConfirming(false)}>
+            <button ref={keepRef} className={BUTTON} onClick={() => confirm(false)}>
               {t('m18')}
             </button>
           </div>
         ) : (
-          <button className={BUTTON} onClick={() => setConfirming(true)}>
+          <button ref={askRef} className={BUTTON} onClick={() => confirm(true)}>
             {state.status === 'ended' ? t('m19') : t('m20')}
           </button>
         )}

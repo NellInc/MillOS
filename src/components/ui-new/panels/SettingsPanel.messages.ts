@@ -79,6 +79,7 @@ export const settingsPanelMessages = defineMessages({
     floorPuddles: 'Floor Puddles',
     audioReactive: 'Audio Reactive',
     zoneMarkers: 'Zone Markers',
+    fpsCounter: 'FPS counter',
     resolutionScale: 'Resolution Scale',
     resolutionScaleLabel: 'Resolution scale',
 
@@ -107,10 +108,11 @@ export const settingsPanelMessages = defineMessages({
     resetDayMessage:
       'Wind the clock back to 10 AM at the current pace. Weather, run window and emergency state reset. Customer orders and their deadlines keep their own clock, so an overdue order stays overdue; production totals, machine states and achievements carry on. For a fresh shift use Reset Simulation.',
     resetEverything: 'Reset Everything',
+    resetting: 'Resetting...',
     resetFullMessage:
-      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound and language settings are kept. There is no undo.',
+      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound, language and interface scale settings are kept. There is no undo.',
     resetFullMessageWithMotion:
-      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound, language and motion settings are kept. There is no undo.',
+      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound, language, motion and interface scale settings are kept. There is no undo.',
 
     toggleOn: 'On',
     toggleOff: 'Off',
@@ -178,6 +180,7 @@ export const settingsPanelMessages = defineMessages({
     floorPuddles: 'Poças no piso',
     audioReactive: 'Reação ao áudio',
     zoneMarkers: 'Marcadores de zona',
+    fpsCounter: 'Contador de FPS',
     resolutionScale: 'Escala de resolução',
     resolutionScaleLabel: 'Escala de resolução',
 
@@ -206,10 +209,11 @@ export const settingsPanelMessages = defineMessages({
     resetDayMessage:
       'Volta o relógio para as 10h, no ritmo atual. Clima, janela de operação e estado de emergência são redefinidos. Os pedidos dos clientes e seus prazos seguem o próprio relógio, então um pedido atrasado continua atrasado; totais de produção, estados das máquinas e conquistas continuam. Para um turno novo, use Reiniciar simulação.',
     resetEverything: 'Apagar tudo',
+    resetting: 'Reiniciando...',
     resetFullMessage:
-      'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som e idioma são mantidas. Não é possível desfazer.',
+      'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som, idioma e escala da interface são mantidas. Não é possível desfazer.',
     resetFullMessageWithMotion:
-      'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som, idioma e movimento são mantidas. Não é possível desfazer.',
+      'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som, idioma, movimento e escala da interface são mantidas. Não é possível desfazer.',
 
     toggleOn: 'Ligado',
     toggleOff: 'Desligado',

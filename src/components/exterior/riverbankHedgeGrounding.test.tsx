@@ -249,11 +249,19 @@ async function supportFixture(quality: string) {
   });
   const full = new THREE.Group();
   full.add(objectFromRecord(river.River())!);
+  // The bridge's own source constants, so the fixture is the bridge as drawn
+  // (lowered to the road datum, with its north abutment), not a stale copy.
+  const bridge = declarations(
+    factoryFile,
+    ['ROAD_RIVER_BRIDGE_DROP', 'ROAD_RIVER_BRIDGE_ABUTMENT'],
+    { SITE_LAYOUT }
+  );
   const road = objectFromRecord(
     expression(
       factoryFile,
-      (text) => text.startsWith('<group name="road-river-bridge" position={[-20, 0, -145]}>'),
+      (text) => text.startsWith('<group name="road-river-bridge" position={[-20, '),
       {
+        ...bridge,
         ROAD_RIVER_BRIDGE_FRAME_GEOMETRY: createRoadRiverBridgeFrameGeometry(),
         TARMAC_ROAD_MAP: null,
         TARMAC_ROAD_ROUGHNESS: null,
@@ -338,8 +346,9 @@ async function supportFixture(quality: string) {
       }),
     }
   );
+  // The one bench beside the footbridge (moved from x 3 to x 5.5, clear of the stairs).
   const benchData = benchOwner.MAIN_EXTERIOR_BENCHES.filter(
-    (entry: any) => JSON.stringify(entry.position) === '[3,0,-112]'
+    (entry: any) => entry.position[2] === -112 && Math.abs(entry.position[0]) < 10
   );
   expect(benchData).toHaveLength(1);
   const benchMesh = benchOwner.generatedBenchSource(bench);
@@ -643,7 +652,8 @@ describe.each(['low', 'medium', 'high', 'ultra'])('intact riverbank hedge %s', (
         [fixture.full.getObjectByName('complete-road-bridge')!, 15.499],
         [bridge, 1.1624],
         [fixture.full.getObjectByName('complete-river-approach')!, 2.8249],
-        [fixture.full.getObjectByName('loaded-nearby-park-bench')!, 3.546],
+        // 3.546 with the bench at x 3; at x 5.5 (clear of the footbridge stairs) 3.4949.
+        [fixture.full.getObjectByName('loaded-nearby-park-bench')!, 3.4949],
         [fixture.full.getObjectByName('protected-RIVER-sign')!, 5.7028],
         [fixture.full.getObjectByName('receiving-yard')!, 5.7999],
         [fixture.full.getObjectByName('receiving-road')!, 19.499],

@@ -44,10 +44,42 @@ import {
   checkWebGPUSupport,
   DEFAULT_WEBGPU_MODEL_LABEL,
   DEFAULT_WEBGPU_MODEL_SIZE,
+  fastLaneDownloadGb,
+  fastLaneModelId,
 } from '../utils/webgpuClient';
+import { keyedText } from '../i18n/alertCopy';
 import { useFocusTrap } from '../hooks/useFocusTrap';
-import { formatFixed, translate, useT } from '../i18n';
+import {
+  createTranslator,
+  formatFixed,
+  LOCALES,
+  translate,
+  useLocale,
+  useT,
+  type Locale,
+} from '../i18n';
+import { aiConfigStoreMessages } from '../stores/aiConfigStore.messages';
+import { webgpuClientMessages } from '../utils/webgpuClient.messages';
 import { aiSettingsModalMessages } from './AISettingsModal.messages';
+
+/**
+ * The local model's error is stored as text, worded in the language active
+ * when it happened (aiConfigStore, webgpuClient). One of these catalogue
+ * messages is shown in the language chosen now; text the browser or the
+ * model library wrote is shown as written.
+ */
+const MODEL_ERROR_COPY = [
+  ...(['webgpuUnavailable', 'modelLoadFailed', 'modelLostAgain'] as const).map(
+    (key) => (locale: Locale) => createTranslator(aiConfigStoreMessages, locale)(key)
+  ),
+  ...(['noAdapter', 'probeFailed'] as const).map(
+    (key) => (locale: Locale) => createTranslator(webgpuClientMessages, locale)(key)
+  ),
+];
+function modelErrorText(stored: string, locale: Locale): string {
+  const copy = MODEL_ERROR_COPY.find((word) => LOCALES.some((from) => word(from) === stored));
+  return copy ? copy(locale) : stored;
+}
 
 /** The public site offers each direct model through OpenRouter. */
 const OPEN_ROUTER_BACKENDS = DIRECT_BACKENDS.map((backend) => openRouterTwin(backend));
@@ -163,12 +195,14 @@ const VisualizationToggles: React.FC = () => {
  */
 const WebGPUModelPanel: React.FC = () => {
   const t = useT(aiSettingsModalMessages);
+  const locale = useLocale();
   const webgpuStatus = useAIConfigStore((s) => s.webgpuStatus);
   const webgpuProgress = useAIConfigStore((s) => s.webgpuProgress);
   const webgpuMessage = useAIConfigStore((s) => s.webgpuMessage);
   const webgpuError = useAIConfigStore((s) => s.webgpuError);
   const webgpuModelReady = useAIConfigStore((s) => s.webgpuModelReady);
   const webgpuAdapterWarning = useAIConfigStore((s) => s.webgpuAdapterWarning);
+  const webgpuAdapterWarningCopy = useAIConfigStore((s) => s.webgpuAdapterWarningCopy);
   const webgpuModelId = useAIConfigStore((s) => s.webgpuModelId);
   const loadWebGPUModel = useAIConfigStore((s) => s.loadWebGPUModel);
   const cancelWebGPUModelLoad = useAIConfigStore((s) => s.cancelWebGPUModelLoad);
@@ -180,23 +214,39 @@ const WebGPUModelPanel: React.FC = () => {
   const setFastLane = useAIConfigStore((s) => s.setWebGPUFastLane);
 
   const supported = checkWebGPUSupport();
-  const [cacheInfo, setCacheInfo] = useState<{ cached: boolean; size: string | null }>({
-    cached: false,
-    size: null,
-  });
+  const [cacheInfo, setCacheInfo] = useState<{
+    cached: boolean;
+    anyCached: boolean;
+    size: string | null;
+  }>({ cached: false, anyCached: false, size: null });
+  // A routing-lane build is a download of its own; a same-build lane adds nothing.
+  const laneDownloadGb = fastLaneDownloadGb(webgpuModelId);
   const [busy, setBusy] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState(false);
+  // Cancel download removes itself; the load button takes its place, so focus
+  // goes there instead of falling to <body>, outside the dialog's focus trap.
+  const loadButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [refocusLoad, setRefocusLoad] = useState(false);
 
   const refreshCache = useCallback(async () => {
     try {
-      const [cached, storage] = await Promise.all([
+      const lane = fastLaneDownloadGb(webgpuModelId) > 0 ? fastLaneModelId(webgpuModelId) : null;
+      const [mainCached, laneCached, storage] = await Promise.all([
         WebGPUClient.isModelCached(webgpuModelId),
+        lane ? WebGPUClient.isModelCached(lane) : Promise.resolve(false),
         WebGPUClient.getCacheStorageSize(),
       ]);
-      setCacheInfo({ cached, size: storage?.formatted ?? null });
+      // Downloaded means everything the next load needs is here.
+      const cached = mainCached && (!lane || !fastLane || laneCached);
+      setCacheInfo({
+        cached,
+        anyCached: mainCached || laneCached,
+        size: storage?.formatted ?? null,
+      });
     } catch {
-      setCacheInfo({ cached: false, size: null });
+      setCacheInfo({ cached: false, anyCached: false, size: null });
     }
-  }, [webgpuModelId]);
+  }, [webgpuModelId, fastLane]);
 
   useEffect(() => {
     refreshCache();
@@ -205,6 +255,31 @@ const WebGPUModelPanel: React.FC = () => {
   const isLoadingState =
     webgpuStatus === 'checking' || webgpuStatus === 'loading' || webgpuStatus === 'compiling';
   const percent = Math.round(webgpuProgress * 100);
+
+  useEffect(() => {
+    if (!refocusLoad || isLoadingState) return;
+    setRefocusLoad(false);
+    loadButtonRef.current?.focus();
+  }, [refocusLoad, isLoadingState]);
+
+  // Load, Unload and Delete each remove the button pressed (Load gives way to
+  // Cancel download, and that to Unload when the model is ready). While focus
+  // was last placed by one of them, a drop to <body> (or to a rescue landing
+  // around the panel) moves to the panel's first usable button instead, inside
+  // the dialog's focus trap. Focus the player moves elsewhere ends it.
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [keepActionFocus, setKeepActionFocus] = useState(false);
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!keepActionFocus || !panel) return;
+    const active = document.activeElement;
+    const droppedFocus = !active || !active.isConnected || active.contains(panel);
+    if (!droppedFocus) {
+      if (!panel.contains(active)) setKeepActionFocus(false);
+      return;
+    }
+    panel.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus();
+  }, [keepActionFocus, isLoadingState, webgpuModelReady, cacheInfo.cached, busy]);
 
   const handleLoad = useCallback(async () => {
     await loadWebGPUModel();
@@ -219,13 +294,18 @@ const WebGPUModelPanel: React.FC = () => {
 
   const handleDeleteCache = useCallback(async () => {
     setBusy(true);
-    await deleteWebGPUCache();
-    await refreshCache();
-    setBusy(false);
+    setDeleteFailed(false);
+    try {
+      const deleted = await deleteWebGPUCache();
+      setDeleteFailed(!deleted);
+      await refreshCache();
+    } finally {
+      setBusy(false);
+    }
   }, [deleteWebGPUCache, refreshCache]);
 
   return (
-    <div className="p-3 rounded-lg bg-slate-800/50 space-y-3">
+    <div ref={panelRef} className="p-3 rounded-lg bg-slate-800/50 space-y-3">
       <div className="flex items-center gap-2">
         <Cpu className="w-4 h-4 text-emerald-400" aria-hidden="true" />
         <span className="text-sm font-medium text-slate-300">{t('localCoreTitle')}</span>
@@ -255,7 +335,7 @@ const WebGPUModelPanel: React.FC = () => {
       {supported && webgpuAdapterWarning && (
         <div className="flex items-start gap-2 text-[11px] text-amber-400 leading-relaxed">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
-          <span>{webgpuAdapterWarning}</span>
+          <span>{keyedText(webgpuAdapterWarningCopy ?? undefined, webgpuAdapterWarning)}</span>
         </div>
       )}
 
@@ -278,7 +358,10 @@ const WebGPUModelPanel: React.FC = () => {
             <p className="text-[10px] text-slate-500 mt-1 truncate">{webgpuMessage}</p>
           )}
           <button
-            onClick={() => cancelWebGPUModelLoad()}
+            onClick={() => {
+              cancelWebGPUModelLoad();
+              setRefocusLoad(true);
+            }}
             className="mt-2 w-full py-1.5 px-3 bg-slate-700/50 border border-slate-600 rounded text-slate-300 text-xs font-medium hover:bg-slate-700 transition-colors"
           >
             {t('cancelDownload')}
@@ -290,7 +373,7 @@ const WebGPUModelPanel: React.FC = () => {
       {!isLoadingState && webgpuError && (
         <div role="alert" className="flex items-start gap-2 text-xs text-red-400">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
-          <span>{webgpuError}</span>
+          <span>{modelErrorText(webgpuError, locale)}</span>
         </div>
       )}
 
@@ -301,7 +384,11 @@ const WebGPUModelPanel: React.FC = () => {
               you select this backend); shown as a fallback for the idle/error case. */}
           {!webgpuModelReady && !isLoadingState && (
             <button
-              onClick={handleLoad}
+              ref={loadButtonRef}
+              onClick={() => {
+                setKeepActionFocus(true);
+                void handleLoad();
+              }}
               disabled={busy}
               className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-emerald-600/20 border border-emerald-600/50 rounded-lg text-emerald-400 text-sm font-medium hover:bg-emerald-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
@@ -316,7 +403,10 @@ const WebGPUModelPanel: React.FC = () => {
 
           {webgpuModelReady && (
             <button
-              onClick={handleUnload}
+              onClick={() => {
+                setKeepActionFocus(true);
+                void handleUnload();
+              }}
               disabled={busy}
               className="w-full py-2 px-4 bg-slate-700/50 border border-slate-600 rounded-lg text-slate-300 text-sm font-medium hover:bg-slate-700 disabled:opacity-50 transition-colors"
             >
@@ -340,15 +430,23 @@ const WebGPUModelPanel: React.FC = () => {
               onChange={(event) => void setFastLane(event.target.checked)}
             />
             <span>
-              {t('fastLaneLabel', { size: formatFixed(DEFAULT_WEBGPU_MODEL_SIZE.vramGb, 1) })}
+              {laneDownloadGb > 0
+                ? t('fastLaneLabelDownload', {
+                    download: formatFixed(laneDownloadGb, 1),
+                    size: formatFixed(DEFAULT_WEBGPU_MODEL_SIZE.vramGb, 1),
+                  })
+                : t('fastLaneLabel', { size: formatFixed(DEFAULT_WEBGPU_MODEL_SIZE.vramGb, 1) })}
             </span>
           </label>
 
           {/* Easy delete — prominent and available whenever a model is cached,
               loaded or not (unloads first, then clears the browser cache). */}
-          {cacheInfo.cached && (
+          {cacheInfo.anyCached && (
             <button
-              onClick={handleDeleteCache}
+              onClick={() => {
+                setKeepActionFocus(true);
+                void handleDeleteCache();
+              }}
               disabled={busy || isLoadingState}
               data-testid="delete-webgpu-model"
               className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-red-900/30 border border-red-700/40 rounded-lg text-red-400 text-sm font-medium hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -356,6 +454,11 @@ const WebGPUModelPanel: React.FC = () => {
               <Trash2 className="w-4 h-4" aria-hidden="true" />
               {busy ? t('deleting') : t('deleteModel')}
             </button>
+          )}
+          {deleteFailed && (
+            <p role="alert" className="text-xs text-red-400">
+              {t('deleteModelFailed')}
+            </p>
           )}
 
           <p className="text-[10px] text-slate-500 font-mono">
@@ -371,7 +474,10 @@ const WebGPUModelPanel: React.FC = () => {
       <p className="text-[10px] text-slate-500 leading-relaxed">
         {t('modelDownloadNote', {
           model: DEFAULT_WEBGPU_MODEL_LABEL,
-          size: formatFixed(DEFAULT_WEBGPU_MODEL_SIZE.downloadGb, 1),
+          size: formatFixed(
+            DEFAULT_WEBGPU_MODEL_SIZE.downloadGb + (fastLane ? laneDownloadGb : 0),
+            1
+          ),
         })}
       </p>
     </div>
@@ -386,7 +492,11 @@ interface AISettingsModalProps {
 function ChatGPTPanel() {
   const t = useT(aiSettingsModalMessages);
   const status = useAIConfigStore((s) => s.chatgptStatus);
-  const statusError = useAIConfigStore((s) => s.chatgptError);
+  const storedStatusError = useAIConfigStore((s) => s.chatgptError);
+  const statusErrorCopy = useAIConfigStore((s) => s.chatgptErrorCopy);
+  // Re-rendered by useT on a language switch, so a keyed error reads in the language active now.
+  const statusError =
+    storedStatusError && keyedText(statusErrorCopy ?? undefined, storedStatusError);
   const refresh = useAIConfigStore((s) => s.refreshChatGPT);
   const [models, setModels] = useState<ChatGPTModel[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -561,6 +671,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
     setAIMode,
     connectedProviders,
     connectionError,
+    connectionErrorCopy,
     setCloudApiKey,
     clearCloudApiKey,
     llmBackend,
@@ -577,6 +688,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
       setAIMode: s.setAIMode,
       connectedProviders: s.connectedProviders,
       connectionError: s.connectionError,
+      connectionErrorCopy: s.connectionErrorCopy,
       setCloudApiKey: s.setCloudApiKey,
       clearCloudApiKey: s.clearCloudApiKey,
       llmBackend: s.llmBackend,
@@ -592,9 +704,31 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
 
   const [inputKey, setInputKey] = useState('');
   const [keyEntryOpen, setKeyEntryOpen] = useState(false);
+  // Enter key gives way to the key field, and Disconnect key to Enter key: each
+  // takes focus from the button it replaces, which would leave it on <body>.
+  const keyInputRef = useRef<HTMLInputElement | null>(null);
+  const keyEntryButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [refocusKey, setRefocusKey] = useState<'field' | 'entry' | null>(null);
+  useEffect(() => {
+    if (!refocusKey) return;
+    const target = refocusKey === 'field' ? keyInputRef.current : keyEntryButtonRef.current;
+    if (!target) return;
+    setRefocusKey(null);
+    target.focus();
+  }, [refocusKey, keyEntryOpen]);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [showLLMConfirmation, setShowLLMConfirmation] = useState(false);
+  // The confirmation's buttons remove the confirmation; focus returns to the
+  // mode its choice leaves selected, not to <body> outside the focus trap.
+  const hybridModeRef = useRef<HTMLButtonElement | null>(null);
+  const modelOnlyModeRef = useRef<HTMLButtonElement | null>(null);
+  const [refocusMode, setRefocusMode] = useState<'hybrid' | 'model' | null>(null);
+  useEffect(() => {
+    if (!refocusMode || showLLMConfirmation) return;
+    setRefocusMode(null);
+    (refocusMode === 'hybrid' ? hybridModeRef : modelOnlyModeRef).current?.focus();
+  }, [refocusMode, showLLMConfirmation]);
   const [capInput, setCapInput] = useState(spendCapUsd?.toString() ?? '');
   const [capError, setCapError] = useState<string | null>(null);
   const [openRouterConsent, setOpenRouterConsent] = useState(false);
@@ -629,6 +763,9 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
     : isChatGPT
       ? Boolean(chatgptAccount?.signedIn && chatgptAccount.model)
       : webgpuModelReady;
+  // What actually runs: a mode that needs a model reads as Heuristic until the
+  // selected one is ready, as the engine and the Command Center badge treat it.
+  const shownMode = llmReady ? aiMode : 'heuristic';
   useEffect(() => {
     if (isOpen && isChatGPT) void refreshChatGPT();
   }, [isOpen, isChatGPT, refreshChatGPT]);
@@ -684,12 +821,12 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
         setInputKey('');
         setKeyEntryOpen(false);
         setOpenRouterConsent(false);
-      } else {
+      } else if (!useAIConfigStore.getState().connectionError) {
+        // The store's connectionError is already shown under the model status;
+        // a second copy here read the same reason twice.
         setTestResult({
           success: false,
-          message:
-            useAIConfigStore.getState().connectionError ||
-            translate(aiSettingsModalMessages, 'connectionFailed'),
+          message: translate(aiSettingsModalMessages, 'connectionFailed'),
         });
       }
     }
@@ -703,6 +840,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
     setKeyEntryOpen(false);
     setOpenRouterConsent(false);
     setTestResult(null);
+    setRefocusKey('entry');
   }, [cloudBackend, clearCloudApiKey]);
 
   if (!isOpen) return null;
@@ -721,6 +859,8 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="ai-settings-title"
+          // Focusable, so a click on its text keeps focus (and Escape) in the dialog.
+          tabIndex={-1}
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
@@ -878,7 +1018,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-slate-400">{t('currentMode')}</span>
                 <div className="flex items-center gap-2">
-                  {aiMode === 'gemini' && (
+                  {shownMode === 'gemini' && (
                     <>
                       <Zap className="w-4 h-4 text-cyan-400" />
                       <span className="text-sm font-medium text-cyan-400">
@@ -886,13 +1026,13 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                       </span>
                     </>
                   )}
-                  {aiMode === 'hybrid' && (
+                  {shownMode === 'hybrid' && (
                     <>
                       <Zap className="w-4 h-4 text-purple-400" />
                       <span className="text-sm font-medium text-purple-400">{t('hybridMode')}</span>
                     </>
                   )}
-                  {aiMode === 'heuristic' && (
+                  {shownMode === 'heuristic' && (
                     <>
                       <Brain className="w-4 h-4 text-amber-400" />
                       <span className="text-sm font-medium text-amber-400">{t('heuristic')}</span>
@@ -918,7 +1058,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
               {cloudBackend && connectionError && (
                 <div role="alert" className="mt-2 flex items-center gap-2 text-sm text-red-400">
                   <AlertTriangle className="w-4 h-4" aria-hidden="true" />
-                  <span>{connectionError}</span>
+                  <span>{keyedText(connectionErrorCopy ?? undefined, connectionError)}</span>
                 </div>
               )}
             </div>
@@ -937,6 +1077,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                       aria-hidden="true"
                     />
                     <input
+                      ref={keyInputRef}
                       id="cloud-api-key"
                       type="password"
                       autoComplete="off"
@@ -956,8 +1097,12 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   </div>
                 ) : (
                   <button
+                    ref={keyEntryButtonRef}
                     type="button"
-                    onClick={() => setKeyEntryOpen(true)}
+                    onClick={() => {
+                      setKeyEntryOpen(true);
+                      setRefocusKey('field');
+                    }}
                     className="w-full px-3 py-2 rounded-lg border border-slate-600 bg-slate-800 text-left text-sm text-cyan-300 hover:border-cyan-500"
                   >
                     {llmReady
@@ -1054,6 +1199,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     <div className="text-[9px] opacity-70">{t('fastRules')}</div>
                   </button>
                   <button
+                    ref={hybridModeRef}
                     onClick={() => setAIMode('hybrid')}
                     role="radio"
                     aria-checked={aiMode === 'hybrid'}
@@ -1068,6 +1214,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     <div className="text-[9px] opacity-70">{t('bestOfBoth')}</div>
                   </button>
                   <button
+                    ref={modelOnlyModeRef}
                     onClick={() => {
                       if (aiMode !== 'gemini') {
                         setShowLLMConfirmation(true);
@@ -1131,6 +1278,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                       e.stopPropagation();
                       setAIMode('hybrid');
                       setShowLLMConfirmation(false);
+                      setRefocusMode('hybrid');
                     }}
                     className="px-3 py-1.5 text-xs font-medium text-white bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors"
                   >
@@ -1141,6 +1289,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                       e.stopPropagation();
                       // Close first, then set mode to avoid React state batching issues
                       setShowLLMConfirmation(false);
+                      setRefocusMode('model');
                       // Use requestAnimationFrame to ensure state update happens after render
                       requestAnimationFrame(() => {
                         setAIMode('gemini');
@@ -1154,6 +1303,7 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowLLMConfirmation(false);
+                      setRefocusMode('model');
                     }}
                     className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-slate-300 transition-colors"
                   >

@@ -1,3 +1,4 @@
+import { SITE_LAYOUT, type LandmarkAnchor } from './siteLayout';
 /** Shared construction palette, used by gardens and district connections.
  * Working if adjoining grounds share stone/brick/iron colours without recolouring landmarks.
  */
@@ -19,6 +20,20 @@ export const BUS_SHELTER_SITE = {
   position: [29, 0, 140],
   rotation: -Math.PI / 2,
   platform: { halfX: 2.2, halfZ: 1.15, top: 0.11, bevel: 0.025 },
+} as const;
+/** The shuttle's U-turn north of the shipping checkpoint: a 7 m centre-line
+ * radius, so the 2.2 x 8 m body sweeps 9.03 m from `centre`. It was centred on
+ * (20, 118), where the sweep ran through the weighbridge office at (30, 120) and
+ * under the checkpoint's closed inbound arm at z 113; the 12:00 art frame showed
+ * the bus nose inside the office. `apronRadius` is the paved disc under it, kept
+ * clear of the office wall. `placementFootprints.test.ts` sweeps the route.
+ */
+export const BUS_TURNAROUND = {
+  centre: [17.5, 125],
+  radius: 7,
+  apronRadius: 10.5,
+  /** Where the return leg rejoins the northbound lane. */
+  rejoin: [17, 150],
 } as const;
 export function busShelterWalkingHeight(x: number, z: number): number | null {
   const site = BUS_SHELTER_SITE,
@@ -206,9 +221,15 @@ export const WORLD_REALM_PATHS: readonly RealmPath[] = [
   { start: [-155.3, -62], end: [-155.3, 82], width: 1.6 },
   { start: [-155.3, -59], end: [-155.3, -50], width: 2.6 },
   { start: [-134, -50], end: [-65, -50], width: 2.6 },
-  { start: [-137, -50], end: [-137, 48], width: 2.4 },
-  { start: [-137, 48], end: [-130, 48], width: 2.4 },
+  // The east leg meets the canal west path's gravel (x -131.25..-128.75,
+  // ending at z 50) across its whole width: it ran along z 48 to x -130,
+  // leaving 0.9 m of grass and half the walk's width unmet.
+  { start: [-137, -50], end: [-137, 48.8], width: 2.4 },
+  { start: [-137, 48.8], end: [-128.75, 48.8], width: 2.4 },
   { start: [-78, 125.5], end: [-78, 121], width: 2.4 },
+  // On to the office block's doors (face z 101, between canopy columns at
+  // x -80 and -76): its entrance opened onto 20 m of grass.
+  { start: [-78, 121], end: [-78, 101], width: 2.4 },
   { start: [-78, 121], end: [-94.8, 121], width: 2.4 },
   { start: [-94.8, 121], end: [-94.8, 133.5], width: 2.4 },
   { start: [-94.8, 133.5], end: [-92.2, 133.5], width: 1.5 },
@@ -219,10 +240,38 @@ export const WORLD_REALM_PATHS: readonly RealmPath[] = [
   { start: [-45, 121], end: [-45, 115.2], width: 2.4 },
   { start: [-45, 121], end: [-25, 121], width: 2.4 },
   { start: [-25, 121], end: [-25, 117.6], width: 2.4 },
+  // East office (100, -100): its doors opened onto grass at the yard's
+  // south-east kerb corner. This walk leaves the forecourt patch below and
+  // meets the east pond path. At x 103.2 it stays more than its half-width
+  // plus 1 m from the kerb's outward probe (x 101), so the corner keeps its
+  // kerb: at x 102.3 the kerb builder read it as a crossing and cut a gap.
+  { start: [103.2, -91.5], end: [103.2, -83.5], width: 2 },
 ];
 // Serving fascia at z=102.05 and existing table/stools at z=99/98.5.
 export const CAFE_COURT: RealmPatch = { x: -108, z: 100.4, halfX: 2.4, halfZ: 2.1 };
-/** One matching lantern beside the court, clear of its diagonal pond approach.
+/** The front-pond approach, in two legs that meet square edges: south from
+ * the main path's edge (z 86.5) to the court link at z 98.2, then west from
+ * the court's west edge to under the pond kerb (radius 10 of the pond at
+ * (-125, 105)). It was one diagonal from (-100, 95), which began in open grass
+ * 8.5 m short of the main path, to the pond centre. The third leg joins the
+ * north end of the pond's 3/4 ring path (radius 14, 1.8 wide, ending at
+ * x -125 where it runs east-west) to the main path; that end stopped 3.6 m
+ * short of it. The leg lies over the ring (x -127..-125), not past its end.
+ */
+export const FRONT_POND_APPROACH: ReadonlyArray<{
+  start: [number, number, number];
+  end: [number, number, number];
+  width: number;
+}> = [
+  { start: [-108, 0, 86.5], end: [-108, 0, 98.2], width: 2 },
+  {
+    start: [CAFE_COURT.x - CAFE_COURT.halfX, 0, CAFE_COURT.z],
+    end: [-125 + Math.sqrt(10 ** 2 - (105 - CAFE_COURT.z) ** 2), 0, CAFE_COURT.z],
+    width: 2,
+  },
+  { start: [-126, 0, 86.5], end: [-126, 0, 90.16], width: 2 },
+];
+/** One matching lantern beside the court, clear of its pond approach.
  * Working if the existing shared pool reveals the seating and route at dusk.
  */
 export const CAFE_COURT_LANTERN: readonly [number, number, number] = [
@@ -235,6 +284,10 @@ export const WORLD_REALM_PATCHES: readonly RealmPatch[] = [
   { x: -156.8, z: 18.5, halfX: 3.8, halfZ: 4.5 },
   { x: -158.1, z: 60, halfX: 3.5, halfZ: 4.1 },
   { x: -45, z: 116.3, halfX: 7.4, halfZ: 1.2 },
+  { x: 101, z: -92.15, halfX: 3, halfZ: 1.25 }, // east office forecourt
+  // Squares the canal walk's L at (-137, 48.8): two capsule legs round off
+  // its outer corner, which read as a bite out of the paving.
+  { x: -137, z: 48.8, halfX: 1.2, halfZ: 1.2 },
 ];
 /**
  * Metres between the cereal field's furrow ridges. The soil carries them as
@@ -309,4 +362,28 @@ export function canalBridgeWalkingHeight(x: number, z: number): number | null {
   if (Math.abs(z - b.z) > b.halfWidth - 0.18) return null;
   if (x >= b.minX && x <= b.maxX) return b.deckY;
   return CANAL_BRIDGE_STEPS.find((s) => x >= s.minX && x <= s.maxX)?.top ?? null;
+}
+
+/** A world point in a landmark's own frame, where its realm paths are stored. */
+function landmarkLocal(anchor: LandmarkAnchor, x: number, z: number): [number, number] {
+  const dx = x - anchor.position[0];
+  const dz = z - anchor.position[2];
+  const c = Math.cos(anchor.rotation[1]);
+  const s = Math.sin(anchor.rotation[1]);
+  return [(dx * c - dz * s) / anchor.scale, (dx * s + dz * c) / anchor.scale];
+}
+
+/**
+ * Whether world (x, z) lies within `margin` of any paved walk: the world's
+ * own, the village's and the farm's. The last two are stored in their
+ * landmark's frame, so a world point is carried into it first.
+ * Working if a trunk or sign tested here stands beside a walk, never in it.
+ */
+export function onRealmWalk(x: number, z: number, margin = 0): boolean {
+  if (WORLD_REALM_PATHS.some((p) => inRealmPath(x, z, p, margin))) return true;
+  const { village, farm } = SITE_LAYOUT.landmarks;
+  const [vx, vz] = landmarkLocal(village, x, z);
+  if (VILLAGE_REALM_PATHS.some((p) => inRealmPath(vx, vz, p, margin / village.scale))) return true;
+  const [fx, fz] = landmarkLocal(farm, x, z);
+  return FARM_REALM_PATHS.some((p) => inRealmPath(fx, fz, p, margin / farm.scale));
 }

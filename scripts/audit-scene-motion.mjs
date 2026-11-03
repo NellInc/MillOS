@@ -98,7 +98,11 @@ const stopPreview = () => {
 async function main() {
   lock = await acquireCaptureLock('audit-scene-motion', { root: ROOT });
   const baseUrl = await startPreview();
-  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  const browser = await chromium.launch({
+    chromiumSandbox: true,
+    headless: true,
+    channel: 'chrome',
+  });
   const report = [];
   try {
     for (const scene of options.scenes) {

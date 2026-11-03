@@ -1,6 +1,6 @@
 import type { WorkplaceState } from '../../../types/workplace';
 import { exportPracticeProposal, WORKPLACE_PLANS } from '../../../simulation/bilateralWorkplace';
-import { thursdayNegotiation } from '../../../simulation/workplaceCampaign';
+import { formatKg, thursdayNegotiation } from '../../../simulation/workplaceCampaign';
 import { formatFixed, useT } from '../../../i18n';
 import { workplaceNegotiationMessages } from './WorkplaceNegotiation.messages';
 
@@ -72,8 +72,8 @@ export function WorkplaceNegotiation({ state }: { state: WorkplaceState }) {
     [
       t('stagePhysicalWork'),
       t('physicalWorkDetail', {
-        delivered: formatFixed(moment.delivery.deliveredKg, 0),
-        target: formatFixed(moment.delivery.targetKg, 0),
+        delivered: formatKg(moment.delivery.deliveredKg),
+        target: formatKg(moment.delivery.targetKg),
         status: word(moment.delivery.status),
       }),
     ],
@@ -132,7 +132,7 @@ export function WorkplaceNegotiation({ state }: { state: WorkplaceState }) {
               handoff: formatFixed(state.finance.improvementSpend, 2),
               compensation: formatFixed(state.finance.compensationPaid, 2),
               cash: formatFixed(state.finance.cash, 2),
-              remaining: formatFixed(moment.delivery.remainingKg, 0),
+              remaining: formatKg(moment.delivery.remainingKg),
             })}
           </p>
           {state.phase === 'review' && <p>{t('reviewExperiment')}</p>}

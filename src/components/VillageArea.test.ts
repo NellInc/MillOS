@@ -30,6 +30,8 @@ import {
   AUTHORED_PROP_TRIM_MATERIALS,
   FOUNTAIN_SETT_TOP,
   FOUNTAIN_SETT_DEPTH_LAYER,
+  FENCE_POST_X,
+  createFencePanelGeometry,
 } from './scenery/AuthoredPropTrim';
 import { EXTERIOR_LAYERS } from '../constants/renderLayers';
 import {
@@ -55,6 +57,8 @@ import {
   TOWN_HALL_LENS_GEOMETRY,
 } from './VillageArea';
 import { SITE_LAYOUT, landmarkLocalToWorld } from '../constants/siteLayout';
+import { LAMP_POSITIONS } from './village/InstancedVillageComponents';
+import { VILLAGE_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
 import { BUSINESS_BRANDS } from './scenery/HeritageSignage';
 import { CIVIC_LAMPS, CIVIC_LIGHT_COLOR } from '../constants/civicSquareLighting';
 
@@ -368,7 +372,15 @@ describe('measured village and farm construction trim', () => {
   });
 
   it('uses four finite, closed, single-draw geometries within the detail budget', () => {
-    const limits = { market: 1000, fountain: 900, fence: 600, trough: 300 };
+    // The one-post fence variants are halves of the fence straps.
+    const limits = {
+      market: 1000,
+      fountain: 900,
+      fence: 600,
+      fenceLeading: 300,
+      fenceTrailing: 300,
+      trough: 300,
+    };
     for (const [kind, geometry] of Object.entries(AUTHORED_PROP_TRIM)) {
       expect(geometry.groups).toHaveLength(0);
       const p = geometry.getAttribute('position');
@@ -550,6 +562,21 @@ describe('measured village and farm construction trim', () => {
           }
         }
       }
+      // A continuing panel drops its leading post and keeps its trailing post
+      // and all three rails, whose ends then sit inside the neighbour's post.
+      const continuing = mesh(createFencePanelGeometry(fence[0].geometry, false, true));
+      expect(hit(fence, [-FENCE_POST_X, 0.45, 1], [0, 0, -1])).toBeDefined();
+      expect(hit([continuing], [-FENCE_POST_X, 0.45, 1], [0, 0, -1])).toBeUndefined();
+      expect(hit([continuing], [FENCE_POST_X, 0.45, 1], [0, 0, -1])).toBeDefined();
+      for (const y of [0.28, 0.59, 0.87])
+        expect(hit([continuing], [0, y, 1], [0, 0, -1])).toBeDefined();
+      // No drawn face reaches the dropped post's outer half.
+      const kept = continuing.geometry.index!;
+      const xs = Array.from({ length: kept.count }, (_, i) =>
+        continuing.geometry.getAttribute('position').getX(kept.getX(i))
+      );
+      expect(Math.min(...xs)).toBeGreaterThan(-0.8);
+      continuing.geometry.dispose();
       const trough = assets['farm/watertrough'];
       const roll = mesh(AUTHORED_PROP_TRIM.trough);
       for (const z of [-0.258, 0.258]) {
@@ -587,9 +614,11 @@ describe('measured village and farm construction trim', () => {
     expect(village).toMatch(
       /<GeneratedModel asset="fountain" \/>\s*<AuthoredPropTrim kind="fountain" \/>/
     );
-    expect(farm).toContain('<FarmFenceRun length={length} />');
+    expect(farm).toContain('<FarmFenceRun length={length} start={start} end={end} />');
     const fence = readFileSync('src/components/scenery/FarmFenceRun.tsx', 'utf8');
-    expect(fence).toContain('createFarmFenceRun(source, AUTHORED_PROP_TRIM.fence, length)');
+    expect(fence).toContain(
+      'createFarmFenceRun(source, AUTHORED_PROP_TRIM.fence, length, start, end)'
+    );
     expect(fence).toContain('material={AUTHORED_PROP_TRIM_MATERIALS.fence}');
     expect(farm).toMatch(
       /<GeneratedModel asset="watertrough" \/>\s*<AuthoredPropTrim kind="trough" \/>/
@@ -1178,5 +1207,21 @@ it('seats the floating leaves on the actual delivered pond water instead of 45mm
   meshes.forEach((m) => {
     m.geometry.dispose();
     m.material.dispose();
+  });
+});
+
+describe('village street lamps', () => {
+  it('stand beside the walks and outside every building', () => {
+    // The x 15 lamp at z 0 stood on the east passage's centreline.
+    const onWalk = LAMP_POSITIONS.filter(([x, z]) =>
+      VILLAGE_REALM_PATHS.some((path) => inRealmPath(x, z, path, 0.15))
+    );
+    expect(onWalk).toEqual([]);
+    const inside = LAMP_POSITIONS.filter(([x, z]) =>
+      VILLAGE_BUILDING_FOOTPRINTS.some(
+        (b) => Math.abs(x - b.x) < b.halfX && Math.abs(z - b.z) < b.halfZ
+      )
+    );
+    expect(inside).toEqual([]);
   });
 });

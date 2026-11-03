@@ -10,7 +10,7 @@
  */
 
 import { logger } from '../utils/logger';
-import { formatGrouped, getLocale, translate } from '../i18n';
+import { formatGrouped, getLocale, translate, useLocaleStore } from '../i18n';
 import { alarmManagerMessages } from './AlarmManager.messages';
 import {
   TagDefinition,
@@ -32,6 +32,19 @@ const formatThreshold = (threshold: number): string =>
   getLocale() === 'en' || !Number.isFinite(threshold)
     ? String(threshold)
     : formatGrouped(threshold, { useGrouping: false, maximumFractionDigits: 10 });
+
+/** An alarm's condition in the current language. */
+const conditionText = (tag: TagDefinition, type: AlarmType, threshold: number): string =>
+  type === 'BAD_QUALITY'
+    ? translate(alarmManagerMessages, 'sourceQualityBad')
+    : translate(alarmManagerMessages, 'thresholdCondition', {
+        type,
+        threshold: formatThreshold(threshold),
+        unit: tag.engUnit,
+      });
+
+/** No alarm is raised for this long after start-up, while the readings settle. */
+export const ALARM_STARTUP_WARMUP_MS = 5000;
 
 export class AlarmManager {
   private activeAlarms: Map<string, Alarm> = new Map();
@@ -71,7 +84,7 @@ export class AlarmManager {
 
   // Startup warmup - suppress alarms during initialization
   private startupTime: number;
-  private static WARMUP_PERIOD_MS = 5000; // 5 seconds warmup for system stabilization
+  private static WARMUP_PERIOD_MS = ALARM_STARTUP_WARMUP_MS;
 
   constructor(tags: TagDefinition[]) {
     this.startupTime = Date.now();
@@ -196,14 +209,27 @@ export class AlarmManager {
     if (alarmType) {
       // Value is in alarm condition
       if (!lastState?.inAlarm || lastState.type !== alarmType) {
-        // De-escalation retires the higher alarm rather than leaving it
-        // CRITICAL beside the HI/LO that replaces it.
-        if (
-          lastState?.inAlarm &&
-          ((lastState.type === 'HIHI' && alarmType === 'HI') ||
-            (lastState.type === 'LOLO' && alarmType === 'LO'))
-        ) {
-          this.clearAlarm(tag.id, lastState.type);
+        // Retire every standing alarm the new condition contradicts: the
+        // higher alarm on de-escalation (no CRITICAL beside the HI/LO that
+        // replaces it), a bad-quality alarm once a good sample arrives, and
+        // the opposite side when the value jumps across the normal band.
+        // Escalation keeps HI under HIHI (and LO under LOLO): it still holds.
+        if (lastState?.inAlarm && lastState.type) {
+          const isHigh = (type: AlarmType) => type === 'HI' || type === 'HIHI';
+          const isLow = (type: AlarmType) => type === 'LO' || type === 'LOLO';
+          const retire: AlarmType[] = [];
+          if (
+            lastState.type === 'BAD_QUALITY' ||
+            (lastState.type === 'HIHI' && alarmType === 'HI') ||
+            (lastState.type === 'LOLO' && alarmType === 'LO')
+          ) {
+            retire.push(lastState.type);
+          } else if (isLow(lastState.type) && isHigh(alarmType)) {
+            retire.push('LO', 'LOLO');
+          } else if (isHigh(lastState.type) && isLow(alarmType)) {
+            retire.push('HI', 'HIHI');
+          }
+          retire.forEach((type) => this.clearAlarm(tag.id, type));
         }
         // New alarm or alarm type changed
         this.raiseAlarm(tag, alarmType, numValue, threshold, priority, tagValue.quality);
@@ -291,14 +317,7 @@ export class AlarmManager {
         occurrenceCount: 1,
         unit: tag.engUnit,
         quality,
-        condition:
-          type === 'BAD_QUALITY'
-            ? translate(alarmManagerMessages, 'sourceQualityBad')
-            : translate(alarmManagerMessages, 'thresholdCondition', {
-                type,
-                threshold: formatThreshold(threshold),
-                unit: tag.engUnit,
-              }),
+        condition: conditionText(tag, type, threshold),
         disposition: 'IN_SERVICE',
         machineId: tag.machineId,
       };
@@ -313,9 +332,12 @@ export class AlarmManager {
       // Update value in existing alarm
       existing.value = value;
       existing.quality = quality;
-      existing.lastOccurrenceAt = now;
-      existing.occurrenceCount = (existing.occurrenceCount ?? 1) + 1;
+      // Only a returned alarm re-enters. HI standing under a HIHI excursion
+      // never left its condition, so falling back to it is not a new
+      // occurrence (store.ts raises one UI alert per occurrence).
       if (existing.state === 'RTN_UNACK') {
+        existing.lastOccurrenceAt = now;
+        existing.occurrenceCount = (existing.occurrenceCount ?? 1) + 1;
         existing.state = 'UNACK';
         existing.clearedAt = undefined;
       }
@@ -635,13 +657,43 @@ export class AlarmManager {
    */
   subscribe(callback: (alarms: Alarm[]) => void): () => void {
     this.listeners.add(callback);
+    // While anyone is listening, a language switch re-words the standing list.
+    this.unsubscribeLocale ??= useLocaleStore.subscribe((state, previous) => {
+      if (state.locale !== previous.locale) this.relabelActiveAlarms();
+    });
 
     // Immediately notify with current alarms
     callback(this.getActiveAlarms());
 
     return () => {
       this.listeners.delete(callback);
+      if (this.listeners.size === 0) {
+        this.unsubscribeLocale?.();
+        this.unsubscribeLocale = null;
+      }
     };
+  }
+
+  private unsubscribeLocale: (() => void) | null = null;
+
+  /**
+   * A standing alarm's tag name and condition were worded when it was raised.
+   * Re-word them in the current language so the alarm list follows a switch;
+   * the archive keeps what was recorded. Working if no standing alarm stays in
+   * the language it was raised in.
+   */
+  private relabelActiveAlarms(): void {
+    let changed = false;
+    this.activeAlarms.forEach((alarm, id) => {
+      const tag = this.tagThresholds.get(alarm.tagId);
+      if (!tag) return;
+      const tagName = tag.name;
+      const condition = conditionText(tag, alarm.type, alarm.threshold);
+      if (tagName === alarm.tagName && condition === alarm.condition) return;
+      this.activeAlarms.set(id, { ...alarm, tagName, condition });
+      changed = true;
+    });
+    if (changed) this.notifyListeners();
   }
 
   private notifyListeners(): void {

@@ -12,7 +12,10 @@ import {
   IDLE_ORBIT_DEFAULT,
   useCameraStore,
 } from './components/CameraController';
-import { FirstPersonController } from './components/FirstPersonController';
+import {
+  FirstPersonController,
+  useOrbitTargetAcrossWalk,
+} from './components/FirstPersonController';
 import ErrorBoundary, { RecoverableFeatureBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { StartupReadiness } from './components/StartupReadiness';
@@ -28,6 +31,8 @@ import { RENDERER_TONE_MAPPING, TONE_EXPOSURE } from './constants/colorGrade';
 import { useUIStore } from './stores/uiStore';
 import { useGameSimulationStore } from './stores/gameSimulationStore';
 import { useProductionStore } from './stores/productionStore';
+import { useSafetyStore } from './stores/safetyStore';
+import { useMobileControlStore } from './stores/mobileControlStore';
 import { initializeSCADASync } from './store';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -304,17 +309,30 @@ const App: React.FC = () => {
   const [showFpsInstructions, setShowFpsInstructions] = useState(false);
   const hasShownFpsInstructions = useRef(false);
   const orbitControlsRef = useRef<OrbitControlsImpl>(null);
+  // Leaving walk mode remounts the orbit rig; mount it on the target it had.
+  const orbitTarget = useOrbitTargetAcrossWalk(
+    orbitControlsRef,
+    SITE_LAYOUT.cameras.overview.target
+  );
   const glRef = useRef<THREE.WebGLRenderer | null>(null);
   const webglHandlersRef = useRef<{ lost: (event: Event) => void; restored: () => void } | null>(
     null
   );
 
   // Memoized callbacks
+  // The whole scene selection: the dock, I and the workspace event clear it as
+  // a panel opens, and a forklift card left behind sat over the panel's heading
+  // and Close. Working if opening a panel closes the forklift card, as Escape does.
   const handleCloseSelection = useCallback(() => {
     setSelectedMachine(null);
+    setSelectedForklift(null);
   }, []);
 
+  // One scene selection at a time: the forklift card (top right, above the
+  // sidebar) covered the machine inspector's header and close button.
+  // Working if picking either clears the other.
   const handleSelectMachine = useCallback((machine: MachineData) => {
+    setSelectedForklift(null);
     setSelectedMachine(machine);
   }, []);
   const handleFocusMachine = useCallback(
@@ -339,8 +357,19 @@ const App: React.FC = () => {
     },
     [handleSelectMachine, setFpsMode]
   );
-  const handleSelectForklift = useCallback(
-    (forklift: ForkliftData) => setSelectedForklift(forklift),
+  const handleSelectForklift = useCallback((forklift: ForkliftData) => {
+    setSelectedMachine(null);
+    setSelectedForklift(forklift);
+  }, []);
+  // The compact layout opens sheets, not the sidebar, and no sheet route runs
+  // the selection clear above. The forklift card (z-50 at the page root) sat
+  // over the sheet's z-30 layer: over its Close button in a narrow window.
+  // Working if opening any sheet closes the forklift card, as a panel does.
+  useEffect(
+    () =>
+      useMobileControlStore.subscribe((state, previous) => {
+        if (state.mobilePanelVisible && !previous.mobilePanelVisible) setSelectedForklift(null);
+      }),
     []
   );
   const handleLockChange = useCallback((locked: boolean) => {
@@ -370,7 +399,9 @@ const App: React.FC = () => {
     }
     if (!forcedMobileFpsRef.current) {
       forcedMobileFpsRef.current = true;
-      setFpsMode(true);
+      // An open guided delivery is written for the orbit view and is hidden in
+      // walk mode; a player mid-delivery keeps it after a reload or a turn.
+      if (!useUIStore.getState().journeyVisible) setFpsMode(true);
     }
   }, [isMobile, isLandscape, setFpsMode]);
 
@@ -444,6 +475,17 @@ const App: React.FC = () => {
           audioManager.startCompressorCycling(); // Industrial air compressor cycling
           audioManager.startMetalClanks(); // Random metal clanks from factory floor
           audioManager.startMusic(); // Background music (respects musicEnabled setting)
+          // A reload restores the Space-bar forklift stop but not its klaxon,
+          // which only the engaging keypress or button starts. A facility
+          // emergency holding the forklifts owns its own sound.
+          // Working if a reload mid-stop sounds the klaxon at the first gesture.
+          const sim = useGameSimulationStore.getState();
+          if (
+            useSafetyStore.getState().forkliftEmergencyStop &&
+            !sim.emergencyActive &&
+            !sim.emergencyDrillMode
+          )
+            audioManager.startEmergencyStopAlarm();
           setAudioInitialized(true);
         })
         .catch(() => {
@@ -899,7 +941,7 @@ const App: React.FC = () => {
                         minPolarAngle={runtimeMode.benchmark ? 0 : ORBIT_POLAR_LIMITS.min}
                         minDistance={runtimeMode.benchmark ? 0.25 : 15}
                         maxDistance={runtimeMode.benchmark ? 1000 : 220}
-                        target={[...SITE_LAYOUT.cameras.overview.target]}
+                        target={orbitTarget}
                         enableDamping
                         dampingFactor={0.05}
                         // On mobile, disable rotate (TouchLookHandler handles single-touch rotation)

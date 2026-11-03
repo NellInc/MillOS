@@ -28,6 +28,11 @@ import {
   MILLOS_RIVER_CONFIG,
 } from '../components/terrain/splatMapGenerator';
 import { sampleSceneryGroundHeight } from '../components/environment/foothillGround';
+import {
+  nearRailwayStation,
+  railwayStationBlocks,
+  railwayStationWalkingHeight,
+} from '../constants/railwayLayout';
 
 const site = SITE_LAYOUT.landmarks.castle;
 const c = Math.cos(site.rotation[1]),
@@ -142,6 +147,8 @@ export function sampleWalkingGroundHeight(x: number, z: number, segments: number
     return Math.max(terrain, SITE_LAYOUT.datum.interiorFloor);
   const shelter = busShelterWalkingHeight(x, z);
   if (shelter !== null) return Math.max(terrain, shelter);
+  const station = railwayStationWalkingHeight(x, z);
+  if (station !== null) return Math.max(terrain, station);
   const riverBridge = riverFootbridgeWalkingHeight(x, z);
   if (riverBridge !== null) return Math.max(terrain, riverBridge);
   const bridge = canalBridgeWalkingHeight(x, z);
@@ -222,7 +229,11 @@ export function walkingBlocks(
   radius = 0.4,
   bodyHeight = 1.8
 ): boolean {
-  return castleBlocks(x, z, feet, radius) || busShelterBlocks(x, z, feet, radius, bodyHeight);
+  return (
+    castleBlocks(x, z, feet, radius) ||
+    busShelterBlocks(x, z, feet, radius, bodyHeight) ||
+    railwayStationBlocks(x, z, feet, radius, bodyHeight)
+  );
 }
 
 /** Substeps are shorter than half a tread even during a sprint/tab hitch.
@@ -264,7 +275,9 @@ export function moveWalkingPosition(
           nearCanalBridge(x, z) ||
           nearCanalBridge(position.x, position.z) ||
           nearRiverFootbridge(x, z) ||
-          nearRiverFootbridge(position.x, position.z)) &&
+          nearRiverFootbridge(position.x, position.z) ||
+          nearRailwayStation(x, z) ||
+          nearRailwayStation(position.x, position.z)) &&
         Math.abs(floor - feet) > 0.23
       )
         continue;

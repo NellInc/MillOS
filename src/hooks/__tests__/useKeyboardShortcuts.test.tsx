@@ -4,6 +4,7 @@ import { useKeyboardShortcuts } from '../useKeyboardShortcuts';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { selectClockHolder, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useForkliftDriveStore } from '../../stores/forkliftDriveStore';
 import { audioManager } from '../../utils/audioManager';
 
 const camera = vi.hoisted(() => ({ setPreset: vi.fn() }));
@@ -13,6 +14,7 @@ vi.mock('../../components/CameraController', () => ({
 }));
 vi.mock('../../components/GameFeatures', () => ({
   FORKLIFT_STOP_ANNOUNCEMENTS: [{ message: 'Forklifts stopped.' }],
+  FORKLIFT_STOP_TOPIC: 'forklift-stop',
 }));
 vi.mock('../../utils/audioManager', () => ({
   audioManager: {
@@ -48,6 +50,24 @@ describe('keyboard control ownership', () => {
     useSafetyStore.setState({ forkliftEmergencyStop: false });
     useGameSimulationStore.setState({ emergencyActive: false, emergencyDrillMode: false });
     useUIStore.setState({ fpsMode: false });
+  });
+
+  it('leaves F to the forklift beside or under the first-person player, else fullscreen', () => {
+    const requestFullscreen = vi.fn(() => Promise.resolve());
+    Object.defineProperty(document.documentElement, 'requestFullscreen', {
+      configurable: true,
+      value: requestFullscreen,
+    });
+    renderHook(() => useKeyboardShortcuts(config));
+    useForkliftDriveStore.setState({ drivenId: null, inReachId: 'forklift-1' });
+    fireEvent.keyDown(window, { key: 'f' });
+    useForkliftDriveStore.setState({ drivenId: 'forklift-1', inReachId: null });
+    fireEvent.keyDown(window, { key: 'f' });
+    expect(requestFullscreen).not.toHaveBeenCalled();
+    useForkliftDriveStore.setState({ drivenId: null, inReachId: null });
+    fireEvent.keyDown(window, { key: 'f' });
+    expect(requestFullscreen).toHaveBeenCalledTimes(1);
+    Reflect.deleteProperty(document.documentElement, 'requestFullscreen');
   });
 
   it('keeps native select and editable typing out of production controls', () => {
@@ -188,5 +208,17 @@ describe('keyboard control ownership', () => {
     fireEvent.keyDown(window, { key: '2' });
     expect(useUIStore.getState().fpsMode).toBe(false);
     expect(camera.setPreset).toHaveBeenCalledWith(1);
+  });
+
+  // Nothing reads panelMinimized, so M was a key that clicked and did nothing.
+  // Working if M is unbound: no click, no store write, the key left to others.
+  it('leaves M unbound now that no panel minimises', () => {
+    useUIStore.setState({ panelMinimized: false });
+    renderHook(() => useKeyboardShortcuts(config));
+    const event = new KeyboardEvent('keydown', { key: 'm', cancelable: true });
+    window.dispatchEvent(event);
+    expect(useUIStore.getState().panelMinimized).toBe(false);
+    expect(audioManager.playClick).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
   });
 });

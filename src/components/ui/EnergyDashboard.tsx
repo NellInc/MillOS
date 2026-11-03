@@ -3,15 +3,15 @@
  *
  * Comprehensive real-time energy usage display with:
  * - Machine energy breakdown by type (Running/Idle)
- * - Energy modifiers (Load Factor, Warning, Maintenance penalties)
+ * - Energy modifiers (Load Factor, Warning) and service need from wear
  * - Facility base load with time-of-day transitions
  * - Emergency mode indicator
  *
  * Toggle: U key (default OFF)
  */
 
-import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import { motion, useDragControls } from 'framer-motion';
 import {
   Zap,
   Sun,
@@ -29,9 +29,15 @@ import {
   GripVertical,
   X,
 } from 'lucide-react';
-import { useProductionStore } from '../../stores/productionStore';
+import {
+  getWearConfig,
+  minimumServiceWear,
+  useProductionStore,
+} from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
+import { useChronicleStore } from '../../stores/chronicleStore';
+import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import {
   MACHINE_ENERGY_CONSUMPTION,
   MACHINE_TYPE_LABELS,
@@ -40,18 +46,47 @@ import {
   getEmergencyLoad,
   getMachineEnergy,
   getSiteDemandKw,
+  SIMULATED_GRID_INTENSITY_KG_PER_KWH,
 } from '../../utils/energyCalculations';
 import { MachineType } from '../../types';
 import { formatFixed, formatGrouped, useT } from '../../i18n';
 import { energyDashboardMessages } from './EnergyDashboard.messages';
-
-const SIMULATED_GRID_INTENSITY_KG_PER_KWH = 0.4;
 
 const EnergyDashboardBody: React.FC = () => {
   const t = useT(energyDashboardMessages);
   const machines = useProductionStore((state) => state.machines);
   const gameTime = useGameSimulationStore((state) => state.gameTime);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
+  // The multipliers UnifiedGameTick and tickCampaign apply before billing.
+  const incidentEnergy = useOperationsCampaignStore(
+    (state) => state.getIncidentEffect().energyMultiplier
+  );
+  const wheatRecipe = useOperationsCampaignStore(
+    (state) => state.getActiveProductionPlan()?.sourceMaterial === 'wheat_grain'
+  );
+  const chronicleEnergy = useChronicleStore(
+    (state) => state.getEffect(wheatRecipe).energyMultiplier
+  );
+  const energyMultiplier = incidentEnergy * chronicleEnergy;
+
+  // Closing (its X, Escape, U) unmounts the panel. With focus inside, it would
+  // drop to the page body, so it goes back to whatever had it when the panel
+  // opened (the settings toggle, a dock button), while that is still there.
+  // A layout cleanup runs before the panel leaves the document.
+  const regionRef = useRef<HTMLDivElement>(null);
+  // Only the header drags: a whole-panel drag sets touch-action: none, so on a
+  // phone the panel's scrolling content could not be swiped.
+  const dragControls = useDragControls();
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    const opener = active instanceof HTMLElement && active !== document.body ? active : null;
+    const region = regionRef.current;
+    return () => {
+      if (!region?.contains(document.activeElement) || !opener?.isConnected) return;
+      if (region.contains(opener)) return;
+      opener.focus({ preventScroll: true });
+    };
+  }, []);
 
   // Calculate comprehensive energy metrics
   const metrics = useMemo(() => {
@@ -64,25 +99,31 @@ const EnergyDashboardBody: React.FC = () => {
 
     // Count machines with modifiers
     const warningCount = machines.filter((m) => m.status === 'warning').length;
-    const overdueCount = machines.filter(
-      (m) => m.maintenanceCountdown !== undefined && m.maintenanceCountdown <= 0
-    ).length;
-    const maintenanceDueCount = machines.filter(
-      (m) =>
-        m.maintenanceCountdown !== undefined &&
-        m.maintenanceCountdown > 0 &&
-        m.maintenanceCountdown < 24
-    ).length;
+    // Service need from wear, the figure the wear tick writes (nothing writes
+    // maintenanceCountdown): due from the service point, where efficiency starts
+    // to fall and Maintain is offered; overdue from the warning threshold.
+    let overdueCount = 0;
+    let maintenanceDueCount = 0;
+    for (const m of machines) {
+      const wear = m.metrics?.wear;
+      if (typeof wear !== 'number' || !Number.isFinite(wear)) continue;
+      if (wear >= getWearConfig(m.type).warningThreshold) overdueCount++;
+      else if (wear >= minimumServiceWear(m.type)) maintenanceDueCount++;
+    }
 
-    // Average load factor for running machines
-    const runningMachines = machines.filter((m) => m.status === 'running');
+    // Average load factor for the machines on the load curve: a warning
+    // machine is still running, and its demand follows its load.
+    const runningMachines = machines.filter(
+      (m) => m.status === 'running' || m.status === 'warning'
+    );
     const avgLoadFactor =
       runningMachines.length > 0
         ? runningMachines.reduce((sum, m) => sum + m.metrics.load, 0) / runningMachines.length
         : 0;
 
-    // Total instantaneous demand: the same figure the campaign bills.
-    const totalEnergy = Math.round(getSiteDemandKw(machines, gameTime, emergencyActive));
+    // Total instantaneous demand: the same figure the campaign bills, with the
+    // incident and Chronicle multipliers it is billed at, and unrounded.
+    const totalEnergy = getSiteDemandKw(machines, gameTime, emergencyActive) * energyMultiplier;
 
     // Peak hours: 9 AM - 9 PM
     const hour = ((gameTime % 24) + 24) % 24;
@@ -105,12 +146,13 @@ const EnergyDashboardBody: React.FC = () => {
       overdueCount,
       maintenanceDueCount,
       avgLoadFactor,
+      onLoadCurveCount: runningMachines.length,
       isPeakHours,
       estimatedCostPerHour,
       carbonKg,
       hour,
     };
-  }, [machines, gameTime, emergencyActive]);
+  }, [machines, gameTime, emergencyActive, energyMultiplier]);
 
   const formatNumber = (n: number, decimals = 1) => formatFixed(n, decimals);
   const formatTime = (hour: number) => {
@@ -123,18 +165,27 @@ const EnergyDashboardBody: React.FC = () => {
 
   return (
     <motion.div
+      ref={regionRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
       drag
+      dragListener={false}
+      dragControls={dragControls}
       dragMomentum={false}
       dragElastic={0.1}
       role="region"
       aria-label={t('regionLabel')}
+      // Escape closes this before the tour or delivery guide behind it.
+      data-escape-layer=""
       className="fixed left-4 bottom-20 w-80 bg-slate-900/95 backdrop-blur-xl rounded-xl border border-emerald-500/30 shadow-xl z-40 max-h-[80vh] overflow-y-auto"
     >
       {/* Header - Drag Handle */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50 cursor-move select-none sticky top-0 bg-slate-900/95 backdrop-blur-xl z-10">
+      <div
+        data-drag-handle=""
+        onPointerDown={(event) => dragControls.start(event)}
+        className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50 cursor-move select-none touch-none sticky top-0 bg-slate-900/95 backdrop-blur-xl z-10"
+      >
         <div className="flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-emerald-500/20">
             <Zap className="w-4 h-4 text-emerald-400" />
@@ -261,7 +312,10 @@ const EnergyDashboardBody: React.FC = () => {
                         {formatGrouped(consumption.idle)}
                       </td>
                       <td className="py-1.5 px-2 text-right font-mono text-cyan-400">
-                        {stat ? formatNumber(stat.totalEnergy) : formatNumber(0)}
+                        {/* An emergency bills facility load only (getSiteDemandKw). */}
+                        {stat && !emergencyActive
+                          ? formatNumber(stat.totalEnergy)
+                          : formatNumber(0)}
                       </td>
                     </tr>
                   );
@@ -283,7 +337,9 @@ const EnergyDashboardBody: React.FC = () => {
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] text-slate-400">{t('loadFactor')}</span>
                 <span className="text-[10px] font-mono text-blue-400">
-                  {Math.round(70 + (metrics.avgLoadFactor / 100) * 30)}%
+                  {metrics.onLoadCurveCount > 0
+                    ? `${Math.round(70 + (metrics.avgLoadFactor / 100) * 30)}%`
+                    : t('none')}
                 </span>
               </div>
               <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
@@ -340,11 +396,12 @@ const EnergyDashboardBody: React.FC = () => {
                   metrics.maintenanceDueCount > 0 ? 'text-yellow-400' : 'text-slate-500'
                 }`}
               >
+                {/* A count, not a percentage: the bill charges no penalty for wear. */}
                 {metrics.maintenanceDueCount > 0
-                  ? t('maintenancePenalty', { count: formatFixed(metrics.maintenanceDueCount, 0) })
+                  ? formatFixed(metrics.maintenanceDueCount, 0)
                   : t('none')}
               </div>
-              <div className="text-[9px] text-slate-400">{t('within24')}</div>
+              <div className="text-[9px] text-slate-400">{t('pastServicePoint')}</div>
             </div>
 
             {/* Overdue Maintenance */}
@@ -366,12 +423,21 @@ const EnergyDashboardBody: React.FC = () => {
                   metrics.overdueCount > 0 ? 'text-red-400' : 'text-slate-500'
                 }`}
               >
-                {metrics.overdueCount > 0
-                  ? t('overduePenalty', { count: formatFixed(metrics.overdueCount, 0) })
-                  : t('none')}
+                {metrics.overdueCount > 0 ? formatFixed(metrics.overdueCount, 0) : t('none')}
               </div>
-              <div className="text-[9px] text-slate-400">{t('maxPenalty')}</div>
+              <div className="text-[9px] text-slate-400">{t('pastWarningWear')}</div>
             </div>
+
+            {/* The incident and Chronicle factor the headline is billed at; without
+                it the parts below did not add up to the demand above. */}
+            {Math.abs(energyMultiplier - 1) > 1e-6 && (
+              <div className="col-span-2 flex items-center justify-between bg-slate-800/50 rounded-lg p-2 border border-sky-500/30">
+                <span className="text-[10px] text-slate-400">{t('siteConditions')}</span>
+                <span className="text-sm font-mono text-sky-400">
+                  {t('siteFactor', { value: formatFixed(energyMultiplier, 2) })}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -433,9 +499,9 @@ const EnergyDashboardBody: React.FC = () => {
             <span
               className={`font-mono ${metrics.isPeakHours ? 'text-amber-400' : 'text-emerald-400'}`}
             >
-              ${formatNumber(metrics.estimatedCostPerHour, 2)}
+              {t('costPerHour', { value: formatNumber(metrics.estimatedCostPerHour, 2) })}
               <span className="text-[9px] text-slate-400 ml-1">
-                (${formatFixed(metrics.isPeakHours ? 0.15 : 0.08, 2)}/kWh)
+                {t('tariff', { rate: formatFixed(metrics.isPeakHours ? 0.15 : 0.08, 2) })}
               </span>
             </span>
           </div>

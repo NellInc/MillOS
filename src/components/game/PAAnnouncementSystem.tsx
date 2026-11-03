@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, RadioTower, Shield, AlertTriangle, Package } from 'lucide-react';
 // Use announcementsStore directly - productionStore.announcements is a stale snapshot
@@ -16,11 +16,43 @@ import { useAudioMuted } from '../../hooks/useAudioState';
 import { audioManager } from '../../utils/audioManager';
 import { logger } from '../../utils/logger';
 import { formatFixed, useT } from '../../i18n';
+import { keyedText } from '../../i18n/alertCopy';
 import { paAnnouncementSystemMessages } from './PAAnnouncementSystem.messages';
 import { LiveRegionPortal } from '../ui/LiveRegionPortal';
+import { focusDockItem } from '../ui-new/dock/focusDockItem';
 
 // Retain captions long enough to read before advancing the queue.
 const FALLBACK_TIMEOUT_MS = 10000;
+
+/*
+ * The phone ticker scrolls a caption once from the right edge until it has
+ * left on the left, at a steady reading speed, and keeps it up that long.
+ * Sizes are for text-xs (about 6.5 px a character) in a landscape phone's
+ * ticker (about 520 px of track).
+ */
+const TICKER_PX_PER_SECOND = 80;
+const TICKER_CHAR_PX = 6.5;
+const TICKER_TRACK_PX = 520;
+export const tickerSeconds = (text: string): number =>
+  Math.max(8, (text.length * TICKER_CHAR_PX + TICKER_TRACK_PX) / TICKER_PX_PER_SECOND);
+
+/**
+ * Rendered inside a caption card. The card leaves with its Dismiss button,
+ * whether pressed or timed out, and focus on it fell to <body>, where the next
+ * Space is the forklift emergency stop. A layout cleanup runs while the card is
+ * still in the document, so it can see focus inside and hand it to the dock.
+ * Working if Tab continues from the dock after a caption goes.
+ */
+const CaptionFocusHandoff: React.FC = () => {
+  const markerRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const card = markerRef.current?.parentElement ?? null;
+    return () => {
+      if (card?.contains(document.activeElement)) focusDockItem('overview');
+    };
+  }, []);
+  return <span ref={markerRef} hidden />;
+};
 
 const PA_CHANNEL_RANK: Record<PAChannel, number> = {
   safety: 5,
@@ -127,10 +159,22 @@ export const PAAnnouncementSystem: React.FC = () => {
     };
   }, [setPAContext]);
 
+  // Its own key: GameInterface writes safetyCritical for a standing critical
+  // alert, and on one shared key a forklift-stop release cleared that hold
+  // (or a GameInterface re-run cleared the forklift stop's). Working if routine
+  // PA stays held while either holder still has a safety state standing.
   useEffect(() => {
-    setPAContext({ safetyCritical: safetyOverlayActive });
-    return () => setPAContext({ safetyCritical: false });
+    setPAContext({ safetyHold: safetyOverlayActive });
+    return () => setPAContext({ safetyHold: false });
   }, [safetyOverlayActive, setPAContext]);
+
+  // A paused plant (P, the pace menu or any clock hold) is not cycling, so the
+  // routine cycle bells and tones wait with it.
+  const plantPaused = useGameSimulationStore((state) => state.gameSpeed === 0);
+  useEffect(() => {
+    setPAContext({ plantPaused });
+    return () => setPAContext({ plantPaused: false });
+  }, [plantPaused, setPAContext]);
 
   // Schedule periodic announcements
   usePAScheduler();
@@ -142,6 +186,19 @@ export const PAAnnouncementSystem: React.FC = () => {
   // priority and channel class.
   const activeAnnouncements = announcements.filter((a) => !a.dismissed);
   const currentAnnouncement = selectAnnouncementForDisplay(announcements, safetyOverlayActive);
+  // A keyed line reads in the language active now (a line queued before a
+  // switch, or restored from the transcript); `message` is its fallback.
+  // useT above re-renders this on a language switch.
+  const currentText = currentAnnouncement
+    ? keyedText(currentAnnouncement.copy, currentAnnouncement.message)
+    : '';
+  // How long the line stays up: on the scrolling phone ticker, its whole pass.
+  const scrolls = isCompactLayout && !prefersReducedMotion;
+  const showForMs = scrolls
+    ? Math.max(FALLBACK_TIMEOUT_MS, tickerSeconds(currentText) * 1000 + 1000)
+    : FALLBACK_TIMEOUT_MS;
+  const showForMsRef = useRef(showForMs);
+  showForMsRef.current = showForMs;
 
   // When muted, immediately dismiss any active announcement to prevent visual flash
   useEffect(() => {
@@ -161,6 +218,20 @@ export const PAAnnouncementSystem: React.FC = () => {
     if (!currentAnnouncement || isStartupSuppressed || isMuted || audioManager.muted) return;
 
     if (currentAnnouncement.id !== lastAnnouncementIdRef.current) {
+      // A more urgent line took the screen. The one it displaced has been
+      // shown, and would otherwise return with a fresh interval once the queue
+      // drains, minutes after the moment it described. The transcript keeps it.
+      const displacedId = lastAnnouncementIdRef.current;
+      if (
+        displacedId &&
+        useAnnouncementsStore
+          .getState()
+          .announcements.some(
+            (announcement) => announcement.id === displacedId && !announcement.dismissed
+          )
+      ) {
+        dismissAnnouncement(displacedId);
+      }
       logger.debug(
         '[PA] New announcement:',
         currentAnnouncement.id,
@@ -173,7 +244,7 @@ export const PAAnnouncementSystem: React.FC = () => {
     const announcementId = currentAnnouncement.id;
     fallbackTimerRef.current = setTimeout(() => {
       dismissAnnouncement(announcementId);
-    }, FALLBACK_TIMEOUT_MS);
+    }, showForMsRef.current);
 
     return () => {
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
@@ -204,7 +275,7 @@ export const PAAnnouncementSystem: React.FC = () => {
         aria-live={isUrgent ? 'assertive' : 'polite'}
         aria-atomic="true"
       >
-        {isShowing && !currentAnnouncement.captionOnly ? currentAnnouncement.message : ''}
+        {isShowing && !currentAnnouncement.captionOnly ? currentText : ''}
       </div>
     </LiveRegionPortal>
   );
@@ -247,18 +318,26 @@ export const PAAnnouncementSystem: React.FC = () => {
               className="mx-2 bg-slate-900/90 backdrop-blur-md rounded-lg border border-slate-700/50 px-3 py-1.5 flex items-center gap-2"
               onClick={() => dismissAnnouncement(currentAnnouncement.id)}
             >
+              <CaptionFocusHandoff />
               <RadioTower className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" aria-hidden="true" />
               <div className="flex-1 min-w-0 overflow-hidden" aria-hidden="true">
                 {prefersReducedMotion ? (
-                  <p className="text-xs text-slate-200 truncate">{currentAnnouncement.message}</p>
+                  <p className="text-xs text-slate-200 truncate">{currentText}</p>
                 ) : (
+                  // As wide as its text plus a full track of lead-in (padding
+                  // in % is of the track), so one pass starts off the right
+                  // edge and ends with the last word gone off the left.
                   <motion.p
-                    initial={{ x: '100%' }}
+                    initial={{ x: '0%' }}
                     animate={{ x: '-100%' }}
-                    transition={{ duration: 12, ease: 'linear', repeat: Infinity }}
-                    className="text-xs text-slate-200 whitespace-nowrap"
+                    transition={{
+                      duration: tickerSeconds(currentText),
+                      ease: 'linear',
+                      repeat: Infinity,
+                    }}
+                    className="w-max pl-[100%] text-xs text-slate-200 whitespace-nowrap"
                   >
-                    {currentAnnouncement.message}
+                    {currentText}
                   </motion.p>
                 )}
               </div>
@@ -350,12 +429,13 @@ export const PAAnnouncementSystem: React.FC = () => {
             transition={prefersReducedMotion ? { duration: 0 } : undefined}
             className={`flex items-start gap-3.5 px-5 py-4 rounded-xl border-2 backdrop-blur-xl shadow-2xl w-full ${getAnnouncementStyles(currentAnnouncement.priority)}`}
           >
+            <CaptionFocusHandoff />
             <div className="flex-shrink-0 mt-0.5" aria-hidden="true">
               {getAnnouncementIcon(currentAnnouncement.type)}
             </div>
             <div className="flex-1 min-w-0 text-left space-y-2" aria-hidden="true">
               <p className="font-medium text-base leading-relaxed text-balance hyphens-auto">
-                {currentAnnouncement.message}
+                {currentText}
               </p>
               <div className="flex items-center gap-2.5 opacity-50">
                 <div className="h-[1px] bg-current flex-1 opacity-70" />

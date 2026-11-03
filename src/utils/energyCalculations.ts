@@ -13,6 +13,9 @@ import { energyCalculationsMessages as messages } from './energyCalculations.mes
  * Electrical demand by machine type (kW).
  * Running = full operation, Idle = standby demand.
  */
+/** Simulated grid carbon intensity, shared so every panel prints one kg CO2/h. */
+export const SIMULATED_GRID_INTENSITY_KG_PER_KWH = 0.4;
+
 export const MACHINE_ENERGY_CONSUMPTION: Record<MachineType, { running: number; idle: number }> = {
   [MachineType.SILO]: { running: 2, idle: 0.5 },
   [MachineType.ROLLER_MILL]: { running: 45, idle: 2 },
@@ -97,18 +100,20 @@ export function getMachineEnergyDetailed(machine: MachineData): MachineEnergyBre
       warningPenalty = 1.1;
       baseEnergy = consumption.running * loadFactor * warningPenalty;
       break;
+    // A breakdown ('critical') stops the unit: productionStore freezes it and
+    // the material flow stops it processing, so it draws standby power like an
+    // idle unit. Billing 80% of running demand let a breakdown barely move the
+    // bill and gave a type row counted idle a running-size figure.
     case 'critical':
-      // Critical - still consuming but erratically
-      baseEnergy = consumption.running * 0.8;
-      break;
     case 'idle':
     default:
       baseEnergy = consumption.idle;
       break;
   }
 
-  // Apply maintenance penalty (only affects running machines)
-  const finalEnergy = machine.status === 'idle' ? baseEnergy : baseEnergy * maintenancePenalty;
+  // Apply maintenance penalty (only affects machines that are running)
+  const onLoadCurve = machine.status === 'running' || machine.status === 'warning';
+  const finalEnergy = onLoadCurve ? baseEnergy * maintenancePenalty : baseEnergy;
 
   return {
     baseEnergy: consumption.running,

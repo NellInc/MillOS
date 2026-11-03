@@ -11,6 +11,7 @@ export const fpsInstructionsMessages = defineMessages({
     lookAround: 'Look around',
     sprint: 'Sprint',
     exitFirstPerson: 'Exit first-person',
+    forklift: 'Drive or leave a forklift',
     returnToOverview: 'Return to overview',
     pressEsc: 'Press ESC anytime to return to orbit camera',
   },
@@ -25,7 +26,23 @@ export const fpsInstructionsMessages = defineMessages({
     lookAround: 'Olhar ao redor',
     sprint: 'Correr',
     exitFirstPerson: 'Sair da visão em primeira pessoa',
+    forklift: 'Dirigir ou descer da empilhadeira',
     returnToOverview: 'Voltar à visão geral',
     pressEsc: 'Pressione ESC a qualquer momento para voltar à câmera orbital',
+  },
+});
+
+export const forkliftPromptMessages = defineMessages({
+  en: {
+    drive: 'Drive {tag}',
+    leave: 'Step down',
+    raiseForks: 'Raise forks',
+    lowerForks: 'Lower forks',
+  },
+  'pt-BR': {
+    drive: 'Dirigir {tag}',
+    leave: 'Descer',
+    raiseForks: 'Erguer garfos',
+    lowerForks: 'Baixar garfos',
   },
 });

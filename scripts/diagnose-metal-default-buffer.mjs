@@ -47,7 +47,8 @@ let browser;
 try {
   await mkdir(output, { recursive: true });
   browser = await chromium.launch({
-    ...(executablePath ? { executablePath } : { channel: 'chromium' }),
+    channel: 'chrome',
+    ...(executablePath ? { executablePath } : { channel: 'chrome' }),
     headless: true,
     chromiumSandbox: true,
     ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],

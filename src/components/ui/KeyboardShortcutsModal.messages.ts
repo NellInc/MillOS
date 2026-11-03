@@ -39,8 +39,7 @@ export const keyboardShortcutsModalMessages = defineMessages({
     toggleEnergy: 'Toggle energy dashboard',
     toggleMultiObjective: 'Toggle multi-objective dashboard',
     toggleCost: 'Toggle cost estimation overlay',
-    minimizePanel: 'Minimize/Expand panel',
-    toggleFullscreen: 'Toggle fullscreen',
+    toggleFullscreen: 'Toggle fullscreen (in first person beside a forklift: drive or leave it)',
     toggleMiniMap: 'Toggle GPS mini-map',
     toggleAutoRotate: 'Slow showcase orbit, off by default (outdoor views with a clear path)',
     blueprint: 'Blueprint mode (see-through walls)',
@@ -96,8 +95,8 @@ export const keyboardShortcutsModalMessages = defineMessages({
     toggleEnergy: 'Mostrar/ocultar o painel de energia',
     toggleMultiObjective: 'Mostrar/ocultar o painel multiobjetivo',
     toggleCost: 'Mostrar/ocultar a sobreposição de estimativa de custos',
-    minimizePanel: 'Minimizar/expandir o painel',
-    toggleFullscreen: 'Ativar/desativar a tela cheia',
+    toggleFullscreen:
+      'Ativar/desativar a tela cheia (em primeira pessoa junto a uma empilhadeira: dirigir ou descer)',
     toggleMiniMap: 'Mostrar/ocultar o minimapa GPS',
     toggleAutoRotate:
       'Volta lenta de exibição, desligada por padrão (vistas externas com caminho livre)',

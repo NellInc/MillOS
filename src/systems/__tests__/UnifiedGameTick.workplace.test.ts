@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import * as ts from 'typescript';
 import { unifiedGameTick, resetUnifiedTickState } from '../UnifiedGameTick';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
+import { safeJSONStorage } from '../../stores/storage';
 import {
   createWorkplace,
   restoreWorkplace,
@@ -277,7 +278,7 @@ it('a safety stop ends optional work without removing earned compensation or res
   s.simulateResponses();
   expect(s.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
   s.tick(3, 0, false);
-  useGameSimulationStore.getState().triggerEmergency();
+  useGameSimulationStore.getState().triggerEmergency('E-STOP');
   step();
   const after = useWorkplaceStore.getState().workplace;
   expect(after.phase).toBe('review');
@@ -641,7 +642,9 @@ it('binds the three-shift game to actual selected-order dispatch without double-
   expect(useMaterialFlowStore.getState().shippedKg).toBeGreaterThan(0);
   expect(outcome.agreement.status).toBe('honoured');
   expect(outcome.accounts.wages).toBeCloseTo(324);
-  expect(outcome.delivery.targetKg).toBe(binding.originalTargetKg * 0.8);
+  // The order shipped in full, so the delivery reads against the whole order
+  // rather than the agreed instalment; the agreed deferral keeps its value.
+  expect(outcome.delivery.targetKg).toBe(binding.originalTargetKg);
   expect(outcome.delivery.deferredKg).toBe(binding.originalTargetKg * 0.2);
   expect(outcome.complete).toBe(outcome.delivery.deliveredKg + 1e-6 >= outcome.delivery.targetKg);
   const revenue = useOperationsCampaignStore.getState().economics.revenue;
@@ -932,7 +935,7 @@ describe('whole operational checkpoint replay', () => {
   it('preflights owner identity, material session and safety before any rewind mutation', () => {
     const lab = checkpoint();
     const material = useMaterialFlowStore.getState();
-    useGameSimulationStore.getState().triggerEmergency();
+    useGameSimulationStore.getState().triggerEmergency('E-STOP');
     expect(lab.begin('team').reason).toMatch(/safety hold/);
     useGameSimulationStore.getState().resolveEmergency();
     useGameSimulationStore.getState().setGameSpeed(0);
@@ -965,6 +968,12 @@ describe('whole operational checkpoint replay', () => {
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
     expect(useMaterialFlowStore.getState().machineBuffers).toBe(flow.machineBuffers);
     expect(lab.record().changed).toBe(false);
+    // The stop was written while the replay still ran, so it was dropped; the
+    // takeover writes the workplace it left once the replay has ended.
+    const stored = safeJSONStorage.getItem('millos-workplace-laboratory') as {
+      state?: { workplace?: { phase?: string } | null };
+    } | null;
+    expect(stored?.state?.workplace?.phase).toBe('review');
   });
   it('exports public conduct only, without raw checkpoints, private preference or authority', () => {
     const lab = checkpoint();

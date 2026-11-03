@@ -59,7 +59,11 @@ export const VCLDiffPanel: React.FC = () => {
         currentShift,
         weather,
         gameTime,
-        alerts.map((a) => ({ type: a.type }))
+        alerts.map((a) => ({
+          type: a.type,
+          acknowledged: a.acknowledged,
+          returnedToNormal: a.returnedToNormal,
+        }))
       );
 
       // Only update if VCL changed
@@ -105,6 +109,8 @@ export const VCLDiffPanel: React.FC = () => {
     });
   }
   const hasChanges = added.size > 0 || removed.size > 0;
+  // Positions that differ: a glyph replaced counts once, one dropped counts too.
+  const changeCount = new Set([...added, ...removed]).size;
 
   return (
     <AnimatePresence>
@@ -121,7 +127,7 @@ export const VCLDiffPanel: React.FC = () => {
             <span className="text-xs font-medium text-indigo-300">{t('title')}</span>
             {hasChanges && (
               <span className="px-1.5 py-0.5 rounded-full bg-green-500/20 text-[9px] text-green-400">
-                {t('changeCount', { count: added.size })}
+                {t('changeCount', { count: changeCount })}
               </span>
             )}
           </div>

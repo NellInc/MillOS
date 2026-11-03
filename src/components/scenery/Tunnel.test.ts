@@ -19,6 +19,7 @@ import {
   createVictorianTunnelPortalGeometry,
   createVictorianTunnelSideGeometry,
 } from './Tunnel';
+import { RAILWAY_PORTALS } from '../../constants/railwayLayout';
 
 describe('Victorian tunnel portal', () => {
   it('keeps both masonry faces open to the same curved passage', () => {
@@ -232,8 +233,10 @@ describe('rounded road tunnel hill', () => {
     );
     const down = new THREE.Vector3(0, -1, 0);
     const end = 90 + ROAD_TUNNEL_TAIL.length;
-    for (const tunnel of Object.values(SITE_LAYOUT.roadTunnels)) {
-      tunnelHill.position.set(...tunnel.position);
+    // The railway's two mouths reuse the same hill, so they owe the same burial.
+    for (const tunnel of [...Object.values(SITE_LAYOUT.roadTunnels), ...RAILWAY_PORTALS]) {
+      const [px, py, pz] = tunnel.position;
+      tunnelHill.position.set(px, py, pz);
       tunnelHill.rotation.set(0, tunnel.rotation, 0);
       tunnelHill.updateMatrixWorld(true);
       const world = (x: number, z: number) =>

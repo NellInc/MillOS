@@ -15,14 +15,16 @@ import {
   getDecisionStatusIcon,
   getDecisionPriorityBadge,
 } from '../../utils/decisionIcons';
-import { formatTime } from '../../utils/timeFormatting';
-import { useT } from '../../i18n';
+import { formatPlantStamp, formatTime } from '../../utils/timeFormatting';
+import { formatFixed, useLocale, useT } from '../../i18n';
+import { decisionCardText } from '../../utils/aiEngine';
 import { decisionHistoryPanelMessages } from './DecisionHistoryPanel.messages';
 
 const ITEMS_PER_PAGE = 5;
 
 export const DecisionHistoryPanel: React.FC = () => {
   const t = useT(decisionHistoryPanelMessages);
+  const locale = useLocale();
   const [currentPage, setCurrentPage] = useState(0);
   const [expanded, setExpanded] = useState(true);
 
@@ -102,16 +104,17 @@ export const DecisionHistoryPanel: React.FC = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium text-slate-200 truncate">
-                              {decision.action}
+                              {decisionCardText(decision, locale).action}
                             </span>
                             {getDecisionStatusIcon(decision.status, 'sm')}
                           </div>
                           <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">
-                            {decision.reasoning}
+                            {decisionCardText(decision, locale).reasoning}
                           </p>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-[9px] text-slate-400">
-                              {formatTime(decision.timestamp)}
+                              {formatPlantStamp(decision.gameClock) ??
+                                formatTime(decision.timestamp)}
                             </span>
                             <span
                               className={`text-[9px] px-1.5 py-0.5 rounded border ${getDecisionPriorityBadge(decision.priority)}`}
@@ -120,7 +123,7 @@ export const DecisionHistoryPanel: React.FC = () => {
                             </span>
                             {decision.confidence && (
                               <span className="text-[9px] text-cyan-400">
-                                {decision.confidence}%
+                                {formatFixed(decision.confidence, 0)}%
                               </span>
                             )}
                           </div>

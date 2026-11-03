@@ -13,7 +13,7 @@ export const paceMessages = defineMessages({
     paceCustom: 'Current custom pace',
     paceTitle:
       'The pace runs the whole plant faster or slower: clock, deadlines, production, trucks and forklifts together.',
-    heldBy_player: 'Paused. Choose a pace to resume.',
+    heldBy_player: 'Paused. Press P or choose a pace to resume.',
     heldBy_shortcut: 'Paused with P. Press P again to resume.',
     heldBy_tour: 'Paused for the tour. It resumes when the tour closes.',
     heldBy_restore: 'Paused while your saved shift is restored.',
@@ -25,6 +25,7 @@ export const paceMessages = defineMessages({
       "Held while the team decides the handoff experiment, so the adviser's forecast stays true. A pace you choose now starts when it resumes. To resume, cancel the experiment or finish its member review in the Bilateral Autonomy System (BAS) panel.",
     heldBy_layout: 'Paused for the layout planner. Run the mill from the planner to resume.',
     heldBy_scada: 'Paused: live SCADA control is active, so the simulation clock is held.',
+    heldBy_orientation: 'Paused while the device is upright. Turn it sideways to resume.',
   },
   'pt-BR': {
     pace0: 'Pausado, inspecione à vontade',
@@ -35,7 +36,7 @@ export const paceMessages = defineMessages({
     paceCustom: 'Ritmo personalizado atual',
     paceTitle:
       'O ritmo acelera ou desacelera o moinho inteiro: relógio, prazos, produção, caminhões e empilhadeiras juntos.',
-    heldBy_player: 'Pausado. Escolha um ritmo para continuar.',
+    heldBy_player: 'Pausado. Pressione P ou escolha um ritmo para continuar.',
     heldBy_shortcut: 'Pausado com P. Pressione P de novo para continuar.',
     heldBy_tour: 'Pausado para o tour. Continua quando o tour fechar.',
     heldBy_restore: 'Pausado enquanto o turno salvo é restaurado.',
@@ -49,5 +50,6 @@ export const paceMessages = defineMessages({
       'Pausado para o planejador de layout. Coloque o moinho para rodar pelo planejador para continuar.',
     heldBy_scada:
       'Pausado: o controle SCADA ao vivo está ativo, então o relógio da simulação fica parado.',
+    heldBy_orientation: 'Pausado com o aparelho na vertical. Gire-o de lado para continuar.',
   },
 });
