@@ -28,7 +28,7 @@ const ALL_SCENES: Record<BenchmarkScene, true> = {
   carpark: true,
   'picnic-shelter': true,
   river: true,
-  tunnel: true,
+  railway: true,
   huts: true,
   offices: true,
   canal: true,

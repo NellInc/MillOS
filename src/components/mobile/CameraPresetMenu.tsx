@@ -64,8 +64,10 @@ export const CameraPresetMenu: React.FC = () => {
         closeMenu();
       }
     };
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
+    // Window capture runs before the tour's and the guide's document
+    // listeners, so one Escape closes this menu and nothing behind it.
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, closeMenu]);
 
   return (

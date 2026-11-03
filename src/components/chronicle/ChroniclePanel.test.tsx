@@ -63,6 +63,129 @@ describe('Mill Chronicle workspace', () => {
     expect(useChronicleStore.getState().chronicle.pendingEvents).toHaveLength(1);
   });
 
+  it('passes over a saved event the deck no longer holds', () => {
+    act(() =>
+      useChronicleStore.getState().sign(
+        {
+          grain: 'cooperative',
+          plant: 'overhauled',
+          customers: 'loyal',
+          fortune: 'kind',
+          mode: 'historical',
+        },
+        4
+      )
+    );
+    const event = EVENT_DECK.find((e) => e.id === 'evt-millwrights-workshop')!;
+    act(() =>
+      useChronicleStore.setState((s) => ({
+        chronicle: {
+          ...s.chronicle,
+          pendingEvents: [
+            {
+              instanceId: 'event-gone',
+              eventId: 'removed-in-a-later-version',
+              appearedShift: 0,
+              lapsesShift: 3,
+            },
+          ],
+        },
+      }))
+    );
+    render(
+      <>
+        <ChronicleEventHost />
+        <ChroniclePanel />
+      </>
+    );
+    // Nothing on screen, so nothing may claim the top of it, nor ask for a decision.
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(useChronicleStore.getState().dialogOpen).toBe(false);
+    expect(screen.queryByRole('region', { name: 'Awaiting a decision' })).toBeNull();
+    expect(screen.queryByText(/removed-in-a-later-version/)).toBeNull();
+    act(() =>
+      useChronicleStore.setState((s) => ({
+        chronicle: {
+          ...s.chronicle,
+          pendingEvents: [
+            ...s.chronicle.pendingEvents,
+            { instanceId: 'event-x', eventId: event.id, appearedShift: 0, lapsesShift: 3 },
+          ],
+        },
+      }))
+    );
+    expect(screen.getByRole('dialog', { name: event.title })).toBeInTheDocument();
+    expect(useChronicleStore.getState().dialogOpen).toBe(true);
+    expect(screen.getByRole('region', { name: 'Awaiting a decision' })).toBeInTheDocument();
+  });
+
+  it('opens no dryer for a wet year whose grain is already treated', () => {
+    act(() =>
+      useChronicleStore.getState().sign(
+        {
+          grain: 'cooperative',
+          plant: 'overhauled',
+          customers: 'loyal',
+          fortune: 'kind',
+          mode: 'historical',
+        },
+        4
+      )
+    );
+    act(() =>
+      useChronicleStore.setState((s) => ({
+        chronicle: {
+          ...s.chronicle,
+          crop: { index: 1, kind: 'wet', treated: true },
+          pendingEvents: [
+            { instanceId: 'event-w', eventId: 'evt-wet-intake', appearedShift: 0, lapsesShift: 3 },
+          ],
+        },
+      }))
+    );
+    render(<ChronicleEventHost />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(useChronicleStore.getState().dialogOpen).toBe(false);
+  });
+
+  it('offers no paid blend for a sprouted year the blending bins already relieve', () => {
+    act(() =>
+      useChronicleStore.getState().sign(
+        {
+          grain: 'cooperative',
+          plant: 'overhauled',
+          customers: 'loyal',
+          fortune: 'kind',
+          mode: 'historical',
+        },
+        4
+      )
+    );
+    const bins = {
+      id: 'blending-bins',
+      phase: 'installed' as const,
+      contractorId: null,
+      startedShift: 0,
+      completesShift: 0,
+      paidFund: 0,
+      effectScale: 1,
+      initiatedBy: 'player' as const,
+    };
+    act(() =>
+      useChronicleStore.setState((s) => ({
+        chronicle: { ...s.chronicle, crop: { index: 1, kind: 'sprouted', treated: false } },
+      }))
+    );
+    render(<ChroniclePanel />);
+    expect(screen.getByRole('button', { name: /Blend with sound grain/ })).toBeInTheDocument();
+    act(() =>
+      useChronicleStore.setState((s) => ({
+        chronicle: { ...s.chronicle, improvements: [bins] },
+      }))
+    );
+    expect(screen.queryByRole('button', { name: /Blend with sound grain/ })).toBeNull();
+  });
+
   it('never leaves a duct fire without a way out', () => {
     act(() =>
       useChronicleStore.getState().sign(
@@ -104,7 +227,8 @@ describe('Mill Chronicle workspace', () => {
         4
       )
     );
-    const event = EVENT_DECK[0];
+    // Any event that needs no particular crop year.
+    const event = EVENT_DECK.find((e) => !e.requires?.cropKinds)!;
     act(() => {
       useGameSimulationStore.setState({ emergencyActive: true });
       useChronicleStore.setState((s) => ({

@@ -13,10 +13,32 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayCircle, PauseCircle, SkipBack, X, Clock, Activity, Brain } from 'lucide-react';
 import { useHistoricalMode } from '../../hooks/useHistoricalMode';
-import { useHistoricalPlaybackStore } from '../../stores/historicalPlaybackStore';
-import { formatFixed, useLocale, useT } from '../../i18n';
+import {
+  useHistoricalPlaybackStore,
+  type DecisionHistoryEntry,
+} from '../../stores/historicalPlaybackStore';
+import { decisionCardText } from '../../utils/aiEngine';
+import { formatFixed, useLocale, useT, type Locale } from '../../i18n';
 import { timelinePlaybackMessages } from './TimelinePlayback.messages';
 import { aiCommandCenterMessages } from '../AICommandCenter.messages';
+
+/** A recorded decision's action in `locale`, from its keyed copy when it has one. */
+const recordedAction = (entry: DecisionHistoryEntry, locale: Locale): string =>
+  decisionCardText(
+    {
+      id: entry.id,
+      timestamp: new Date(entry.timestamp),
+      type: entry.type,
+      action: entry.action,
+      reasoning: '',
+      confidence: 0,
+      impact: '',
+      status: 'completed',
+      priority: entry.priority,
+      copy: entry.copy,
+    },
+    locale
+  ).action;
 
 interface TimelinePlaybackProps {
   className?: string;
@@ -30,6 +52,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
     isReplaying,
     playbackTime,
     availableRange,
+    rangeLoaded,
     enterReplay,
     exitReplay,
     scrubTo,
@@ -40,6 +63,23 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const decisionHistory = useHistoricalPlaybackStore((s) => s.decisionHistory);
+
+  // The close button unmounts this timeline with focus in it. Hand focus back
+  // to whatever opened the replay (Overview's Replay toggle, SCADA's Open
+  // recent replay) instead of <body>, where the next Space is the forklift
+  // emergency stop.
+  const openerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!isReplaying) return;
+    const active = document.activeElement;
+    openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+  }, [isReplaying]);
+  const handleExit = useCallback(() => {
+    const opener = openerRef.current;
+    openerRef.current = null;
+    exitReplay();
+    if (opener?.isConnected) opener.focus();
+  }, [exitReplay]);
 
   // Format timestamp for display
   // English keeps the browser default ([]), so its output is unchanged; pt-BR is 24-hour.
@@ -145,7 +185,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
             <span className="text-sm font-medium text-cyan-300">{t('replayMode')}</span>
           </div>
           <button
-            onClick={exitReplay}
+            onClick={handleExit}
             aria-label={t('exitReplay')}
             className="p-1 hover:bg-slate-700/50 rounded transition-colors"
           >
@@ -155,7 +195,10 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
 
         {/* Empty state: replay entered but no telemetry recorded yet */}
         {!availableRange ? (
-          <div className="text-center py-6 px-2 text-sm text-slate-400">{t('nothingRecorded')}</div>
+          // Blank while the store answers: "nothing recorded" would be false.
+          <div className="text-center py-6 px-2 text-sm text-slate-400">
+            {rangeLoaded ? t('nothingRecorded') : null}
+          </div>
         ) : (
           <>
             {/* Current Time Display */}
@@ -178,6 +221,9 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                   aria-label={t('timeline')}
                   min={availableRange.start}
                   max={availableRange.end}
+                  // Milliseconds: the default step of 1 made each arrow key a
+                  // no-op on a clock read in seconds.
+                  step={1000}
                   value={playbackTime ?? availableRange.end}
                   aria-valuetext={
                     playbackTime ? formatTime(playbackTime) : formatTime(availableRange.end)
@@ -210,7 +256,19 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                 <SkipBack className="w-5 h-5 text-slate-300" aria-hidden="true" />
               </button>
               <button
-                onClick={() => setIsPlaying(!isPlaying)}
+                onClick={() => {
+                  // At the end, Play would stop on its first step and do
+                  // nothing visible; start the recording over instead.
+                  if (
+                    !isPlaying &&
+                    availableRange &&
+                    playbackTime !== null &&
+                    playbackTime + 1000 * playbackSpeed >= availableRange.end
+                  ) {
+                    scrubTo(availableRange.start);
+                  }
+                  setIsPlaying(!isPlaying);
+                }}
                 aria-label={isPlaying ? t('pausePlayback') : t('playPlayback')}
                 className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
               >
@@ -251,7 +309,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                     >
                       <Activity className="w-3 h-3 text-cyan-400 mt-0.5 flex-shrink-0" />
                       <div className="min-w-0">
-                        <div className="text-slate-200 truncate">{d.action}</div>
+                        <div className="text-slate-200 truncate">{recordedAction(d, locale)}</div>
                         <div className="text-[10px] text-slate-500">
                           {formatTime(d.timestamp)} · {tAi('decisionType', { value: d.type })}
                         </div>

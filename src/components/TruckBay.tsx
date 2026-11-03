@@ -50,6 +50,7 @@ import {
   stepTruckController,
   type TruckControllerState,
 } from './truckbay/truckController';
+import { manualForkliftInTruckPath } from '../simulation/vehicles/forkliftManualWorld';
 import { advanceTruckClock, TRUCK_CONTROLLER_STEP_SECONDS } from './truckbay/truckClock';
 import {
   vehicleTelemetryRegistry,
@@ -3237,13 +3238,25 @@ export const TruckBay: React.FC = () => {
         controllerRef.current.motion.speed
       );
       let departedThisFrame = false;
+      // A forklift a player drives, or one returning to its lane, can stand
+      // where no autopilot forklift ever does: on the apron, across this
+      // truck's path. The truck stops short of it rather than drive through.
+      // Never while docked: a standing truck threatens nothing, and holding
+      // would freeze its service. Checked every controller step: at a fast
+      // pace one frame runs several, and a once-a-frame check let it close in.
+      let forkliftInPath = false;
 
       for (let step = 0; allowAdvance && step < clock.steps; step++) {
         previousController = controller;
+        const holdForForklift =
+          controller.active &&
+          controller.phase !== 'docked' &&
+          manualForkliftInTruckPath(controller);
+        forkliftInPath ||= holdForForklift;
         const result = stepTruckController(controller, {
           deltaSeconds: TRUCK_CONTROLLER_STEP_SECONDS,
           arrivalReady: scheduleBefore.arrivalReady,
-          safetyHold: safetyHoldActive,
+          safetyHold: safetyHoldActive || holdForForklift,
           // The doors stay open while the dock's forklift is in its lane.
           serviceComplete:
             (dock === 'receiving' || shippingServiceComplete) && !dockForkliftInLane(dock),
@@ -3271,7 +3284,11 @@ export const TruckBay: React.FC = () => {
           : Math.min(1, accumulatorRef.current / TRUCK_CONTROLLER_STEP_SECONDS)
       );
       // A paused clock freezes the picture; only a real hold applies the brakes.
-      const truckState = getTruckControllerPose(displayController, safetyHoldActive, !allowAdvance);
+      const truckState = getTruckControllerPose(
+        displayController,
+        safetyHoldActive || forkliftInPath,
+        !allowAdvance
+      );
       if (!allowAdvance) truckState.speed = 0;
       truckStateRef.current = truckState;
       wheelRotationRef.current = displayController.wheelTravel / TRUCK_WHEEL_RADIUS;

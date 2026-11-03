@@ -42,6 +42,9 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
             role="dialog"
             aria-modal="true"
             aria-labelledby="about-modal-title"
+            // A click on the text focuses the dialog, not <body>, where the
+            // global shortcuts (Space stops the forklifts) no longer saw it.
+            tabIndex={-1}
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -88,17 +91,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose, theme }
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span>
-                      {t('soundtrackBy')}{' '}
-                      <a
-                        href="https://suno.com/@nellwatson"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-500 hover:underline inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-cyan-500 rounded"
-                      >
-                        Suno <ExternalLink className="w-3 h-3" aria-hidden="true" />
-                      </a>
-                    </span>
+                    <span>{t('soundtrackBy')}</span>
                   </li>
                 </ul>
               </div>

@@ -107,6 +107,21 @@ describe('Jev read-only request boundary', () => {
     }
   );
 
+  // A server error may follow a billed generation, so its reservation stays
+  // uncertain (counted against the cap), as the cloud client already treats it;
+  // only refusals that generated nothing release it.
+  it('keeps a server error’s charge uncertain and releases a refused one', async () => {
+    fetchMock.mockResolvedValue(reply({ error: 'server' }, 500));
+    await expect(requestJevAdvice(input())).rejects.toThrow();
+    expect(spendBudget.reject).not.toHaveBeenCalled();
+    expect(spendBudget.uncertain).toHaveBeenCalled();
+    vi.mocked(spendBudget.uncertain).mockClear();
+    fetchMock.mockResolvedValue(reply({ error: 'slow down' }, 429));
+    await expect(requestJevAdvice(input())).rejects.toThrow();
+    expect(spendBudget.reject).toHaveBeenCalled();
+    expect(spendBudget.uncertain).not.toHaveBeenCalled();
+  });
+
   it('does not propagate network error details containing credentials', async () => {
     fetchMock.mockRejectedValue(new Error(key));
     await expect(requestJevAdvice(input())).rejects.toThrow('Jev could not be reached');
@@ -174,6 +189,40 @@ describe('Jev read-only request boundary', () => {
     expect(fetchSignal?.aborted).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+// A fetch that hangs until the 30 s timeout aborts it is not a network
+// failure: "could not be reached, check your connection" sent the player to
+// check a connection that worked.
+describe('a request that times out', () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(spendBudget, 'reserve').mockReturnValue(0);
+    for (const method of ['settle', 'reject', 'uncertain'] as const)
+      vi.spyOn(spendBudget, method).mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('says it timed out rather than that Jev could not be reached', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError'))
+          );
+        })
+    );
+    const result = requestJevAdvice(input());
+    const assertion = expect(result).rejects.toThrow('Request cancelled or timed out.');
+    await vi.advanceTimersByTimeAsync(JEV_TIMEOUT_MS);
+    await assertion;
   });
 });
 
@@ -406,18 +455,53 @@ describe('the on-device model on the same rubric as a five-way choice', () => {
     expect((await requestJevAdvice(localInput())).queue).toBe('Product quality');
   });
 
-  it('rejects probability outside the five queue tokens, or a distribution they do not carry', async () => {
+  it('rejects probability outside the five queue tokens, or unusable scores, without scoring again', async () => {
     const wrongToken = scores();
     wrongToken[2] = { token: 'Logistics', probability: 0.1 };
-    const missing = scores().slice(0, 4);
     const negative = scores();
     negative[0] = { ...negative[0], probability: -0.1 };
-    for (const result of [null, [], wrongToken, missing, negative]) {
-      local.scoreNextToken.mockResolvedValueOnce(result);
+    for (const result of [null, wrongToken, negative]) {
+      local.scoreNextToken.mockReset();
+      local.scoreNextToken.mockResolvedValue(result);
       await expect(requestJevAdvice(localInput())).rejects.toThrow(
         'on-device model returned an invalid'
       );
+      expect(local.scoreNextToken).toHaveBeenCalledTimes(1);
     }
+  });
+
+  it('scores once more when the five sum short, and refuses a second short set', async () => {
+    // [] and four of five both carry less than the whole distribution.
+    for (const short of [[], scores().slice(0, 4)]) {
+      local.scoreNextToken.mockReset();
+      local.scoreNextToken.mockResolvedValue(short);
+      await expect(requestJevAdvice(localInput())).rejects.toThrow(
+        'on-device model returned an invalid'
+      );
+      expect(local.scoreNextToken).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it('takes the second scoring when the first summed short', async () => {
+    // As web-llm returned one note in Chrome on 2026-11-02: 0.53 on one run, 1.0 the next.
+    local.scoreNextToken.mockReset();
+    local.scoreNextToken
+      .mockResolvedValueOnce([
+        { token: 'Equipment', probability: 0.52 },
+        { token: 'No', probability: 0.005 },
+        { token: 'Ins', probability: 0.002 },
+        { token: 'Product', probability: 0.001 },
+        { token: 'Log', probability: 0 },
+      ])
+      .mockResolvedValueOnce([
+        { token: 'Equipment', probability: 0.999 },
+        { token: 'No', probability: 0.001 },
+        { token: 'Ins', probability: 0 },
+        { token: 'Product', probability: 0 },
+        { token: 'Log', probability: 0 },
+      ]);
+    expect((await requestJevAdvice(localInput())).queue).toBe('Equipment maintenance');
+    expect(local.scoreNextToken).toHaveBeenCalledTimes(2);
   });
 
   it('keeps the text length limit', async () => {

@@ -24,6 +24,21 @@ export function drivenLogisticsRoute(dock: Dock, points: readonly Vec3Tuple[]) {
   return { ...rounded, plan: createForkliftRoutePlan(rounded.path, rounded.actions) };
 }
 
+function samePlan(a: ForkliftRoutePlan, b: ForkliftRoutePlan): boolean {
+  const same = (x: number, y: number) => Math.abs(x - y) <= 1e-9;
+  return (
+    same(a.path.totalLength, b.path.totalLength) &&
+    a.path.samples.length === b.path.samples.length &&
+    a.path.samples.every(
+      (s, i) =>
+        same(s.x, b.path.samples[i].x) &&
+        same(s.z, b.path.samples[i].z) &&
+        same(s.distance, b.path.samples[i].distance)
+    ) &&
+    a.markers.every((m, i) => same(m.distance, b.markers[i].distance))
+  );
+}
+
 /** Match the same directed action leg, never the nearest overlapping return lane.
  * Working if apply retains pose and next action, or refuses a changed/ambiguous corner.
  */
@@ -37,6 +52,10 @@ export function reconcileLogisticsMotion(
     return null;
   if (oldPlan.markers.some((m, i) => m.action.type !== nextPlan.markers[i].action.type))
     return null;
+  // A staging-only apply rebuilds the same route: nothing moves, wherever the
+  // vehicle stands. A forklift a player left off its lane has no leg to match.
+  // Working if such an apply keeps its pose and progress instead of refusing.
+  if (samePlan(oldPlan, nextPlan)) return motion;
   const count = nextPlan.markers.length;
   const start = nextPlan.markers[(nextAction + count - 1) % count].distance;
   const end = nextPlan.markers[nextAction].distance;

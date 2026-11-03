@@ -86,6 +86,14 @@ export const LOCAL_QUEUE_TOKENS: Partial<
     'No current incident': { id: 2665, token: 'No' },
     'Insufficient evidence': { id: 15020, token: 'Ins' },
   },
+  // The routing tune of Qwen3.5-4B keeps that build's tokenizer.json unchanged.
+  'Qwen3.5-4B-millos-routing-q4f16_1-MLC': {
+    'Equipment maintenance': { id: 56315, token: 'Equipment' },
+    'Product quality': { id: 4662, token: 'Product' },
+    'Logistics coordination': { id: 2132, token: 'Log' },
+    'No current incident': { id: 2665, token: 'No' },
+    'Insufficient evidence': { id: 15020, token: 'Ins' },
+  },
   'Qwen3-4B-q4f16_1-MLC': {
     'Equipment maintenance': { id: 58276, token: 'Equipment' },
     'Product quality': { id: 4816, token: 'Product' },
@@ -338,34 +346,42 @@ async function requestLocalAdvice(text: string, signal: AbortSignal): Promise<Je
   if (!tokens || !webgpuClient.isConnected()) {
     throw new Error(translate(messages, 'unavailableLocal'));
   }
-  const scores = await webgpuClient.scoreNextToken({
-    system: LOCAL_SYSTEM,
-    user: text.trim(),
-    tokenIds: JEV_QUEUES.map((queue) => tokens[queue].id),
-    signal,
-  });
-  if (signal.aborted) throw new Error(translate(messages, 'cancelledOrTimedOut'));
   const queueTokens = new Set(JEV_QUEUES.map((queue) => tokens[queue].token));
   const valid = (p: unknown): p is number =>
     typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 1;
-  // The scores (token pieces and numbers, never the note) are logged when
-  // unusable, so a rare bad set can be read afterwards.
-  const invalid = () => {
-    logger.warn('[Advisory] Unusable on-device scores:', JSON.stringify(scores));
-    return new Error(translate(messages, 'invalidAdvisoryLocal'));
+  const score = async (): Promise<number[] | 'short'> => {
+    const scores = await webgpuClient.scoreNextToken({
+      system: LOCAL_SYSTEM,
+      user: text.trim(),
+      tokenIds: JEV_QUEUES.map((queue) => tokens[queue].id),
+      signal,
+    });
+    if (signal.aborted) throw new Error(translate(messages, 'cancelledOrTimedOut'));
+    // The scores (token pieces and numbers, never the note) are logged when
+    // unusable, so a rare bad set can be read afterwards.
+    const unusable = () =>
+      logger.warn('[Advisory] Unusable on-device scores:', JSON.stringify(scores));
+    if (
+      !scores ||
+      !scores.every((entry) => valid(entry.probability)) ||
+      scores.some((entry) => !queueTokens.has(entry.token) && entry.probability > 0)
+    ) {
+      unusable();
+      throw new Error(translate(messages, 'invalidAdvisoryLocal'));
+    }
+    const probability = new Map(scores.map((entry) => [entry.token, entry.probability]));
+    const values = JEV_QUEUES.map((queue) => probability.get(tokens[queue].token) ?? 0);
+    if (values.reduce((sum, p) => sum + p, 0) >= 0.99) return values;
+    unusable();
+    return 'short';
   };
-  if (
-    !scores ||
-    !scores.every((score) => valid(score.probability)) ||
-    scores.some((score) => !queueTokens.has(score.token) && score.probability > 0)
-  ) {
-    throw invalid();
-  }
-  const probability = new Map(scores.map((score) => [score.token, score.probability]));
-  const values = JEV_QUEUES.map((queue) => probability.get(tokens[queue].token) ?? 0);
-  if (values.reduce((sum, p) => sum + p, 0) < 0.99) {
-    throw invalid();
-  }
+  // A five that sum short with nothing outside them is web-llm noise, not a held
+  // bias failing: in Chrome on 2026-11-02 the same note summed to 1.0 on one
+  // run and 0.53 on the next, top queue unchanged, in 9 of 257 cases. One more
+  // scoring clears it; a second short set is refused as before.
+  let values = await score();
+  if (values === 'short') values = await score();
+  if (values === 'short') throw new Error(translate(messages, 'invalidAdvisoryLocal'));
   return { queue: JEV_QUEUES[values.indexOf(Math.max(...values))], receivedAt: Date.now() };
 }
 
@@ -434,12 +450,19 @@ export async function requestJevAdvice({
         }
       );
     } catch {
-      throw new Error(key('unreachable'));
+      // Our own abort (cancel or the timeout) is not a network failure.
+      throw new Error(
+        controller.signal.aborted ? translate(messages, 'cancelledOrTimedOut') : key('unreachable')
+      );
     }
     if (!response.ok) {
-      // A refused request generated nothing to bill.
-      spendBudget.reject(reservation);
-      billed = true;
+      // A refused request generated nothing to bill. A server error may follow
+      // a billed generation, so it stays uncertain (the finally block), as in
+      // cloudAIClient.
+      if ([400, 401, 402, 403, 404, 422, 429].includes(response.status)) {
+        spendBudget.reject(reservation);
+        billed = true;
+      }
       // Never display a provider error body: it may echo submitted text or credentials.
       const message =
         response.status === 401 || response.status === 403

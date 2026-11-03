@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { generateHeightmap } from '../terrain/splatMapGenerator';
 import { TERRAIN_BOUNDS } from '../terrain/terrainTypes';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { onRealmWalk } from '../../constants/publicRealmLayout';
 
 const source = readFileSync(resolve('src/components/FactoryExterior.tsx'), 'utf8');
 const signs = [...source.matchAll(/<InfoSign position=\{\[([^\]]+)\]\} text="([^"]+)"/g)].map(
@@ -39,6 +40,15 @@ describe('waterside information sign placement', () => {
       }
     }
     map.dispose();
+  });
+
+  it('stands every sign beside the walks, not in their paving', () => {
+    // The DOCK sign stood on the canal walk's centreline at x -137.
+    for (const {
+      text,
+      position: [x, , z],
+    } of signs)
+      expect(onRealmWalk(x, z, 0.4), text).toBe(false);
   });
 
   it('keeps the canal sign outside the actual canal footprint and its stone wall', () => {

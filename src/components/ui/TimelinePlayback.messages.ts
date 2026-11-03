@@ -17,7 +17,7 @@ export const timelinePlaybackMessages = defineMessages({
     playPlayback: 'Play playback',
     playbackSpeed: 'Playback speed',
     aiDecisions: 'AI Decisions ({count})',
-    decisions: 'Decisions',
+    decisions: 'Decisions this session',
   },
   'pt-BR': {
     justNow: 'agora mesmo',
@@ -35,6 +35,6 @@ export const timelinePlaybackMessages = defineMessages({
     playPlayback: 'Iniciar reprodução',
     playbackSpeed: 'Velocidade de reprodução',
     aiDecisions: 'Decisões da IA ({count})',
-    decisions: 'Decisões',
+    decisions: 'Decisões nesta sessão',
   },
 });

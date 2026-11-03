@@ -1,6 +1,6 @@
 import React from 'react';
 import { cleanup, fireEvent, render } from '@testing-library/react';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useFrame } from '@react-three/fiber';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { NodeIO } from '@gltf-transform/core';
@@ -32,6 +32,9 @@ import {
   FARM_CLUTTER,
   FARM_YARD_SIZE,
   GRAIN_PLANT_GEOMETRY,
+  GRAIN_PLANT_FAR_GEOMETRY,
+  GRAIN_FIELD_LOD_DISTANCE,
+  GRAIN_FIELD_LOD_HYSTERESIS,
   GRAIN_FIELD_MATERIAL,
   GRAIN_FIELD_DEPTH_MATERIAL,
   GRAIN_FIELD_COUNT,
@@ -43,9 +46,11 @@ import {
   createScarecrowShirtGeometry,
   createScarecrowPumpkinGeometry,
   createScarecrowFaceGeometry,
+  SCARECROW_FAR_GEOMETRY,
 } from './scenery/ScarecrowCraft';
 import { Cat } from './scenery/Cat';
 import {
+  createSleepingCatFarDetails,
   createSleepingCatGeometry,
   createSleepingCatHeadGeometry,
   SLEEPING_CAT_HEAD,
@@ -584,6 +589,57 @@ it('retains all planting roots with identical transforms and conservative wind b
     expect(GRAIN_WIND_PADDING).toBeGreaterThan(0.16 * (0.7 + 1.5) * 1.4);
     populateGrainField(meshes);
     meshes.forEach((m, i) => expect(m.boundingSphere!.radius).toBeCloseTo(spheres[i], 8));
+  } finally {
+    meshes.forEach((m) => m.dispose());
+  }
+});
+
+it('draws the distant stool on the same root datum at a fraction of the near stems and ears', () => {
+  const triangles = (g: THREE.BufferGeometry) =>
+    (g.index?.count ?? g.getAttribute('position').count) / 3;
+  const far = GRAIN_PLANT_FAR_GEOMETRY;
+  for (const g of Object.values(far)) {
+    expect(g.groups).toHaveLength(0);
+    for (const name of ['position', 'normal', 'uv', 'color']) {
+      const a = g.getAttribute(name);
+      expect(a.count).toBe(g.getAttribute('position').count);
+      expect(Array.from(a.array).every(Number.isFinite)).toBe(true);
+    }
+    g.computeBoundingBox();
+    expect(g.boundingBox!.min.y).toBeGreaterThanOrEqual(-1e-6);
+  }
+  const near = triangles(GRAIN_PLANT_GEOMETRY.stems) + triangles(GRAIN_PLANT_GEOMETRY.ears);
+  // 60 triangles a stool (three open culms, three spindles) against 432 today.
+  expect(triangles(far.stems) + triangles(far.ears)).toBeLessThanOrEqual(64);
+  expect(triangles(far.stems) + triangles(far.ears)).toBeLessThan(near / 6);
+  // The spindle stands where the spikelets do: inside the near ear's box and
+  // covering most of its height, so the swap moves no straw.
+  GRAIN_PLANT_GEOMETRY.ears.computeBoundingBox();
+  const nearEar = GRAIN_PLANT_GEOMETRY.ears.boundingBox!,
+    farEar = far.ears.boundingBox!;
+  expect(nearEar.containsBox(farEar)).toBe(true);
+  expect(farEar.max.y - farEar.min.y).toBeGreaterThan(0.5 * (nearEar.max.y - nearEar.min.y));
+  GRAIN_PLANT_GEOMETRY.stems.computeBoundingBox();
+  expect(far.stems.boundingBox!.max.y).toBeCloseTo(
+    GRAIN_PLANT_GEOMETRY.stems.boundingBox!.max.y,
+    5
+  );
+  // THREE.LOD holds the far level down to (1 - hysteresis) of its distance from
+  // the field origin; past the field's reach the nearest far stool is >= 21 m
+  // away, where a 3 cm spikelet is about a pixel.
+  const reach = Math.hypot(15, 10.75) + GRAIN_WIND_PADDING;
+  expect(GRAIN_FIELD_LOD_DISTANCE * (1 - GRAIN_FIELD_LOD_HYSTERESIS) - reach).toBeGreaterThan(21);
+
+  const meshes = [...Object.values(GRAIN_PLANT_GEOMETRY), ...Object.values(far)].map(
+    (g) => new THREE.InstancedMesh(g, GRAIN_FIELD_MATERIAL, GRAIN_FIELD_COUNT)
+  );
+  try {
+    populateGrainField(meshes);
+    for (const m of meshes.slice(1)) {
+      expect(m.instanceMatrix.array).toEqual(meshes[0].instanceMatrix.array);
+      expect(m.instanceColor!.array).toEqual(meshes[0].instanceColor!.array);
+      expect(m.customDepthMaterial).toBe(GRAIN_FIELD_DEPTH_MATERIAL);
+    }
   } finally {
     meshes.forEach((m) => m.dispose());
   }
@@ -1742,4 +1798,35 @@ it('composes hen walking with actual graze/head/pet channels under a turned and 
   );
   view.unmount();
   cloned.mockRestore();
+});
+
+describe('farm craft at distance', () => {
+  const triangles = (g: THREE.BufferGeometry) =>
+    (g.index?.count ?? g.getAttribute('position').count) / 3;
+  const within = (near: THREE.BufferGeometry, far: THREE.BufferGeometry, margin: number) => {
+    near.computeBoundingBox();
+    far.computeBoundingBox();
+    return near.boundingBox!.clone().expandByScalar(margin).containsBox(far.boundingBox!);
+  };
+
+  it('builds the far scarecrow on its coarse cloth at under a third of the triangles', () => {
+    const near = createScarecrowCraftGeometry();
+    expect(triangles(SCARECROW_FAR_GEOMETRY)).toBeLessThan(triangles(near) / 3);
+    expect(within(near, SCARECROW_FAR_GEOMETRY, 0.01)).toBe(true);
+    // The far build left nothing coarse behind for later full-detail builds.
+    expect(createScarecrowPumpkinGeometry().getAttribute('position').count).toBe(41 * 21);
+    near.dispose();
+  });
+
+  it('keeps the far cat details inside the near ones at under a third of the triangles', () => {
+    const near = createSleepingCatGeometry('#f97316').details,
+      far = createSleepingCatFarDetails('#f97316');
+    expect(triangles(far)).toBeLessThan(triangles(near) / 3);
+    expect(within(near, far, 0.005)).toBe(true);
+    for (const name of ['position', 'normal', 'color'])
+      expect(far.getAttribute(name).count).toBe(far.getAttribute('position').count);
+    expect(createSleepingCatHeadGeometry().getAttribute('position').count).toBe(21 * 13);
+    near.dispose();
+    far.dispose();
+  });
 });

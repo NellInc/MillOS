@@ -1,8 +1,36 @@
 import { defineMessages } from '../i18n';
 
+// The scene parts a replay restores, by registration id (workplaceReplayRuntime).
+// `missing` arrives as raw ids, comma-separated, and is named in words here.
+const EN_PARTS: Record<string, string> = {
+  trucks: 'trucks',
+  'forklift-crossings': 'forklift crossings',
+  personnel: 'personnel',
+  'machine-metrics': 'machine readings',
+  'app-controls': 'app controls',
+};
+const PT_PARTS: Record<string, string> = {
+  trucks: 'caminhões',
+  'forklift-crossings': 'cruzamentos de empilhadeiras',
+  personnel: 'pessoal',
+  'machine-metrics': 'leituras das máquinas',
+  'app-controls': 'controles do aplicativo',
+};
+const sceneParts = (missing: string, parts: Record<string, string>, forklift: string) =>
+  missing
+    .split(',')
+    .map((raw) => {
+      const id = raw.trim();
+      const vehicle = /^forklift:forklift-(\d+)$/.exec(id);
+      return vehicle ? `${forklift} ${vehicle[1]}` : (parts[id] ?? id);
+    })
+    .join(', ');
+
 /** Reasons the matched plant replay returns to the Workplace Replay panel. */
 export const workplaceReplayStoreMessages = defineMessages({
   en: {
+    soloOnly:
+      'Matched replay runs in Solo role-play only: participant turns cannot act during a replay.',
     pauseFirst: 'Pause the simulation before capturing or rewinding.',
     safetyHold: 'Resolve the site safety hold first. Replay cannot clear emergency authority.',
     localControlOnly:
@@ -14,7 +42,8 @@ export const workplaceReplayStoreMessages = defineMessages({
     recoveryOwed: 'Deliver all earned recovery before rewinding. Repayment cannot be erased.',
     seedRange: 'Choose a whole-number seed from 1 to {max}.',
     untouchedStart: 'Capture an untouched starting discussion. Complete and record this run first.',
-    waitForScene: 'Wait for the complete local scene: {missing}.',
+    waitForScene: (p: { missing: string }) =>
+      `Wait for the complete local scene: ${sceneParts(p.missing, EN_PARTS, 'forklift')}.`,
     openOrderRequired:
       'Select an open, quality-qualified customer order without a recovery challenge.',
     captureFirst: 'Capture a paused starting situation first.',
@@ -28,6 +57,7 @@ export const workplaceReplayStoreMessages = defineMessages({
     rollbackFailed:
       'Restoration and rollback failed. The game remains paused; checkpoint disabled. Reload before another experiment. Reviewed receipts remain available.',
     startRunFirst: 'Start a checkpoint run before recording.',
+    alreadyRetained: 'This run review is already retained. Replay a charter to record another run.',
     matchedEvidenceLocal:
       'Matched evidence requires local simulation control. Live or hybrid control cannot be recorded as a replay.',
     reviewBeforeRecording: 'Review the shift and deliver all earned recovery before recording.',
@@ -39,6 +69,8 @@ export const workplaceReplayStoreMessages = defineMessages({
       'Starting conditions match. Frame-driven vehicle motion can differ between runs. Compare elapsed and agreement time; no winner or trust score is inferred. Raw checkpoints and consent are never exported.',
   },
   'pt-BR': {
+    soloOnly:
+      'A reprodução pareada só funciona em Encenação individual: as vezes dos participantes não podem agir durante uma reprodução.',
     pauseFirst: 'Pause a simulação antes de capturar ou voltar no tempo.',
     safetyHold:
       'Resolva primeiro a retenção de segurança do local. A reprodução não pode anular a autoridade de emergência.',
@@ -53,7 +85,8 @@ export const workplaceReplayStoreMessages = defineMessages({
     seedRange: 'Escolha uma semente inteira de 1 a {max}.',
     untouchedStart:
       'Capture uma discussão inicial ainda intocada. Conclua e registre esta execução primeiro.',
-    waitForScene: 'Aguarde a cena local completa: {missing}.',
+    waitForScene: (p: { missing: string }) =>
+      `Aguarde a cena local completa: ${sceneParts(p.missing, PT_PARTS, 'empilhadeira')}.`,
     openOrderRequired:
       'Selecione um pedido de cliente em aberto, qualificado pela qualidade e sem desafio de recuperação.',
     captureFirst: 'Capture primeiro uma situação inicial pausada.',
@@ -68,6 +101,8 @@ export const workplaceReplayStoreMessages = defineMessages({
     rollbackFailed:
       'A restauração e a reversão falharam. O jogo continua pausado; ponto de controle desativado. Recarregue antes de outro experimento. Os comprovantes revisados continuam disponíveis.',
     startRunFirst: 'Inicie uma execução a partir do ponto de controle antes de registrar.',
+    alreadyRetained:
+      'A revisão desta execução já foi guardada. Reproduza um estatuto para registrar outra execução.',
     matchedEvidenceLocal:
       'A evidência pareada exige controle local da simulação. O controle ao vivo ou híbrido não pode ser registrado como reprodução.',
     reviewBeforeRecording:

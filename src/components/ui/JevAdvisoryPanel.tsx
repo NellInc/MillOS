@@ -9,13 +9,15 @@ import {
   type AdvisoryProvider,
   type JevAdvice,
 } from '../../utils/jevClient';
-import { formatFixed, translate, useT } from '../../i18n';
+import { formatFixed, translate, useLocale, useT } from '../../i18n';
+import { jevQueueLabel } from '../../utils/jevClient.messages';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { DEFAULT_WEBGPU_MODEL_LABEL } from '../../utils/webgpuClient';
 import { jevAdvisoryPanelMessages } from './JevAdvisoryPanel.messages';
 
 export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
   const t = useT(jevAdvisoryPanelMessages);
+  const locale = useLocale();
   const localReady = useAIConfigStore((state) => state.webgpuModelReady);
   const providers = advisoryProviders(localReady);
   const [chosen, setProvider] = useState<AdvisoryProvider>('jev');
@@ -43,6 +45,16 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
   const [result, setResult] = useState<JevAdvice | null>(null);
   const [error, setError] = useState('');
   const request = useRef<AbortController | null>(null);
+  const sendButton = useRef<HTMLButtonElement | null>(null);
+  // Forget key leaves with the key; the emptied field takes focus in its place.
+  const keyField = useRef<HTMLInputElement | null>(null);
+  // Set by the Cancel button, which leaves with the pending state it ends.
+  const [refocusSend, setRefocusSend] = useState(false);
+  useEffect(() => {
+    if (!refocusSend || pending) return;
+    setRefocusSend(false);
+    sendButton.current?.focus();
+  }, [refocusSend, pending]);
 
   function cancel() {
     request.current?.abort();
@@ -154,6 +166,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
             {copy('apiKeyLabel')}
           </label>
           <input
+            ref={keyField}
             id="jev-api-key"
             type="password"
             autoComplete="off"
@@ -179,6 +192,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
                 cancel();
                 setApiKey('');
                 setConsent(false);
+                keyField.current?.focus();
               }}
             >
               {t('forgetKey')}
@@ -239,6 +253,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
       )}
       <div className="flex flex-wrap gap-2">
         <button
+          ref={sendButton}
           type="button"
           className={`${buttonClass} border-cyan-500/50 bg-cyan-500/10 text-cyan-300`}
           disabled={pending || !ready(consent, apiKey) || !text.trim()}
@@ -247,7 +262,14 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
           {pending ? t('requesting') : copy('send')}
         </button>
         {pending && (
-          <button type="button" className={buttonClass} onClick={cancel}>
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => {
+              cancel();
+              setRefocusSend(true);
+            }}
+          >
             {t('cancelRequest')}
           </button>
         )}
@@ -265,7 +287,9 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
         {result && (
           <div className="space-y-2 rounded-lg border border-cyan-500/30 bg-slate-800/70 p-3">
             <p className="text-slate-400">{t('resultHeading')}</p>
-            <p className="text-sm font-semibold text-slate-100">{result.queue}</p>
+            <p className="text-sm font-semibold text-slate-100">
+              {jevQueueLabel(result.queue, locale)}
+            </p>
             <p>{t('resultCaveat')}</p>
             <p className="text-slate-400">{t('resultExpiry')}</p>
           </div>

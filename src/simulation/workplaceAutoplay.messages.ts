@@ -15,6 +15,8 @@ export const workplaceAutoplayMessages = defineMessages({
     running: 'Fictional solo role decisions are running. Pause whenever you want.',
     paused: 'Automatic decisions paused. Your choices take priority.',
     stoppedTitle: 'Automatic cooperative season stopped',
+    heldTitle: 'Automatic cooperative season held',
+    restartHint: 'To run it again, open Autonomy and choose Skip guide and run fictional demo.',
   },
   'pt-BR': {
     soloOnly:
@@ -31,5 +33,8 @@ export const workplaceAutoplayMessages = defineMessages({
       'As decisões fictícias das funções no modo solo estão em andamento. Pause quando quiser.',
     paused: 'Decisões automáticas pausadas. Suas escolhas têm prioridade.',
     stoppedTitle: 'Temporada cooperativa automática interrompida',
+    heldTitle: 'Temporada cooperativa automática retida',
+    restartHint:
+      'Para rodá-la de novo, abra Autonomia e escolha Pular o guia e rodar a demonstração fictícia.',
   },
 });

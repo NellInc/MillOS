@@ -189,3 +189,14 @@ it('relocates a touch spawn inside the bench and keeps held movement out of its 
   expect(c.position.x).toBeGreaterThan(28.3);
   expect(c.position.x + 0.4).toBeLessThanOrEqual(29.356 + 1e-6);
 });
+
+// Walking forces the D-pad to move (its centre button is disabled there);
+// leaving first-person returns the look/move choice the player had made.
+it('restores the D-pad look mode the player chose once first-person ends', () => {
+  useMobileControlStore.getState().setDpadMode('look');
+  const { unmount } = render(<MobileFirstPersonController />);
+  expect(useMobileControlStore.getState().dpadMode).toBe('move');
+  unmount();
+  expect(useMobileControlStore.getState().dpadMode).toBe('look');
+  useMobileControlStore.getState().setDpadMode('move');
+});

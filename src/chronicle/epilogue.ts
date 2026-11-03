@@ -8,8 +8,15 @@
  * name only.
  */
 import { CERTIFIER_NAME, standingOf } from './certifier';
-import { conditionMet, ENGINE_MARKS, millCharacter, type RecordContext } from './record';
-import type { ChronicleCondition } from './types';
+import { briefLabel } from './governance';
+import {
+  conditionMet,
+  ENGINE_MARKS,
+  isFiledOutcome,
+  millCharacter,
+  type RecordContext,
+} from './record';
+import type { BriefId, ChronicleCondition } from './types';
 
 export interface EpilogueSlide {
   when: ChronicleCondition;
@@ -110,7 +117,7 @@ export const EPILOGUE_SECTIONS: readonly EpilogueSection[] = [
       },
       {
         when: { marks: { all: ['haulier-suspended'] } },
-        text: 'Valley Haulage served its crop year’s notice without a missed run, and the notice was quietly withdrawn.',
+        text: 'Valley Haulage served its crop year’s notice without a missed run, and the notice was withdrawn.',
       },
     ],
   },
@@ -230,6 +237,96 @@ export const EPILOGUE_SECTIONS: readonly EpilogueSection[] = [
   },
 ];
 
+/**
+ * Part three's sections (docs/CHRONICLE.md, systems 25-32). Their marks are the
+ * engine's, so `governance.test.ts` plays seeded chronicles that use the
+ * policies, the assembly and the reserve to prove every slide is reachable.
+ */
+export const GOVERNANCE_EPILOGUE_SECTIONS: readonly EpilogueSection[] = [
+  {
+    id: 'crew',
+    title: 'The crew',
+    slides: [
+      {
+        when: { marks: { all: ['crew-concession'], none: ['crew-overruled'] } },
+        text: 'Every need the assembly’s changes touched was met another way. The minutes of those years read like a working agreement, and later assemblies copied them.',
+      },
+      {
+        when: { marks: { all: ['crew-overruled', 'crew-concession'] } },
+        text: 'Some needs were met another way and some were outvoted. Both stayed in the minutes, and the crew could say which was which.',
+      },
+      {
+        when: { marks: { all: ['crew-overruled'] } },
+        text: 'The assembly carried its changes over members’ needs, and the objections stayed in the minutes. The next steward’s first act was to read them aloud.',
+      },
+    ],
+  },
+  {
+    id: 'plan',
+    title: 'The federation’s plan',
+    slides: [
+      {
+        when: { marks: { all: ['quota-raised'], none: ['quota-missed'] } },
+        text: 'The mill beat every quota the federation set, and each one was raised to match. Its returns became the district’s yardstick, which the other mills did not thank it for.',
+      },
+      {
+        when: { marks: { all: ['quota-raised', 'quota-missed'] } },
+        text: 'The mill beat some quotas and missed others. Its returns showed both, and the federation learned to read a mill’s year rather than its best shift.',
+      },
+      {
+        when: { marks: { all: ['quota-missed'] } },
+        text: 'The mill fell short of the federation’s quota, and said so in its returns. The federation trusted the figures because they were not dressed up.',
+      },
+    ],
+  },
+  {
+    id: 'warnings',
+    title: 'Warnings',
+    slides: [
+      {
+        when: { marks: { all: ['federation-broke-off'] } },
+        text: 'The federation acted on its warning about the spot market, and its contracts went to member mills that took them.',
+      },
+      {
+        when: { marks: { all: ['growers-broke-off'] } },
+        text: 'The growers’ cooperative acted on its warning about buying any lot, and sold the best of its harvest elsewhere for a season.',
+      },
+      {
+        when: { marks: { all: ['village-broke-off'] } },
+        text: 'The village committee acted on its warning about lean stocks, and the bakery laid in its own flour for the winters after.',
+      },
+    ],
+  },
+  {
+    id: 'administration',
+    title: 'The administrator',
+    slides: [
+      {
+        when: { marks: { all: ['administered'] } },
+        text: 'For a few shifts the federation’s administrator ran the mill. The report it left praised the crew and said nothing about the steward.',
+      },
+    ],
+  },
+  {
+    id: 'reserve',
+    title: 'The co-op reserve',
+    slides: [
+      {
+        when: { marks: { all: ['reserve-kept'], none: ['reserve-drawn'] } },
+        text: 'The co-op reserve was never touched. It paid for the new intake twenty years later.',
+      },
+      {
+        when: { marks: { all: ['reserve-drawn', 'reserve-kept'] } },
+        text: 'The co-op reserve carried the mill through a shortfall and was built back up before the chronicle closed.',
+      },
+      {
+        when: { marks: { all: ['reserve-drawn'] } },
+        text: 'The co-op reserve was spent keeping the plant maintained when the fund ran dry.',
+      },
+    ],
+  },
+];
+
 export interface EpilogueEntry {
   id: string;
   title: string;
@@ -240,7 +337,9 @@ export interface EpilogueEntry {
  * The epilogue for this record: the mill's character first, then who made the
  * decisions if the AI partner made any, then one slide per section.
  */
-export function epilogue(context: RecordContext): EpilogueEntry[] {
+export function epilogue(
+  context: RecordContext & { governance?: { brief: BriefId } }
+): EpilogueEntry[] {
   const character = millCharacter(context);
   const standing = standingOf(context.certifier);
   const entries: EpilogueEntry[] = [
@@ -250,18 +349,28 @@ export function epilogue(context: RecordContext): EpilogueEntry[] {
       text: `The valley came to call it ${character.title}. ${CERTIFIER_NAME} rated the mill ${standing} of 9${context.certifier.suspended ? ', under suspension' : ''}.`,
     },
   ];
-  const decisions = Object.values(context.marks).filter((mark) => !ENGINE_MARKS.includes(mark.id));
+  const decisions = Object.values(context.marks).filter(
+    (mark) => !ENGINE_MARKS.includes(mark.id) && !isFiledOutcome(mark)
+  );
   const partner = decisions.filter((mark) => mark.actor === 'ai-partner').length;
+  const brief = context.governance?.brief;
+  const briefText =
+    brief && brief !== 'conventional'
+      ? ` It worked to the ${briefLabel(brief).toLowerCase()} brief.`
+      : '';
   if (partner > 0)
     entries.push({
       id: 'partner',
       title: 'The AI partner',
       text:
-        partner === decisions.length
-          ? `The AI partner made every one of the ${decisions.length} decisions in the record.`
-          : `The AI partner made ${partner} of the ${decisions.length} decisions in the record.`,
+        (partner === decisions.length
+          ? decisions.length === 1
+            ? 'The AI partner made the one decision in the record.'
+            : `The AI partner made every one of the ${decisions.length} decisions in the record.`
+          : `The AI partner made ${partner} of the ${decisions.length} decisions in the record.`) +
+        briefText,
     });
-  for (const section of EPILOGUE_SECTIONS) {
+  for (const section of [...EPILOGUE_SECTIONS, ...GOVERNANCE_EPILOGUE_SECTIONS]) {
     const slide = section.slides.find((candidate) => conditionMet(context, candidate.when));
     if (slide) entries.push({ id: section.id, title: section.title, text: slide.text });
   }

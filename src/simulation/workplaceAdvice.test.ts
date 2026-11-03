@@ -121,6 +121,16 @@ describe('isolated packing advice', () => {
       expect(derivePackingAdvice(capture, 'steady')).toEqual(advice);
     }
   });
+  it('states the one plant span it models, not a pace-dependent horizon', () => {
+    for (const speed of [15, 120]) {
+      const advice = derivePackingAdvice(fixture(speed).capture(), 'steady');
+      // The horizon line sits beside "180 plant seconds at every pace".
+      expect(advice.assumptions[0]).toContain('180 plant seconds');
+      expect(advice.assumptions.join(' ')).not.toMatch(/resume game speed/);
+    }
+    const abstained = fixture(0).capture();
+    expect(abstained.reasonToAbstain).not.toMatch(/3600x/);
+  });
   it('splits five paid workplace minutes at the physical briefing boundary', () => {
     const f = fixture(),
       capture = f.capture();

@@ -33,6 +33,15 @@ const PT_SHIFT_OF: Record<string, string> = {
   night: 'da noite',
 };
 
+/* A part minute still counts as one: the run can complete until it runs out. */
+type ChallengeProgressParams = {
+  label: string;
+  dispatchedKg: string;
+  targetKg: string;
+  minutes: string;
+  count: number;
+};
+
 export const playableShiftMessages = defineMessages({
   en: {
     deliveryDeadline: 'Delivery deadline',
@@ -123,8 +132,10 @@ export const playableShiftMessages = defineMessages({
     costShiftTotal:
       'This shift so far: £{total} in late and quality penalties, repairs and dock waiting.',
     challengeProgress: 'Recovery challenge progress',
-    challengeProgressLine:
-      '{label}: {dispatchedKg} / {targetKg} kg, {minutes} simulation minutes left',
+    challengeProgressLine: (p: ChallengeProgressParams) =>
+      `${p.label}: ${p.dispatchedKg} / ${p.targetKg} kg, ${p.minutes} simulation ${
+        p.count === 1 ? 'minute' : 'minutes'
+      } left`,
     responseQueued:
       'The response is queued. Await the next simulation update before restoring the controller.',
     awaitingUpdate: 'Awaiting simulation update',
@@ -261,8 +272,10 @@ export const playableShiftMessages = defineMessages({
     costShiftTotal:
       'Neste turno, até agora: £{total} em penalidades por atraso e por qualidade, reparos e espera na doca.',
     challengeProgress: 'Progresso do desafio de recuperação',
-    challengeProgressLine:
-      '{label}: {dispatchedKg} / {targetKg} kg, faltam {minutes} minutos de simulação',
+    challengeProgressLine: (p: ChallengeProgressParams) =>
+      `${p.label}: ${p.dispatchedKg} / ${p.targetKg} kg, ${p.count === 1 ? 'falta' : 'faltam'} ${
+        p.minutes
+      } ${p.count === 1 ? 'minuto' : 'minutos'} de simulação`,
     responseQueued:
       'A resposta está na fila. Aguarde a próxima atualização da simulação antes de restaurar o controlador.',
     awaitingUpdate: 'Aguardando atualização da simulação',

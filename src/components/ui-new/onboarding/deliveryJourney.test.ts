@@ -72,7 +72,7 @@ describe('guided delivery evidence', () => {
       { active: true, docked: true, nextArrivalMinutes: 0 }
     );
     expect(loading.detail).toContain('Truck 1 of 2');
-    expect(loading.detail).toContain('6000 kg still to ship');
+    expect(loading.detail).toContain('6,000 kg still to ship');
     const departed = deriveDeliveryJourney(
       { ...order, shippedKg: 5000 },
       {
@@ -85,7 +85,7 @@ describe('guided delivery evidence', () => {
       { active: false, docked: false, nextArrivalMinutes: 14 }
     );
     expect(departed.detail).toContain('Truck 2 of 2');
-    expect(departed.detail).toContain('1000 kg still to ship');
+    expect(departed.detail).toContain('1,000 kg still to ship');
     expect(departed.detail).toContain('due on site in 14 min');
   });
   it('routes QC holds to real batch controls and loading to operations', () => {
@@ -140,7 +140,7 @@ describe('guided delivery evidence', () => {
 
       const milling = deriveDeliveryJourney(order, { ...execution, stage: 'milling' }, true);
       expect(milling.detail).toContain(
-        `12346 kg of ${order.recipe.sourceMaterial.replace('_', ' ')}`
+        `12,346 kg of ${order.recipe.sourceMaterial.replace('_', ' ')}`
       );
       expect(milling.detail).toContain('Line setpoint: 62%');
       expect(milling.detail).toContain(`Recipe quality target: ${order.recipe.minimumQuality}/100`);
@@ -198,8 +198,8 @@ describe('guided delivery evidence', () => {
     const departed = deriveDeliveryJourney(order, { ...route, stage: 'dispatched' }, true);
     expect(departed.title).toBe('Truck departed');
     expect(departed.loading).toBeUndefined();
-    expect(departed.detail).toContain('3000 kg left the shipping bay');
-    expect(departed.detail).toContain(`1000 / ${order.requiredKg} kg for ${order.customer}`);
+    expect(departed.detail).toContain('3,000 kg left the shipping bay');
+    expect(departed.detail).toContain(`1,000 / 6,000 kg for ${order.customer}`);
     expect(order.shippedKg).toBe(1000);
     expect(route.dispatchLoad.loadedKg).toBe(1500);
     const held = deriveDeliveryJourney(

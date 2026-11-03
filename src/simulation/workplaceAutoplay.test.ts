@@ -128,11 +128,25 @@ it.each(['player', 'shortcut', 'tour', 'restore', 'restoreFailed', 'layout'] as 
   }
 );
 it('stopping by itself keeps the plant running and says why where the player looks', () => {
+  // A completed season is one of the reasons the runner stops on its own. (An
+  // E-stop or drill no longer is: the season waits it out, workplaceAutoplay.pass4.)
+  for (let i = 0; i < 600; i++) {
+    const r = autoplayWorkplaceStep('team');
+    const store = useWorkplaceStore.getState();
+    if (r.reason?.includes('complete')) break;
+    if (
+      store.workplace.phase === 'active' &&
+      !(
+        store.workplace.campaign?.shift === 1 &&
+        store.workplace.minute >= 25 &&
+        store.workplace.campaign.decision === null
+      )
+    )
+      store.tick(5, 0, false);
+  }
   vi.useFakeTimers();
   useGameSimulationStore.getState().setGameSpeed(30);
   useWorkplaceAutoplay.getState().start('team');
-  // A safety boundary is one of the reasons the runner stops on its own.
-  useGameSimulationStore.setState({ emergencyActive: true });
   vi.advanceTimersByTime(500);
   expect(useWorkplaceAutoplay.getState().running).toBe(false);
   expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
@@ -141,7 +155,6 @@ it('stopping by itself keeps the plant running and says why where the player loo
       .getState()
       .alerts.some((alert) => alert.title === 'Automatic cooperative season stopped')
   ).toBe(true);
-  useGameSimulationStore.setState({ emergencyActive: false });
   vi.useRealTimers();
 });
 it.each(['wrong-answer', 'manual-stop', 'reload'] as const)(

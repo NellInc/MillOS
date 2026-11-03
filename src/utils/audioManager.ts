@@ -2,6 +2,7 @@
 import { logger } from './logger';
 import { landmarkLocalToWorld, SITE_LAYOUT } from '../constants/siteLayout';
 import { MILLOS_ORIGINAL_SOUNDTRACK, type MusicTrack } from '../audio/millosSoundtrackCatalog';
+import { useAnnouncementsStore } from '../stores/announcementsStore';
 
 export type AmbientWeather = 'clear' | 'cloudy' | 'rain' | 'storm';
 
@@ -547,7 +548,11 @@ class AudioManager {
   selectMusicTrack(index: number): void {
     if (!Number.isFinite(index)) return;
     const normalizedIndex = Math.max(0, Math.min(this.musicTracks.length - 1, Math.trunc(index)));
-    if (normalizedIndex === this._currentTrackIndex) return;
+    if (normalizedIndex === this._currentTrackIndex) {
+      // Picking the paused song plays it; picking the one playing leaves it be.
+      if (this._musicEnabled && this.musicAudio && !this.musicPlaying) this.startMusic();
+      return;
+    }
     this._currentTrackIndex = normalizedIndex;
     this.loadCurrentMusicTrack(this._musicEnabled);
     this.notifyListeners();
@@ -1017,6 +1022,9 @@ class AudioManager {
     this.updateMusicVolume();
     this.updateMediaSession();
     if (autoplay) {
+      // A song started by the player (a pick, Next, the media keys) ends their
+      // pause, so a returning tab resumes it as startMusic() would.
+      this._userPausedMusic = false;
       this.musicAudio.play().catch((error) => {
         audioLog.warn('Music playback failed (likely autoplay policy)', error);
       });
@@ -3101,9 +3109,20 @@ class AudioManager {
     const playRandomAnnouncement = () => {
       if (!this.paSystemActive) return;
 
-      // Skip playback while muted or hidden, but keep scheduling so a later
-      // unmute or visibility change resumes the bells.
-      if (this._isTabVisible && this.getEffectiveVolume() > 0) {
+      // Skip playback while muted, hidden or with the PA set to Off, but keep
+      // scheduling so a later unmute, visibility or mode change resumes the
+      // bells. They are routine PA traffic, so Off quiets them too, and so does
+      // a drill, stop or crisis (the PA's safetyCritical context): a "cycle
+      // complete" bell over a sounding alarm says the plant is running. A
+      // paused plant (plantPaused) is not cycling either.
+      const pa = useAnnouncementsStore.getState();
+      if (
+        this._isTabVisible &&
+        this.getEffectiveVolume() > 0 &&
+        pa.mode !== 'off' &&
+        !pa.context.safetyCritical &&
+        !pa.context.plantPaused
+      ) {
         // Automated cycle bells and signal tones communicate plant state without voices.
         const announcementType = Math.random();
         if (announcementType < 0.5) {

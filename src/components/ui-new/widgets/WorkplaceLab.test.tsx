@@ -23,7 +23,9 @@ import type { AgentCommandClientResult } from '../../../agent/client/executeAgen
 
 vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
 const execute = vi.mocked(executeAgentCommand);
-const open = (name: string) => fireEvent.click(screen.getByRole('button', { name, exact: true }));
+const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+/** Delivery kilograms are grouped in English too ("1,200"). */
+const groupedKg = (kg: number) => kg.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const prepare = (mode: 'game' | 'workshop' = 'game') => {
   const store = useWorkplaceStore.getState();
   store.start(mode, 17);
@@ -46,7 +48,7 @@ const result = (status: 'verified' | 'rejected', message?: string): AgentCommand
       receiptId: 'receipt-workplace-42',
       problems: message ? [{ code: 'stale', severity: 'blocking', message }] : [],
     },
-  }) as AgentCommandClientResult;
+  }) as unknown as AgentCommandClientResult;
 
 beforeEach(() => {
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
@@ -94,7 +96,7 @@ describe('Workplace laboratory interface', () => {
       screen.getByText('Pressure card: Yesterday’s volunteer again?').closest('details')
     ).toHaveAttribute('open');
     open('Go to Agreement / Voices controls');
-    expect(screen.getByRole('button', { name: 'Agreement / Voices', exact: true })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Agreement / Voices' })).toHaveAttribute(
       'aria-pressed',
       'true'
     );
@@ -183,13 +185,13 @@ describe('Workplace laboratory interface', () => {
     render(<WorkplaceLab />);
     expect(
       screen.getByRole('button', {
-        name: `Keep the ${mission.originalTargetKg.toFixed(0)} kg commitment`,
+        name: `Keep the ${groupedKg(mission.originalTargetKg)} kg commitment`,
       })
     ).toBeInTheDocument();
-    open(`Negotiate an ${(mission.originalTargetKg * 0.8).toFixed(0)} kg installment`);
+    open(`Negotiate a ${groupedKg(mission.originalTargetKg * 0.8)} kg installment`);
     expect(
       screen.getByText(
-        new RegExp(`Agreed deferral: ${(mission.originalTargetKg * 0.2).toFixed(0)} kg`)
+        new RegExp(`Agreed deferral: ${groupedKg(mission.originalTargetKg * 0.2)} kg`)
       )
     ).toBeInTheDocument();
     expect(useOperationsCampaignStore.getState().orders).toBe(before);
@@ -242,7 +244,7 @@ describe('Workplace laboratory interface', () => {
     expect(
       screen.getByText(
         new RegExp(
-          `Remaining full customer commitment: ${state.campaign!.mission!.originalTargetKg.toFixed(0)} kg`
+          `Remaining full customer commitment: ${groupedKg(state.campaign!.mission!.originalTargetKg)} kg`
         )
       )
     ).toBeInTheDocument();
@@ -291,7 +293,7 @@ describe('Workplace laboratory interface', () => {
     expect(
       screen.getByText(
         new RegExp(
-          `Agreed deferral: ${(state.campaign!.mission!.originalTargetKg * 0.2).toFixed(0)} kg`
+          `Agreed deferral: ${groupedKg(state.campaign!.mission!.originalTargetKg * 0.2)} kg`
         )
       )
     ).toBeInTheDocument();
@@ -691,7 +693,7 @@ it('turns the cooperative review into a discussion and comparison without changi
   expect(within(review).getByText('Learn from this shift together')).toBeInTheDocument();
   expect(within(review).getByText(/Teaching output:/)).toBeInTheDocument();
   fireEvent.click(within(review).getByRole('button', { name: 'Compare another handoff' }));
-  expect(screen.getByRole('button', { name: 'Experiment', exact: true })).toHaveAttribute(
+  expect(screen.getByRole('button', { name: 'Experiment' })).toHaveAttribute(
     'aria-pressed',
     'true'
   );
@@ -781,7 +783,7 @@ it.each(['packing', 'mind'])(
   (actorId) => {
     const get = () => useWorkplaceStore.getState();
     get().startCampaign('cooperative', 17);
-    const stock = structuredClone(useMaterialFlowStore.getState().sources);
+    const stock = structuredClone(useMaterialFlowStore.getState().sourceLots);
     const finance = structuredClone(get().workplace.finance);
     const minute = get().workplace.minute;
     const role = actorId === 'mind' ? 'Adviser' : 'Packing';
@@ -816,7 +818,7 @@ it.each(['packing', 'mind'])(
     ).toBe(true);
     expect(get().workplace.finance).toEqual(finance);
     expect(get().workplace.minute).toBe(minute);
-    expect(useMaterialFlowStore.getState().sources).toEqual(stock);
+    expect(useMaterialFlowStore.getState().sourceLots).toEqual(stock);
     expect(execute).not.toHaveBeenCalled();
     // Feedback survives real remount from the saved current answers, with no render mutation.
     const state = get().workplace;

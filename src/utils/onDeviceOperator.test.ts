@@ -84,8 +84,33 @@ describe('the on-device operator in lights-out play', () => {
       useGameSimulationStore.setState({ emergencyActive: false, emergencyDrillMode: false });
       for (let i = 0; i < 5; i++) await settle();
       expect(calls()).toEqual(['incident.acknowledge', 'incident.mitigate']);
+      // The stand-down notice and the outcome are separate alerts: dismissing
+      // one must not take the other with it.
+      const ids = useUIStore.getState().alerts.map((alert) => alert.id);
+      expect(ids).toHaveLength(2);
+      expect(new Set(ids).size).toBe(2);
     }
   );
+
+  it('does not act on a route that returns after lights-out was switched off', async () => {
+    let route!: (advice: { queue: string; receivedAt: number }) => void;
+    mocks.requestJevAdvice.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          route = resolve;
+        })
+    );
+    const incident = await raise('bearing_overheat');
+    expect(mocks.requestJevAdvice).toHaveBeenCalledTimes(1);
+    // The player hands control back while the local model is still routing.
+    useAIConfigStore.setState({ lightsOut: false });
+    route({ queue: 'Equipment maintenance', receivedAt: 0 });
+    for (let i = 0; i < 5; i++) await settle();
+    expect(calls()).toEqual([]);
+    expect(
+      useOperationsCampaignStore.getState().incidents.find((i) => i.id === incident.id)?.phase
+    ).toBe('raised');
+  });
 
   it('stands down during a replay', async () => {
     useIncidentReplayStore.setState({ replayMode: true });
@@ -196,6 +221,90 @@ describe('the on-device operator in lights-out play', () => {
     useAIConfigStore.setState({ lightsOut: true });
     for (let i = 0; i < 5; i++) await settle();
     expect(calls()).toEqual(['incident.acknowledge', 'incident.mitigate']);
+  });
+
+  // F33: on teardown the abort made the routing call throw, and the operator
+  // filed a false "no route" notice for an incident it never got to route.
+  it('files nothing for a routing call aborted by its own teardown', async () => {
+    mocks.requestJevAdvice.mockImplementation(
+      ({ signal }: { signal: AbortSignal }) =>
+        new Promise((_, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('aborted')));
+        })
+    );
+    const incident = await raise('bearing_overheat');
+    // A second incident waits its turn behind the first.
+    await raise('delayed_truck');
+    expect(mocks.requestJevAdvice).toHaveBeenCalledTimes(1);
+    release();
+    for (let i = 0; i < 5; i++) await settle();
+    // Nor does the queue behind it run after the release.
+    expect(mocks.requestJevAdvice).toHaveBeenCalledTimes(1);
+    expect(useUIStore.getState().alerts).toHaveLength(0);
+    expect(useAnnouncementsStore.getState().announcements).toHaveLength(0);
+    expect(onDeviceOperatorRecords().some((r) => r.incidentId === incident.id)).toBe(false);
+  });
+
+  // F29: the grant's 500-command budget never renews in a session. Once fewer
+  // than the two commands an incident needs are left, the operator stops
+  // spending model calls, never half-handles an incident, and says why.
+  it('stands down once its command budget cannot cover another incident', async () => {
+    mocks.requestJevAdvice.mockResolvedValue({ queue: 'Equipment maintenance', receivedAt: 0 });
+    const spent = (left: number) => ({
+      receipt: { status: 'verified', problems: [] },
+      preview: { status: 'ready', authority: { commandsRemaining: left } },
+    });
+    mocks.executeAgentCommand.mockResolvedValueOnce(spent(2)).mockResolvedValueOnce(spent(1));
+    await raise('bearing_overheat');
+    expect(calls()).toEqual(['incident.acknowledge', 'incident.mitigate']);
+    expect(mocks.requestJevAdvice).toHaveBeenCalledTimes(1);
+
+    const next = await raise('power_sag');
+    expect(mocks.requestJevAdvice).toHaveBeenCalledTimes(1);
+    expect(calls()).toEqual(['incident.acknowledge', 'incident.mitigate']);
+    expect(lastAlert().message).toBe(
+      `${next.title}: left raised because the on-device AI has used its command budget for this session.`
+    );
+    useOperationsCampaignStore.setState({}); // another campaign tick: no second notice
+    expect(useUIStore.getState().alerts.filter((a) => a.id.includes(next.id))).toHaveLength(1);
+    expect(
+      useOperationsCampaignStore.getState().incidents.find((i) => i.id === next.id)?.phase
+    ).toBe('raised');
+    // The session record shows it as left raised, not as held at a safety boundary.
+    expect(onDeviceOperatorRecords().at(-1)).toMatchObject({
+      incidentId: next.id,
+      outcome: 'refused',
+    });
+  });
+
+  // The rest of the AI layer holds while the shift clock is held (P, Paused,
+  // the tour, the handoff) or the tab is hidden: the plant is frozen. The
+  // operator still routed, acknowledged and mitigated an incident the player
+  // had paused to read, in no plant time at all.
+  // Working if it waits for the clock and then handles the incident.
+  it.each([
+    ['the shift clock is held', { gameSpeed: 0 }],
+    ['the tab is hidden', { isTabVisible: false }],
+  ] as const)('waits while %s and acts once the plant runs again', async (_name, held) => {
+    mocks.requestJevAdvice.mockResolvedValue({ queue: 'Equipment maintenance', receivedAt: 0 });
+    const running = useGameSimulationStore.getState();
+    const resume = { gameSpeed: running.gameSpeed, isTabVisible: running.isTabVisible };
+    useGameSimulationStore.setState(held);
+    try {
+      const incident = await raise('bearing_overheat');
+      expect(mocks.requestJevAdvice).not.toHaveBeenCalled();
+      expect(calls()).toEqual([]);
+      expect(useUIStore.getState().alerts).toHaveLength(0);
+      useGameSimulationStore.setState(resume);
+      for (let i = 0; i < 5; i++) await settle();
+      expect(calls()).toEqual(['incident.acknowledge', 'incident.mitigate']);
+      expect(onDeviceOperatorRecords().at(-1)).toMatchObject({
+        incidentId: incident.id,
+        outcome: 'handled',
+      });
+    } finally {
+      useGameSimulationStore.setState(resume);
+    }
   });
 });
 

@@ -18,6 +18,11 @@ import {
 import { turnChecks } from '../../../simulation/workplaceParticipation';
 import { workplaceReadiness } from '../../../simulation/bilateralWorkplace';
 import {
+  formatKg,
+  pressureObjectionText,
+  shiftResumable,
+} from '../../../simulation/workplaceCampaign';
+import {
   HandoffEpisodes,
   FrozenPackingAdvice,
   MatchedPackingRehearsal,
@@ -83,6 +88,14 @@ export function WorkplaceImprovementPanel({
   // finalising hold and release the plant without a control fighting a pace.
   const perform = (result: WorkplaceTransitionResult, reveal = false) => {
     report(result);
+    // A control its own action removes (End, Finalise, Cancel) drops focus to
+    // <body>, where Space is the forklift emergency stop; the panel takes it.
+    // Working if Tab and Space continue from the handoff panel afterwards.
+    if (result.changed)
+      requestAnimationFrame(() => {
+        if (document.activeElement === document.body || !document.activeElement)
+          panelRef.current?.focus({ preventScroll: true });
+      });
     if (result.changed && reveal) {
       // Opening a shift replaces the entry form. Put its decision heading and
       // optional episode control together in view, beyond the lab navigation.
@@ -154,6 +167,7 @@ export function WorkplaceImprovementPanel({
                 {
                   changed: true,
                   reason: translate(workplaceImprovementPanelMessages, 'seasonOpened'),
+                  reasonCopy: { catalog: 'improvementPanel', key: 'seasonOpened' },
                 },
                 true
               );
@@ -172,6 +186,8 @@ export function WorkplaceImprovementPanel({
   const arrangement = HANDOFF_ARRANGEMENTS.find((a) => a.id === i.proposalId);
   const advice = i.advice;
   const winner = improvementReviewWinner(s);
+  // A deliberation a reload interrupted resumes; it is never reviewed as a cycle.
+  const resumable = shiftResumable(s);
   return (
     <section ref={panelRef} tabIndex={-1} aria-label={t('regionLabel')} className="space-y-4">
       <div className="space-y-2 border-b border-slate-700 pb-4">
@@ -209,7 +225,7 @@ export function WorkplaceImprovementPanel({
               </button>
               <p className="text-xs text-slate-300">{t('endToReviewNote')}</p>
             </>
-          ) : (
+          ) : resumable ? null : (
             <p className="text-xs text-slate-300">{t('finaliseToReleaseNote')}</p>
           )}
         </section>
@@ -229,7 +245,7 @@ export function WorkplaceImprovementPanel({
                 <p className="text-amber-100">
                   {t('objectionLine', {
                     role,
-                    statement: objection.statement,
+                    statement: pressureObjectionText(objection.statement),
                     kind: objection.kind,
                   })}
                 </p>
@@ -519,6 +535,12 @@ export function WorkplaceImprovementPanel({
                 className={button}
                 onClick={() => {
                   store.tick(5, 0, false);
+                  // The last step ends the shift and removes this control
+                  // with focus on it; the panel takes it (as in perform).
+                  requestAnimationFrame(() => {
+                    if (document.activeElement === document.body || !document.activeElement)
+                      panelRef.current?.focus({ preventScroll: true });
+                  });
                 }}
               >
                 {t('advanceRehearsal')}
@@ -544,7 +566,7 @@ export function WorkplaceImprovementPanel({
         <div>
           <dt className="inline text-slate-300">{t('actualDispatch')}</dt>
           <dd className="inline">
-            {t('kgValue', { kg: formatFixed(s.shippedKg, 0) })}
+            {t('kgValue', { kg: formatKg(s.shippedKg) })}
             {s.mode === 'workshop' && t('workshopNoShipment')}
           </dd>
         </div>
@@ -553,7 +575,7 @@ export function WorkplaceImprovementPanel({
             <dt className="inline text-slate-300">{t('commitmentRemaining')}</dt>
             <dd className="inline">
               {t('commitmentValue', {
-                kg: formatFixed(summary.remainingKg, 0),
+                kg: formatKg(summary.remainingKg),
                 evidence: summary.mission?.evidence ?? '',
               })}
             </dd>
@@ -579,7 +601,19 @@ export function WorkplaceImprovementPanel({
           </dd>
         </div>
       </dl>
-      {s.phase === 'review' && (
+      {resumable && (
+        <div className="border-t border-slate-700 pt-4">
+          <button
+            type="button"
+            className={button}
+            disabled={!facilitator}
+            onClick={() => perform(store.resumeShift(s.revision), true)}
+          >
+            {t('resumeDeliberation')}
+          </button>
+        </div>
+      )}
+      {s.phase === 'review' && !resumable && (
         <div className="space-y-3 border-t border-slate-700 pt-4">
           <h5 className="font-semibold text-white">{t('carryHeading')}</h5>
           {learning && (
@@ -615,10 +649,9 @@ export function WorkplaceImprovementPanel({
                 ? advice.reasonToAbstain
                   ? t('abstainedReview')
                   : t('forecastReview', {
-                      speed: Number.isInteger(advice.evidence.gameSpeed)
-                        ? formatFixed(advice.evidence.gameSpeed, 0)
-                        : String(advice.evidence.gameSpeed),
-                      kg: formatFixed(s.shippedKg, 0),
+                      // The pace vocabulary (Standard, 1x), as the frozen advice prints it.
+                      speed: formatFixed(advice.evidence.gameSpeed / STANDARD_GAME_SPEED, 1),
+                      kg: formatKg(s.shippedKg),
                       within: s.shippedKg <= advice.dispatchUpperKg,
                     })
                 : t('teachingForecastReview')}{' '}
@@ -630,6 +663,11 @@ export function WorkplaceImprovementPanel({
               {reason}
             </p>
           ))}
+          {/* Owed recovery runs only on an explicit resume ('workplace' hold).
+              Working if the player finds that resume beside the obligation. */}
+          {s.mode === 'game' && !i.verdict && summary.currentRecoveryOwedMinutes > 0 && (
+            <TeachingPace />
+          )}
           {!i.verdict &&
             s.members.map((m) => (
               <label key={m.id} className="block">
@@ -711,7 +749,7 @@ export function WorkplaceImprovementPanel({
               cycle: formatFixed(h.cycle, 0),
               proposal: h.proposalId ?? '',
               verdict: h.verdict ?? '',
-              kg: formatFixed(h.shippedKg, 0),
+              kg: formatKg(h.shippedKg),
               wages: formatFixed(h.wages, 2),
               spend: formatFixed(h.spend, 2),
               cash: formatFixed(h.closingCash, 2),

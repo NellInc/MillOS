@@ -9,11 +9,12 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, Gauge, Zap, Leaf, Target, TrendingUp, TrendingDown } from 'lucide-react';
-import { useProductionStore } from '../../stores/productionStore';
+import { DAILY_TARGET_BAGS, useProductionStore } from '../../stores/productionStore';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 
 import { BAG_WEIGHT_KG } from '../../types';
-import { formatFixed, formatGrouped, useT } from '../../i18n';
+import { formatGrouped, useT } from '../../i18n';
 import { multiObjectiveDashboardMessages } from './MultiObjectiveDashboard.messages';
 
 // `label` is the objective's identity (compared below); the visible name comes from the catalog.
@@ -30,6 +31,8 @@ interface ObjectiveMetric {
   value: number;
   target: number;
   unit: string;
+  /** Unit printed beside the target, when it runs on a different clock. */
+  targetUnit?: string;
   icon: React.ReactNode;
   color: string;
   trend: 'up' | 'down' | 'stable';
@@ -49,16 +52,32 @@ export const MultiObjectiveDashboard: React.FC = () => {
   const showMultiObjective = useAIConfigStore((state) => state.showMultiObjective);
   const metrics = useProductionStore((state) => state.metrics);
   const machines = useProductionStore((state) => state.machines);
+  const dailyBagsProduced = useProductionStore((state) => state.dailyBagsProduced);
+  const gameTime = useGameSimulationStore((state) => state.gameTime);
+  const paused = useGameSimulationStore((state) => state.gameSpeed <= 0);
   const t = useT(multiObjectiveDashboardMessages);
+  const perDayUnit = t('perDayUnit');
 
   // Calculate metrics
   const objectives = useMemo<ObjectiveMetric[]>(() => {
-    // Production rate (metrics.throughput is bags/hr)
-    const productionRate = (metrics.throughput || 0) * BAG_WEIGHT_KG; // kg/hr
-    const productionTarget = 30000; // Average for 2-3 packers (1200-1500 bags/hr * 25)
+    // The plant's production goal is a mass per game DAY (DAILY_TARGET_BAGS,
+    // the same goal ProductionTargetWidget counts down), so the objective is
+    // today's packed mass against it. Comparing the hourly rate with 30,000
+    // read every running line as about a quarter of the way there.
+    const productionTarget = DAILY_TARGET_BAGS * BAG_WEIGHT_KG; // kg per day
+    const producedToday = Math.max(0, dailyBagsProduced || 0) * BAG_WEIGHT_KG;
+    // On pace when the current rate (bags per game hour) covers what is left
+    // before the midnight rollover, as the target widget judges it; a held
+    // clock produces nothing, so it is not on pace.
+    const productionRate = paused ? 0 : Math.max(0, metrics.throughput || 0) * BAG_WEIGHT_KG; // kg/hr
+    const hoursLeft = Math.max(1 / 3600, 24 - (Number.isFinite(gameTime) ? gameTime : 0));
+    const requiredRate = Math.max(0, productionTarget - producedToday) / hoursLeft;
+    const productionOnPace =
+      producedToday >= productionTarget || productionRate >= requiredRate * 0.95;
 
-    // Quality (from metrics)
-    const quality = metrics.quality || 95;
+    // Quality is the latest QC grade, and a FAIL scores 0: only a missing
+    // reading falls back, never a failed one.
+    const quality = Number.isFinite(metrics.quality) ? metrics.quality : 95;
     const qualityTarget = 98;
 
     // Energy estimation (from machines)
@@ -93,12 +112,13 @@ export const MultiObjectiveDashboard: React.FC = () => {
     return [
       {
         label: 'Production',
-        value: productionRate,
+        value: producedToday,
         target: productionTarget,
-        unit: 'kg/hr',
+        unit: 'kg',
+        targetUnit: perDayUnit,
         icon: <Activity className="w-4 h-4" />,
         color: 'cyan',
-        trend: productionRate >= productionTarget * 0.95 ? 'up' : 'down',
+        trend: productionOnPace ? 'up' : 'down',
       },
       {
         label: 'Quality',
@@ -128,16 +148,21 @@ export const MultiObjectiveDashboard: React.FC = () => {
         trend: carbonKg <= carbonTarget ? 'up' : 'down',
       },
     ];
-  }, [metrics, machines]);
+  }, [metrics, machines, dailyBagsProduced, gameTime, paused, perDayUnit]);
 
   // Calculate overall score (weighted average)
   const overallScore = useMemo(() => {
     let score = 0;
     objectives.forEach((obj) => {
+      // The Production bar is the day's progress, but a line on pace for the
+      // day's target is meeting that objective: early in the day the progress
+      // ratio alone read every on-pace start as a trade-off.
       const ratio =
         obj.label === 'Energy' || obj.label === 'Carbon'
           ? obj.target / Math.max(obj.value, 1) // Lower is better
-          : obj.value / obj.target; // Higher is better
+          : obj.label === 'Production' && obj.trend === 'up'
+            ? 1
+            : obj.value / obj.target; // Higher is better
       score += Math.min(1, ratio) * 25; // 25% each
     });
     return Math.round(score);
@@ -149,6 +174,8 @@ export const MultiObjectiveDashboard: React.FC = () => {
     <motion.div
       role="region"
       aria-label={t('regionLabel')}
+      // Escape closes this before the tour or delivery guide behind it.
+      data-escape-layer=""
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
@@ -189,7 +216,11 @@ export const MultiObjectiveDashboard: React.FC = () => {
           const colorClasses = OBJECTIVE_COLORS[obj.color] ?? DEFAULT_OBJECTIVE_COLOR;
 
           return (
-            <div key={obj.label} className="bg-slate-800/50 rounded-lg p-2">
+            <div
+              key={obj.label}
+              className="bg-slate-800/50 rounded-lg p-2"
+              data-progress={Math.round(percentage)}
+            >
               <div className="flex items-center justify-between mb-1.5">
                 <div className={colorClasses.text}>{obj.icon}</div>
                 {obj.trend === 'up' ? (
@@ -215,7 +246,10 @@ export const MultiObjectiveDashboard: React.FC = () => {
                 />
               </div>
               <p className="text-[8px] text-slate-500 mt-0.5">
-                {t('target', { target: formatFixed(obj.target, 0), unit: obj.unit })}
+                {t('target', {
+                  target: formatGrouped(obj.target),
+                  unit: obj.targetUnit ?? obj.unit,
+                })}
               </p>
             </div>
           );

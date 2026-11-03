@@ -85,7 +85,19 @@ export const Dock: React.FC<DockProps> = ({
     const menuItems = () =>
       Array.from(moreMenuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? []);
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      // Tab leaves a menu and closes it, as the menu-button pattern does. Left
+      // open, this capture listener kept taking the arrow keys (and Escape)
+      // from whatever focus moved on to: a slider, a list, the sidebar.
+      // Working if the arrows act where focus is once it has left.
+      if (event.key === 'Tab') {
+        setMoreOpen(false);
+        return;
+      }
+      if (
+        (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
+        (document.activeElement === document.body ||
+          moreMenuRef.current?.contains(document.activeElement))
+      ) {
         // role="menu" promises arrow-key movement; keep that promise.
         const items = menuItems();
         if (items.length === 0) return;

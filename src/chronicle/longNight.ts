@@ -24,9 +24,8 @@ export const FRONTS: Record<
   FrontId,
   {
     label: string;
-    /** The front as the subject of a sentence, and its pronoun. */
+    /** The front as the subject of a sentence. */
     subject: string;
-    pronoun: string;
     hazard: ForecastKind;
     plans: ImprovementId[];
     parties: StakeholderId[];
@@ -35,7 +34,6 @@ export const FRONTS: Record<
   intake: {
     label: 'The intake and grain stores',
     subject: 'the intake and grain stores',
-    pronoun: 'them',
     hazard: 'severe_rain',
     plans: ['drainage-works', 'grain-dryer'],
     parties: ['village', 'growers'],
@@ -43,7 +41,6 @@ export const FRONTS: Record<
   floor: {
     label: 'The roller floor',
     subject: 'the roller floor',
-    pronoun: 'it',
     hazard: 'power_sag',
     plans: ['standby-generator', 'vibration-monitoring'],
     parties: ['federation', 'haulier'],

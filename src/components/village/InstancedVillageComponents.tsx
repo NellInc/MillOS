@@ -255,7 +255,11 @@ const lampGlassMaterial = new THREE.MeshStandardMaterial({
 // LAMP INSTANCE DATA
 // ============================================================
 
-const LAMP_POSITIONS: [number, number, number?][] = [
+/** Village-local (x, z, height scale). The x 15 lamp at z 0 stood on the
+ * centreline of the east passage (village walk x 14-16); the x -15 lamp at
+ * z 35 on the corner of the shop walk, whose paving is laid in whole tiles
+ * past its nominal edge. Both now stand on the cobbles beside the paving. */
+export const LAMP_POSITIONS: [number, number, number?][] = [
   [-15, 20],
   [15, 20],
   [-15, -20],
@@ -265,8 +269,8 @@ const LAMP_POSITIONS: [number, number, number?][] = [
   [-15, 45],
   [15, 50],
   [-15, 0],
-  [15, 0],
-  [-15, 35],
+  [13.6, 0],
+  [-14, 35],
   [15, 35],
   [-15, -60],
   [15, 65],

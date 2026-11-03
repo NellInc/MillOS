@@ -8,6 +8,7 @@ const probe = vi.hoisted(() => ({
   beginTask: vi.fn(),
   markReady: vi.fn(),
   markPrepared: vi.fn(),
+  setDeferred: vi.fn(),
   contextLost: false,
 }));
 vi.mock('@react-three/fiber', () => ({
@@ -22,6 +23,7 @@ vi.mock('../utils/startupReadiness', async (importOriginal) => ({
   beginStartupTask: probe.beginTask,
   markStartupReady: probe.markReady,
   markStartupPrepared: probe.markPrepared,
+  setStartupDeferredShaders: probe.setDeferred,
 }));
 import { StartupReadiness } from './StartupReadiness';
 import { drawStartupFrame, registerStartupDrawOwner } from '../utils/startupReadiness';
@@ -65,13 +67,19 @@ beforeEach(() => {
     probe.startup.ready = true;
   });
   probe.markPrepared.mockClear();
+  probe.setDeferred.mockClear();
   probe.contextLost = false;
   probe.startup = { pendingAssets: 0, pendingTasks: 0, revision: 0, ready: false, errors: 0 };
   renderTarget = null;
   gl.setRenderTarget.mockClear();
   gl.render.mockReset();
+  // three calls a scene's hook with four arguments, the fourth its render target.
   gl.render.mockImplementation(() =>
-    scene.onBeforeRender(gl as unknown as THREE.WebGLRenderer, scene, camera, renderTarget)
+    scene.onBeforeRender(
+      ...([gl, scene, camera, renderTarget] as unknown as Parameters<
+        THREE.Object3D['onBeforeRender']
+      >)
+    )
   );
   scene.clear();
   scene.environment = null;
@@ -287,22 +295,14 @@ describe('retained truck first-use preparation', () => {
     expect(probe.markReady).toHaveBeenCalled();
   });
 
-  it.each(['timeout', 'late-ready', 'no-next-callback', 'context-loss', 'disposed', 'metadata'])(
+  it.each(['context-loss', 'disposed', 'metadata'])(
     'surfaces %s and never certifies a failed preparation',
     (failure) => {
       const { material, programs } = truckPrograms();
       const error = vi.spyOn(console, 'error').mockImplementation(() => {});
       render(<StartupReadiness />);
       draw();
-      if (failure === 'timeout' || failure === 'late-ready') {
-        now = 15001;
-        if (failure === 'late-ready') programs[1].isReady.mockReturnValue(true);
-      } else if (failure === 'no-next-callback') {
-        material.needsUpdate = true;
-        vi.advanceTimersByTime(10);
-        expect(probe.startup.pendingTasks).toBe(1);
-        now = 15001;
-      } else if (failure === 'context-loss') {
+      if (failure === 'context-loss') {
         probe.contextLost = true;
         material.needsUpdate = true;
       } else if (failure === 'disposed') {
@@ -312,7 +312,7 @@ describe('retained truck first-use preparation', () => {
         programs[0].getUniforms.mockImplementation(() => {
           throw new Error('shader metadata');
         });
-      vi.advanceTimersByTime(failure === 'no-next-callback' ? 15000 : 10);
+      vi.advanceTimersByTime(10);
       expect(probe.startup.pendingTasks).toBe(0);
       expect(probe.startup.errors).toBe(1);
       expect(error).toHaveBeenCalledTimes(1);
@@ -340,38 +340,116 @@ describe('retained truck first-use preparation', () => {
     expect(probe.markReady).not.toHaveBeenCalled();
   });
 
-  it('rejects metadata initialization that completes beyond the original deadline', () => {
-    const { programs } = truckPrograms();
-    programs[1].isReady.mockReturnValue(true);
-    programs[1].getAttributes.mockImplementation(() => {
-      now = 15001;
-    });
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+  // A slow but healthy compile on a loaded GPU is not a broken page: when the
+  // truck prewarm outlives its window the player is offered the loaded scene,
+  // never Reload. Strict readiness still waits for the trucks.
+  it.each(['pending', 'late-ready', 'late-metadata'])(
+    'offers the loaded scene, not a startup error, when the truck prewarm outlives its window (%s)',
+    (route) => {
+      const { programs } = truckPrograms();
+      if (route === 'late-metadata') {
+        programs[1].isReady.mockReturnValue(true);
+        programs[1].getAttributes.mockImplementation(() => {
+          now += 15001;
+        });
+      }
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      render(<StartupReadiness />);
+      draw();
+      if (route !== 'late-metadata') {
+        now += 15000;
+        if (route === 'late-ready') programs[1].isReady.mockReturnValue(true);
+        vi.advanceTimersByTime(15000);
+      } else vi.advanceTimersByTime(10);
+      expect(probe.startup.errors).toBe(0);
+      expect(probe.startup.pendingTasks).toBe(0);
+      expect(error).not.toHaveBeenCalled();
+      if (route === 'pending') {
+        expect(probe.setDeferred).toHaveBeenLastCalledWith(true);
+        frames();
+        expect(probe.markReady).not.toHaveBeenCalled();
+        const [prepared, guard] = probe.markPrepared.mock.lastCall!;
+        expect(prepared).toBe(true);
+        expect(guard()).toBe(true);
+        // The compile was slow, not hung: finishing later still certifies.
+        programs[1].isReady.mockReturnValue(true);
+        vi.advanceTimersByTime(250);
+        expect(probe.setDeferred).toHaveBeenLastCalledWith(false);
+      }
+      frames(44);
+      frames();
+      expect(probe.markReady).toHaveBeenCalled();
+      expect(probe.startup.errors).toBe(0);
+      draw();
+      expect(gl.compile).toHaveBeenCalledTimes(3);
+    }
+  );
+
+  it('restarts the truck window when a changed finish re-prepares, and stays bounded', () => {
+    const { material, programs } = truckPrograms();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     render(<StartupReadiness />);
     draw();
+    now += 14900;
+    vi.advanceTimersByTime(14900);
+    material.needsUpdate = true;
+    now += 10;
     vi.advanceTimersByTime(10);
-    frames();
-    expect(probe.startup.errors).toBe(1);
+    // Invalidated: the barrier is held for the re-preparation, no error.
+    expect(probe.startup.pendingTasks).toBe(1);
+    draw();
+    expect(gl.compile).toHaveBeenCalledTimes(6);
+    now += 14000;
+    vi.advanceTimersByTime(14000);
+    expect(probe.startup.errors).toBe(0);
+    expect(probe.startup.pendingTasks).toBe(1);
+    expect(probe.setDeferred).not.toHaveBeenCalledWith(true);
+    // The new attempt has its own bound.
+    now += 1000;
+    vi.advanceTimersByTime(1000);
     expect(probe.startup.pendingTasks).toBe(0);
-    expect(probe.markReady).not.toHaveBeenCalled();
+    expect(probe.startup.errors).toBe(0);
+    expect(probe.setDeferred).toHaveBeenLastCalledWith(true);
+    programs[1].isReady.mockReturnValue(true);
+    vi.advanceTimersByTime(250);
+    frames(44);
+    frames();
+    expect(probe.markReady).toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
   });
 
-  it('does not extend the original deadline when a changed finish re-prepares', () => {
-    const { material, programs } = truckPrograms();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    render(<StartupReadiness />);
+  it('does not spend the truck window while the tab is hidden', () => {
+    const { programs } = truckPrograms();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let visibility: DocumentVisibilityState = 'visible';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+    const view = render(<StartupReadiness />);
     draw();
-    now = 14990;
-    material.needsUpdate = true;
-    vi.advanceTimersByTime(10);
-    draw();
+    visibility = 'hidden';
+    document.dispatchEvent(new Event('visibilitychange'));
+    now += 60000;
+    vi.advanceTimersByTime(60000);
+    expect(probe.startup.errors).toBe(0);
+    expect(probe.startup.pendingTasks).toBe(1);
+    visibility = 'visible';
+    document.dispatchEvent(new Event('visibilitychange'));
+    now += 14000;
+    vi.advanceTimersByTime(14000);
+    expect(probe.startup.pendingTasks).toBe(1);
+    expect(probe.setDeferred).not.toHaveBeenCalledWith(true);
     programs[1].isReady.mockReturnValue(true);
-    now = 15001;
     vi.advanceTimersByTime(10);
-    expect(probe.startup.errors).toBe(1);
     expect(probe.startup.pendingTasks).toBe(0);
+    frames(44);
     frames();
-    expect(probe.markReady).not.toHaveBeenCalled();
+    expect(probe.markReady).toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+    const removed = vi.spyOn(document, 'removeEventListener');
+    view.unmount();
+    expect(removed).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
   });
 
   it.each(['deadline-passed', 'stale-timer'])(
@@ -432,7 +510,7 @@ describe('retained truck first-use preparation', () => {
         camera,
         mesh.geometry,
         material,
-        null
+        null as unknown as THREE.Group
       );
       material.side = THREE.BackSide;
       material.needsUpdate = true;
@@ -445,7 +523,7 @@ describe('retained truck first-use preparation', () => {
         camera,
         mesh.geometry,
         material,
-        null
+        null as unknown as THREE.Group
       );
     });
     render(<StartupReadiness />);

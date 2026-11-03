@@ -1,4 +1,4 @@
-import { POLYGON_OFFSET } from '../../constants/renderLayers';
+import { POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { GeneratedSurfaceMesh } from '../models/GeneratedGeometrySurface';
 import { InstancedTreeField, type TreeInstance } from './InstancedFoliage';
 /**
@@ -664,7 +664,8 @@ export function createRoadTunnelHillGeometry(depth = 90): THREE.BufferGeometry {
 }
 
 const ROAD_TUNNEL_DEPTH = 90;
-const ROAD_TUNNEL_HILL = createRoadTunnelHillGeometry(ROAD_TUNNEL_DEPTH);
+/** Shared by the road tunnels and the railway's tunnel mouths. */
+export const ROAD_TUNNEL_HILL = createRoadTunnelHillGeometry(ROAD_TUNNEL_DEPTH);
 // The hill's UVs are measured in metres. The shared lawn textures repeat
 // 20 times over a normalized plane, which made these banks tile every 5 cm.
 // Dedicated sampler transforms retain the same image and an 8 m feature period.
@@ -1086,6 +1087,7 @@ export const RoadTunnel: React.FC<{
         position={[0, 0.09, 10 - roadLength / 2]}
         rotation={[-Math.PI / 2, 0, 0]}
         scale={[0.16, roadLength, 1]}
+        renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       />
       {[-1, 1].map((side) => (

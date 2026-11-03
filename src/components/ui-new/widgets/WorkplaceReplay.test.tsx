@@ -23,6 +23,9 @@ vi.mock('../../../stores/workplaceReplayStore', () => ({
     { getState: () => replay }
   ),
   exportWorkplaceReplayReport: () => '{"runs":[]}',
+  // A run is live until retained (the real selector's rule).
+  selectReplayRunLive: (state: { activeRunId: string | null; runs: Array<{ id: string }> }) =>
+    state.activeRunId !== null && !state.runs.some((run) => run.id === state.activeRunId),
 }));
 beforeEach(() => {
   replay.checkpoint = null;

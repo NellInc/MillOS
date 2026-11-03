@@ -5,6 +5,7 @@
  */
 import { charterWearMultiplier } from './charter';
 import { cropWheatPenalty } from './cropYears';
+import { conditionValues, policyValues } from './governance';
 import { ERAS, eraById, improvementById } from './plans';
 import type {
   Charter,
@@ -14,6 +15,8 @@ import type {
   EraId,
   ImprovementProgress,
   ModifierValues,
+  Policies,
+  StandingCondition,
   TimedModifier,
 } from './types';
 
@@ -37,6 +40,11 @@ export interface EffectInput {
   modifiers: readonly TimedModifier[];
   austerity: boolean;
   crop: CropYearState | null;
+  /** Part three (docs/CHRONICLE.md, systems 25-27). Absent reads as none. */
+  policies?: Policies;
+  conditions?: readonly StandingCondition[];
+  /** The charter's tired machinery has been renewed: its wear no longer applies. */
+  machineryRenewed?: boolean;
 }
 
 interface Totals {
@@ -47,6 +55,8 @@ interface Totals {
   reinvestment: number;
   forecastChance: number;
   upkeep: number;
+  /** The lowest production ceiling any standing condition sets. */
+  productionCeiling: number;
 }
 
 function scaled(value: number | undefined, scale: number): number | undefined {
@@ -65,6 +75,8 @@ function apply(totals: Totals, values: ModifierValues, scale = 1): void {
   totals.qualityPenalty += (values.qualityPenalty ?? 0) * scale;
   totals.reinvestment += (values.reinvestment ?? 0) * scale;
   totals.forecastChance += (values.forecastChance ?? 0) * scale;
+  if (values.productionCeiling !== undefined)
+    totals.productionCeiling = Math.min(totals.productionCeiling, values.productionCeiling);
 }
 
 /** Every modifier summed, before the plant-facing clamp. */
@@ -77,9 +89,11 @@ export function chronicleTotals(input: EffectInput): Totals {
     reinvestment: 0,
     forecastChance: 0,
     upkeep: 1,
+    productionCeiling: Infinity,
   };
   if (!input.charter) return totals;
-  totals.wear *= charterWearMultiplier(input.charter.plant);
+  if (!(input.machineryRenewed && input.charter.plant === 'tired'))
+    totals.wear *= charterWearMultiplier(input.charter.plant);
   const reached = eraById(input.era).order;
   for (const era of ERAS) if (era.order <= reached) apply(totals, era.bonus);
   for (const progress of input.improvements) {
@@ -88,6 +102,9 @@ export function chronicleTotals(input: EffectInput): Totals {
     if (plan) apply(totals, plan.effect, progress.effectScale);
   }
   for (const modifier of input.modifiers) apply(totals, modifier);
+  if (input.policies) for (const values of policyValues(input.policies)) apply(totals, values);
+  if (input.conditions)
+    for (const values of conditionValues(input.conditions)) apply(totals, values);
   if (input.austerity) {
     totals.production *= AUSTERITY_EFFECT.production;
     totals.wear *= AUSTERITY_EFFECT.wear;
@@ -121,7 +138,7 @@ export function chronicleEffect(input: EffectInput, wheatRecipe: boolean): Chron
     ? cropWheatPenalty(input.crop, relievedCropKinds(input.improvements))
     : 0;
   return {
-    productionMultiplier: clamp(totals.production, 0.7, 1.15),
+    productionMultiplier: clamp(Math.min(totals.production, totals.productionCeiling), 0.7, 1.15),
     energyMultiplier: clamp(totals.energy, 0.8, 1.2),
     wearMultiplier: clamp(totals.wear, 0.6, 1.6),
     qualityPenalty: clamp(totals.qualityPenalty + crop, 0, 12),

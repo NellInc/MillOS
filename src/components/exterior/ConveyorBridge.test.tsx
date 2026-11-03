@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import * as THREE from 'three';
-import { ConveyorBridge, RoadRiverBridge } from '../FactoryExterior';
-import { BULK_STORAGE_GALLERY } from '../../constants/siteLayout';
+import { ConveyorBridge, RIVER_PATH_LAMPS, RoadRiverBridge } from '../FactoryExterior';
+import { BULK_STORAGE_GALLERY, SITE_LAYOUT, nearRiverFootbridge } from '../../constants/siteLayout';
 
 vi.mock('../../utils/critterAudio', () => ({ playCritterSound: vi.fn() }));
 
@@ -109,19 +109,31 @@ function roadAssembly() {
 }
 
 describe('actual road river bridge', () => {
-  it('keeps every pier and bearing below the unchanged wearing course', () => {
+  it('keeps every pier and bearing below a carriageway flush with the road', () => {
     const { root, dispose } = roadAssembly();
     try {
+      // The deck once stood 0.63 m above the road on both banks, and the north
+      // bank fell away for 8 m before it began. The north abutment (z -188 to
+      // -180) carries the same surface over that dip.
       for (const x of [-26, -20, -14])
-        for (const z of [-173, -159, -145, -131, -117]) {
+        for (const z of [-186, -182, -173, -159, -145, -131, -117]) {
           const hit = new THREE.Raycaster(
             new THREE.Vector3(x, 3, z),
             new THREE.Vector3(0, -1, 0)
           ).intersectObject(root, true)[0];
-          expect(hit?.point.y, `carriageway at ${x},${z}`).toBeCloseTo(0.61, 5);
+          expect(hit?.point.y, `carriageway at ${x},${z}`).toBeCloseTo(
+            SITE_LAYOUT.datum.terrain,
+            5
+          );
         }
     } finally {
       dispose();
     }
+  });
+
+  it('keeps every river-path lamp off the footbridge deck and its stairs', () => {
+    // The middle lamp stood at (0, -110), where the 2.4 m deck meets the
+    // stairs, so its post rose through the middle of the flight.
+    for (const [x, z] of RIVER_PATH_LAMPS) expect(nearRiverFootbridge(x, z)).toBe(false);
   });
 });

@@ -14,8 +14,9 @@ export const dPadMessages = defineMessages({
     switchToMove: 'Switch to move mode',
   },
   'pt-BR': {
-    moveForward: 'Avançar',
-    moveBack: 'Recuar',
+    // Not 'Avançar': the glossary keeps it for Next, which shares the screen.
+    moveForward: 'Mover para a frente',
+    moveBack: 'Mover para trás',
     strafeLeft: 'Deslocar para a esquerda',
     strafeRight: 'Deslocar para a direita',
     orbitUp: 'Orbitar para cima',

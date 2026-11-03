@@ -6,7 +6,8 @@ import {
   withAutomaticWorkplaceStep,
 } from './workplaceParticipation';
 import { peekSCADAService } from '../scada/SCADAService';
-import { useWorkplaceStore } from '../stores/workplaceStore';
+import { useWorkplaceStore, workplaceReasonText } from '../stores/workplaceStore';
+import { registerAlertCatalog } from '../i18n/alertCopy';
 import { selectClockHolder, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { isWorkplaceReplayActive } from './workplaceReplayRuntime';
@@ -16,36 +17,78 @@ import {
   requiredChecks,
   shiftResumable,
 } from './workplaceCampaign';
-import type { WorkplaceProfile, WorkplaceTransitionResult } from '../types/workplace';
-import { translate } from '../i18n';
+import type {
+  WorkplaceProfile,
+  WorkplaceReasonCopy,
+  WorkplaceTransitionResult,
+} from '../types/workplace';
+import { defineMessages, translate } from '../i18n';
 import { workplaceAutoplayMessages as msg } from './workplaceAutoplay.messages';
+
+export type WorkplaceAutoplayMessageKey = keyof typeof msg.en;
+
+// Bell notices are keyed (alertText), so they read in the language active now.
+// A stop names its reason, the runner's own or a workplace refusal, and then
+// where to restart; both are resolved when the bell renders.
+// Working if a held or stopped notice filed in English reads in Portuguese.
+const AUTOPLAY_ALERTS = 'workplaceAutoplay';
+const AUTOPLAY_STOP_ALERTS = 'workplaceAutoplayStop';
+type StopParams = { source: string; key: string; hint: number };
+const stopMessage = ({ source, key, hint }: StopParams) => {
+  const reason =
+    source === 'autoplay'
+      ? Object.prototype.hasOwnProperty.call(msg.en, key)
+        ? translate(msg, key as WorkplaceAutoplayMessageKey)
+        : ''
+      : (workplaceReasonText({
+          reason: '',
+          reasonCopy: { catalog: source as WorkplaceReasonCopy['catalog'], key },
+        }) ?? '');
+  // An unknown reason resolves empty, so the bell keeps the stored text.
+  return !reason ? '' : hint ? `${reason} ${translate(msg, 'restartHint')}` : reason;
+};
+const stopTitle = () => translate(msg, 'stoppedTitle');
+const stopAlertMessages = defineMessages({
+  en: { title: stopTitle, stopped: stopMessage },
+  'pt-BR': { title: stopTitle, stopped: stopMessage },
+});
+registerAlertCatalog(AUTOPLAY_ALERTS, msg);
+registerAlertCatalog(AUTOPLAY_STOP_ALERTS, stopAlertMessages);
+/** A step's result; `reasonKey` names this module's own reason so it can be shown in any language. */
+export type WorkplaceAutoplayStepResult = WorkplaceTransitionResult & {
+  reasonKey?: WorkplaceAutoplayMessageKey;
+};
+
+/** An E-stop or a drill: transient, so a running season waits it out. */
+const safetyStopActive = () => {
+  const safety = useGameSimulationStore.getState();
+  return safety.emergencyActive || safety.emergencyDrillMode;
+};
 
 /** Explicit synthetic solo demonstration, using the supported game actions.
  * Working if facilitated turns, replay and pilot preparation never receive
  * automatic ballots, disclosure, authority or artificial output from this path.
  */
-export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTransitionResult {
+export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceAutoplayStepResult {
   const store = useWorkplaceStore.getState();
   const s = store.workplace;
-  const blocked = (reason: string) => ({ changed: false, reason });
+  const blocked = (reasonKey: WorkplaceAutoplayMessageKey) => ({
+    changed: false,
+    reason: translate(msg, reasonKey),
+    reasonKey,
+  });
   if (store.participationMode !== 'solo' || isWorkplaceReplayActive() || s.mode !== 'game')
-    return blocked(translate(msg, 'soloOnly'));
-  const safety = useGameSimulationStore.getState();
+    return blocked('soloOnly');
   const controlMode = peekSCADAService()?.getState().mode;
-  if (
-    safety.emergencyActive ||
-    safety.emergencyDrillMode ||
-    (controlMode !== undefined && controlMode !== 'simulation')
-  )
-    return blocked(translate(msg, 'safetyBoundary'));
+  if (safetyStopActive() || (controlMode !== undefined && controlMode !== 'simulation'))
+    return blocked('safetyBoundary');
   if (s.phase === 'idle') return store.startMission(profile, s.seed);
-  if (!s.campaign || s.improvement) return blocked(translate(msg, 'needsCampaign'));
+  if (!s.campaign || s.improvement) return blocked('needsCampaign');
   // A shift a reload paused resumes first, before any sobras or a next shift:
   // its fictional members then consent afresh through the steps below.
   // Working if a reload mid-season still lets the default season be honoured.
   if (shiftResumable(s)) return store.resumeShift(s.revision);
-  if (s.objections.some((o) => o.status === 'open'))
-    return blocked(translate(msg, 'openObjection'));
+  if (s.objections.some((o) => o.status === 'open')) return blocked('openObjection');
   const c = s.campaign;
   if (s.phase === 'deliberating') {
     const pressure = CAMPAIGN_PRESSURES[c.shift];
@@ -107,18 +150,31 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceTrans
     return voter ? store.voteSurplus(voter.id, 'members') : store.distributeSurplus();
   }
   if (c.shift < 2) return store.nextCampaignShift();
-  return blocked(translate(msg, 'seasonComplete'));
+  return blocked('seasonComplete');
 }
 
 let demonstrationInterval: ReturnType<typeof setInterval> | null = null;
+let heldAlerts = 0;
+let stoppedAlerts = 0;
+const status = (messageKey: WorkplaceAutoplayMessageKey) => ({
+  message: translate(msg, messageKey),
+  messageKey,
+  reasonCopy: null,
+});
 export const useWorkplaceAutoplay = create<{
   manual: boolean;
   running: boolean;
   /** The profile a running season resumes with after a reload; null once paused or taken over. */
   resumeProfile: WorkplaceProfile | null;
+  /** The last status, resolved when set; shown only when `messageKey` is null. */
   message: string | null;
+  /** This module's own status key, resolved at render so it follows the language. */
+  messageKey: WorkplaceAutoplayMessageKey | null;
+  /** A workplace refusal that stopped the runner, resolved at render (workplaceReasonText). */
+  reasonCopy: WorkplaceReasonCopy | null;
   start: (profile: WorkplaceProfile) => void;
-  pause: (preserveClock?: boolean) => void;
+  /** Ends the runner and hands the season to the player; the plant keeps its pace. */
+  pause: () => void;
 }>()(
   persist(
     (set, get) => ({
@@ -126,19 +182,47 @@ export const useWorkplaceAutoplay = create<{
       running: false,
       resumeProfile: null,
       message: null,
+      messageKey: null,
+      reasonCopy: null,
       start: (profile) => {
         if (get().running) return;
         if (useWorkplaceStore.getState().participationMode !== 'solo') {
-          set({ message: translate(msg, 'separateTurnsManual') });
+          set(status('separateTurnsManual'));
           return;
         }
         set({
           manual: true,
           running: true,
           resumeProfile: profile,
-          message: translate(msg, 'running'),
+          ...status('running'),
         });
+        // An E-stop or drill holds the season instead of ending it: the
+        // fictional roles change nothing while it lasts and carry on once it
+        // clears, so Take over stays offered and the linked season can still
+        // finish. Announced once per stop. Live SCADA control still stops it.
+        // Working if a drill mid-season leaves the season running afterwards.
+        let held = false;
         demonstrationInterval = setInterval(() => {
+          if (safetyStopActive()) {
+            if (held) return;
+            held = true;
+            set(status('safetyBoundary'));
+            useUIStore.getState().addAlert({
+              // Alerts are listed by id; two stops at one revision need two ids.
+              id: `workplace-autoplay-held-${useWorkplaceStore.getState().workplace.revision}-${++heldAlerts}`,
+              type: 'info',
+              title: translate(msg, 'heldTitle'),
+              message: translate(msg, 'safetyBoundary'),
+              copy: { catalog: AUTOPLAY_ALERTS, title: 'heldTitle', message: 'safetyBoundary' },
+              timestamp: new Date(),
+              acknowledged: false,
+            });
+            return;
+          }
+          if (held) {
+            held = false;
+            set(status('running'));
+          }
           // A pace is only a speed (src/simulation/pace.ts), so choosing one
           // never ends the season. Any hold that is not the season's own
           // (workplace, handoff) defers its steps: the fictional roles wait with
@@ -161,30 +245,62 @@ export const useWorkplaceAutoplay = create<{
             // is announced where the player is looking, not only in the panel.
             // Working if the clock keeps running after a completed season and
             // the alert names what stopped and where to read it.
-            get().pause(true);
-            set({ message: result.reason });
+            get().pause();
+            set({
+              message: result.reason,
+              messageKey: result.reasonKey ?? null,
+              reasonCopy: result.reasonKey ? null : (result.reasonCopy ?? null),
+            });
+            // Nothing else restarts a stopped season, so say where to; but not
+            // where running it again would stop the same way (no season of its
+            // own to run: a standalone exercise or a handoff is on the table).
+            const hint =
+              result.reasonKey === 'seasonComplete' || result.reasonKey === 'needsCampaign' ? 0 : 1;
+            const reason = hint
+              ? `${result.reason} ${translate(msg, 'restartHint')}`
+              : result.reason;
+            // A reason with params, or none, keeps its stored text.
+            const source = result.reasonKey
+              ? { source: 'autoplay', key: result.reasonKey }
+              : result.reasonCopy && !result.reasonCopy.params
+                ? { source: result.reasonCopy.catalog, key: result.reasonCopy.key }
+                : null;
             useUIStore.getState().addAlert({
-              id: `workplace-autoplay-stopped-${useWorkplaceStore.getState().workplace.revision}`,
+              // Listed by id: a restart that stops again at one revision needs its own.
+              id: `workplace-autoplay-stopped-${useWorkplaceStore.getState().workplace.revision}-${++stoppedAlerts}`,
               type: 'info',
               title: translate(msg, 'stoppedTitle'),
-              message: result.reason,
+              message: reason,
+              ...(source
+                ? {
+                    copy: {
+                      catalog: AUTOPLAY_STOP_ALERTS,
+                      title: 'title',
+                      message: 'stopped',
+                      params: { ...source, hint },
+                    },
+                  }
+                : {}),
               timestamp: new Date(),
               acknowledged: false,
             });
           }
         }, 400);
       },
-      pause: (preserveClock = false) => {
+      // Pausing, taking over and any manual workplace action are the player
+      // taking the demonstration over: the runner stops and the plant keeps
+      // its pace. Holds the workplace rules need (the derived handoff hold)
+      // are kept by their own owners. Working if a manual choice mid-season
+      // leaves the clock running at the pace it had.
+      pause: () => {
         if (demonstrationInterval !== null) clearInterval(demonstrationInterval);
         demonstrationInterval = null;
-        const wasRunning = get().running;
         set({
           running: false,
           manual: true,
           resumeProfile: null,
-          message: translate(msg, 'paused'),
+          ...status('paused'),
         });
-        if (wasRunning && !preserveClock) useGameSimulationStore.getState().holdClock('workplace');
       },
     }),
     {
@@ -208,6 +324,8 @@ export const useWorkplaceAutoplay = create<{
               ? profile
               : null,
           message: null,
+          messageKey: null,
+          reasonCopy: null,
         };
       },
     }

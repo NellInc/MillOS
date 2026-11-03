@@ -18,6 +18,8 @@ import { EVENT_DECK } from '../chronicle/eventDeck';
 import { chronicleEffect, NEUTRAL_EFFECT } from '../chronicle/effects';
 import { newCharterSeed } from '../chronicle/rng';
 import { initialStakeholders } from '../chronicle/stakeholders';
+import { createGovernance, POLICY_LADDER_IDS } from '../chronicle/governance';
+import { knowHowEarned } from '../chronicle/ledger';
 import {
   acceptTraining,
   answerQuizQuestion,
@@ -29,8 +31,12 @@ import {
   fireDidNotStart,
   forgetResolvedIncidents,
   hireContractor,
+  depositReserve,
   markNoteRead,
+  markNotesSeen,
+  meetNeed,
   mitigateForecast,
+  proposePolicy,
   noteIncidents,
   releaseHazards,
   resyncBaseline,
@@ -39,25 +45,35 @@ import {
   recordDelivery,
   recordOwnedIncident,
   recordQuizRound,
+  releaseStrandedFire,
   resolveShortfall,
   restoreIncident,
   reverseInitiative,
   setAusterity,
+  setBrief,
   setDelegation,
+  setReserveAutofill,
+  settleUnfinishedInstalls,
   signCharter,
   startInstall,
   suppressFire,
   tickMinute,
   treatCropDirectly,
+  withdrawProposal,
   type ChronicleState,
   type Step,
 } from '../chronicle/engine';
 import type {
+  BriefId,
   Charter,
   ChronicleCommand,
   ChronicleEffect,
+  CrewRoleId,
   CropAttributes,
   DelegationLevel,
+  GovernanceState,
+  PolicyLadder,
+  PolicyRung,
 } from '../chronicle/types';
 
 export interface QuizRound {
@@ -72,9 +88,17 @@ interface ChronicleStore {
   chronicle: ChronicleState;
   /** The current quiz round. Not persisted; survives tab switches. */
   quiz: QuizRound | null;
+  /** Rounds started this session, so each deals a fresh order. Not persisted. */
+  quizRound: number;
   /** A Chronicle dialog is on screen, so the emergency overlay's guidance stands aside. Not persisted. */
   dialogOpen: boolean;
   setDialogOpen: (open: boolean) => void;
+  /**
+   * Prompts the player chose to think over (event instance ids, 'fire',
+   * 'shortfall-<shift>'); saved, so a reload does not reopen them unasked.
+   */
+  deferredPrompts: string[];
+  setDeferredPrompts: (ids: string[]) => void;
   startQuiz: (questionIds: string[]) => void;
   pickQuizAnswer: (optionIndex: number, correct: boolean) => void;
   nextQuizQuestion: () => void;
@@ -98,8 +122,17 @@ interface ChronicleStore {
   setDelegation: (level: DelegationLevel) => void;
   acceptTraining: () => void;
   readNote: (noteId: string) => void;
+  /** The Notes tab is open: clear its badge without reading anything. */
+  seeNotes: () => void;
   answerQuiz: (questionId: string, correct: boolean) => void;
   finishQuiz: (score: number) => void;
+  // Part three (docs/CHRONICLE.md, systems 25-32)
+  propose: (ladder: PolicyLadder, rung: PolicyRung) => void;
+  withdraw: () => void;
+  meetNeed: (memberId: CrewRoleId) => void;
+  setBrief: (brief: BriefId) => void;
+  setReserveAutofill: (autofill: boolean) => void;
+  depositReserve: () => void;
 }
 
 function execute(commands: readonly ChronicleCommand[]): void {
@@ -115,7 +148,7 @@ function execute(commands: readonly ChronicleCommand[]): void {
         break;
       }
       case 'resolve_incident':
-        useOperationsCampaignStore.getState().resolveIncident(command.incidentId);
+        useOperationsCampaignStore.getState().resolveIncident(command.incidentId, command.actor);
         break;
       case 'clear_weather':
         if (useGameSimulationStore.getState().weather === 'storm')
@@ -202,22 +235,76 @@ let _effectState: ChronicleState | null = null;
 let _effectWheat = false;
 let _effect: ChronicleEffect = NEUTRAL_EFFECT;
 
+/** A saved governance object with its shape checked, or a fresh one for the save's charter. */
+function restoreGovernance(chronicle: ChronicleState): GovernanceState {
+  const fresh = createGovernance(chronicle.status === 'unsigned' ? null : chronicle.charter);
+  const saved = (chronicle as { governance?: unknown }).governance;
+  if (!isRecord(saved)) {
+    fresh.tally = {
+      ...fresh.tally,
+      year: chronicle.crop?.index ?? 0,
+      knowHowStart: knowHowEarned(chronicle.ledger),
+    };
+    return fresh;
+  }
+  const policies = isRecord(saved.policies) ? saved.policies : {};
+  const rungOk = (value: unknown): value is 0 | 1 | 2 => value === 0 || value === 1 || value === 2;
+  const merged: GovernanceState = {
+    ...fresh,
+    ...(saved as Partial<GovernanceState>),
+    policies: Object.fromEntries(
+      POLICY_LADDER_IDS.map((id) => [id, rungOk(policies[id]) ? policies[id] : 1])
+    ) as GovernanceState['policies'],
+    changedShift: {
+      ...fresh.changedShift,
+      ...(isRecord(saved.changedShift) ? saved.changedShift : {}),
+    },
+    streaks: { ...fresh.streaks, ...(isRecord(saved.streaks) ? saved.streaks : {}) },
+    reserve: { ...fresh.reserve, ...(isRecord(saved.reserve) ? saved.reserve : {}) },
+    tally: { ...fresh.tally, ...(isRecord(saved.tally) ? saved.tally : {}) },
+  };
+  for (const key of [
+    'crew',
+    'objections',
+    'conditions',
+    'countdowns',
+    'brokenOff',
+    'returns',
+  ] as const)
+    if (!Array.isArray(merged[key]))
+      (merged as unknown as Record<string, unknown>)[key] = fresh[key];
+  if (!Array.isArray(merged.tally.gradePoints)) merged.tally.gradePoints = [];
+  // A tally saved without its start counts from what was already earned at load.
+  if (!Number.isFinite(merged.tally.knowHowStart))
+    merged.tally.knowHowStart = knowHowEarned(chronicle.ledger);
+  if (merged.crew.length === 0) merged.crew = fresh.crew;
+  if (!isRecord(merged.proposal)) merged.proposal = null;
+  if (!isRecord(merged.administration)) merged.administration = null;
+  if (!['conventional', 'standards', 'thrift', 'neighbour'].includes(String(merged.brief)))
+    merged.brief = 'conventional';
+  return merged;
+}
+
 export const useChronicleStore = create<ChronicleStore>()(
   persist(
     (set, get) => ({
       chronicle: createInitialState(),
       quiz: null,
+      quizRound: 0,
       dialogOpen: false,
+      deferredPrompts: [],
+      setDeferredPrompts: (ids) => set({ deferredPrompts: ids }),
       setDialogOpen: (open) => {
         if (get().dialogOpen !== open) set({ dialogOpen: open });
       },
 
       startQuiz: (questionIds) =>
-        set({
+        set((state) => ({
           quiz: questionIds.length
             ? { questionIds, index: 0, score: 0, picked: null, finished: false }
             : null,
-        }),
+          quizRound: state.quizRound + 1,
+        })),
       pickQuizAnswer: (optionIndex, correct) => {
         const quiz = get().quiz;
         const questionId = quiz?.questionIds[quiz.index];
@@ -255,6 +342,8 @@ export const useChronicleStore = create<ChronicleStore>()(
         const latest = campaign.reports.at(-1);
         if (latest)
           set({ chronicle: { ...get().chronicle, lastReportEndedAt: latest.endedAtMinute } });
+        // Instance ids restart with each charter: no deferral carries over.
+        set({ deferredPrompts: [] });
         _wasPaused = false;
       },
 
@@ -264,10 +353,12 @@ export const useChronicleStore = create<ChronicleStore>()(
         const current = get().chronicle;
         set({
           quiz: null,
+          deferredPrompts: [],
           chronicle: {
             ...createInitialState(),
             unlockedNotes: current.unlockedNotes,
             readNotes: current.readNotes,
+            seenNotes: current.seenNotes,
             quizAnswered: current.quizAnswered,
             quizBest: current.quizBest,
           },
@@ -283,14 +374,26 @@ export const useChronicleStore = create<ChronicleStore>()(
           // Replays and improvement trials own the clock: what happens in them
           // is not history. Re-baseline on each new report while paused, and
           // once more as the pause ends to absorb its tests and shipments.
+          // A replay rewinds the plant without saving it, while the chronicle saves
+          // at once: a baseline moved back mid-pause outlives a reload, which then
+          // credits the restored report again. Only the pause's end moves it back.
           const ending = !paused;
           _wasPaused = paused;
-          if (latest && (ending || latest.id !== state.lastReportId))
+          const forward =
+            state.lastReportEndedAt === null ||
+            (latest !== undefined && latest.endedAtMinute > state.lastReportEndedAt);
+          if (latest && (ending || (latest.id !== state.lastReportId && forward)))
             set({ chronicle: resyncBaseline(get().chronicle, evidenceFor(latest)) });
           return;
         }
-        const minute = tickMinute(state, campaign.elapsedMinutes);
-        if (minute.state !== state || minute.commands.length) apply(minute);
+        // The fire stop is the plant's crisis. It is not persisted and a game reset
+        // clears it; a chronicle fire without it would charge for a fire that is out.
+        const crisis = useGameSimulationStore.getState().crisisState;
+        if (state.fire.active && !(crisis.active && crisis.type === 'fire'))
+          set({ chronicle: releaseStrandedFire(state) });
+        const live = get().chronicle;
+        const minute = tickMinute(live, campaign.elapsedMinutes);
+        if (minute.state !== live || minute.commands.length) apply(minute);
         if (campaign.incidents !== _lastIncidents) {
           _lastIncidents = campaign.incidents;
           apply(noteIncidents(get().chronicle, campaign.incidents));
@@ -302,6 +405,13 @@ export const useChronicleStore = create<ChronicleStore>()(
         }
         if (!latest || latest.id === get().chronicle.lastReportId) return;
         apply(closeShift(get().chronicle, evidenceFor(latest), EVENT_DECK));
+        // A fire this close started is the delegated partner's to answer at once;
+        // waiting for the next tick would open the fire dialog for one tick.
+        const closed = get().chronicle;
+        if (closed.fire.active && !closed.fire.suppressing) {
+          const answered = tickMinute(closed, campaign.elapsedMinutes);
+          if (answered.state !== closed || answered.commands.length) apply(answered);
+        }
       },
 
       stampDelivery: () => {
@@ -339,23 +449,41 @@ export const useChronicleStore = create<ChronicleStore>()(
       reverse: (id) => apply(reverseInitiative(get().chronicle, id)),
       answerShortfall: (choice) => apply(resolveShortfall(get().chronicle, choice)),
       setAusterity: (active) => set({ chronicle: setAusterity(get().chronicle, active) }),
-      treatCrop: () => apply(treatCropDirectly(get().chronicle)),
+      treatCrop: () => apply(treatCropDirectly(get().chronicle, EVENT_DECK)),
       suppress: (method = 'suppress') =>
         apply(suppressFire(get().chronicle, nowMinute(), 'player', method)),
       setDelegation: (level) => apply(setDelegation(get().chronicle, level)),
       acceptTraining: () => set({ chronicle: acceptTraining(get().chronicle) }),
       readNote: (noteId) => set({ chronicle: markNoteRead(get().chronicle, noteId) }),
+      seeNotes: () => {
+        const next = markNotesSeen(get().chronicle);
+        if (next !== get().chronicle) set({ chronicle: next });
+      },
       answerQuiz: (questionId, correct) =>
         set({ chronicle: answerQuizQuestion(get().chronicle, questionId, correct) }),
       finishQuiz: (score) => set({ chronicle: recordQuizRound(get().chronicle, score) }),
+      propose: (ladder, rung) => apply(proposePolicy(get().chronicle, ladder, rung)),
+      withdraw: () => set({ chronicle: withdrawProposal(get().chronicle) }),
+      meetNeed: (memberId) => apply(meetNeed(get().chronicle, memberId)),
+      setBrief: (brief) => apply(setBrief(get().chronicle, brief)),
+      setReserveAutofill: (autofill) =>
+        set({ chronicle: setReserveAutofill(get().chronicle, autofill) }),
+      depositReserve: () => set({ chronicle: depositReserve(get().chronicle) }),
     }),
     {
       name: 'millos-chronicle',
       storage: safeJSONStorage,
       version: 1,
-      partialize: (state) => ({ chronicle: state.chronicle }),
+      partialize: (state) => ({
+        chronicle: state.chronicle,
+        deferredPrompts: state.deferredPrompts,
+      }),
       merge: (persisted, current) => {
         const restored = (persisted as { chronicle?: Partial<ChronicleState> } | null)?.chronicle;
+        const savedDeferrals = (persisted as { deferredPrompts?: unknown } | null)?.deferredPrompts;
+        const deferredPrompts = Array.isArray(savedDeferrals)
+          ? savedDeferrals.filter((id): id is string => typeof id === 'string')
+          : [];
         if (
           !restored ||
           typeof restored !== 'object' ||
@@ -374,6 +502,19 @@ export const useChronicleStore = create<ChronicleStore>()(
           ...ledger,
           fund: { ...base.ledger.fund, ...(isRecord(ledger.fund) ? ledger.fund : {}) },
           knowHow: { ...base.ledger.knowHow, ...(isRecord(ledger.knowHow) ? ledger.knowHow : {}) },
+          // A save from before the close and the spending since it were kept apart has no
+          // since-close tally, and its last-shift tally mixes the two: drop it rather than
+          // show it as the close's. The next close writes a true one.
+          lastShiftFund:
+            isRecord(ledger.sinceCloseFund) && isRecord(ledger.lastShiftFund)
+              ? ledger.lastShiftFund
+              : {},
+          lastShiftKnowHow:
+            isRecord(ledger.sinceCloseFund) && isRecord(ledger.lastShiftKnowHow)
+              ? ledger.lastShiftKnowHow
+              : {},
+          sinceCloseFund: isRecord(ledger.sinceCloseFund) ? ledger.sinceCloseFund : {},
+          sinceCloseKnowHow: isRecord(ledger.sinceCloseKnowHow) ? ledger.sinceCloseKnowHow : {},
         };
         // Nested objects the tick reads every 500 ms must have their shape.
         if (!isRecord(chronicle.fire) || typeof chronicle.fire.active !== 'boolean')
@@ -416,6 +557,10 @@ export const useChronicleStore = create<ChronicleStore>()(
           chronicle.longNightTelegraphed = base.longNightTelegraphed;
         if (chronicle.status !== 'unsigned' && chronicle.stakeholders.length === 0)
           chronicle.stakeholders = initialStakeholders();
+        // Part three (docs/CHRONICLE.md, systems 25-32). A chronicle saved before it
+        // starts on the middle step of every ladder, with its own crew and an empty
+        // reserve; its first return covers the shifts from loading to the year's turn.
+        chronicle.governance = restoreGovernance(chronicle);
         if (chronicle.status !== 'unsigned' && !Array.isArray(restored.firedScheduled))
           chronicle.firedScheduled = EVENT_DECK.filter(
             (event) => event.scheduled && event.scheduled.shift <= chronicle.shift
@@ -423,11 +568,22 @@ export const useChronicleStore = create<ChronicleStore>()(
         chronicle.forecasts = chronicle.forecasts.map((forecast) => ({
           ...forecast,
           paidFund: typeof forecast.paidFund === 'number' ? forecast.paidFund : 0,
+          // A chronicle saved after it ended, before the end settled its forecasts.
+          ...(chronicle.status === 'ended' && forecast.status === 'pending'
+            ? { status: 'passed' as const }
+            : {}),
         }));
+        // Nor does an ended chronicle still ask for upkeep.
+        if (chronicle.status === 'ended') chronicle.upkeepShortfall = null;
         // Datalinks rebuilds its own unlocked set from this list on load.
         for (const noteId of chronicle.unlockedNotes)
           useKnowledgeStore.getState().unlockEntry(noteId);
-        return { ...current, chronicle };
+        // Nor leaves an install a closing-shift snag stranded "installing".
+        return {
+          ...current,
+          chronicle: chronicle.status === 'ended' ? settleUnfinishedInstalls(chronicle) : chronicle,
+          deferredPrompts,
+        };
       },
     }
   )

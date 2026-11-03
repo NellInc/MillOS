@@ -2,8 +2,7 @@ import { defineMessages } from '../i18n';
 
 export const workplaceAdviceMessages = defineMessages({
   en: {
-    assumptionHorizon:
-      '90 workplace minutes; physical seconds = 90 * 60 / selected resume game speed.',
+    assumptionHorizon: '90 workplace minutes are {seconds} plant seconds at every pace.',
     assumptionEngine:
       'Real material engine at 0.5 and 0.25 physical-second steps; bounds reflect time resolution, not statistical confidence.',
     assumptionFixed:
@@ -15,8 +14,7 @@ export const workplaceAdviceMessages = defineMessages({
     missingOrder: 'Active order and recipe are unavailable.',
     missingExecution: 'Order execution facts are stale or mismatched.',
     missingSession: 'Mission and material session do not match.',
-    missingControls:
-      'Finite bounded production controls and a positive resume speed (9 to 3600x) are required.',
+    missingControls: 'Finite bounded production controls and a positive resume pace are required.',
     missingClock: 'Material clock is invalid.',
     missingRelease: 'Direct quality release is unavailable.',
     missingLoad: 'Direct dispatch load is unavailable.',
@@ -81,7 +79,7 @@ export const workplaceAdviceMessages = defineMessages({
   },
   'pt-BR': {
     assumptionHorizon:
-      '90 minutos de trabalho; segundos físicos = 90 * 60 / velocidade de jogo escolhida para a retomada.',
+      '90 minutos de trabalho correspondem a {seconds} segundos de operação do moinho em qualquer ritmo.',
     assumptionEngine:
       'Motor de material real em passos de 0,5 e 0,25 segundo físico; os limites refletem a resolução temporal, não uma confiança estatística.',
     assumptionFixed:
@@ -94,7 +92,7 @@ export const workplaceAdviceMessages = defineMessages({
     missingExecution: 'Os fatos de execução do pedido estão desatualizados ou não correspondem.',
     missingSession: 'A missão e a sessão de material não correspondem.',
     missingControls:
-      'São necessários controles de produção finitos e dentro dos limites, e uma velocidade de retomada positiva (de 9x a 3.600x).',
+      'São necessários controles de produção finitos e dentro dos limites, e um ritmo de retomada positivo.',
     missingClock: 'O relógio de material é inválido.',
     missingRelease: 'A liberação direta de qualidade não está disponível.',
     missingLoad: 'A carga direta de expedição não está disponível.',

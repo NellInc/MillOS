@@ -8,6 +8,9 @@ import { getStartupSnapshot } from './utils/startupReadiness';
 import { logger } from './utils/logger';
 import { isBenchmarkRuntime } from './runtime/runtimeMode';
 import { installPhysicalSession } from './utils/physicalSession';
+import { installFocusRescue } from './utils/focusRescue';
+import { installChronicleFunnel } from './chronicle/funnel';
+import { useChronicleStore } from './stores/chronicleStore';
 
 performance.mark('millos:bootstrap');
 
@@ -44,6 +47,10 @@ window.addEventListener('error', (event: ErrorEvent): void => {
 const RootComponent = App;
 
 if (!isBenchmarkRuntime()) installPhysicalSession();
+// Local-only playtest record of how far each Chronicle charter got; observes, never writes play state.
+if (!isBenchmarkRuntime()) installChronicleFunnel(useChronicleStore);
+// A control that disables itself while focused would drop focus to <body>.
+installFocusRescue();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>

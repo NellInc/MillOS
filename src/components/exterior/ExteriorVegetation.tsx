@@ -31,7 +31,9 @@ import {
   regionClearance,
 } from '../terrain/splatMapGenerator';
 import { getLandmarkBounds, SITE_LAYOUT } from '../../constants/siteLayout';
+import { onRealmWalk } from '../../constants/publicRealmLayout';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import { useInstanceDistanceLod } from '../performance/DistanceLod';
 import { TerrainChannel, getTerrainGridSegments } from '../terrain/terrainTypes';
 
 // ============================================================
@@ -95,21 +97,46 @@ export const TREE_FOLIAGE_MATERIALS = [
   createFoliageMaterial('broadleaf', '#b9c79c'),
 ];
 
-/** Deterministic per-tree variant/rotation/scale jitter from position hash
- *  (identical to SimpleTree's, so a tree looks the same whether it is
- *  rendered individually or instanced). */
+/**
+ * Radius over which a trunk's foot is seated. The widest bole on the site is
+ * 1.14 m across at its flare (1.3 scale with a 1.1 jitter).
+ */
+export const TRUNK_FOOT_RADIUS = 0.55;
+
+/**
+ * Seat a tree on the LOWEST drawn ground under its root flare.
+ *
+ * Seated at the trunk's centre, a tree on a steep bank stood with its downhill
+ * side in the air: on the 14 m meadow hill north of the river the probe found
+ * fifteen trunks with up to 0.59 m of daylight under one edge. Taking the
+ * minimum over the flare buries the uphill side instead, as a real root plate
+ * does on a slope. On level ground the answer is unchanged.
+ * Working if no point of the foot ring stands above the terrain beneath it.
+ */
 export function groundedTreePosition(
   position: [number, number, number],
   quality: string
 ): [number, number, number] {
-  return [
-    position[0],
-    position[1] +
-      sampleTerrainGroundHeight(position[0], position[2], getTerrainGridSegments(quality)),
-    position[2],
-  ];
+  const segments = getTerrainGridSegments(quality);
+  const [x, , z] = position;
+  let ground = sampleTerrainGroundHeight(x, z, segments);
+  for (let i = 0; i < 8; i++) {
+    const angle = (i * Math.PI) / 4;
+    ground = Math.min(
+      ground,
+      sampleTerrainGroundHeight(
+        x + Math.cos(angle) * TRUNK_FOOT_RADIUS,
+        z + Math.sin(angle) * TRUNK_FOOT_RADIUS,
+        segments
+      )
+    );
+  }
+  return [x, position[1] + ground, z];
 }
 
+/** Deterministic per-tree variant/rotation/scale jitter from position hash
+ *  (identical to SimpleTree's, so a tree looks the same whether it is
+ *  rendered individually or instanced). */
 export const treeJitterFromPosition = (position: [number, number, number]) => {
   const h = Math.abs(Math.sin(position[0] * 12.9898 + position[2] * 78.233) * 43758.5453);
   const frac = h - Math.floor(h);
@@ -175,8 +202,33 @@ const createTreeGeometries = () => {
   uv.needsUpdate = true;
   trunk.translate(0, 1.5, 0);
 
-  return { trunk };
+  return { trunk, trunkFar: createParkTrunkFarGeometry() };
 };
+
+/**
+ * The distant park trunk: foot, knee and top of the same envelope on 8 sides
+ * (8, not 6, keeps vertices at 90 and 270 degrees, so the base reads 0.8 m on
+ * both axes). 64 triangles against the generated near trunk's 216; beyond
+ * `PARK_TRUNK_LOD.distance` the 0.8 m bole is under 20 px at 720p and the flare
+ * is a pixel or two.
+ */
+function createParkTrunkFarGeometry() {
+  const profile = [
+    0,
+    1,
+    4,
+    PARKLAND_TRUNK_PROFILE.length - 2,
+    PARKLAND_TRUNK_PROFILE.length - 1,
+  ].map((i) => new THREE.Vector2(...PARKLAND_TRUNK_PROFILE[i]));
+  const trunk = new THREE.LatheGeometry(profile, 8);
+  const pos = trunk.getAttribute('position');
+  const uv = trunk.getAttribute('uv');
+  for (let i = 0; i < uv.count; i += 1) uv.setY(i, (pos.getY(i) + 1.5) / 3);
+  trunk.translate(0, 1.5, 0);
+  return trunk;
+}
+/** Instances of the park trunk switch per tree; hysteresis as in `DistanceLod`. */
+export const PARK_TRUNK_LOD = { distance: 45, hysteresis: 0.1 } as const;
 
 // ParkBench geometry offsets (from original component):
 // - Seat: position [0, 0.45, 0], box [1.8, 0.1, 0.5]
@@ -338,7 +390,20 @@ export const SimpleTreeInstances: React.FC<{
   }, [trees, quality]);
 
   const trunkRef = useInstances(allTrees.length, allTrees);
+  const trunkFarRef = useRef<THREE.InstancedMesh>(null);
   const branchRef = useInstances(allTrees.length, allTrees);
+  const trunkMatrices = useMemo(
+    () => allTrees.map((tree) => tree.matrix ?? new THREE.Matrix4()),
+    [allTrees]
+  );
+  const trunkNear = useMemo(() => [trunkRef], [trunkRef]);
+  const trunkFar = useMemo(() => [trunkFarRef], []);
+  useInstanceDistanceLod({
+    near: trunkNear,
+    far: trunkFar,
+    matrices: trunkMatrices,
+    ...PARK_TRUNK_LOD,
+  });
   const canopy0Ref = useInstances(byVariant[0].length, byVariant[0]);
   const canopy1Ref = useInstances(byVariant[1].length, byVariant[1]);
   const canopy2Ref = useInstances(byVariant[2].length, byVariant[2]);
@@ -377,6 +442,13 @@ export const SimpleTreeInstances: React.FC<{
           />
         </GeneratedBoundary>
       </instancedMesh>
+      <instancedMesh
+        name="tree-trunks-far"
+        ref={trunkFarRef}
+        args={[TREE_GEOMETRIES.trunkFar, TREE_MATERIALS.trunk, allTrees.length]}
+        castShadow
+        receiveShadow
+      />
       <instancedMesh
         name="parkland-scaffold-branches"
         ref={branchRef}
@@ -567,7 +639,7 @@ function distanceToFootprint(
 const TRUNK_WATER_CLEARANCE = 2.5;
 
 /**
- * Whether a tree at (x, z) stands clear of the canals, lake, ponds and huts.
+ * Whether a tree at (x, z) stands clear of the canals, lake, ponds, huts and walks.
  *
  * The woodland filter below knew the river and the painted terrain regions
  * but not these, so a grove seeded across the canal kept five trunks in its
@@ -596,14 +668,32 @@ export function treeSiteClear(x: number, z: number, crownRadius: number): boolea
   // Nissen huts are 2.5 m-radius half-cylinders along their local Z.
   for (const { position, length, rotation } of nissenHuts)
     if (distanceToFootprint(x, z, position, rotation, length / 2, 2.5) < crownRadius) return false;
+  // Nor may a trunk stand in a paved walk: woodland seeds put three of them
+  // in the towpath and the footbridge walk.
+  if (onRealmWalk(x, z, TRUNK_FOOT_RADIUS)) return false;
   return true;
 }
 
-/** Connected woodland opens into the village, castle, river banks and service approaches.
- * Working if the ground-map test keeps every trunk dry and outside the square,
- * and all of the additional crowns remain in the same five instance batches.
- */
-export const VALLEY_WOODLAND_TREES: TreeInstanceData[] = VALLEY_GROVES.flatMap(
+/** Least distance between two woodland trunk centres: their root flares
+ * (about 0.55 m by scale) stay apart, so no two boles fuse into one. */
+export const WOODLAND_TRUNK_SPACING = 2.2;
+
+/** Keep each tree whose trunk stands clear of every one already kept. The
+ * jittered spiral put fourteen pairs of trunks within 0.45-1.9 m. */
+function spaceTrunks<T extends TreeInstanceData>(trees: readonly T[], spacing: number): T[] {
+  const kept: T[] = [];
+  for (const tree of trees)
+    if (
+      kept.every(
+        ({ position }) =>
+          Math.hypot(position[0] - tree.position[0], position[2] - tree.position[2]) >= spacing
+      )
+    )
+      kept.push(tree);
+  return kept;
+}
+
+const WOODLAND_SEEDS: TreeInstanceData[] = VALLEY_GROVES.flatMap(
   ([x, z, radiusX, radiusZ, count], grove) =>
     Array.from({ length: count }, (_, index) => {
       const seed: [number, number, number] = [x + index * 3.7, 0, z + grove * 5.3];
@@ -643,6 +733,15 @@ export const VALLEY_WOODLAND_TREES: TreeInstanceData[] = VALLEY_GROVES.flatMap(
     )
   );
 });
+
+/** Connected woodland opens into the village, castle, river banks and service approaches.
+ * Working if the ground-map test keeps every trunk dry and outside the square,
+ * and all of the additional crowns remain in the same five instance batches.
+ */
+export const VALLEY_WOODLAND_TREES: TreeInstanceData[] = spaceTrunks(
+  WOODLAND_SEEDS,
+  WOODLAND_TRUNK_SPACING
+);
 
 export const LANDSCAPE_GROVE_TREES: TreeInstanceData[] = [
   ...VALLEY_WOODLAND_TREES,
@@ -688,14 +787,16 @@ export const MAIN_EXTERIOR_TREES: TreeInstanceData[] = [
   // Trees by river, on the dry ground above its 25 m canyon bank. At z -170
   // three stood over the channel itself: 3.6 m down to the bed at x 40, with
   // the -2 m water surface up their trunks. The x 40 tree moved west of the
-  // castle rock rather than into it.
+  // castle rock rather than into it. A fourth, at (74, -189), stood 0.8 m
+  // from a trunk of the east river grove, which now plants that bank.
   { position: [-80, 0, -170], scale: 1.3 },
   { position: [-44, 0, -187], scale: 1.0 },
   { position: [2, 0, -194], scale: 1.2 },
-  { position: [74, 0, -189], scale: 0.9 },
-  // Lines 6929-6931: Trees by lake
-  { position: [155, 0, 110], scale: 1.0 },
-  { position: [160, 0, 135], scale: 1.2 },
+  // Lines 6929-6931: Trees by lake. The first two stood at (155, 110) and
+  // (160, 135), on the railway's two tracks (constants/railwayLayout.ts); they
+  // now grow out of the lineside hedge east of the line, as hedgerow oaks.
+  { position: [169.4, 0, 110], scale: 1.0 },
+  { position: [171, 0, 136], scale: 1.2 },
   { position: [100, 0, 145], scale: 0.9 },
 ];
 
@@ -703,9 +804,13 @@ export const MAIN_EXTERIOR_TREES: TreeInstanceData[] = [
 export const MAIN_EXTERIOR_BENCHES: BenchInstanceData[] = [
   // Lines 6906-6908: Benches along paths
   { position: [-157, 0, 20], rotation: Math.PI / 2 },
-  { position: [-157, 0, -60], rotation: Math.PI / 2 },
+  // Beside the village lane's mouth, facing the lane. At (-157, -60) it sat
+  // across the lane, its knees against the towpath's low wall.
+  { position: [-158.5, 0, -62.6], rotation: 0 },
   // The old z=-140 placement floated in the river beneath the northern bridge.
-  { position: [3, 0, -112], rotation: Math.PI },
+  // At x 3 it then sat half under the footbridge deck's end (x +-3.19 to
+  // z -110); x 5.5 seats it beside the bridge, facing the water.
+  { position: [5.5, 0, -112], rotation: Math.PI },
 ];
 
 // ============================================================
@@ -722,7 +827,9 @@ export const PARKLAND_TREES: TreeInstanceData[] = [
 export const PARKLAND_BENCHES: BenchInstanceData[] = [
   // Moved further from riverbank (was z=-110). At z=-90 it stood against the
   // trunk at (-85, -89); here it sits among the three trees, clear of each.
-  { position: [-85, 0, -93.5], rotation: 0 },
+  // A bench faces +z at rotation 0, so it looked into that trunk with its
+  // back to the river; turned, it looks out over the water.
+  { position: [-85, 0, -93.5], rotation: Math.PI },
 ];
 
 // ============================================================

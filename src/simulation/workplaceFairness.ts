@@ -4,6 +4,9 @@ import { saveWorkplace, restoreWorkplace, WORKPLACE_PLANS } from './bilateralWor
 import { workplaceMission } from './workplaceImprovement';
 import { translate } from '../i18n';
 import { workplaceFairnessMessages as msg } from './workplaceFairness.messages';
+import { bilateralWorkplaceMessages } from './bilateralWorkplace.messages';
+
+const RELOAD_SAFETY = bilateralWorkplaceMessages.en.evReloadSafety;
 
 /** Public ledger traversal. Historical absent qualitative facts remain unknown. */
 export function fairnessReceipt(state: WorkplaceState) {
@@ -115,9 +118,16 @@ export function demonstrationBeats(state: WorkplaceState) {
     {
       title: translate(msg, 'beatReloadTitle'),
       section: 'Review',
-      observed: state.events.some(
-        (e) => e.kind === 'settled' && e.detail.startsWith('Reload safety')
-      ),
+      // A restore keeps only relationship receipts, so the reload's 'settled'
+      // event never survives it; the review it leaves (or the resume after it)
+      // is the trace. Working if pressing Save and reload marks this beat.
+      observed:
+        state.reviewReason === RELOAD_SAFETY ||
+        state.events.some(
+          (e) =>
+            e.kind === 'shift-resumed' ||
+            (e.kind === 'settled' && e.detail.startsWith('Reload safety'))
+        ),
       detail: translate(msg, 'beatReloadDetail'),
     },
   ] as const;

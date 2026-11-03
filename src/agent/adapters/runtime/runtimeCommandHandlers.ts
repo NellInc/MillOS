@@ -1,14 +1,28 @@
 import type { AIDecisionDisposition } from '../../../types';
 import { getSCADAService, peekSCADAService } from '../../../scada/SCADAService';
-import { useBreakdownStore } from '../../../stores/breakdownStore';
-import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import {
+  missingPartsForOrder,
+  useBreakdownStore,
+  type MaintenanceWorkOrder,
+  type PartsInventory,
+} from '../../../stores/breakdownStore';
+import {
+  selectChosenPace,
+  selectPaceUnderPause,
+  useGameSimulationStore,
+} from '../../../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
-import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import {
+  recordOperatorAction,
+  useOperationsCampaignStore,
+} from '../../../stores/operationsCampaignStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { workplaceReadiness } from '../../../simulation/bilateralWorkplace';
 import { applyDecisionEffects } from '../../../utils/aiEngine';
+import { aiEngineMessages } from '../../../utils/aiEngine.messages';
+import { translate } from '../../../i18n';
 import type {
   AgentCommandEnvelope,
   AgentVerificationResult,
@@ -125,6 +139,16 @@ function activateOrderHandler(): AgentCommandHandler {
             command.parameters.orderUri === command.targetUri,
             'orderUri must equal targetUri.'
           ),
+          // The store holds the customer during a recovery challenge; the
+          // projection lacks activeChallenge, so read the live store.
+          check(
+            'PRE.ORDER.NO_CHALLENGE',
+            (() => {
+              const run = useOperationsCampaignStore.getState().activeChallenge;
+              return !run || run.orderId === id;
+            })(),
+            'Order switching is held until the recovery challenge ends.'
+          ),
         ],
         [
           check(
@@ -157,7 +181,13 @@ function activateOrderHandler(): AgentCommandHandler {
       const campaign = record(after.domains.campaign);
       const orders = arrayOfRecords(campaign.orders);
       const selected = orders.find((order) => order.id === orderId);
-      const active = orders.filter((order) => order.status === 'active');
+      // The current order counts as active even when the tick has marked it
+      // late; the store identifies it by activeOrderId.
+      const active = orders.filter(
+        (order) =>
+          order.status === 'active' ||
+          (order.status === 'late' && order.id === campaign.activeOrderId)
+      );
       const execution = record(campaign.execution);
       return [
         verify(
@@ -222,6 +252,19 @@ function incidentHandler(
             Boolean(incident && phaseAllowed),
             `Incident must be ${requiredPhase}.`
           ),
+          // The store refuses to mitigate a recovery challenge's incident
+          // before it is acknowledged; say so here rather than as a failed
+          // verification after a command that changed nothing.
+          ...(capabilityId === 'incident.mitigate'
+            ? [
+                check(
+                  'PRE.INCIDENT.CHALLENGE_ACKNOWLEDGED',
+                  useOperationsCampaignStore.getState().activeChallenge?.incidentId !== id ||
+                    incident?.phase === 'acknowledged',
+                  'A recovery challenge incident must be acknowledged before mitigation.'
+                ),
+              ]
+            : []),
         ],
         [
           check(
@@ -278,6 +321,16 @@ function respondToDecisionHandler(): AgentCommandHandler {
             decision?.status === 'pending',
             'Decision must still be pending.'
           ),
+          // As in the panel: a card is deferred once, and the engine brings it back.
+          ...(command.parameters.disposition === 'deferred'
+            ? [
+                check(
+                  'PRE.DECISION.NOT_DEFERRED',
+                  record(decision?.response).disposition !== 'deferred',
+                  'A deferred decision is deferred once; accept or reject it.'
+                ),
+              ]
+            : []),
         ],
         [
           check(
@@ -308,7 +361,7 @@ function respondToDecisionHandler(): AgentCommandHandler {
         });
         useProductionStore
           .getState()
-          .updateDecisionStatus(id, 'completed', 'Completed after operator modification');
+          .updateDecisionStatus(id, 'completed', translate(aiEngineMessages, 'completedModified'));
       } else if (disposition === 'accepted') {
         applyDecisionEffects(decision, 'accepted', { note: stringParameter(command, 'note') });
       } else {
@@ -345,10 +398,15 @@ function requestRepairHandler(): AgentCommandHandler {
         (item) => item.breakdownId === id
       );
       const parts = record(maintenance.partsInventory);
-      const requiredParts = Array.isArray(workOrder?.requiredParts) ? workOrder.requiredParts : [];
-      const missing = requiredParts.filter(
-        (part) => typeof part === 'string' && Number(parts[part]) <= 0
-      );
+      // Reservations bind: stock held for an older diagnosed order is not free
+      // to this one, exactly as startRepair decides on execute.
+      const missing = workOrder
+        ? missingPartsForOrder(
+            arrayOfRecords(maintenance.workOrders) as unknown as MaintenanceWorkOrder[],
+            parts as unknown as PartsInventory,
+            workOrder as unknown as MaintenanceWorkOrder
+          )
+        : [];
       return inspection(
         ['Consume the required simulated parts and move the work order to repairing.'],
         [
@@ -425,9 +483,18 @@ function requestRestartHandler(): AgentCommandHandler {
       );
     },
     execute: (command) => {
-      const changed = useBreakdownStore
-        .getState()
-        .requestMachineRestart(localId(command.targetUri, 'breakdown'));
+      const breakdownId = localId(command.targetUri, 'breakdown');
+      const changed = useBreakdownStore.getState().requestMachineRestart(breakdownId);
+      if (changed) {
+        const order = useBreakdownStore
+          .getState()
+          .workOrders.find((item) => item.breakdownId === breakdownId);
+        if (order)
+          recordOperatorAction(
+            { kind: 'restart', machine: order.machineName },
+            command.actorUri === HUMAN_OPERATOR_URI ? 'operator' : 'agent'
+          );
+      }
       return { changed };
     },
     verify: (command, _before, after) => {
@@ -605,15 +672,24 @@ function setSimulationSpeedHandler(): AgentCommandHandler {
         ]
       ),
     execute: (command) => {
-      const before = useGameSimulationStore.getState().gameSpeed;
+      // Under the shift handoff's hold a chosen pace waits as the resume pace,
+      // as it does for the player's own pace control (selectChosenPace).
+      const before = selectChosenPace(useGameSimulationStore.getState());
+      const underBefore = selectPaceUnderPause(useGameSimulationStore.getState());
       useGameSimulationStore.getState().setGameSpeed(Number(command.parameters.speed));
-      const after = useGameSimulationStore.getState().gameSpeed;
+      const after = selectChosenPace(useGameSimulationStore.getState());
+      // A new running pace is a shift decision, as from the player's controls.
+      if (after > 0 && after !== underBefore)
+        recordOperatorAction(
+          { kind: 'pace', gameSpeed: after },
+          command.actorUri === HUMAN_OPERATOR_URI ? 'operator' : 'agent'
+        );
       return { changed: before !== after, speed: after };
     },
     verify: (command, _before, after) => [
       verify(
         'VERIFY.SPEED.VALUE',
-        record(after.domains.simulation).gameSpeed === command.parameters.speed,
+        record(after.domains.simulation).chosenPace === command.parameters.speed,
         'Simulation speed matches the request.'
       ),
     ],
@@ -654,7 +730,15 @@ function startFireDrillHandler(): AgentCommandHandler {
       useGameSimulationStore
         .getState()
         .startEmergencyDrill(typeof totalZones === 'number' ? totalZones : undefined);
-      return { changed: before !== useGameSimulationStore.getState().emergencyDrillMode };
+      const changed = before !== useGameSimulationStore.getState().emergencyDrillMode;
+      // A drill started is a decision in the shift review, credited to whoever
+      // issued the command, as a setpoint write is.
+      if (changed)
+        recordOperatorAction(
+          { kind: 'drillStarted' },
+          command.actorUri === HUMAN_OPERATOR_URI ? 'operator' : 'agent'
+        );
+      return { changed };
     },
     verify: (_command, _before, after) => {
       const simulation = record(after.domains.simulation);

@@ -8,12 +8,8 @@ import { StatusHUD } from './hud/StatusHUD';
 import { EmergencyOverlay } from '../EmergencyOverlay';
 import { AlertSystem } from '../AlertSystem';
 import { MachineData, MachineType } from '../../types';
-import {
-  PAAnnouncementSystem,
-  GamificationBar,
-  MiniMap,
-  IncidentReplayControls,
-} from '../GameFeatures';
+import { PAAnnouncementSystem, MiniMap, IncidentReplayControls } from '../GameFeatures';
+import { isKeyboardlessTouch } from '../../utils/keyboardlessTouch';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { AchievementTracker } from '../../hooks/useAchievementTracker';
 import { Datalinks, AINarration, UnlockNotificationContainer } from '../knowledge';
@@ -41,6 +37,7 @@ import { workplaceOwnsGuidance } from '../../simulation/workplaceImprovement';
 import { useT } from '../../i18n';
 import { gameInterfaceMessages } from './GameInterface.messages';
 import { focusDockItem } from './dock/focusDockItem';
+import { REPLAY_GETTING_STARTED_EVENT } from './onboarding/replayGettingStarted';
 
 const LayoutPlanner = recoverableLazy(() =>
   import('./widgets/LayoutPlanner').then((module) => ({ default: module.LayoutPlanner }))
@@ -48,11 +45,21 @@ const LayoutPlanner = recoverableLazy(() =>
 
 // Keys only: the copy is resolved at render so a language switch reaches the tour.
 // Each step's copy matches TOUR_CAMERA_PRESETS: silos, milling, packing.
+// The ? help is a keyboard shortcut, so its hint is left off for touch players.
 const INTRO_STEPS = [
-  { titleKey: 'introGrainTitle', contentKey: 'introGrainContent', icon: 'factory' },
-  { titleKey: 'introLookTitle', contentKey: 'introLookContent', icon: 'controls' },
-  { titleKey: 'introFlourTitle', contentKey: 'introFlourContent', icon: 'goal' },
+  { titleKey: 'introGrainTitle', contentKey: 'introGrainContent', icon: 'factory', keys: false },
+  { titleKey: 'introLookTitle', contentKey: 'introLookContent', icon: 'controls', keys: false },
+  { titleKey: 'introFlourTitle', contentKey: 'introFlourContent', icon: 'goal', keys: true },
 ] as const;
+
+/** Workspaces that exist only as a sidebar panel (overview and production are views). */
+const isPanelWorkspace = (mode: DockMode): boolean =>
+  mode === 'ai' ||
+  mode === 'settings' ||
+  mode === 'scada' ||
+  mode === 'safety' ||
+  mode === 'management' ||
+  mode === 'chronicle';
 
 interface GameInterfaceProps {
   productionSpeed: number;
@@ -60,6 +67,8 @@ interface GameInterfaceProps {
   showZones: boolean;
   setShowZones: (v: boolean) => void;
   selectedMachine: MachineData | null;
+  /** A forklift is selected: App clears the machine when one is picked. */
+  forkliftSelected?: boolean;
   onCloseSelection: () => void;
   // Keyboard shortcut state bridge
   showAIPanel?: boolean;
@@ -69,12 +78,25 @@ interface GameInterfaceProps {
   onFocusMachine?: (machineId: string) => void;
 }
 
+// The order a finished or skipped tour guides: the active one, else the next
+// open one. After a programme the oldest kept order is fulfilled, and seeding it
+// ended the replayed tour on a receipt from shifts ago.
+const guidedDeliveryOrderId = (campaign: {
+  activeOrderId: string | null;
+  orders: readonly { id: string; status: string }[];
+}): string | null =>
+  campaign.activeOrderId ??
+  campaign.orders.find((order) => order.status !== 'fulfilled' && order.status !== 'cancelled')
+    ?.id ??
+  null;
+
 export const GameInterface: React.FC<GameInterfaceProps> = ({
   productionSpeed,
   setProductionSpeed,
   showZones,
   setShowZones,
   selectedMachine,
+  forkliftSelected = false,
   onCloseSelection,
   showAIPanel,
   showSCADAPanel,
@@ -84,7 +106,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 }) => {
   const t = useT(gameInterfaceMessages);
   // Mobile detection - hide complex desktop UI on mobile
-  const { isCompactLayout } = useMobileDetection();
+  const { isCompactLayout, isMobile, isTouchDevice } = useMobileDetection();
+  const keyboardlessTouch = isKeyboardlessTouch(isTouchDevice);
 
   // Local state for the Dock
   const [activeMode, setActiveMode] = React.useState<DockMode>('overview');
@@ -103,6 +126,15 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     )
       return;
     chatgptReturnHandledRef.current = true;
+    // One return, one opening: left in the URL, the marker reopened the AI
+    // workspace on every later reload, Reset Simulation's included.
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('chatgpt');
+      window.history.replaceState(window.history.state, '', url);
+    } catch {
+      // No history API: the marker stays, as before.
+    }
     if (isCompactLayout) useMobileControlStore.getState().openMobilePanel('ai');
     else {
       setActiveMode('ai');
@@ -193,9 +225,27 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     };
   }, [hasSeenIntro, releaseTourClock]);
 
+  // Replay after an X close: hasSeenIntro was already false, so the effect
+  // above does not run again. Start the tour unless it is already showing.
+  const introStepRef = React.useRef(introStep);
+  introStepRef.current = introStep;
+  useEffect(() => {
+    const replay = () => {
+      if (introStepRef.current !== null) return;
+      useGameSimulationStore.getState().holdClock('tour');
+      setIntroStep(0);
+    };
+    window.addEventListener(REPLAY_GETTING_STARTED_EVENT, replay);
+    return () => window.removeEventListener(REPLAY_GETTING_STARTED_EVENT, replay);
+  }, []);
+
   useEffect(() => {
     const preset = getTourCameraPreset(introStep);
-    if (preset !== null) useCameraStore.getState().setPreset(preset);
+    if (preset === null) return;
+    // Walk mode unmounts the camera controller; leave it first, as the number
+    // keys do, or the preset moves nothing now and flies the camera on exit.
+    if (useUIStore.getState().fpsMode) useUIStore.getState().setFpsMode(false);
+    useCameraStore.getState().setPreset(preset);
   }, [introStep]);
 
   // Inspection receipts survive compact inspectors hiding the guide itself.
@@ -213,16 +263,27 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     }
   }, [journeyVisible, selectedMachine]);
 
+  // A panel workspace has no view of its own: hiding the sidebar leaves it,
+  // or the next dock click on it reads as "close" and does nothing visible.
+  // Working if Settings opens on the first click after the replayed tour
+  // hid it, and closing the Chronicle returns the HUD to Overview.
+  const leavePanelWorkspace = () => {
+    if (!isPanelWorkspace(activeMode)) return;
+    if (activeMode === 'ai') onAIPanelChange?.(false);
+    if (activeMode === 'scada') onSCADAPanelChange?.(false);
+    setActiveMode('overview');
+  };
+
   const handleIntroNext = () => {
     const next = (introStep ?? 0) + 1;
     if (next >= INTRO_STEPS.length) {
       releaseTourClock();
       setHasSeenIntro(true);
       setIntroStep(null);
-      const campaign = useOperationsCampaignStore.getState();
-      startDeliveryJourney(campaign.activeOrderId ?? campaign.orders[0]?.id ?? null);
+      startDeliveryJourney(guidedDeliveryOrderId(useOperationsCampaignStore.getState()));
       setFocusJourneyHeading(true);
       setSidebarVisible(false);
+      leavePanelWorkspace();
       return;
     }
     setIntroStep(next);
@@ -241,29 +302,40 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     setHasSeenIntro(true);
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
-    const campaign = useOperationsCampaignStore.getState();
-    startDeliveryJourney(campaign.activeOrderId ?? campaign.orders[0]?.id ?? null);
+    startDeliveryJourney(guidedDeliveryOrderId(useOperationsCampaignStore.getState()));
     setFocusJourneyHeading(true);
   };
 
-  const handleIntroClose = () => {
+  // The X closes getting started for this session; Escape is a dismissal, so
+  // the tour does not return on reload. The guide says which one closed it.
+  // Working if Escape sets hasSeenIntro and X leaves it unset.
+  const handleIntroClose = (reason?: 'escape') => {
+    if (reason === 'escape') setHasSeenIntro(true);
     releaseTourClock();
     setIntroStep(null);
     useCameraStore.getState().cancelAnimation();
     // A guide already open from an earlier session takes focus as it shows;
-    // otherwise nothing replaces the tour, so focus goes to the dock.
+    // otherwise nothing replaces the tour, so focus goes to the dock, but only
+    // from inside the tour: an Escape from the scene keeps W A S D, which a
+    // focused dock button blocks. Working if the camera still moves after it.
     if (useUIStore.getState().journeyVisible) setFocusJourneyHeading(true);
-    else focusDockItem('overview');
+    else if (document.activeElement && document.activeElement !== document.body)
+      focusDockItem('overview');
   };
 
   // AI Narration - get current narration to display
   const { getNarration, markShown } = useAINarrationStore();
+  // Settings' AI reflections switch: a card already queued behind the tour, a
+  // sidebar or a safety state must not appear once reflections are off.
+  const narrationEnabled = useAINarrationStore((s) => s.enabled);
   const { unlockEntry } = useKnowledgeStore();
   const [currentNarration, setCurrentNarration] = useState<ReturnType<typeof getNarration>>(null);
 
   // Knowledge system integration - handles unlock conditions and narrations
   const handleKnowledgeNarration = React.useCallback((narration: NarrationEntry) => {
-    setCurrentNarration(narration);
+    // A reflection still queued (behind the tour or a sidebar) keeps its place;
+    // a later trigger is not marked shown, so it returns another session.
+    setCurrentNarration((queued) => queued ?? narration);
   }, []);
   const knowledgeIntegration = useKnowledgeIntegration(handleKnowledgeNarration);
 
@@ -281,7 +353,13 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         unlockEntry(currentNarration.unlocksEntry);
       }
     }
+    // The card unmounts with focus inside it, which would leave focus on <body>
+    // (where Space stops every forklift). It has no opener, so the dock takes it.
+    const focusInCard = !!(document.activeElement as HTMLElement | null)?.closest?.(
+      '[data-reflection-card]'
+    );
     setCurrentNarration(null);
+    if (focusInCard) focusDockItem('overview');
   };
 
   // Sync external selection with Dock/Sidebar state
@@ -291,6 +369,23 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       setSidebarVisible(true);
     }
   }, [selectedMachine]);
+
+  // Picking a forklift clears the selected machine (App keeps one selection).
+  // Its inspector closes with it, as the sidebar's own close does, rather than
+  // fall back to Overview behind the forklift card. The ref holds what the
+  // previous commit showed, since this render has already lost the machine.
+  // Working if a forklift clicked over a machine inspector closes the sidebar.
+  const inspectorShownRef = React.useRef(false);
+  useEffect(() => {
+    // Any open panel closes too: the card sits over its heading and Close, and
+    // opening a panel closes the card, so they never share the screen.
+    if (!forkliftSelected || !(inspectorShownRef.current || sidebarVisible)) return;
+    setSidebarVisible(false);
+    leavePanelWorkspace();
+  }, [forkliftSelected]);
+  useEffect(() => {
+    inspectorShownRef.current = sidebarVisible && !!selectedMachine && activeMode !== 'scada';
+  });
 
   // Sync keyboard-driven panel flags (I = AI, O = SCADA) into activeMode.
   //
@@ -307,16 +402,27 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   // The keyboard paths (I, O) must clear the 3D selection like a dock click
   // does, or ContextSidebar keeps showing the MachineInspector and the panel
   // the user asked for never appears.
+  // The panel the sidebar showed in the render that cleared a flag. A second I
+  // or O press closes that panel; a dock or guide route that cleared the flag
+  // while moving elsewhere has already changed it, so it is left alone.
+  // Working if I, I (or O, O) closes the sidebar and I, Settings opens Settings.
+  const shownPanelRef = React.useRef<DockMode | null>(null);
+  useEffect(() => {
+    shownPanelRef.current =
+      sidebarVisible && !(selectedMachine && activeMode !== 'scada') ? activeMode : null;
+  });
+
   useEffect(() => {
     if (showAIPanel) {
       setSidebarVisible(true);
       onCloseSelection();
-    }
+    } else if (shownPanelRef.current === 'ai') setSidebarVisible(false);
     setActiveMode((prev) => (showAIPanel ? 'ai' : prev === 'ai' ? 'overview' : prev));
   }, [showAIPanel]);
 
   useEffect(() => {
     if (showSCADAPanel) setSidebarVisible(true);
+    else if (shownPanelRef.current === 'scada') setSidebarVisible(false);
     setActiveMode((prev) => (showSCADAPanel ? 'scada' : prev === 'scada' ? 'overview' : prev));
   }, [showSCADAPanel]);
 
@@ -327,17 +433,15 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       document.querySelector<HTMLElement>(`[data-dock-mode="${mode}"]`) ??
       (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     sidebarTriggerRef.current = exactTrigger;
-    if (mode === 'production') useCameraStore.getState().setPreset(2);
-    if (mode === 'overview') useCameraStore.getState().setPreset(0);
+    // Walk mode has no camera controller: a preset set now flew the camera
+    // away from where the player walked the moment they left it. The panel
+    // opens; the view stays theirs. Working if V afterwards keeps the view.
+    if (!useUIStore.getState().fpsMode) {
+      if (mode === 'production') useCameraStore.getState().setPreset(2);
+      if (mode === 'overview') useCameraStore.getState().setPreset(0);
+    }
 
-    if (
-      activeMode === mode &&
-      (mode === 'ai' ||
-        mode === 'settings' ||
-        mode === 'scada' ||
-        mode === 'safety' ||
-        mode === 'management')
-    ) {
+    if (activeMode === mode && isPanelWorkspace(mode)) {
       // Toggle off if clicking the same active mode for panels
       setActiveMode('overview');
       setSidebarVisible(false);
@@ -391,19 +495,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     onCloseSelection();
     setSidebarVisible(false);
 
-    // If we are in a modal mode, go back to overview
-    if (
-      activeMode === 'ai' ||
-      activeMode === 'scada' ||
-      activeMode === 'settings' ||
-      activeMode === 'safety' ||
-      activeMode === 'management'
-    ) {
-      // Notify parent of panel state changes for keyboard shortcut sync
-      if (activeMode === 'ai') onAIPanelChange?.(false);
-      if (activeMode === 'scada') onSCADAPanelChange?.(false);
-      setActiveMode('overview');
-    }
+    // If we are in a panel workspace, go back to overview, notifying the
+    // parent so the I and O keyboard toggles stay in sync.
+    leavePanelWorkspace();
 
     requestAnimationFrame(() => {
       const rememberedTrigger = sidebarTriggerRef.current;
@@ -418,7 +512,10 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   const introStepCopy: OnboardingStep | null = introStepDef
     ? {
         title: t(introStepDef.titleKey),
-        content: t(introStepDef.contentKey),
+        content:
+          introStepDef.keys && !isMobile && !keyboardlessTouch
+            ? `${t(introStepDef.contentKey)} ${t('introKeyboardHint')}`
+            : t(introStepDef.contentKey),
         icon: introStepDef.icon,
       }
     : null;
@@ -474,9 +571,8 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {/* 4. Immersion Overlays - PA announcements work on mobile, others are desktop only */}
       <PAAnnouncementSystem />
       {/* Layout-independent: achievements must progress on compact and mobile
-        layouts too, where the GamificationBar is not mounted. */}
+        layouts too, where the MiniMap is not mounted. */}
       <AchievementTracker />
-      {!isCompactLayout && <GamificationBar />}
       {!isCompactLayout && <MiniMap />}
       <IncidentReplayControls />
 
@@ -497,8 +593,10 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         onDatalinksOpen={FEATURE_FLAGS.KNOWLEDGE_LIBRARY_ENABLED ? handleDatalinksOpen : undefined}
       />
 
-      {/* 7. Right Context Sidebar - Desktop only (MobilePanel handles this on mobile) */}
-      {!isCompactLayout && (
+      {/* 7. Right Context Sidebar. In the compact layout the phone sheet hosts the
+          workspaces, but it has no machine page, so a picked machine's
+          Inspector still opens here (unless a sheet holds the screen). */}
+      {(!isCompactLayout || (selectedMachine !== null && !mobilePanelVisible)) && (
         <ContextSidebar
           mode={activeMode}
           isVisible={isSidebarVisible}
@@ -515,7 +613,11 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {/* 8. Datalinks Modal */}
       {planningOpen &&
         createPortal(
-          <RecoverableFeatureBoundary featureName={t('logisticsPlanning')}>
+          // Its only close lives inside the planner, so a failed chunk needs one here.
+          <RecoverableFeatureBoundary
+            featureName={t('logisticsPlanning')}
+            onDismiss={() => setPlanningOpen(false)}
+          >
             <Suspense
               fallback={
                 <div
@@ -548,6 +650,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
 
       {/* 9. Quiet AI reflection card. It queues behind focused or safety-critical work. */}
       {FEATURE_FLAGS.AI_NARRATION_ENABLED &&
+        narrationEnabled &&
         currentNarration &&
         !hasWorkingAgreement &&
         !showShortcuts &&
@@ -560,6 +663,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         !hasCriticalAlert &&
         !safetyStateActive && (
           <aside
+            data-reflection-card
             aria-label={t('aiReflection')}
             className="pointer-events-auto fixed bottom-[11.5rem] right-4 z-40 max-h-[calc(100dvh-13rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-xl"
           >
@@ -608,6 +712,9 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
               else {
                 setActiveMode(mode);
                 setSidebarVisible(true);
+                // Leaves the AI workspace like every other route, so the
+                // next I press opens it instead of only clearing its flag.
+                onAIPanelChange?.(false);
                 onSCADAPanelChange?.(mode === 'scada');
                 if (mode !== 'scada') onCloseSelection();
               }
@@ -616,7 +723,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         )}
 
       {/* Mill Chronicle decisions: events, upkeep shortfall, duct fire. */}
-      {introStep === null && !fpsMode && !showShortcuts && <ChronicleEventHost />}
+      <ChronicleEventHost hidden={introStep !== null || fpsMode || showShortcuts} />
 
       {/* 10. Keyboard Shortcuts Help (? key) */}
       <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />

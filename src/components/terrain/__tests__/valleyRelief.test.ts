@@ -19,6 +19,7 @@ import {
 import {
   LANDSCAPE_GROVE_TREES,
   MAIN_EXTERIOR_TREES,
+  TRUNK_FOOT_RADIUS,
   groundedTreePosition,
 } from '../../exterior/ExteriorVegetation';
 
@@ -133,17 +134,35 @@ describe('valley meadow relief', () => {
           ({ position: [x, , z] }) => Math.abs(sampleTerrainGroundHeight(x, z, segments)) > 0.01
         )
       );
-      for (const tree of trees) {
-        const [x, y, z] = groundedTreePosition(tree.position, quality);
+      const groundAt = (x: number, z: number) => {
         const hits = new THREE.Raycaster(
           new THREE.Vector3(x, 40, z),
           new THREE.Vector3(0, -1, 0)
         ).intersectObject(mesh);
         expect(hits).toHaveLength(1);
-        expect(hits[0].point.y).toBeCloseTo(y, 4);
+        return hits[0].point.y;
+      };
+      for (const tree of trees) {
+        const [x, y, z] = groundedTreePosition(tree.position, quality);
+        // The foot sits on the lowest drawn ground under its flare: no point of
+        // the ring stands on air, and it is buried no deeper than that.
+        const ring = [groundAt(x, z)];
+        for (let i = 0; i < 8; i++) {
+          const angle = (i * Math.PI) / 4;
+          ring.push(
+            groundAt(
+              x + Math.cos(angle) * TRUNK_FOOT_RADIUS,
+              z + Math.sin(angle) * TRUNK_FOOT_RADIUS
+            )
+          );
+        }
+        expect(y).toBeCloseTo(Math.min(...ring), 4);
       }
       geometry.dispose();
       material.dispose();
-    }
+    },
+    // Nine real-mesh rays per tree across every tier; the default 10 s timed
+    // out once under heavy host load.
+    60_000
   );
 });

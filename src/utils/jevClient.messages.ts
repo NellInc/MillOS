@@ -1,4 +1,4 @@
-import { defineMessages } from '../i18n';
+import { createTranslator, defineMessages, getLocale, type Locale } from '../i18n';
 
 /**
  * Errors the Jev advisory panel shows. The queue names and the rubric question
@@ -75,3 +75,31 @@ export const jevClientMessages = defineMessages({
       'O modelo no dispositivo retornou uma recomendação inválida. Nenhuma ação foi tomada.',
   },
 });
+
+/**
+ * The five queue names as a player reads them. The request and the answer keep
+ * the English names (the frozen rubric); these only word the answer on screen.
+ */
+export const jevQueueMessages = defineMessages({
+  en: {
+    'Equipment maintenance': 'Equipment maintenance',
+    'Product quality': 'Product quality',
+    'Logistics coordination': 'Logistics coordination',
+    'No current incident': 'No current incident',
+    'Insufficient evidence': 'Insufficient evidence',
+  },
+  'pt-BR': {
+    'Equipment maintenance': 'Manutenção de equipamentos',
+    'Product quality': 'Qualidade do produto',
+    'Logistics coordination': 'Coordenação logística',
+    'No current incident': 'Nenhuma ocorrência atual',
+    'Insufficient evidence': 'Evidência insuficiente',
+  },
+});
+
+/** A queue name in `locale`; anything that is not one of the five is shown as given. */
+export function jevQueueLabel(queue: string, locale: Locale = getLocale()): string {
+  return Object.prototype.hasOwnProperty.call(jevQueueMessages.en, queue)
+    ? createTranslator(jevQueueMessages, locale)(queue as keyof (typeof jevQueueMessages)['en'])
+    : queue;
+}

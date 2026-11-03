@@ -498,7 +498,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
   {
     id: 'evt-switchgear-survey',
     title: 'The switchgear survey',
-    text: 'The electrical contractor offers to survey the roller-floor switchgear while the line is down for cleaning. They expect to find nothing urgent. A grid failure would find whatever they miss.',
+    text: 'The electrical contractor offers to survey the roller-floor switchgear while the line is down for cleaning. They expect to find nothing urgent. Anything they miss would show in a grid failure.',
     polarity: 'neutral',
     weight: 1,
     routine: false,
@@ -665,7 +665,8 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       },
       {
         id: 'reserve',
-        label: 'Open the reserve for a valley rebate',
+        // Paid from the fund: the co-op reserve is indivisible and only covers upkeep.
+        label: 'Pay the valley a rebate',
         cost: { fund: 120 },
         effect: {
           marks: ['reserve-opened'],
@@ -674,7 +675,8 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
             { customer: 'growers', delta: 6 },
             { customer: 'school', delta: 4 },
           ],
-          result: 'The mill pays a rebate from its reserve, and the meeting closes in good order.',
+          result:
+            'The mill pays the valley a rebate from the fund, and the meeting closes in good order.',
         },
       },
       {
@@ -720,7 +722,12 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
     polarity: 'negative',
     weight: 2,
     routine: false,
-    requires: { minShift: 12, maxShift: 56, marks: { none: ['log-backdated'] } },
+    // Found once a charter: every answer leaves a mark that keeps it from coming back.
+    requires: {
+      minShift: 12,
+      maxShift: 56,
+      marks: { none: ['log-backdated', 'log-reported', 'log-recleaned', 'log-left'] },
+    },
     choices: [
       {
         id: 'invoices',
@@ -768,6 +775,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
         id: 'leave',
         label: 'Leave it for the audit',
         effect: {
+          marks: ['log-left'],
           standing: -20,
           result: 'The auditor finds the blank week and writes it up.',
         },
@@ -784,7 +792,8 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
     weight: 1,
     routine: false,
     chained: true,
-    requires: { marks: { all: ['log-backdated'] } },
+    // Any suspension, whatever caused it, can always be audited away (rule 4).
+    requires: { suspended: true },
     choices: [
       {
         id: 'open',
@@ -861,7 +870,8 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
     polarity: 'neutral',
     weight: 1,
     routine: false,
-    requires: { minShift: 15 },
+    // Once taken up, on either terms, the wholesaler is a customer and does not ask again.
+    requires: { minShift: 15, marks: { none: ['wholesaler-first', 'coop-terms'] } },
     choices: [
       {
         id: 'accept',
@@ -906,7 +916,11 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
     polarity: 'neutral',
     weight: 1,
     routine: false,
-    requires: { minShift: 20, marks: { none: ['haulier-terminated', 'haulier-replaced'] } },
+    // Once the collections are shared, the larger firm already has its share.
+    requires: {
+      minShift: 20,
+      marks: { none: ['haulier-terminated', 'haulier-replaced', 'haulage-shared'] },
+    },
     choices: [
       {
         id: 'switch',

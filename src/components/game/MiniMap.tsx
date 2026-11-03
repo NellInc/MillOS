@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Map, X } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
@@ -27,6 +27,22 @@ export const MiniMap: React.FC = () => {
     }))
   );
   const [positions, setPositions] = useState<{ forklifts: EntityPosition[] }>({ forklifts: [] });
+
+  // Close unmounts the map with focus on its button. Hand focus back to the
+  // control that opened it (Overview's Mini-map toggle) rather than <body>,
+  // where the next Space is the forklift emergency stop.
+  const openerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!showMiniMap) return;
+    const active = document.activeElement;
+    openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+  }, [showMiniMap]);
+  const handleClose = () => {
+    const opener = openerRef.current;
+    openerRef.current = null;
+    setShowMiniMap(false);
+    if (opener?.isConnected) opener.focus();
+  };
 
   useEffect(() => {
     if (!showMiniMap) return;
@@ -72,7 +88,7 @@ export const MiniMap: React.FC = () => {
             <span className="text-xs font-medium text-white">{t('title')}</span>
           </div>
           <button
-            onClick={() => setShowMiniMap(false)}
+            onClick={handleClose}
             aria-label={t('close')}
             className="w-5 h-5 rounded flex items-center justify-center hover:bg-slate-700 transition-colors"
           >

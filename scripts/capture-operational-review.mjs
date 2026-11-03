@@ -1566,7 +1566,7 @@ const SCENARIOS = {
     surfaceName: 'Safety & Emergency sidebar panel',
     afterOpen: async (page) => {
       await page.getByRole('button', { name: 'START DRILL', exact: true }).click();
-      await page.getByRole('alert', { name: 'Simulated fire drill', exact: true }).waitFor();
+      await page.getByRole('alert', { name: 'Egress verification drill', exact: true }).waitFor();
     },
   },
   'facility-stop': {
@@ -1638,7 +1638,7 @@ const SCENARIOS = {
       // GameInterface becomes aria-hidden while the modal mobile panel owns
       // focus, but the emergency overlay remains deliberately visible above it.
       await page
-        .locator('[role="alert"][aria-label="Simulated fire drill"]')
+        .locator('[role="alert"][aria-label="Egress verification drill"]')
         .waitFor({ state: 'visible' });
       await panel
         .getByRole('group', { name: 'Emergency egress verification drill' })
@@ -2856,8 +2856,9 @@ async function main() {
 
   const baseUrl = await startPreview();
   const browser = await chromium.launch({
+    chromiumSandbox: true,
     headless: !options.headed,
-    channel: options.browserChannel || undefined,
+    channel: options.browserChannel || undefined || 'chrome',
     args: ['--mute-audio'],
   });
   const results = [];

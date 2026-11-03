@@ -55,6 +55,8 @@ export const workplaceCampaignArchiveMessages = defineMessages({
       'Each exercise opens with 400 illustrative credits. Mill inventory, customer commitments and physical production continue unchanged.',
     archiveButton: 'Archive review and open a fresh exercise',
     blockedReplay: 'Finish or forget the matched replay first.',
+    blockedPaused:
+      'A reload paused the final shift before its end. Resume it in Review, then finish or end it, before archiving.',
     blockedObligations: 'Deliver owed recovery and settle open objections and reserved pay first.',
     retainedReviews: 'Retained campaign reviews ({count})',
     retainedNote:
@@ -64,8 +66,6 @@ export const workplaceCampaignArchiveMessages = defineMessages({
       'Leaving keeps what was earned: {kg} kg delivered to {customer}, {pay} credits in pay and cover, and {recovery} minutes of recovery delivered. It is kept as a season left early, not a completed one, and customer and next-programme choices open again.',
     leaveWaitActive: 'Leaving waits until this shift is stopped or ends, so its pay settles first.',
     leaveWaitObligations: 'Leaving waits until nothing is owed. {reasons}',
-    leftFeedback:
-      'Season left early at shift {shift} of 3. Its pay, recovery and receipts are kept under Seasons left early.',
     leftSeasons: 'Seasons left early ({count})',
     leftNote:
       'Each was left before its final review. It keeps the pay, recovery and receipts it earned and does not count as a completed season.',
@@ -96,6 +96,8 @@ export const workplaceCampaignArchiveMessages = defineMessages({
       'Cada exercício começa com 400 créditos ilustrativos. O estoque do moinho, os compromissos com clientes e a produção física continuam inalterados.',
     archiveButton: 'Arquivar a revisão e abrir um novo exercício',
     blockedReplay: 'Primeiro conclua ou descarte a reprodução pareada.',
+    blockedPaused:
+      'Uma recarga pausou o turno final antes do fim. Retome-o em Revisão e depois conclua-o ou encerre-o antes de arquivar.',
     blockedObligations:
       'Primeiro conceda a recuperação devida e resolva as objeções abertas e a remuneração reservada.',
     retainedReviews: 'Revisões de campanha guardadas ({count})',
@@ -107,8 +109,6 @@ export const workplaceCampaignArchiveMessages = defineMessages({
     leaveWaitActive:
       'Para sair, espere este turno ser parado ou terminar, para que a remuneração seja acertada antes.',
     leaveWaitObligations: 'Para sair, nada pode estar devido. {reasons}',
-    leftFeedback:
-      'Temporada encerrada antes do fim no turno {shift} de 3. A remuneração, a recuperação e os comprovantes ficam em Temporadas encerradas antes do fim.',
     leftSeasons: 'Temporadas encerradas antes do fim ({count})',
     leftNote:
       'Cada uma foi encerrada antes da revisão final. Ela mantém a remuneração, a recuperação e os comprovantes conquistados e não conta como temporada concluída.',

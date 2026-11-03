@@ -7,6 +7,7 @@ import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { MAX_GAME_SPEED, STANDARD_GAME_SPEED } from '../../simulation/pace';
 import { useUIStore } from '../../stores/uiStore';
 import { setLocale } from '../../i18n';
+import { keyedText } from '../../i18n/alertCopy';
 
 let tickCount = 0;
 function tickAt(gameSpeed: number, deltaSeconds = 1) {
@@ -111,6 +112,22 @@ describe('a closed shift is announced (row 21)', () => {
       expect(reviewAlerts()[0]?.title).toBe(
         'Turno da tarde encerrado: sem compromissos com clientes, ocorrência ainda aberta'
       );
+    } finally {
+      setLocale('en');
+    }
+  });
+
+  it('the shift-closed PA caption reads in the language active now', () => {
+    useGameSimulationStore.getState().setGameTime(13.9);
+    for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
+    const caption = useAnnouncementsStore
+      .getState()
+      .announcements.find((a) => /^Morning shift closed: /.test(a.message))!;
+    expect(keyedText(caption.copy, caption.message)).toBe(caption.message);
+    setLocale('pt-BR');
+    try {
+      const text = keyedText(caption.copy, caption.message);
+      expect(text).toMatch(/^Turno da manhã encerrado: nota [A-F]\. A revisão está na Visão geral/);
     } finally {
       setLocale('en');
     }

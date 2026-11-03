@@ -1,13 +1,23 @@
 import { useState } from 'react';
-import { pendingFollowOn, useWorkplaceStore } from '../../../stores/workplaceStore';
+import {
+  pendingFollowOn,
+  useWorkplaceStore,
+  workplaceReasonText,
+} from '../../../stores/workplaceStore';
+import { workplaceStoreMessages } from '../../../stores/workplaceStore.messages';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
-import { useWorkplaceReplayStore } from '../../../stores/workplaceReplayStore';
+import { selectReplayRunLive, useWorkplaceReplayStore } from '../../../stores/workplaceReplayStore';
 import { displayEventDetail, exportWorkplace } from '../../../simulation/bilateralWorkplace';
-import { campaignOutcomes, campaignTotals } from '../../../simulation/workplaceCampaign';
+import {
+  campaignOutcomes,
+  campaignTotals,
+  formatKg,
+  shiftResumable,
+} from '../../../simulation/workplaceCampaign';
 import { improvementObligations } from '../../../simulation/workplaceImprovement';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
-import type { WorkplaceState } from '../../../types/workplace';
-import { formatFixed, useT } from '../../../i18n';
+import type { WorkplaceState, WorkplaceTransitionResult } from '../../../types/workplace';
+import { formatFixed, translate, useT } from '../../../i18n';
 import { workplaceCampaignArchiveMessages } from './WorkplaceCampaignArchive.messages';
 
 const buttonClass =
@@ -45,9 +55,9 @@ function ReviewRecord({ state, left = false }: { state: WorkplaceState; left?: b
       <div className="space-y-2 pb-2 tabular-nums">
         <p>
           {t('dispatched', {
-            delivered: formatFixed(outcome.delivery.deliveredKg, 1),
-            target: formatFixed(outcome.delivery.targetKg, 0),
-            remaining: formatFixed(outcome.delivery.remainingKg, 0),
+            delivered: formatKg(outcome.delivery.deliveredKg, 1),
+            target: formatKg(outcome.delivery.targetKg),
+            remaining: formatKg(outcome.delivery.remainingKg),
           })}
         </p>
         <p>
@@ -105,16 +115,29 @@ export function FollowOnNotice({ state }: { state: WorkplaceState }) {
   );
 }
 
-export function WorkplaceLeaveSeason({ onLeft }: { onLeft?: (message: string) => void }) {
+export function WorkplaceLeaveSeason({
+  onLeft,
+}: {
+  /** `result` is keyed: render it with workplaceReasonText so it follows a language switch. */
+  onLeft?: (message: string, result: WorkplaceTransitionResult) => void;
+}) {
   const t = useT(workplaceCampaignArchiveMessages);
   const state = useWorkplaceStore((store) => store.workplace);
   const leave = useWorkplaceStore((store) => store.leaveCampaign);
-  const replayActive = useWorkplaceReplayStore((store) => store.activeRunId !== null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  // A retained replay review is the saved season; only a live run blocks it.
+  const replayActive = useWorkplaceReplayStore(selectReplayRunLive);
+  // Feedback describes the workplace it was given for; once the workplace moves
+  // on (a new season opens) it is no longer true. Working if "Season left
+  // early" is gone when the next season starts. It is kept keyed and resolved
+  // at render (useT re-renders on a switch), so it reads in the language chosen.
+  const [feedback, setFeedback] = useState<{
+    result: WorkplaceTransitionResult;
+    revision: number;
+  } | null>(null);
   const campaign = state.campaign;
-  const status = feedback && (
+  const status = feedback && feedback.revision === state.revision && (
     <p role="status" className="text-amber-100">
-      {feedback}
+      {workplaceReasonText(feedback.result)}
     </p>
   );
   if (
@@ -141,14 +164,43 @@ export function WorkplaceLeaveSeason({ onLeft }: { onLeft?: (message: string) =>
         type="button"
         className={buttonClass}
         disabled={waiting !== null}
-        onClick={() => {
+        onClick={(event) => {
+          // Leaving removes this button, and on the play card its whole host,
+          // while it holds focus; <body> would take it, where Space is the
+          // forklift emergency stop. Focus goes to the first control of the
+          // nearest host still on the page. Working if Tab and Space continue
+          // from the card after leaving.
+          const hosts: HTMLElement[] = [];
+          for (
+            let node = event.currentTarget.parentElement;
+            node && node !== document.body;
+            node = node.parentElement
+          )
+            hosts.push(node);
           // The plant keeps its pace: stopping the demo here holds nothing.
-          useWorkplaceAutoplay.getState().pause(true);
-          const shift = formatFixed(campaign.shift + 1, 0);
-          const result = leave(state.revision);
-          const message = result.changed ? t('leftFeedback', { shift }) : (result.reason ?? '');
-          setFeedback(message);
-          if (result.changed) onLeft?.(message);
+          useWorkplaceAutoplay.getState().pause();
+          const shift = campaign.shift + 1;
+          const left = leave(state.revision);
+          const result: WorkplaceTransitionResult = left.changed
+            ? {
+                changed: true,
+                reason: translate(workplaceStoreMessages, 'seasonLeft', { shift }),
+                reasonCopy: { catalog: 'store', key: 'seasonLeft', params: { shift } },
+              }
+            : left;
+          setFeedback({ result, revision: useWorkplaceStore.getState().workplace.revision });
+          if (!result.changed) return;
+          onLeft?.(result.reason ?? '', result);
+          requestAnimationFrame(() => {
+            const active = document.activeElement;
+            if (active && active !== document.body) return;
+            hosts
+              .find((node) => node.isConnected)
+              ?.querySelector<HTMLElement>(
+                'button:not([disabled]), select:not([disabled]), input:not([disabled]), summary, a[href], [tabindex]:not([tabindex="-1"])'
+              )
+              ?.focus({ preventScroll: true });
+          });
         }}
       >
         {t('leaveButton')}
@@ -156,7 +208,7 @@ export function WorkplaceLeaveSeason({ onLeft }: { onLeft?: (message: string) =>
       <p className="text-slate-300">
         {waiting ??
           t('leaveKept', {
-            kg: formatFixed(outcome.delivery.deliveredKg, 0),
+            kg: formatKg(outcome.delivery.deliveredKg),
             customer: outcome.delivery.customer,
             pay: formatFixed(outcome.accounts.wages + outcome.accounts.compensation, 2),
             recovery: formatFixed(
@@ -177,12 +229,17 @@ export function WorkplaceCampaignArchive({ onFreshExercise }: { onFreshExercise:
   const reviews = useWorkplaceStore((store) => store.completedCampaigns);
   const left = useWorkplaceStore((store) => store.leftCampaigns);
   const archive = useWorkplaceStore((store) => store.archiveCampaign);
-  const replayActive = useWorkplaceReplayStore((store) => store.activeRunId !== null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  // A retained replay review is the saved season; only a live run blocks it.
+  const replayActive = useWorkplaceReplayStore(selectReplayRunLive);
+  const [feedback, setFeedback] = useState<WorkplaceTransitionResult | null>(null);
   const finalReview = state.phase === 'review' && state.campaign?.shift === 2;
   if (!finalReview && reviews.length === 0 && left.length === 0) return null;
+  // A final shift a reload paused has not ended; archiving it would keep it as
+  // "agreement pending" for good (archiveCampaign refuses it too).
+  const paused = finalReview && shiftResumable(state);
   const blocked =
     replayActive ||
+    paused ||
     state.members.some((member) => member.recoveryOwedMinutes > 0) ||
     state.campaign?.history.some((shift) =>
       shift.members.some((member) => member.recoveryOwedMinutes > 0)
@@ -194,7 +251,7 @@ export function WorkplaceCampaignArchive({ onFreshExercise }: { onFreshExercise:
     state.coverRemainingMinutes > 0;
   const beginFresh = () => {
     const result = archive(state.revision);
-    setFeedback(result.reason);
+    setFeedback(result.reason ? result : null);
     if (result.changed) onFreshExercise();
   };
   return (
@@ -209,14 +266,18 @@ export function WorkplaceCampaignArchive({ onFreshExercise }: { onFreshExercise:
           </button>
           {blocked && (
             <p className="text-amber-100">
-              {replayActive ? t('blockedReplay') : t('blockedObligations')}
+              {replayActive
+                ? t('blockedReplay')
+                : paused
+                  ? t('blockedPaused')
+                  : t('blockedObligations')}
             </p>
           )}
         </div>
       )}
       {feedback && (
         <p role="status" className="text-amber-100">
-          {feedback}
+          {workplaceReasonText(feedback)}
         </p>
       )}
       {left.length > 0 && (

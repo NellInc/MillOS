@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Trophy,
@@ -20,6 +20,7 @@ import {
   Bot,
 } from 'lucide-react';
 import { useAchievementsStore } from '../../stores/achievementsStore';
+import { useProductionStore } from '../../stores/productionStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import type { Achievement } from '../../stores/achievementsStore';
 import { formatFixed, useT } from '../../i18n';
@@ -41,6 +42,20 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   useFocusTrap(panelRef as React.RefObject<HTMLElement>, true, onClose);
+  // Reset swaps itself for Confirm/Cancel and back. The trap listens on the
+  // panel, so focus left on the removed button drops to <body> and takes Tab
+  // and Escape with it. Cancel is the safe landing; Reset is where it returns.
+  const resetButtonRef = useRef<HTMLButtonElement | null>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
+  const confirmToggled = useRef(false);
+  useEffect(() => {
+    if (!confirmToggled.current) return;
+    (confirmReset ? cancelButtonRef : resetButtonRef).current?.focus();
+  }, [confirmReset]);
+  const showConfirm = (next: boolean) => {
+    confirmToggled.current = true;
+    setConfirmReset(next);
+  };
 
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -98,6 +113,8 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
       role="dialog"
       aria-modal="true"
       aria-labelledby="achievements-panel-title"
+      // Focusable, so a click on its text keeps focus (and Escape) in the dialog.
+      tabIndex={-1}
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
@@ -185,8 +202,9 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
             <span className="text-xs text-red-400">{t('resetPrompt')}</span>
             <button
               onClick={() => {
-                resetAchievements();
-                setConfirmReset(false);
+                // Bag achievements count from now, not from the lifetime total.
+                resetAchievements(useProductionStore.getState().totalBagsProduced);
+                showConfirm(false);
               }}
               className="flex items-center gap-1.5 px-2 py-1 text-xs text-white bg-red-500/80 hover:bg-red-500 rounded transition-colors"
               title={t('confirmTitle')}
@@ -195,7 +213,8 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
               {t('confirm')}
             </button>
             <button
-              onClick={() => setConfirmReset(false)}
+              ref={cancelButtonRef}
+              onClick={() => showConfirm(false)}
               className="px-2 py-1 text-xs text-white/70 hover:text-white hover:bg-slate-700 rounded transition-colors"
               title={t('cancelTitle')}
             >
@@ -204,7 +223,8 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
           </>
         ) : (
           <button
-            onClick={() => setConfirmReset(true)}
+            ref={resetButtonRef}
+            onClick={() => showConfirm(true)}
             className="flex items-center gap-1.5 px-2 py-1 text-xs text-white/70 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
             title={t('resetTitle')}
           >

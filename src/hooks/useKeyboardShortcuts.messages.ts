@@ -8,14 +8,13 @@ const PT_QUALITY: Record<GraphicsQuality, string> = {
   ultra: 'ULTRA',
 };
 
-/** Short HUD notifications raised by keyboard shortcuts, and the keyboard e-stop incident. */
+/** Short HUD notifications raised by keyboard shortcuts (the e-stop incident's copy is in safetyStore). */
 export const keyboardShortcutsMessages = defineMessages({
   en: {
     normalView: 'NORMAL VIEW',
     blueprintMode: 'BLUEPRINT MODE',
     drillInterlockActive: 'DRILL INTERLOCK ACTIVE',
     interlockActive: 'INTERLOCK ACTIVE',
-    keyboardEmergencyStopIncident: 'Emergency stop activated via keyboard (Spacebar)',
     emergencyStop: 'EMERGENCY STOP',
     emergencyStopReleased: 'E-STOP RELEASED',
     quality: (p: { quality: GraphicsQuality }) => `${p.quality.toUpperCase()} QUALITY`,
@@ -31,6 +30,7 @@ export const keyboardShortcutsMessages = defineMessages({
     strategyOn: 'STRATEGY ON',
     targetOff: 'TARGET OFF',
     targetOn: 'TARGET ON',
+    targetOnHeld: 'TARGET ON WHEN THIS CARD CLOSES',
     energyOff: 'ENERGY OFF',
     energyOn: 'ENERGY ON',
     objectivesOff: 'OBJECTIVES OFF',
@@ -44,6 +44,7 @@ export const keyboardShortcutsMessages = defineMessages({
     windowed: 'WINDOWED',
     gpsOff: 'GPS OFF',
     gpsOn: 'GPS ON',
+    gpsOnWide: 'GPS ON IN A WIDER WINDOW',
     orbitView: 'ORBIT VIEW',
     firstPerson: 'FIRST-PERSON',
     resetView: 'RESET VIEW',
@@ -53,7 +54,6 @@ export const keyboardShortcutsMessages = defineMessages({
     blueprintMode: 'MODO PLANTA',
     drillInterlockActive: 'INTERTRAVAMENTO DO SIMULADO ATIVO',
     interlockActive: 'INTERTRAVAMENTO ATIVO',
-    keyboardEmergencyStopIncident: 'Parada de emergência acionada pelo teclado (barra de espaço)',
     emergencyStop: 'PARADA DE EMERGÊNCIA',
     emergencyStopReleased: 'PARADA DE EMERGÊNCIA LIBERADA',
     quality: (p: { quality: GraphicsQuality }) => `QUALIDADE ${PT_QUALITY[p.quality]}`,
@@ -69,6 +69,7 @@ export const keyboardShortcutsMessages = defineMessages({
     strategyOn: 'ESTRATÉGIA LIGADA',
     targetOff: 'META DESLIGADA',
     targetOn: 'META LIGADA',
+    targetOnHeld: 'META LIGADA QUANDO ESTE CARTÃO FECHAR',
     energyOff: 'PAINEL DE ENERGIA DESLIGADO',
     energyOn: 'PAINEL DE ENERGIA LIGADO',
     objectivesOff: 'OBJETIVOS DESLIGADOS',
@@ -82,6 +83,7 @@ export const keyboardShortcutsMessages = defineMessages({
     windowed: 'MODO JANELA',
     gpsOff: 'GPS DESLIGADO',
     gpsOn: 'GPS LIGADO',
+    gpsOnWide: 'GPS LIGADO EM UMA JANELA MAIS LARGA',
     orbitView: 'VISÃO ORBITAL',
     firstPerson: 'PRIMEIRA PESSOA',
     resetView: 'VISÃO REDEFINIDA',

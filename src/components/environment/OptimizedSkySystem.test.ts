@@ -31,13 +31,19 @@ import {
   RIDGE_BEHIND_RANGE_HAZE,
   getRidgeBehindRangeHaze,
   getRidgeBehindRangeAerial,
+  SUN_CORE_RADIANCE,
 } from './OptimizedSkySystem';
 import { LANDSCAPE_GROVE_TREES } from '../exterior/ExteriorVegetation';
 import { sampleValleyGroundHeight } from '../terrain/splatMapGenerator';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { CAMERA_DEPTH } from '../../constants/renderLayers';
 
-import { getOvercastDeck, sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
+import {
+  getOvercastDeck,
+  sampleAtmosphere,
+  sampleCelestial,
+  SITE_LATITUDE_DEG,
+} from '../../simulation/atmosphere';
 
 describe('rendered horizon ambient handoff', () => {
   it('keeps cloud afterglow bounded, continuous and absent at noon and deep night', () => {
@@ -587,8 +593,9 @@ describe('single sun/moon shadowed key', () => {
     );
     // At 4 degrees the slab took 7% of the key: no visible hall or silo shadow.
     expect(key.y).toBeGreaterThan(0.115);
+    // Noon is the site's equinox sun (38.5 degrees at 51.5 N), not the zenith.
     const noon = sampleCelestial(sampleAtmosphere(0, 12, 'clear'));
-    expect(noon.sunDirection[1]).toBeCloseTo(1, 8);
+    expect(noon.sunDirection[1]).toBeCloseTo(Math.cos((SITE_LATITUDE_DEG * Math.PI) / 180), 8);
   });
 
   it('retains noon sun and midnight moon directions with finite unit-length crossover', () => {
@@ -1315,4 +1322,24 @@ it('hazes fixed foothills behind the far crest like the range in front, without 
     `uRingRadius + uSlopeDepth + ${rampEnd.toFixed(1)}, vRidgeGroundDistance)`
   );
   material.dispose();
+});
+
+describe('8-bit output of the dome and the solar disc', () => {
+  it('dithers the dome only under DITHERING, after the colour-space encode', () => {
+    const encode = OPTIMIZED_SKY_FRAGMENT_SHADER.indexOf('#include <colorspace_fragment>');
+    const dither = OPTIMIZED_SKY_FRAGMENT_SHADER.indexOf('#ifdef DITHERING');
+    expect(encode).toBeGreaterThan(0);
+    // The offset lands where the canvas rounds: encoded values, not linear.
+    expect(dither).toBeGreaterThan(encode);
+    // +-0.5 LSB, the same amplitude as three's <dithering_fragment>.
+    expect(OPTIMIZED_SKY_FRAGMENT_SHADER).toMatch(
+      /vec3\(\s*0\.25,\s*-0\.25,\s*0\.25\s*\)\s*\/\s*255\.0/
+    );
+  });
+
+  it('keeps the disc scene-referred above the display ceiling, brightest at noon', () => {
+    // Below 1 the disc cannot out-shine the additive glare it sits in.
+    expect(SUN_CORE_RADIANCE.golden).toBeGreaterThan(1);
+    expect(SUN_CORE_RADIANCE.noon).toBeGreaterThan(SUN_CORE_RADIANCE.golden);
+  });
 });

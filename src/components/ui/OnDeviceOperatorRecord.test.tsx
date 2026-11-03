@@ -41,6 +41,18 @@ describe('the on-device AI record', () => {
     store.set([]);
   });
 
+  // An incident held at a safety boundary is filed once as held and again with
+  // its outcome when the boundary clears. The summary counted rows, so one
+  // incident the AI went on to handle read "1 handled · 1 left for you".
+  // Working if the summary counts incidents by their latest outcome.
+  it('counts an incident held at a boundary and then handled once, as handled', () => {
+    render(<OnDeviceOperatorRecord />);
+    act(() =>
+      store.set([entry({ queue: null, outcome: 'stoodDown', minute: 10 }), entry({ minute: 14 })])
+    );
+    expect(screen.getByText('1 handled · 0 left for you')).toBeInTheDocument();
+  });
+
   it('shows nothing until the operator has settled something', () => {
     const { container } = render(<OnDeviceOperatorRecord />);
     expect(container).toBeEmptyDOMElement();

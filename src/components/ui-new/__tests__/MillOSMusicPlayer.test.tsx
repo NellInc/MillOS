@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MillOSMusicPlayer } from '../MillOSMusicPlayer';
+import { setLocale } from '../../../i18n';
 
 const motionPreference = vi.hoisted(() => ({ reduced: false }));
 vi.mock('../../../hooks/useReducedMotion', () => ({
@@ -281,6 +282,27 @@ describe('MillOSMusicPlayer', () => {
     expect(controls.setTrackHidden).toHaveBeenLastCalledWith('third', false);
     expect(controls.selectTrack).not.toHaveBeenCalled();
     expect(controls.togglePlayback).not.toHaveBeenCalled();
+  });
+
+  it('labels the hide and show controls in the active language', () => {
+    playlist.hiddenTracks = [
+      { ...currentTrack, id: 'third', name: 'Between the Rolls', trackNumber: 3 },
+    ];
+    setLocale('pt-BR');
+    try {
+      render(<MillOSMusicPlayer />);
+      fireEvent.click(screen.getByRole('button', { name: 'Expandir lista de reprodução' }));
+      const list = screen.getByRole('region', { name: 'Lista de reprodução' });
+      // Song titles are proper names and stay as written; the verb is copy.
+      expect(
+        within(list).getByRole('button', { name: 'Ocultar Grain at the Gate' })
+      ).toBeInTheDocument();
+      expect(
+        within(list).getByRole('button', { name: 'Mostrar Between the Rolls' })
+      ).toBeInTheDocument();
+    } finally {
+      act(() => setLocale('en'));
+    }
   });
 
   it('closes the playlist with Escape and restores focus without changing playback', async () => {

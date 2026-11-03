@@ -115,6 +115,7 @@ export const workplaceImprovementPanelMessages = defineMessages({
     endToReviewNote:
       'This later shift keeps earlier trial pay, so it cannot be cancelled. Ending it moves to its member review; finalising that review releases the plant.',
     finaliseToReleaseNote: 'Finalising the member review below releases the plant.',
+    resumeDeliberation: 'Resume the deliberation with fresh consent',
     seasonOpened: 'Season opened. Use Shift and Agreement / Voices for current decisions.',
     pilotPlanningOnly:
       'Pilot preparation remains planning-only. Use Game or Workshop for a local experiment.',
@@ -244,6 +245,7 @@ export const workplaceImprovementPanelMessages = defineMessages({
     endToReviewNote:
       'Este turno posterior mantém a remuneração de testes anteriores, então não pode ser cancelado. Encerrá-lo leva à avaliação dos cooperados; concluir essa avaliação libera a planta.',
     finaliseToReleaseNote: 'Concluir a avaliação dos cooperados abaixo libera a planta.',
+    resumeDeliberation: 'Retomar a deliberação com novo consentimento',
     seasonOpened: 'Temporada aberta. Use Turno e Acordo / Vozes para as decisões atuais.',
     pilotPlanningOnly:
       'A preparação de piloto continua apenas como planejamento. Use Jogo ou Oficina para um experimento local.',

@@ -73,12 +73,22 @@ describe('SettingsPanel reduce motion control', () => {
       JSON.stringify({ state: { mode: 'reduce' }, version: 1 })
     );
     localStorage.setItem('millos-physical-session', '{}');
+    // Interface scale is an accessibility preference like reduced motion; it
+    // shares millos-ui with tour and journey state, which the reset clears.
+    localStorage.setItem(
+      'millos-ui',
+      JSON.stringify({ state: { uiScale: 1.5, hasSeenIntro: true }, version: 2 })
+    );
     renderPanel();
     fireEvent.click(screen.getByRole('button', { name: 'Reset Simulation' }));
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent(/sound, language and motion settings are kept/i);
+    expect(dialog).toHaveTextContent(
+      /sound, language, motion and interface scale settings are kept/i
+    );
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset Everything' }));
     expect(localStorage.getItem(MOTION_PREFERENCE_STORAGE_KEY)).toContain('"reduce"');
     expect(localStorage.getItem('millos-physical-session')).toBeNull();
+    const ui = JSON.parse(localStorage.getItem('millos-ui') ?? 'null');
+    expect(ui?.state).toEqual({ uiScale: 1.5 });
   });
 });

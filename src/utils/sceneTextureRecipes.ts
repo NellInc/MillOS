@@ -57,6 +57,7 @@ import {
   getTerrainDirtTexture,
   getTerrainSurfaceMaps,
 } from '../components/terrain/terrainTextures';
+import { getRailwayStationTileMap, getRailwaySteamPuffMap } from '../textures/railwayStationTiles';
 
 /** Listed slowest first (startup profile, main thread under load). */
 export const SCENE_TEXTURE_RECIPES = {
@@ -88,6 +89,10 @@ export const SCENE_TEXTURE_RECIPES = {
   terrainDirt: () => getTerrainDirtTexture(),
   flourSackCloth: () => getFlourSackMaps(),
   spoutDetailNormal: () => generateProceduralNormal(256, 0.12, 16),
+  // FactoryExterior's Riverside station roof (RailwayStation `ROOF_MATERIAL`).
+  railwayStationTiles: () => getRailwayStationTileMap(),
+  // RailwayTrain's steam billboards (`STEAM_MATERIAL`).
+  railwaySteamPuff: () => getRailwaySteamPuffMap(),
 } as const;
 
 export type SceneTextureRecipeName = keyof typeof SCENE_TEXTURE_RECIPES;

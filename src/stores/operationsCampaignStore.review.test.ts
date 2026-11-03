@@ -151,11 +151,12 @@ describe('shift grades follow customer commitments (row 24)', () => {
     expect(shiftHeadline(basis, null, 'pt-BR')).toBe(
       'Nenhum compromisso com clientes neste turno, mas uma ocorrência não resolvida o prejudicou.'
     );
+    // Saved in English, read in pt-BR: the incident is named in the reader's language.
     expect(shiftGradeReasons(basis, 'pt-BR')[1]).toMatch(
-      /^Ainda aberta no fechamento, sem reconhecimento: Roller mill bearing overheat\. R\.M\. 101/
+      /^Ainda aberta no fechamento, sem reconhecimento: Superaquecimento de rolamento no moinho de rolos\. A temperatura do rolamento do R\.M\. 101/
     );
     expect(describeShiftTryNext(basis, null, 'pt-BR')).toMatch(
-      /^Tente a seguir: reconheça e mitigue Roller mill bearing overheat/
+      /^Tente a seguir: reconheça e mitigue Superaquecimento de rolamento no moinho de rolos/
     );
     // A report saved before the location was kept still names what is open.
     const { openIncidents: _kept, ...older } = basis;
@@ -331,7 +332,7 @@ describe('decisions are the choices people made (row 26)', () => {
         message: 'Community Pasta Works: Fine corn semolina is now the active commitment.',
       }),
     ]);
-    expect(report.narration).toContain('Shipping load is 0 of 5000 kg.');
+    expect(report.narration).toContain('Shipping load is 0 of 5,000 kg.');
   });
 
   it('records incident responses as decisions and the incident itself as narration', () => {
@@ -366,5 +367,41 @@ describe('decisions are the choices people made (row 26)', () => {
     expect(lastReport().choices).toEqual([
       expect.objectContaining({ actor: 'agent', message: expect.stringContaining('Pasta') }),
     ]);
+  });
+});
+
+// The store now refuses a customer switch during a recovery challenge, but the
+// agent's preview passed every precondition, so the command ran, changed
+// nothing and reported a failed verification. Working if the preview refuses.
+describe('agent order activation during a recovery challenge', () => {
+  it('fails a precondition instead of a verification', async () => {
+    const { createMillOSRuntimeCommandHandlers } =
+      await import('../agent/adapters/runtime/runtimeCommandHandlers');
+    const handler = createMillOSRuntimeCommandHandlers().find(
+      (candidate) => candidate.capabilityId === 'operations.activate-order'
+    )!;
+    const campaign = useOperationsCampaignStore.getState();
+    const [held, other] = campaign.orders;
+    useOperationsCampaignStore.setState({
+      activeChallenge: { orderId: held.id } as never,
+    });
+    try {
+      const inspection = await handler.inspect(
+        {
+          targetUri: `millos://order/${other.id}`,
+          parameters: { orderUri: `millos://order/${other.id}` },
+        } as never,
+        {
+          domains: {
+            campaign: { orders: campaign.orders.map((o) => ({ id: o.id, status: o.status })) },
+            simulation: { emergencyActive: false },
+          },
+        } as never
+      );
+      const blocked = inspection.preconditions.filter((check) => !check.satisfied);
+      expect(blocked.map((check) => check.id)).toContain('PRE.ORDER.NO_CHALLENGE');
+    } finally {
+      useOperationsCampaignStore.setState({ activeChallenge: null });
+    }
   });
 });

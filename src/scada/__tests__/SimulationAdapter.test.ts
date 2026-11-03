@@ -3,8 +3,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SimulationAdapter } from '../adapters/SimulationAdapter';
+import { SCADA_SETPOINT_STORAGE_KEY, SimulationAdapter } from '../adapters/SimulationAdapter';
 import { TagDefinition } from '../types';
+import { safeJSONStorage } from '../../stores/storage';
 import { MILL_TAGS } from '../tagDatabase';
 
 // Sample tag definitions for testing
@@ -71,6 +72,8 @@ describe('SimulationAdapter', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    // Written setpoints survive a reload; each test starts from the authored ones.
+    safeJSONStorage.removeItem(SCADA_SETPOINT_STORAGE_KEY);
     adapter = new SimulationAdapter(sampleTags);
   });
 

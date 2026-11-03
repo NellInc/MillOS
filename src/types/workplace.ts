@@ -252,9 +252,35 @@ export interface WorkplaceReadiness {
   reasons: string[];
 }
 
+/** Which catalogue a transition's reason key belongs to: the workplace store's, the engine's or the replay store's. */
+export type WorkplaceReasonCatalog =
+  | 'store'
+  | 'engine'
+  | 'replay'
+  | 'campaign'
+  | 'participation'
+  | 'improvementPanel'
+  | 'packingEvidence';
+
+/**
+ * A reason as a catalogue key with raw params (numbers unformatted). A type,
+ * not an interface, so a result stays a plain JSON value for agent replies.
+ */
+export type WorkplaceReasonCopy = {
+  catalog: WorkplaceReasonCatalog;
+  key: string;
+  params?: Record<string, string | number>;
+};
+
 export interface WorkplaceTransitionResult {
   changed: boolean;
+  /** The reason resolved when the transition ran; the fallback for `reasonCopy`. */
   reason: string | null;
+  /**
+   * The same reason as a key, so a status line that keeps it re-renders it in
+   * the language chosen later (workplaceReasonText in the workplace store).
+   */
+  reasonCopy?: WorkplaceReasonCopy;
 }
 
 export interface WorkplaceComparison {
@@ -317,6 +343,12 @@ export interface WorkplaceActions {
    * early, never as a completed review, and the workplace returns to idle.
    */
   leaveCampaign: (expectedRevision: number) => WorkplaceTransitionResult;
+  /**
+   * Close a settled standalone exercise (no season, no handoff) that owes
+   * nothing and return to the idle setup form, where a mode, seed or season
+   * can be chosen. Nothing is retained: there was no season to keep.
+   */
+  endExercise: (expectedRevision: number) => WorkplaceTransitionResult;
   answerCheck: (
     actorId: string,
     question: WorkplaceCheckId,
