@@ -31,7 +31,7 @@ export const RECONCILED_FARM_MODELS = Object.freeze({
     preparedSHA256: '38b423981f82f9591dc6fed298c828755300a5c0af5a6c00d62f8f96455074f3',
     scaleFactor: 6.00116,
     manifestSHA256: '5ad25e20050d2f410fd2a9554695083410af4ef08ca5dbf5d9a7360ba8ef215b',
-    outputSHA256: '2666c0509faf4af75227c84aced31c33283ceef5be6ad5918f657a50de25a006',
+    outputSHA256: '0a579e5c32dc08033d34a8c086dd99e5869eb43ce2639fc8c4203f59b8b6e599',
   }),
 });
 

@@ -315,6 +315,27 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     fallbackMaterial: 'calibrated grass MeshStandardMaterial',
   },
   {
+    // D-020. Own injection on the lake basin (applyWaterCaustics); the river
+    // bed composes the same term into TerrainMaterial's program instead.
+    id: 'water-bed-caustics',
+    owner: 'FactoryExterior lake basin bed and TerrainMaterial river bed',
+    sources: ['src/utils/waterCaustics.ts', 'src/components/FactoryExterior.tsx'],
+    coordinateSpaces: ['world position', 'screen-space footprint (fwidth)'],
+    colorSpace: 'MeshStandardMaterial pipeline',
+    toneMapping: 'material-pipeline',
+    fog: 'material-pipeline',
+    transparency: 'opaque',
+    depthBehavior: 'standard opaque depth',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner: 'shared WATER_VISUAL_TIME, WATER_WIND and WATER_CAUSTIC_STRENGTH refs',
+    timeSource: 'render-visual-only',
+    cacheKey: 'millos-lake-bed-caustics-v1',
+    disposalOwner: 'FactoryExterior module-lifetime LAKE_BED_MATERIAL',
+    fallbackMaterial: 'the bed lit without caustics (WATER_CAUSTIC_STRENGTH 0 on Low)',
+    notes:
+      'Composed into terrain-splat-and-displacement (TerrainMaterial v15) for the river bed, so that program carries this time source and uniforms under the terrain cache key. The gain scales only direct light after lights_fragment_end, at unchanged mean.',
+  },
+  {
     id: 'village-edge-feather',
     owner: 'VillageArea',
     sources: ['src/components/VillageArea.tsx'],
