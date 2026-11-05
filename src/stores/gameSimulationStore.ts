@@ -47,6 +47,34 @@ export interface SafetyEventRecord {
   acknowledgementNote?: string;
   clearedAt?: number;
   recovery: string;
+  /**
+   * Catalogue keys behind cause, response and recovery, so the record reads in
+   * the current language (safetyEventCopy). Absent on records saved before them.
+   */
+  copy?: Partial<Record<SafetyEventCopyField, SafetyEventCopyRef>>;
+}
+
+type SafetyEventCopyField = 'cause' | 'response' | 'recovery';
+type SafetyEventCopyRef = {
+  key: keyof (typeof gameSimulationStoreMessages)['en'];
+  params?: Record<string, string>;
+};
+
+/** A safety event's text in the current language; stored text for older records. */
+export function safetyEventCopy(
+  event: Pick<SafetyEventRecord, SafetyEventCopyField | 'copy'>,
+  field: SafetyEventCopyField
+): string {
+  const ref = event.copy?.[field];
+  return ref ? translate(gameSimulationStoreMessages, ref.key, ref.params) : event[field];
+}
+
+/** Text plus its catalogue key, for a new or updated safety event. */
+function eventCopy(
+  key: SafetyEventCopyRef['key'],
+  params?: Record<string, string>
+): { text: string; ref: SafetyEventCopyRef } {
+  return { text: translate(gameSimulationStoreMessages, key, params), ref: { key, params } };
 }
 
 export interface DrillMetrics {
@@ -109,7 +137,9 @@ export type ClockHolder =
   | 'workplace'
   | 'handoff'
   | 'layout'
-  | 'scada';
+  | 'scada'
+  /** The phone is upright and the rotate-device overlay blocks play. */
+  | 'orientation';
 
 /**
  * Holds derived from game state rather than from a control: the state that
@@ -175,6 +205,8 @@ export interface GameSimulationStore {
   setShift: (shift: RunWindow) => void;
 
   emergencyActive: boolean;
+  /** The active stop applied the forklift hold (not the player before it). */
+  stopHeldForklifts: boolean;
   emergencyMachineId: string | null;
   emergencyDrillMode: boolean;
   preEmergencyMachineStatuses: Map<string, string>;
@@ -182,6 +214,11 @@ export interface GameSimulationStore {
   activeSafetyEventId: string | null;
   triggerEmergency: (machineId: string) => void;
   resolveEmergency: () => void;
+  /**
+   * While a stop holds, record the status a unit returns to on its release
+   * (a unit serviced or cleared during the stop). No effect when no stop holds.
+   */
+  setReleaseStatus: (machineId: string, status: 'running' | 'warning' | 'idle') => void;
   startEmergencyDrill: (totalZones?: number) => void;
   endEmergencyDrill: () => void;
   acknowledgeSafetyEvent: (eventId: string, note?: string) => void;
@@ -348,6 +385,26 @@ const restoreProduction = (statuses: Map<string, string>): void => {
   });
 };
 
+// A drill, crisis or facility stop holds the forklifts; it releases only a hold
+// it applied, so a Space-bar stop the player set before survives the release.
+// Store state, so the physical session carries it with the stop across a
+// reload; localStorage never does (merge clears it with the stop).
+const holdForkliftsForStop = (): void => {
+  const safety = useSafetyStore.getState();
+  useGameSimulationStore.setState({ stopHeldForklifts: !safety.forkliftEmergencyStop });
+  safety.setForkliftEmergencyStop(true);
+};
+const releaseForkliftsAfterStop = (): void => {
+  // A monitored crisis never held them; a hold set before the stop is the player's.
+  if (useGameSimulationStore.getState().stopHeldForklifts)
+    useSafetyStore.getState().setForkliftEmergencyStop(false);
+  useGameSimulationStore.setState({ stopHeldForklifts: false });
+};
+// The player's own forklift stop outlives the release, and so does its alarm.
+const silenceAlarmUnlessForkliftStop = (): void => {
+  if (!useSafetyStore.getState().forkliftEmergencyStop) audioManager.stopEmergencyStopAlarm();
+};
+
 const eventId = (kind: SafetyEventKind): string =>
   `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -357,7 +414,10 @@ export function persistedGameSpeed(state: Pick<GameSimulationStore, 'gameSpeed' 
   if (state.gameSpeed > 0 || !base) return state.gameSpeed;
   // Releasing every session hold would leave a player pause in place wherever
   // it sits in the stack; otherwise the clock returns to the oldest resume pace.
-  return state.clockHolds.some((hold) => hold.holder === 'player') ? 0 : base.resumeSpeed;
+  // P pauses like the pace menu (and resumes like it), so both survive a reload.
+  return state.clockHolds.some((hold) => hold.holder === 'player' || hold.holder === 'shortcut')
+    ? 0
+    : base.resumeSpeed;
 }
 
 /** Who holds the clock at 0, or null while it runs. Unrecorded holds read as the player's. */
@@ -377,6 +437,21 @@ export function selectChosenPace(
 ): number {
   const top = state.gameSpeed > 0 ? undefined : state.clockHolds.at(-1);
   return top && DERIVED_HOLDERS.includes(top.holder) ? top.resumeSpeed : state.gameSpeed;
+}
+
+/**
+ * The pace running underneath any pause: the live pace, or the pace the newest
+ * hold returns to. A pace choice is a decision only when it differs from this,
+ * so resuming at the same pace reads alike from Resume, P and the pace buttons.
+ */
+export function selectPaceUnderPause(
+  state: Pick<GameSimulationStore, 'gameSpeed' | 'clockHolds'>
+): number {
+  if (state.gameSpeed > 0) return state.gameSpeed;
+  // A hold stacked over another pause returns to 0; the pace is further down.
+  for (let i = state.clockHolds.length - 1; i >= 0; i--)
+    if (state.clockHolds[i].resumeSpeed > 0) return state.clockHolds[i].resumeSpeed;
+  return 0;
 }
 
 export const selectSafetyHoldActive = (
@@ -491,7 +566,14 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
             shiftStartTime: state.currentShift === currentShift ? state.shiftStartTime : Date.now(),
           };
         }),
-      resetGameState: () =>
+      resetGameState: () => {
+        // A drill, crisis or facility stop idled the line and held the
+        // forklifts; end it through its own teardown first, or the reset clears
+        // the record of the stop and leaves the plant stopped with nothing to end.
+        // Working if a reset during any stop restores the machines it stopped.
+        get().endEmergencyDrill();
+        get().resolveCrisis();
+        if (get().emergencyActive) get().resolveEmergency();
         set({
           gameTime: 10,
           gameDay: 0,
@@ -510,13 +592,15 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           drillMetrics: defaultDrill(),
           crisisState: defaultCrisis(),
           celebrations: defaultCelebrations(),
-        }),
+        });
+      },
       // 'Reset to 10 AM'. Customer orders keep their own campaign clock, as the
       // confirm copy says. Working if the clock returns to 10:00 at the pace the
       // operator chose: a paused (or save-halted) shift stays paused.
       clearPersistedState: () => {
         const { gameSpeed, clockHolds } = get();
-        localStorage.removeItem('millos-autonomous-simulation');
+        // Through the guarded storage: a blocked localStorage throws on access.
+        safeJSONStorage.removeItem('millos-autonomous-simulation');
         get().resetGameState();
         set({ gameSpeed, clockHolds });
       },
@@ -535,6 +619,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         })),
 
       emergencyActive: false,
+      stopHeldForklifts: false,
       emergencyMachineId: null,
       emergencyDrillMode: false,
       preEmergencyMachineStatuses: new Map(),
@@ -544,19 +629,23 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         const state = get();
         if (state.emergencyActive || state.crisisState.active) return;
         const id = eventId('facility_stop');
+        const cause =
+          machineId === 'E-STOP'
+            ? eventCopy('facilityStopCause')
+            : eventCopy('interlockCause', { machineId });
+        const response = eventCopy('facilityStopResponse');
+        const recovery = eventCopy('facilityStopRecovery');
         const event: SafetyEventRecord = {
           id,
           kind: 'facility_stop',
-          cause:
-            machineId === 'E-STOP'
-              ? translate(gameSimulationStoreMessages, 'facilityStopCause')
-              : translate(gameSimulationStoreMessages, 'interlockCause', { machineId }),
+          cause: cause.text,
           severity: 'critical',
           simulated: true,
           stage: 'active',
           startedAt: Date.now(),
-          response: translate(gameSimulationStoreMessages, 'facilityStopResponse'),
-          recovery: translate(gameSimulationStoreMessages, 'facilityStopRecovery'),
+          response: response.text,
+          recovery: recovery.text,
+          copy: { cause: cause.ref, response: response.ref, recovery: recovery.ref },
         };
         set({
           emergencyActive: true,
@@ -565,7 +654,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           safetyEvents: [...state.safetyEvents, event].slice(-MAX_SAFETY_EVENTS),
           activeSafetyEventId: id,
         });
-        useSafetyStore.getState().setForkliftEmergencyStop(true);
+        holdForkliftsForStop();
       },
       resolveEmergency: () => {
         const state = get();
@@ -585,13 +674,25 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
                   stage: 'cleared' as const,
                   clearedAt: Date.now(),
                   recovery: translate(gameSimulationStoreMessages, 'facilityStopCleared'),
+                  copy: { ...event.copy, recovery: { key: 'facilityStopCleared' as const } },
                 }
               : event
           ),
         });
-        useSafetyStore.getState().setForkliftEmergencyStop(false);
-        audioManager.stopEmergencyStopAlarm();
+        releaseForkliftsAfterStop();
+        silenceAlarmUnlessForkliftStop();
       },
+      setReleaseStatus: (machineId, status) =>
+        set((state) =>
+          state.emergencyActive
+            ? {
+                preEmergencyMachineStatuses: new Map(state.preEmergencyMachineStatuses).set(
+                  machineId,
+                  status
+                ),
+              }
+            : {}
+        ),
       startEmergencyDrill: (totalZones = SERVICE_EGRESS_POINTS.length) => {
         const state = get();
         if (state.emergencyActive || state.crisisState.active) return;
@@ -605,16 +706,20 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           SERVICE_EGRESS_POINTS.length
         );
         const id = eventId('fire_drill');
+        const cause = eventCopy('drillCause');
+        const response = eventCopy('drillResponse');
+        const recovery = eventCopy('drillRecovery');
         const event: SafetyEventRecord = {
           id,
           kind: 'fire_drill',
-          cause: translate(gameSimulationStoreMessages, 'drillCause'),
+          cause: cause.text,
           severity: 'medium',
           simulated: true,
           stage: 'active',
           startedAt: Date.now(),
-          response: translate(gameSimulationStoreMessages, 'drillResponse'),
-          recovery: translate(gameSimulationStoreMessages, 'drillRecovery'),
+          response: response.text,
+          recovery: recovery.text,
+          copy: { cause: cause.ref, response: response.ref, recovery: recovery.ref },
         };
         set({
           emergencyActive: true,
@@ -632,7 +737,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           safetyEvents: [...state.safetyEvents, event].slice(-MAX_SAFETY_EVENTS),
           activeSafetyEventId: id,
         });
-        useSafetyStore.getState().setForkliftEmergencyStop(true);
+        holdForkliftsForStop();
       },
       endEmergencyDrill: () => {
         const state = get();
@@ -652,12 +757,13 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
                   stage: 'cleared' as const,
                   clearedAt: Date.now(),
                   recovery: translate(gameSimulationStoreMessages, 'drillCleared'),
+                  copy: { ...event.copy, recovery: { key: 'drillCleared' as const } },
                 }
               : event
           ),
         });
-        useSafetyStore.getState().setForkliftEmergencyStop(false);
-        audioManager.stopEmergencyStopAlarm();
+        releaseForkliftsAfterStop();
+        silenceAlarmUnlessForkliftStop();
       },
       acknowledgeSafetyEvent: (id, note) =>
         set((state) => ({
@@ -699,18 +805,22 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         const id = eventId('crisis');
         const machineId = typeof metadata.machineId === 'string' ? metadata.machineId : undefined;
         const interlocked = severity === 'high' || severity === 'critical';
+        const cause = eventCopy('crisisCause', { type });
+        const response = eventCopy(
+          interlocked ? 'crisisInterlockedResponse' : 'crisisMonitoredResponse'
+        );
+        const recovery = eventCopy('crisisRecovery');
         const event: SafetyEventRecord = {
           id,
           kind: 'crisis',
-          cause: translate(gameSimulationStoreMessages, 'crisisCause', { type }),
+          cause: cause.text,
           severity,
           simulated: true,
           stage: 'active',
           startedAt: Date.now(),
-          response: interlocked
-            ? translate(gameSimulationStoreMessages, 'crisisInterlockedResponse')
-            : translate(gameSimulationStoreMessages, 'crisisMonitoredResponse'),
-          recovery: translate(gameSimulationStoreMessages, 'crisisRecovery'),
+          response: response.text,
+          recovery: recovery.text,
+          copy: { cause: cause.ref, response: response.ref, recovery: recovery.ref },
         };
         set({
           crisisState: {
@@ -727,7 +837,14 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           safetyEvents: [...state.safetyEvents, event].slice(-MAX_SAFETY_EVENTS),
           activeSafetyEventId: id,
         });
-        if (interlocked) useSafetyStore.getState().setForkliftEmergencyStop(true);
+        if (interlocked) {
+          holdForkliftsForStop();
+          // A crisis that stops the plant is an incident; a drill is a planned
+          // exercise and stays out of the log.
+          useSafetyStore
+            .getState()
+            .addSafetyIncident({ type: 'emergency', description: cause.text, crisisType: type });
+        }
       },
       resolveCrisis: () => {
         const state = get();
@@ -746,12 +863,13 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
                   stage: 'cleared' as const,
                   clearedAt: Date.now(),
                   recovery: translate(gameSimulationStoreMessages, 'crisisCleared'),
+                  copy: { ...event.copy, recovery: { key: 'crisisCleared' as const } },
                 }
               : event
           ),
         });
-        useSafetyStore.getState().setForkliftEmergencyStop(false);
-        audioManager.stopEmergencyStopAlarm();
+        releaseForkliftsAfterStop();
+        silenceAlarmUnlessForkliftStop();
       },
 
       celebrations: defaultCelebrations(),
@@ -837,6 +955,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           celebrations: sanitizeCelebrations(persistedRecord?.celebrations),
           preEmergencyMachineStatuses: new Map(),
           emergencyActive: false,
+          stopHeldForklifts: false,
           emergencyMachineId: null,
           emergencyDrillMode: false,
           activeSafetyEventId: null,

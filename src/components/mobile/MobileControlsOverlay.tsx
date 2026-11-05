@@ -1,12 +1,112 @@
 import React, { useCallback, useEffect } from 'react';
-import { Footprints, Zap } from 'lucide-react';
+import { ChevronDown, ChevronUp, Footprints, Forklift, LogOut, Zap } from 'lucide-react';
 import { DPad } from './DPad';
 import { MobilePanel } from './MobilePanel';
 import { CameraPresetMenu } from './CameraPresetMenu';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
 import { useUIStore } from '../../stores/uiStore';
+import {
+  FORKLIFT_FLEET_TAGS,
+  manualForkliftInput,
+  useForkliftDriveStore,
+} from '../../stores/forkliftDriveStore';
 import { useT } from '../../i18n';
 import { mobileControlsOverlayMessages } from './MobileControlsOverlay.messages';
+import { forkliftPromptMessages } from '../FirstPersonController.messages';
+
+const FORKLIFT_BUTTON = `
+  h-12 px-4 rounded-full
+  flex items-center gap-2
+  text-sm font-medium text-white
+  select-none touch-none
+  pointer-events-auto
+  millos-glass
+  border-2 border-cyan-400/70 active:bg-cyan-600/80
+`;
+
+/** Hold to move the forks of the forklift being driven. */
+const ForkButton: React.FC<{ direction: 1 | -1; label: string }> = ({ direction, label }) => {
+  const release = () => {
+    if (manualForkliftInput.lift === direction) manualForkliftInput.lift = 0;
+  };
+  return (
+    <button
+      type="button"
+      className={`
+        w-14 h-14 rounded-full
+        flex items-center justify-center
+        select-none touch-none
+        pointer-events-auto
+        millos-glass
+        border-2 border-slate-600/50 active:bg-amber-500/80
+      `}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        manualForkliftInput.lift = direction;
+      }}
+      onPointerUp={release}
+      onPointerCancel={release}
+      onPointerLeave={release}
+      aria-label={label}
+    >
+      {direction === 1 ? (
+        <ChevronUp className="w-6 h-6 text-amber-400" aria-hidden="true" />
+      ) : (
+        <ChevronDown className="w-6 h-6 text-amber-400" aria-hidden="true" />
+      )}
+    </button>
+  );
+};
+
+/**
+ * Board a forklift in reach, or drive one: phones have no F key or Q/E. The
+ * D-pad drives and steers (MobileFirstPersonController); these move the forks
+ * and step down.
+ */
+const ForkliftTouchControls: React.FC = () => {
+  const t = useT(forkliftPromptMessages);
+  const drivenId = useForkliftDriveStore((s) => s.drivenId);
+  const inReachId = useForkliftDriveStore((s) => s.inReachId);
+
+  // Unmounting mid-press never delivers the release: stop the forks.
+  useEffect(
+    () => () => {
+      manualForkliftInput.lift = 0;
+    },
+    []
+  );
+
+  if (drivenId) {
+    return (
+      <div className="flex flex-col items-end gap-3">
+        <ForkButton direction={1} label={t('raiseForks')} />
+        <ForkButton direction={-1} label={t('lowerForks')} />
+        <button
+          type="button"
+          className={FORKLIFT_BUTTON}
+          onClick={() => useForkliftDriveStore.getState().exit()}
+          data-testid="forklift-touch-leave"
+        >
+          <LogOut className="w-5 h-5 text-cyan-300" aria-hidden="true" />
+          {t('leave')}
+        </button>
+      </div>
+    );
+  }
+  if (!inReachId) return null;
+  return (
+    <button
+      type="button"
+      className={FORKLIFT_BUTTON}
+      onClick={() => useForkliftDriveStore.getState().board(inReachId)}
+      data-testid="forklift-touch-drive"
+    >
+      <Forklift className="w-5 h-5 text-cyan-300" aria-hidden="true" />
+      {t('drive', { tag: FORKLIFT_FLEET_TAGS[inReachId] ?? inReachId })}
+    </button>
+  );
+};
 
 /**
  * Sprint button for mobile FPS mode.
@@ -53,11 +153,11 @@ const SprintButton: React.FC = () => {
         transition-all duration-100
         touch-none select-none
         pointer-events-auto
-        backdrop-blur-sm
+        millos-glass
         ${
           isSprinting
             ? 'bg-amber-500/80 border-amber-400 scale-95'
-            : 'bg-slate-800/60 border-slate-600/50 hover:bg-slate-700/60'
+            : 'border-slate-600/50 hover:bg-slate-700/60'
         }
         border-2
       `}
@@ -87,12 +187,8 @@ const ViewModeToggle: React.FC<{ fpsMode: boolean }> = ({ fpsMode }) => {
       transition-colors duration-100
       select-none
       pointer-events-auto
-      backdrop-blur-sm
-      ${
-        fpsMode
-          ? 'bg-cyan-500/80 border-cyan-400'
-          : 'bg-slate-800/70 border-slate-600/50 hover:bg-slate-700/70'
-      }
+      millos-glass
+      ${fpsMode ? 'bg-cyan-500/80 border-cyan-400' : 'border-slate-600/50 hover:bg-slate-700/70'}
       border-2
     `}
       onClick={() => useUIStore.getState().toggleFpsMode()}
@@ -121,6 +217,7 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
 }) => {
   const { mobilePanelVisible, mobilePanelContent, closeMobilePanel } = useMobileControlStore();
   const fpsMode = useUIStore((s) => s.fpsMode);
+  const driving = useForkliftDriveStore((s) => s.drivenId !== null);
 
   return (
     <div className="fixed inset-0 pointer-events-none z-30">
@@ -151,16 +248,18 @@ export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
           </div>
         )}
 
-        {/* Sprint button - bottom right, only in FPS mode */}
+        {/* Sprint and forklift controls - bottom right, only in FPS mode. In a
+            seat the forks take sprint's place. */}
         {showTouchControls && fpsMode && (
           <div
-            className="absolute bottom-28 right-4"
+            className="absolute bottom-28 right-4 flex flex-col items-end gap-3"
             style={{
               marginBottom: 'max(16px, env(safe-area-inset-bottom))',
               marginRight: 'max(16px, env(safe-area-inset-right))',
             }}
           >
-            <SprintButton />
+            <ForkliftTouchControls />
+            {!driving && <SprintButton />}
           </div>
         )}
       </div>

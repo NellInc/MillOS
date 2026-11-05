@@ -1,6 +1,7 @@
 import { POLYGON_OFFSET } from '../../constants/renderLayers';
 import React, { useEffect, useLayoutEffect, useMemo } from 'react';
 import { useTexture } from '@react-three/drei';
+import { DistanceLod } from '../performance/DistanceLod';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -8,7 +9,8 @@ import { createColorDataTexture } from '../../utils/textureGenerator';
 import { STATION_RETAIL_ART } from '../../constants/worldAssetUrls';
 
 /** Authored, stationary shop dressing in station-local metres. Five merged draws,
- * including all printed goods; the retained GLBs still own the fixtures' bodies.
+ * including all printed goods (goods and hardware swap to a lighter far kit at
+ * distance); the retained GLBs still own the fixtures' bodies.
  * Working if goods have seated bases, labels face the aisle, and every batch has
  * finite bounds. No per-frame work, canvas allocation or third-party textures.
  */
@@ -151,6 +153,49 @@ const DISPLAY_MATERIAL = new THREE.MeshBasicMaterial({
 });
 
 type V3 = [number, number, number];
+
+/** True only inside `buildShopFarKit`: the helpers below then drop the bevels
+ * and halve the curve segments, for a kit seen from >= 21 m (see
+ * `STATION_SHOP_LOD`). Every exported builder called outside it is unchanged.
+ */
+let farDetail = false;
+const segments = (near: number) => (farDetail ? Math.max(6, Math.round(near / 2)) : near);
+export function buildShopFarKit<T>(build: () => T): T {
+  const previous = farDetail;
+  farDetail = true;
+  try {
+    return build();
+  } finally {
+    farDetail = previous;
+  }
+}
+
+/** The shop interior's level of detail, shared by the retail and souvenir kits.
+ * The far kit takes over at `distance` from a kit's own centre and holds down to
+ * 90% of it; the larger kit (retail) reaches 6.5 m from its centre, so far
+ * stock is always >= 20 m away, where a 4 mm bevel is a fifth of a pixel at
+ * 720p. The nearest benchmark camera (`overview`) is ~48 m from the shop.
+ */
+export const STATION_SHOP_LOD = { distance: 30, hysteresis: 0.1 } as const;
+/** Centre and reach of a kit, so its LOD switches on the kit and not on the
+ * station origin. Children are placed at `inverse` under a node at `centre`. */
+export function shopLodFrame(parts: readonly THREE.BufferGeometry[]) {
+  const bounds = new THREE.Box3();
+  for (const g of parts) {
+    if (!g.boundingBox) g.computeBoundingBox();
+    bounds.union(g.boundingBox!);
+  }
+  const centre = bounds.getCenter(new THREE.Vector3());
+  return {
+    centre: centre.toArray() as V3,
+    inverse: centre.clone().negate().toArray() as V3,
+    reach: bounds.getSize(new THREE.Vector3()).length() / 2,
+  };
+}
+/** Merged draws under an LOD must never be folded into a static batch, which
+ * would draw them whatever level the LOD shows. */
+export const SHOP_LOD_USER_DATA = { noStaticBatch: true } as const;
+
 function styled(g: THREE.BufferGeometry, color: string, tile = 0) {
   const n = g.getAttribute('position').count;
   const c = new THREE.Color(color),
@@ -178,17 +223,18 @@ function joined(parts: THREE.BufferGeometry[]) {
 }
 function box(size: V3, at: V3, color: string, radius = 0.006) {
   return styled(
-    new RoundedBoxGeometry(...size, 1, Math.min(radius, ...size.map((v) => v / 3))).translate(
-      ...at
-    ),
+    (farDetail
+      ? new THREE.BoxGeometry(...size)
+      : new RoundedBoxGeometry(...size, 1, Math.min(radius, ...size.map((v) => v / 3)))
+    ).translate(...at),
     color
   );
 }
-function lathe(profile: [number, number][], color: string, at: V3 = [0, 0, 0], segments = 16) {
+function lathe(profile: [number, number][], color: string, at: V3 = [0, 0, 0], around = 16) {
   return styled(
     new THREE.LatheGeometry(
       profile.map((p) => new THREE.Vector2(...p)),
-      segments
+      segments(around)
     ).translate(...at),
     color
   );
@@ -238,7 +284,9 @@ export function createRetailBottleGeometry(color = DRINK_COLORS[0]) {
   ]);
 }
 export function createRetailPacketGeometry(color = PACK_COLORS[0], carton = false) {
-  const g = new THREE.BoxGeometry(0.14, 0.3, 0.235, 2, 6, 2);
+  const g = farDetail
+    ? new THREE.BoxGeometry(0.14, 0.3, 0.235, 1, 3, 1)
+    : new THREE.BoxGeometry(0.14, 0.3, 0.235, 2, 6, 2);
   if (!carton) {
     const p = g.getAttribute('position');
     for (let i = 0; i < p.count; i++) {
@@ -280,7 +328,7 @@ function createPrintGeometry() {
   for (const item of RETAIL_PRODUCTS.bottles) {
     parts.push(createRetailBottleGeometry(DRINK_COLORS[item.variant]).translate(...item.position));
     // Open cylindrical band over the body; UVs wrap the fruit emblem to both sides.
-    const band = new THREE.CylinderGeometry(0.106, 0.106, 0.163, 20, 1, true);
+    const band = new THREE.CylinderGeometry(0.106, 0.106, 0.163, segments(20), 1, true);
     band
       .rotateY(Math.PI)
       .translate(0, 0.199, 0)
@@ -369,7 +417,7 @@ function createPrintGeometry() {
   );
   parts.push(
     styled(
-      new THREE.CircleGeometry(0.063, 16)
+      new THREE.CircleGeometry(0.063, segments(16))
         .rotateX(-Math.PI / 2)
         .translate(-9.47 + STATION_APPLIANCE_SHIFT.coffee, 0.615, -3.5),
       '#493425'
@@ -379,7 +427,7 @@ function createPrintGeometry() {
   for (const z of [-0.15, 0, 0.15]) {
     parts.push(
       styled(
-        new THREE.CapsuleGeometry(0.038, 0.33, 4, 10)
+        new THREE.CapsuleGeometry(0.038, 0.33, farDetail ? 2 : 4, segments(10))
           .rotateZ(Math.PI / 2)
           .translate(-10, 1.15, -0.5 + z),
         '#ae6441'
@@ -587,6 +635,14 @@ export const RETAIL_GEOMETRY = {
     label(0.36, 0.44, [-9.588 + STATION_APPLIANCE_SHIFT.coffee, 1.5, -3.5], 15, Math.PI / 2),
   ]),
 };
+/** The two heavy draws at distance: plain boxes and halved curves (the curved
+ * pack prints keep their eight rows). Glass, slush and displays are small and
+ * shared by both levels. */
+export const RETAIL_FAR_GEOMETRY = buildShopFarKit(() => ({
+  goods: createPrintGeometry(),
+  hardware: createHardwareGeometry(),
+}));
+export const RETAIL_LOD_FRAME = shopLodFrame([RETAIL_GEOMETRY.goods, RETAIL_GEOMETRY.hardware]);
 
 export const StationRetailDetails = React.memo(() => {
   const texture = useTexture(STATION_RETAIL_ART);
@@ -603,20 +659,36 @@ export const StationRetailDetails = React.memo(() => {
   useEffect(() => () => print.dispose(), [print]);
   return (
     <group name="station-authored-retail">
-      <mesh
-        name="station-retail-goods"
-        geometry={RETAIL_GEOMETRY.goods}
-        material={print}
-        castShadow
-        receiveShadow
-      />
-      <mesh
-        name="station-retail-hardware"
-        geometry={RETAIL_GEOMETRY.hardware}
-        material={HARDWARE_MATERIAL}
-        castShadow
-        receiveShadow
-      />
+      <DistanceLod
+        name="station-retail-lod"
+        position={RETAIL_LOD_FRAME.centre}
+        distances={[0, STATION_SHOP_LOD.distance]}
+        hysteresis={STATION_SHOP_LOD.hysteresis}
+        userData={SHOP_LOD_USER_DATA}
+      >
+        {[RETAIL_GEOMETRY, RETAIL_FAR_GEOMETRY].map((kit, far) => (
+          <group
+            key={far}
+            name={far ? 'station-retail-far' : 'station-retail-near'}
+            position={RETAIL_LOD_FRAME.inverse}
+          >
+            <mesh
+              name={far ? 'station-retail-far-goods' : 'station-retail-goods'}
+              geometry={kit.goods}
+              material={print}
+              castShadow
+              receiveShadow
+            />
+            <mesh
+              name={far ? 'station-retail-far-hardware' : 'station-retail-hardware'}
+              geometry={kit.hardware}
+              material={HARDWARE_MATERIAL}
+              castShadow
+              receiveShadow
+            />
+          </group>
+        ))}
+      </DistanceLod>
       <mesh
         name="station-retail-slush"
         geometry={RETAIL_GEOMETRY.slush}

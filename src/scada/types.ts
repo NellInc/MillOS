@@ -259,6 +259,8 @@ export interface ConnectionConfig {
   baseUrl?: string;
   /** API key or bearer token */
   apiKey?: string;
+  /** REST credential representation; omitted preserves Bearer authentication. */
+  apiKeyAuth?: 'bearer' | 'x-api-key';
   /** Polling interval in milliseconds */
   pollInterval?: number;
 

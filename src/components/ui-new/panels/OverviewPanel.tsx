@@ -1,8 +1,10 @@
 import { ProcessInspectionCard } from '../widgets/ProcessInspectionCard';
+import { formatPlantStamp } from '../../../utils/timeFormatting';
 import { WindmillLearningCard } from '../widgets/WindmillLearningCard';
 import React, { useState, useCallback, useEffect, Suspense, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
+import { formatPaceRatio, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
+import { useRunningThroughput } from '../../../hooks/useRunningThroughput';
 import { paceMessages } from '../../../simulation/pace.messages';
 import { AnimatePresence } from 'framer-motion';
 import {
@@ -27,14 +29,26 @@ import {
   Route,
 } from 'lucide-react';
 import { useProductionStore } from '../../../stores/productionStore';
-import { selectChosenPace, useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import {
+  selectChosenPace,
+  selectPaceUnderPause,
+  useGameSimulationStore,
+} from '../../../stores/gameSimulationStore';
 import { useAchievementsStore } from '../../../stores/achievementsStore';
+import { recordOperatorAction } from '../../../stores/operationsCampaignStore';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
 import { saveScenePng } from '../../../utils/sceneCapture';
 import { useUIStore } from '../../../stores/uiStore';
 import { useHistoricalPlaybackStore } from '../../../stores/historicalPlaybackStore';
-import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
+import {
+  useMaterialFlowStore,
+  type DispositionReasonKey,
+  type MaterialManifest,
+  type SourceLot,
+} from '../../../stores/materialFlowStore';
+import { materialFlowStoreMessages } from '../../../stores/materialFlowStore.messages';
 import { useQCLabStore, type QCGrade, type QCTestType } from '../../../stores/qcLabStore';
+import { qcLabStoreMessages } from '../../../stores/qcLabStore.messages';
 import { useShallow } from 'zustand/react/shallow';
 import { AchievementsPanel } from '../../GameFeatures';
 import { TimelinePlayback } from '../../ui/TimelinePlayback';
@@ -49,6 +63,11 @@ import {
   useT,
 } from '../../../i18n';
 import { overviewPanelMessages } from './OverviewPanel.messages';
+import { screenshotButtonMessages } from '../../game/ScreenshotButton.messages';
+import { registerAlertCatalog } from '../../../i18n/alertCopy';
+
+const SCREENSHOT_ALERT_CATALOG = 'overviewPanel.screenshot';
+registerAlertCatalog(SCREENSHOT_ALERT_CATALOG, screenshotButtonMessages);
 
 import { OperationsPlayCard, PaceHoldNote, ShiftDebrief } from '../onboarding/PlayableShift';
 import { qcReadingsForLots } from '../../../chronicle/cropYears';
@@ -74,15 +93,7 @@ const GameClock: React.FC = React.memo(() => {
   };
 
   // Standard pace is 1x (src/simulation/pace.ts); agent commands may set others.
-  const speedRatio = gameSpeed / STANDARD_GAME_SPEED;
-  // Number(...) drops a trailing .0, so whole ratios print without decimals.
-  const roundedRatio = Number(speedRatio.toFixed(1));
-  const speedLabel =
-    gameSpeed === 0
-      ? t('paused')
-      : speedRatio < 0.1
-        ? `<${formatFixed(0.1, 1)}x`
-        : `${formatFixed(roundedRatio, Number.isInteger(roundedRatio) ? 0 : 1)}x`;
+  const speedLabel = gameSpeed === 0 ? t('paused') : formatPaceRatio(gameSpeed);
 
   return (
     <div className="text-right">
@@ -113,7 +124,13 @@ export const GameSpeedControls: React.FC = React.memo(() => {
         {PACE_GAME_SPEEDS.map((value) => (
           <button
             key={value}
-            onClick={() => setGameSpeed(value)}
+            onClick={() => {
+              // A new running pace is the player's decision; a pause to inspect is not.
+              const before = selectPaceUnderPause(useGameSimulationStore.getState());
+              setGameSpeed(value);
+              if (value > 0 && value !== before)
+                recordOperatorAction({ kind: 'pace', gameSpeed: value });
+            }}
             aria-label={pace(`pace${value}`)}
             aria-pressed={gameSpeed === value}
             className={`flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg py-2 text-xs font-bold transition-all ${
@@ -154,6 +171,10 @@ const ShiftDisplay: React.FC = React.memo(() => {
     </div>
   );
 });
+
+/** A manifest's stamp: the plant clock it was made at, else its material time. */
+export const manifestStamp = (manifest: Pick<MaterialManifest, 'simulationTime' | 'gameClock'>) =>
+  formatPlantStamp(manifest.gameClock) ?? formatManifestTime(manifest.simulationTime);
 
 const formatManifestTime = (simulationTime: number): string => {
   const totalSeconds = Math.max(0, Math.floor(simulationTime));
@@ -227,7 +248,7 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
                 </span>
               </div>
               <time className="mt-1 block text-[9px] font-mono text-slate-400">
-                {formatManifestTime(manifest.simulationTime)}
+                {manifestStamp(manifest)}
               </time>
             </li>
           ))}
@@ -239,8 +260,14 @@ const MaterialTraceabilitySection: React.FC = React.memo(() => {
 
 // The balance walks every buffer and parcel, so the panel samples it at 1 Hz
 // rather than on every material-flow write, rounded to the 0.01 kg it displays.
+// `+ 0` folds a negative zero (a tiny negative error rounded away), which
+// pt-BR would print as "+-0,00"; a NaN still shows as a fault.
 const readGenealogyErrorKg = () =>
-  Math.round(useMaterialFlowStore.getState().getGenealogyBalance().errorKg * 100) / 100;
+  Math.round(useMaterialFlowStore.getState().getGenealogyBalance().errorKg * 100) / 100 + 0;
+
+/** A batch mass to the tenth, grouped like every other mass ("1,250.0", "1.250,0"). */
+const formatKgTenths = (kg: number) =>
+  formatGrouped(kg, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /** Lab grade bands over the 0-100 product quality score stamped on a batch. */
 function labGradeForQuality(score: number | undefined): QCGrade {
@@ -248,6 +275,53 @@ function labGradeForQuality(score: number | undefined): QCGrade {
   if (score >= 85) return 'B';
   if (score >= 70) return 'C';
   return 'FAIL';
+}
+
+const REASON_CATALOGS = {
+  materialFlow: materialFlowStoreMessages,
+  qcLab: qcLabStoreMessages,
+  overview: overviewPanelMessages,
+} as const;
+
+/** A canned Overview note as a reason key, so the batch reason follows the language. */
+const overviewNoteKey = (key: keyof typeof overviewPanelMessages.en): DispositionReasonKey => ({
+  catalog: 'overview',
+  key,
+});
+
+/**
+ * A disposition reason in the current language. A keyed (canned) reason is
+ * translated now; free text, an unknown key and a record saved before reasons
+ * carried a key all show the text stored with it.
+ */
+export function dispositionReasonText(
+  storedText: string,
+  reasonKey: DispositionReasonKey | undefined
+): string {
+  const resolve = (reason: DispositionReasonKey): string | null => {
+    const catalog = REASON_CATALOGS[reason.catalog];
+    if (!catalog || !Object.prototype.hasOwnProperty.call(catalog.en, reason.key)) return null;
+    const params: Record<string, string | number> = {};
+    for (const [name, value] of Object.entries(reason.params ?? {})) {
+      if (typeof value === 'object') {
+        const nested = resolve(value);
+        if (nested === null) return null;
+        params[name] = nested;
+      } else {
+        params[name] = value;
+      }
+    }
+    return translate(catalog as typeof overviewPanelMessages, reason.key as 'noteHold', params);
+  };
+  return (reasonKey && resolve(reasonKey)) ?? storedText;
+}
+
+/** A lot's supplier in the current language; a named supplier stays as written. */
+function lotSupplierText(lot: SourceLot): string {
+  if (lot.origin === 'opening_stock')
+    return translate(materialFlowStoreMessages, 'openingInventory');
+  if (lot.supplierKey) return translate(materialFlowStoreMessages, lot.supplierKey);
+  return lot.supplier;
 }
 
 export const BatchGenealogySection: React.FC = React.memo(() => {
@@ -287,9 +361,53 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       ...newestFirst.filter((batch) => !needsAttention(batch)).slice(0, 4),
     ];
   }, [productionBatches, qcLab.contaminationAlerts]);
-  const selectedTrace = selectedBatchId
+  // A trace whose batch has left the list has no Hide trace button; close it.
+  const selectedListed =
+    selectedBatchId !== null && displayedBatches.some((batch) => batch.id === selectedBatchId);
+  useEffect(() => {
+    if (selectedBatchId !== null && !selectedListed) setSelectedBatchId(null);
+  }, [selectedBatchId, selectedListed]);
+  const selectedTrace = selectedListed
     ? useMaterialFlowStore.getState().getBatchTrace(selectedBatchId)
     : null;
+  // A recall ask left unanswered while its batch left hold (a retest released
+  // it) is dropped, so holding the batch again later does not ask unbidden.
+  const confirmStillHeld =
+    confirmRecallId !== null &&
+    productionBatches.some((batch) => batch.id === confirmRecallId && batch.disposition === 'hold');
+  useEffect(() => {
+    if (confirmRecallId !== null && !confirmStillHeld) setConfirmRecallId(null);
+  }, [confirmRecallId, confirmStillHeld]);
+
+  // An action that removes the control it was pressed on hands focus to the
+  // next sensible one: Confirm when a recall is asked, Recall batch when it is
+  // cancelled, otherwise that batch's Trace button, else the section.
+  // Working if a keyboard user never lands back at the top of the page.
+  const sectionRef = useRef<HTMLElement>(null);
+  const [focusRequest, setFocusRequest] = useState<{
+    batchId: string;
+    control: 'confirm' | 'recall' | 'trace';
+  } | null>(null);
+  useEffect(() => {
+    if (!focusRequest) return;
+    setFocusRequest(null);
+    const section = sectionRef.current;
+    if (!section) return;
+    const active = document.activeElement;
+    // A Trace landing is only a fallback: a control that survived keeps focus.
+    if (
+      focusRequest.control === 'trace' &&
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      section.contains(active)
+    )
+      return;
+    const find = (control: string) =>
+      Array.from(section.querySelectorAll<HTMLElement>('[data-batch-focus]')).find(
+        (element) => element.dataset.batchFocus === `${control}:${focusRequest.batchId}`
+      );
+    (find(focusRequest.control) ?? find('trace') ?? section).focus();
+  }, [focusRequest]);
 
   const runConformingTest = (batchId: string, testType: QCTestType) => {
     const batch = useMaterialFlowStore
@@ -322,10 +440,13 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       sourceLotIds,
       testType,
       controlSource: 'Autonomous QC controller',
+      // A failed retest takes the lab's own held note rather than "conforming".
       controlNote:
-        testType === 'retest'
-          ? translate(overviewPanelMessages, 'noteRetest')
-          : translate(overviewPanelMessages, 'noteRoutineTest'),
+        testType !== 'retest'
+          ? translate(overviewPanelMessages, 'noteRoutineTest')
+          : grade === 'FAIL'
+            ? undefined
+            : translate(overviewPanelMessages, 'noteRetest'),
       grade,
       moistureContent: readings.moistureContent,
       proteinLevel: readings.proteinLevel,
@@ -333,7 +454,9 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       particleSize: readings.particleSize,
       passed: grade !== 'FAIL',
     });
-    if (testType === 'retest') {
+    // A failed retest leaves the batch on hold and its investigation open, so
+    // the player can recall it; only a conforming retest releases the scope.
+    if (testType === 'retest' && grade !== 'FAIL') {
       useQCLabStore
         .getState()
         .qcLab.contaminationAlerts.filter(
@@ -344,36 +467,53 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
             alert.id,
             'released',
             'Autonomous QC controller',
-            translate(overviewPanelMessages, 'noteRetestReleased')
+            translate(overviewPanelMessages, 'noteRetestReleased'),
+            undefined,
+            overviewNoteKey('noteRetestReleased')
           )
         );
     }
   };
 
+  // The confirmation writes off "this batch": a recall pressed on one batch of
+  // a multi-batch investigation scraps that batch alone, and settles every open
+  // investigation that named it. Working if the other batches stay on hold.
   const recallBatch = (batchId: string) => {
-    const unresolved = useQCLabStore
+    const open = useQCLabStore
       .getState()
-      .qcLab.contaminationAlerts.find(
+      .qcLab.contaminationAlerts.filter(
         (alert) => !alert.resolved && alert.batchIds.includes(batchId)
-      );
-    const alertId =
-      unresolved?.id ??
-      triggerContaminationAlert({
-        batchIds: [batchId],
-        severity: 'high',
-        controlSource: 'Autonomous QC controller',
-        controlNote: translate(overviewPanelMessages, 'noteRecallInvestigation'),
-      });
-    resolveContaminationAlert(
-      alertId,
-      'recalled',
-      'Autonomous QC controller',
-      translate(overviewPanelMessages, 'noteRecalled')
+      )
+      .map((alert) => alert.id);
+    const alertIds = open.length
+      ? open
+      : [
+          triggerContaminationAlert({
+            batchIds: [batchId],
+            severity: 'high',
+            controlSource: 'Autonomous QC controller',
+            controlNote: translate(overviewPanelMessages, 'noteRecallInvestigation'),
+            controlNoteKey: overviewNoteKey('noteRecallInvestigation'),
+          }),
+        ];
+    alertIds.forEach((alertId) =>
+      resolveContaminationAlert(
+        alertId,
+        'recalled',
+        'Autonomous QC controller',
+        translate(overviewPanelMessages, 'noteRecalled'),
+        [batchId],
+        overviewNoteKey('noteRecalled')
+      )
     );
   };
 
   return (
-    <section className="rounded-xl border border-white/5 bg-slate-800/50 p-3">
+    <section
+      ref={sectionRef}
+      tabIndex={-1}
+      className="rounded-xl border border-white/5 bg-slate-800/50 p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+    >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -383,7 +523,9 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
           <p className="mt-1 text-[10px] text-slate-400">
             {t('lotSummary', {
               lots: formatFixed(sourceLotCount, 0),
+              lotCount: sourceLotCount,
               batches: formatFixed(productionBatches.length, 0),
+              batchCount: productionBatches.length,
             })}
           </p>
         </div>
@@ -422,7 +564,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                     <div className="mt-0.5 text-[10px] text-slate-400">
                       {t('batchAvailable', {
                         material: t('material', { value: batch.materialType }),
-                        kg: formatFixed(batch.availableKg, 1),
+                        kg: formatKgTenths(batch.availableKg),
                       })}
                     </div>
                   </div>
@@ -439,11 +581,13 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                   </span>
                 </div>
                 {batch.dispositionReason && (
-                  <p className="mt-1 text-[10px] text-slate-400">{batch.dispositionReason}</p>
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    {dispositionReasonText(batch.dispositionReason, batch.dispositionReasonKey)}
+                  </p>
                 )}
                 {batch.disposition === 'recalled' && (batch.writtenOffKg ?? 0) > 0 && (
                   <p className="mt-1 text-[10px] text-red-300">
-                    {t('writtenOff', { kg: formatFixed(batch.writtenOffKg ?? 0, 1) })}
+                    {t('writtenOff', { kg: formatKgTenths(batch.writtenOffKg ?? 0) })}
                   </p>
                 )}
                 {confirmRecallId === batch.id && batch.disposition === 'hold' && (
@@ -453,16 +597,19 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                   >
                     <p>
                       {t('recallConfirm', {
-                        kg: formatFixed(batch.availableKg, 1),
+                        kg: formatKgTenths(batch.availableKg),
                         material: t('material', { value: batch.materialType }),
                       })}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button
                         type="button"
+                        data-batch-focus={`confirm:${batch.id}`}
                         onClick={() => {
                           setConfirmRecallId(null);
                           recallBatch(batch.id);
+                          recordOperatorAction({ kind: 'batchRecall', batch: batch.id });
+                          setFocusRequest({ batchId: batch.id, control: 'trace' });
                         }}
                         className="min-h-11 rounded bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300"
                       >
@@ -470,7 +617,10 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setConfirmRecallId(null)}
+                        onClick={() => {
+                          setConfirmRecallId(null);
+                          setFocusRequest({ batchId: batch.id, control: 'recall' });
+                        }}
                         className="min-h-11 rounded bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                       >
                         {t('cancelRecall')}
@@ -481,6 +631,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
+                    data-batch-focus={`trace:${batch.id}`}
                     aria-expanded={selectedBatchId === batch.id}
                     onClick={() =>
                       setSelectedBatchId((current) => (current === batch.id ? null : batch.id))
@@ -493,7 +644,11 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                     <>
                       <button
                         type="button"
-                        onClick={() => runConformingTest(batch.id, 'initial')}
+                        onClick={() => {
+                          runConformingTest(batch.id, 'initial');
+                          recordOperatorAction({ kind: 'batchTest', batch: batch.id });
+                          setFocusRequest({ batchId: batch.id, control: 'trace' });
+                        }}
                         className="inline-flex min-h-11 items-center gap-1.5 rounded bg-cyan-700 px-3 text-xs font-semibold text-white hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                       >
                         <FlaskConical size={14} aria-hidden="true" />
@@ -501,14 +656,17 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                       </button>
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
                           triggerContaminationAlert({
                             batchIds: [batch.id],
                             severity: 'medium',
                             controlSource: 'Autonomous QC controller',
                             controlNote: translate(overviewPanelMessages, 'noteHold'),
-                          })
-                        }
+                            controlNoteKey: overviewNoteKey('noteHold'),
+                          });
+                          recordOperatorAction({ kind: 'batchHold', batch: batch.id });
+                          setFocusRequest({ batchId: batch.id, control: 'trace' });
+                        }}
                         className="min-h-11 rounded bg-amber-800 px-3 text-xs font-semibold text-white hover:bg-amber-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-300"
                       >
                         {t('placeHold')}
@@ -519,7 +677,11 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                     <>
                       <button
                         type="button"
-                        onClick={() => runConformingTest(batch.id, 'retest')}
+                        onClick={() => {
+                          runConformingTest(batch.id, 'retest');
+                          recordOperatorAction({ kind: 'batchRetest', batch: batch.id });
+                          setFocusRequest({ batchId: batch.id, control: 'trace' });
+                        }}
                         className="inline-flex min-h-11 items-center gap-1.5 rounded bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-300"
                       >
                         <ShieldCheck size={14} aria-hidden="true" />
@@ -527,8 +689,12 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                       </button>
                       <button
                         type="button"
+                        data-batch-focus={`recall:${batch.id}`}
                         aria-expanded={confirmRecallId === batch.id}
-                        onClick={() => setConfirmRecallId(batch.id)}
+                        onClick={() => {
+                          setConfirmRecallId(batch.id);
+                          setFocusRequest({ batchId: batch.id, control: 'confirm' });
+                        }}
                         className="min-h-11 rounded bg-red-700 px-3 text-xs font-semibold text-white hover:bg-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-300"
                       >
                         {t('recallBatch')}
@@ -563,10 +729,10 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
               <li key={lot.id} className="text-[10px] text-slate-300">
                 <div className="flex justify-between gap-2">
                   <span className="font-mono text-cyan-200">{lot.id}</span>
-                  <span>{formatFixed(amount, 1)} kg</span>
+                  <span>{formatKgTenths(amount)} kg</span>
                 </div>
                 <div className="mt-0.5 text-slate-400">
-                  {lot.supplier}, {t('disposition', { value: lot.disposition })}.{' '}
+                  {lotSupplierText(lot)}, {t('disposition', { value: lot.disposition })}.{' '}
                   {paths.map((path) => path.join(t('pathJoiner'))).join('; ')}
                 </div>
               </li>
@@ -648,6 +814,9 @@ export const OverviewPanel: React.FC = React.memo(() => {
   // Shared formula with StatusHUD so both surfaces show the same number.
   const safetyScore = computeSafetyScore(safetyMetrics);
 
+  // 0 while the clock is held: a paused plant packs nothing.
+  const shownThroughput = useRunningThroughput();
+
   // Progress to target
   const targetProgress = productionTarget
     ? Math.min(
@@ -671,7 +840,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
         <div className="grid grid-cols-2 gap-2">
           <StatCard
             label={t('throughput')}
-            value={formatGrouped(metrics.throughput)}
+            value={formatGrouped(shownThroughput)}
             unit={t('bagsPerHr')}
             icon={<Package size={14} />}
             color="cyan"
@@ -789,11 +958,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
             {formatFixed(safetyScore, 0)}%
           </span>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div>
-            <div className="text-lg font-bold text-slate-300">{safetyMetrics?.nearMisses ?? 0}</div>
-            <div className="text-[10px] text-slate-400">{t('nearMisses')}</div>
-          </div>
+        <div className="grid grid-cols-2 gap-2 text-center">
           <div>
             <div className="text-lg font-bold text-slate-300">
               {safetyMetrics?.safetyStops ?? 0}
@@ -949,7 +1114,7 @@ const DockCard: React.FC<{ label: string; status: string; eta: number; receiving
 };
 
 // Quick Actions Section with Gamification Controls
-const QuickActionsSection: React.FC = () => {
+export const QuickActionsSection: React.FC = () => {
   // Shared with GamificationBar through uiStore so the two toggles drive one panel.
   const showAchievements = useUIStore((state) => state.showAchievements);
   const setShowAchievements = useUIStore((state) => state.setShowAchievements);
@@ -970,15 +1135,41 @@ const QuickActionsSection: React.FC = () => {
 
   const handleScreenshot = useCallback(async () => {
     // Through the renderer: a direct canvas.toDataURL() reads a cleared buffer.
-    await saveScenePng(`millos-${new Date().toISOString().split('T')[0]}.png`);
+    // No frame (hidden tab, lost context) is said, as the HUD button says it.
+    let message: 'surfaceUnavailable' | 'captureFailed' | null = null;
+    try {
+      if (!(await saveScenePng(`millos-${new Date().toISOString().split('T')[0]}.png`)))
+        message = 'surfaceUnavailable';
+    } catch {
+      message = 'captureFailed';
+    }
+    if (message)
+      useUIStore.getState().addAlert({
+        id: `screenshot-fail-${Date.now()}`,
+        type: 'warning',
+        title: translate(screenshotButtonMessages, 'failedTitle'),
+        message: translate(screenshotButtonMessages, message),
+        timestamp: new Date(),
+        acknowledged: false,
+        // Keyed, so the bell words it in the language active now.
+        copy: { catalog: SCREENSHOT_ALERT_CATALOG, title: 'failedTitle', message },
+      });
   }, []);
 
   const handleExport = useCallback(() => {
     const store = useProductionStore.getState();
+    // Nothing writes the target's throughput fields (1500 and 0 from load);
+    // the measured rate is metrics.throughput, so the report leaves them out.
+    let productionTarget: Partial<NonNullable<typeof store.productionTarget>> | null = null;
+    if (store.productionTarget) {
+      productionTarget = { ...store.productionTarget };
+      delete productionTarget.targetThroughput;
+      delete productionTarget.actualThroughput;
+    }
     const report = {
       timestamp: new Date().toISOString(),
       metrics: store.metrics,
-      productionTarget: store.productionTarget,
+      productionTarget,
       totalBagsProduced: store.totalBagsProduced,
       achievements: useAchievementsStore
         .getState()

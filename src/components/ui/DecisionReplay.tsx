@@ -5,7 +5,7 @@
  * Allows users to understand what the factory looked like when AI made a decision.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -19,8 +19,84 @@ import {
 } from 'lucide-react';
 import { AIDecision } from '../../types';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
-import { capitalizeIn, formatFixed, useLocale, useT } from '../../i18n';
+import {
+  capitalizeIn,
+  createTranslator,
+  formatFixed,
+  LOCALES,
+  useLocale,
+  useT,
+  type Locale,
+} from '../../i18n';
 import { decisionReplayMessages } from './DecisionReplay.messages';
+import { formatPlantStamp } from '../../utils/timeFormatting';
+import { useProductionStore } from '../../stores/productionStore';
+import { productionStoreMessages } from '../../stores/productionStore.messages';
+import { decisionCardText } from '../../utils/aiEngine';
+import { aiEngineMessages } from '../../utils/aiEngine.messages';
+
+/** The keys productionStore writes a decision's evidence from (enrichDecisionProvenance). */
+const EVIDENCE_KEYS = [
+  'observationThroughput',
+  'observationEfficiency',
+  'observationQuality',
+  'observationMachineStatus',
+  'observationMachineTemperature',
+  'observationMachineLoad',
+  'assumptionTelemetryCurrent',
+  'affectedSystemAutonomousControl',
+  'affectedEquipmentProductionSystem',
+  'alternativeMaintainAction',
+  'alternativeMaintainTradeoff',
+] as const;
+const MACHINE_SLOT = '\u0000';
+
+/**
+ * Evidence copy in `locale`. productionStore stores it worded in the language
+ * active when the decision was made, and a save keeps it; matched against its
+ * key in every language, it reads in the language active now. Anything else
+ * (an engine's own assumption, a designation) is shown as stored.
+ */
+const evidenceText = (text: string, locale: Locale): string => {
+  for (const from of LOCALES) {
+    const wordedIn = createTranslator(productionStoreMessages, from);
+    for (const key of EVIDENCE_KEYS) {
+      const [prefix, suffix] = wordedIn(key, { machine: MACHINE_SLOT }).split(MACHINE_SLOT);
+      if (suffix === undefined) {
+        if (text === prefix) return createTranslator(productionStoreMessages, locale)(key);
+        continue;
+      }
+      if (
+        text.length > prefix.length + suffix.length &&
+        text.startsWith(prefix) &&
+        text.endsWith(suffix)
+      ) {
+        const machine = text.slice(prefix.length, text.length - suffix.length);
+        return createTranslator(productionStoreMessages, locale)(key, { machine });
+      }
+    }
+  }
+  return text;
+};
+
+/** The engine's closing lines (aiEngine updateDecisionStatus), stored worded. */
+const OUTCOME_KEYS = ['completedAutomatic', 'completedConfirmed', 'completedModified'] as const;
+
+/**
+ * A measured outcome's summary in `locale`. The engine stores it in the language
+ * active when the decision closed, and a save keeps it; matched against its key
+ * in every language, it reads in the language active now. A lapsed deferral's
+ * line comes keyed from decisionCardText (`lapsed`); anything else is as stored.
+ */
+const outcomeSummaryText = (summary: string, locale: Locale, lapsed: string | undefined) => {
+  if (lapsed !== undefined) return lapsed;
+  for (const from of LOCALES) {
+    const wordedIn = createTranslator(aiEngineMessages, from);
+    const key = OUTCOME_KEYS.find((candidate) => wordedIn(candidate) === summary);
+    if (key) return createTranslator(aiEngineMessages, locale)(key);
+  }
+  return summary;
+};
 
 interface DecisionReplayProps {
   decision: AIDecision | null;
@@ -32,8 +108,16 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
   useFocusTrap(modalRef as React.RefObject<HTMLElement>, !!decision, onClose);
   const t = useT(decisionReplayMessages);
   const locale = useLocale();
+  // The designation the rest of the game shows ('R.M. 103'); the id is the fallback.
+  const machineName = useProductionStore((state) =>
+    decision?.machineId
+      ? state.machines.find((machine) => machine.id === decision.machineId)?.name
+      : undefined
+  );
 
   if (!decision) return null;
+  // The card's keyed copy, in the language active now, as on the card itself.
+  const text = decisionCardText(decision, locale);
 
   const formatTime = (date: Date) => {
     // pt-BR reads clock times as 24-hour.
@@ -88,6 +172,8 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
           role="dialog"
           aria-modal="true"
           aria-label={t('dialogLabel')}
+          // Focusable, so a click on its text keeps focus (and Escape) in the dialog.
+          tabIndex={-1}
           initial={{ scale: 0.95, opacity: 0, y: 15 }}
           animate={{
             scale: 1,
@@ -132,8 +218,8 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                   </span>
                 </div>
               </div>
-              <p className="text-sm text-white font-medium">{decision.action}</p>
-              <p className="text-xs text-slate-400 mt-1">{decision.reasoning}</p>
+              <p className="text-sm text-white font-medium">{text.action}</p>
+              <p className="text-xs text-slate-400 mt-1">{text.reasoning}</p>
             </div>
 
             {/* Metadata */}
@@ -143,7 +229,9 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                   <Clock className="w-3.5 h-3.5" />
                   <span className="text-[10px] uppercase">{t('timestamp')}</span>
                 </div>
-                <p className="text-sm text-white font-mono">{formatTime(decision.timestamp)}</p>
+                <p className="text-sm text-white font-mono">
+                  {formatPlantStamp(decision.gameClock) ?? formatTime(decision.timestamp)}
+                </p>
               </div>
               <div className="bg-slate-800/30 rounded-lg p-3">
                 <div className="flex items-center gap-2 text-slate-400 mb-1">
@@ -165,7 +253,7 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                 <TrendingUp className="w-3.5 h-3.5" />
                 <span className="text-[10px] uppercase tracking-wider">{t('expectedImpact')}</span>
               </div>
-              <p className="text-sm text-green-300">{decision.impact}</p>
+              <p className="text-sm text-green-300">{text.impact}</p>
             </div>
 
             {/* Machine Context (if available) */}
@@ -175,7 +263,9 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                   <Factory className="w-3.5 h-3.5" />
                   <span className="text-[10px] uppercase">{t('affectedMachine')}</span>
                 </div>
-                <p className="text-sm text-cyan-400 font-mono">{decision.machineId}</p>
+                <p className="text-sm text-cyan-400 font-mono">
+                  {machineName || decision.machineId}
+                </p>
               </div>
             )}
 
@@ -207,11 +297,19 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                         {decision.provenance.observations.map((observation, index) => (
                           <tr key={`${observation.label}-${index}`}>
                             <th className="py-1.5 pr-2 font-normal text-slate-300">
-                              {observation.label}
+                              {evidenceText(observation.label, locale)}
                             </th>
                             <td className="py-1.5 pr-2 font-mono text-white">
-                              {observation.value}
-                              {observation.unit ? ` ${observation.unit}` : ''}
+                              {/* Stored raw: a metric, or a machine status. */}
+                              {typeof observation.value === 'number'
+                                ? formatFixed(
+                                    observation.value,
+                                    Number.isInteger(observation.value) ? 0 : 1
+                                  )
+                                : t('observationText', { value: observation.value })}
+                              {observation.unit
+                                ? ` ${t('observationUnit', { unit: observation.unit })}`
+                                : ''}
                             </td>
                             <td className="py-1.5 text-slate-400">
                               {t('sourceQuality', {
@@ -236,7 +334,7 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                         <span className="text-amber-400" aria-hidden="true">
                           •
                         </span>
-                        <span>{assumption}</span>
+                        <span>{evidenceText(assumption, locale)}</span>
                       </li>
                     ))}
                   </ul>
@@ -249,8 +347,12 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                   <div className="space-y-2">
                     {decision.provenance.alternatives.map((alternative) => (
                       <div key={`${alternative.action}-${alternative.tradeoff}`}>
-                        <p className="text-xs font-medium text-slate-200">{alternative.action}</p>
-                        <p className="text-[10px] text-slate-400">{alternative.tradeoff}</p>
+                        <p className="text-xs font-medium text-slate-200">
+                          {evidenceText(alternative.action, locale)}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          {evidenceText(alternative.tradeoff, locale)}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -262,7 +364,9 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                       {t('affectedSystems')}
                     </div>
                     <p className="text-xs text-slate-200">
-                      {decision.provenance.affectedSystems.join(', ')}
+                      {decision.provenance.affectedSystems
+                        .map((system) => evidenceText(system, locale))
+                        .join(', ')}
                     </p>
                   </div>
                   <div className="rounded-lg bg-slate-800/30 p-3">
@@ -270,7 +374,9 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                       {t('affectedEquipment')}
                     </div>
                     <p className="text-xs text-slate-200">
-                      {decision.provenance.affectedEquipment.join(', ')}
+                      {decision.provenance.affectedEquipment
+                        .map((equipment) => evidenceText(equipment, locale))
+                        .join(', ')}
                     </p>
                   </div>
                 </div>
@@ -286,9 +392,7 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
                   <p className={`text-xs font-medium ${capitalizeIn(locale)} text-slate-200`}>
                     {t('disposition', { value: decision.response.disposition })}
                   </p>
-                  {decision.response.note && (
-                    <p className="text-[10px] text-slate-400">{decision.response.note}</p>
-                  )}
+                  {text.note && <p className="text-[10px] text-slate-400">{text.note}</p>}
                 </div>
               ) : (
                 <p className="text-xs text-slate-400">
@@ -310,7 +414,14 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
               {decision.measuredOutcome ? (
                 <>
                   <p className="mb-2 text-xs text-emerald-200">
-                    {decision.measuredOutcome.summary}
+                    {outcomeSummaryText(
+                      decision.measuredOutcome.summary,
+                      locale,
+                      decision.status === 'superseded' &&
+                        decision.response?.disposition === 'deferred'
+                        ? text.outcome
+                        : undefined
+                    )}
                   </p>
                   <dl className="grid grid-cols-2 gap-2">
                     {Object.entries(decision.measuredOutcome.measurements).map(([label, value]) => (
@@ -345,35 +456,5 @@ export const DecisionReplay: React.FC<DecisionReplayProps> = ({ decision, onClos
         </motion.div>
       </motion.div>
     </AnimatePresence>
-  );
-};
-
-/**
- * DecisionReplayTrigger Component
- *
- * Wrapper for decision cards that enables replay on click.
- */
-export const DecisionReplayTrigger: React.FC<{
-  decision: AIDecision;
-  children: React.ReactNode;
-}> = ({ decision, children }) => {
-  const [showReplay, setShowReplay] = useState(false);
-  const t = useT(decisionReplayMessages);
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setShowReplay(true)}
-        aria-label={t('viewDetails', { action: decision.action })}
-        className="cursor-pointer w-full text-left bg-transparent border-0 p-0 m-0"
-      >
-        {children}
-      </button>
-      <DecisionReplay
-        decision={showReplay ? decision : null}
-        onClose={() => setShowReplay(false)}
-      />
-    </>
   );
 };

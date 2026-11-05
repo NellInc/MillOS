@@ -9,6 +9,8 @@ export const messages = defineMessages({
     m4: 'Notes',
     m5: 'Score',
     m6: 'Chronicle sections',
+    m7: 'Policy',
+    m8: 'Returns',
   },
   'pt-BR': {
     m0: 'Crônica',
@@ -18,5 +20,7 @@ export const messages = defineMessages({
     m4: 'Notas',
     m5: 'Pontuação',
     m6: 'Seções da crônica',
+    m7: 'Política',
+    m8: 'Declarações',
   },
 });

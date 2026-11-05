@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Map, X } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
@@ -7,6 +7,7 @@ import { positionRegistry, type EntityPosition } from '../../utils/positionRegis
 import { FACTORY_ZONE_Z } from '../../constants/siteLayout';
 import { useT } from '../../i18n';
 import { miniMapMessages } from './MiniMap.messages';
+import { focusDockItem } from '../ui-new/dock/focusDockItem';
 
 // True top-down view matching the overview camera: +x right, -z (the far side
 // of the site) up. The tick is a bar hanging down from the dot, so rotate()
@@ -27,6 +28,27 @@ export const MiniMap: React.FC = () => {
     }))
   );
   const [positions, setPositions] = useState<{ forklifts: EntityPosition[] }>({ forklifts: [] });
+
+  // Close unmounts the map with focus on its button. Hand focus back to the
+  // control that opened it (Overview's Mini-map toggle) rather than <body>,
+  // where the next Space is the forklift emergency stop.
+  const openerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!showMiniMap) return;
+    const active = document.activeElement;
+    openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+  }, [showMiniMap]);
+  // The toggle goes with the Overview panel when the sidebar closes, and the
+  // M shortcut opens the map with none: focus on the close button then lands
+  // on the dock instead.
+  const handleClose = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const opener = openerRef.current;
+    const focusOnClose = event.currentTarget === document.activeElement;
+    openerRef.current = null;
+    setShowMiniMap(false);
+    if (opener?.isConnected) opener.focus();
+    else if (focusOnClose) focusDockItem('overview');
+  };
 
   useEffect(() => {
     if (!showMiniMap) return;
@@ -64,7 +86,7 @@ export const MiniMap: React.FC = () => {
       dragElastic={0}
       className="fixed bottom-[17.5rem] left-4 z-30 pointer-events-auto cursor-move"
     >
-      <div className="bg-slate-900/95 backdrop-blur-xl rounded-xl border border-cyan-500/30 overflow-hidden shadow-xl">
+      <div className="millos-glass rounded-xl border-cyan-500/30 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800 bg-slate-800/50">
           <div className="flex items-center gap-2">
@@ -72,7 +94,7 @@ export const MiniMap: React.FC = () => {
             <span className="text-xs font-medium text-white">{t('title')}</span>
           </div>
           <button
-            onClick={() => setShowMiniMap(false)}
+            onClick={handleClose}
             aria-label={t('close')}
             className="w-5 h-5 rounded flex items-center justify-center hover:bg-slate-700 transition-colors"
           >

@@ -6,10 +6,11 @@
  * the local WebGPU core).
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Target, X, Lightbulb, AlertTriangle, Gauge } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
+import { useProductionStore } from '../../stores/productionStore';
 import { CLOUD_MODELS } from '../../utils/cloudAIClient';
 import { ConfidenceBar } from './ConfidenceBar';
 import { formatFixed, useT } from '../../i18n';
@@ -19,38 +20,110 @@ interface StrategicPriorityCardsProps {
   className?: string;
 }
 
+// The plan's priorities array (kept by setStrategicPriorities while a re-issued
+// plan repeats them) and the cards dismissed while it was shown.
+let savedDismissals: { priorities: readonly string[]; keys: ReadonlySet<string> } | null = null;
+
 export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
   className = '',
 }) => {
   const t = useT(strategicPriorityCardsMessages);
   const strategic = useAIConfigStore((state) => state.strategic);
   const llmBackend = useAIConfigStore((state) => state.llmBackend);
-  const [dismissedPriorities, setDismissedPriorities] = useState<Set<number>>(new Set());
-
-  // Dismissals are slot indices, so they belong to one plan. A new strategic
-  // decision brings new priorities and must not inherit the previous hiding.
+  // The plan names its focus by id; the chip shows the designation the rest of
+  // the game uses ('Silo Alpha', 'R.M. 103'), the id only as a fallback.
+  const focusMachineName = useProductionStore((state) =>
+    strategic.focusMachine
+      ? (state.machines.find((machine) => machine.id === strategic.focusMachine)?.name ??
+        strategic.focusMachine)
+      : undefined
+  );
+  // Resumed across a remount: the Strategic tab unmounts the cards on every
+  // tab switch, and a dismissal lasts while the same plan is shown.
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(() =>
+    savedDismissals && savedDismissals.priorities === strategic.legacyPriorities
+      ? new Set(savedDismissals.keys)
+      : new Set()
+  );
   useEffect(() => {
-    setDismissedPriorities(new Set());
-  }, [strategic.lastDecisionTime]);
+    savedDismissals = { priorities: strategic.legacyPriorities, keys: dismissedKeys };
+  }, [strategic.legacyPriorities, dismissedKeys]);
 
-  const dismissPriority = (index: number) => {
-    setDismissedPriorities((prev) => new Set([...prev, index]));
-  };
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Use legacy string priorities for compact display.
   const displayPriorities = strategic.legacyPriorities || [];
+
+  // A dismissal belongs to the card's text, not its slot: every strategic
+  // decision (about every 45 s) re-issues the plan, and a card it repeats stays
+  // dismissed while a new one shows. Slots: priorities by index, then insight
+  // (-1) and trade-off (-2).
+  const slotKey = (slot: number) =>
+    slot === -1
+      ? `insight:${strategic.insight ?? ''}`
+      : slot === -2
+        ? `tradeoff:${strategic.tradeoff ?? ''}`
+        : `priority:${displayPriorities[slot] ?? ''}`;
+  const dismissedPriorities = {
+    has: (slot: number) => dismissedKeys.has(slotKey(slot)),
+  };
+
+  // A new decision drops dismissals of cards it no longer carries, so a card
+  // that leaves and later returns is shown again.
+  useEffect(() => {
+    const { legacyPriorities, insight, tradeoff } = useAIConfigStore.getState().strategic;
+    const current = new Set([
+      ...(legacyPriorities ?? []).map((text) => `priority:${text}`),
+      `insight:${insight ?? ''}`,
+      `tradeoff:${tradeoff ?? ''}`,
+    ]);
+    setDismissedKeys((prev) => {
+      const kept = [...prev].filter((key) => current.has(key));
+      return kept.length === prev.size ? prev : new Set(kept);
+    });
+  }, [strategic.lastDecisionTime]);
+
   const visiblePriorities = displayPriorities.filter((_, i) => !dismissedPriorities.has(i));
 
-  if (visiblePriorities.length === 0 && !strategic.isThinking) {
+  // Slots in display order: priorities by index, then insight (-1) and trade-off (-2).
+  const visibleSlots = [
+    ...displayPriorities.map((_, i) => i).filter((i) => !dismissedPriorities.has(i)),
+    ...(strategic.insight && !dismissedPriorities.has(-1) ? [-1] : []),
+    ...(strategic.tradeoff && !dismissedPriorities.has(-2) ? [-2] : []),
+  ];
+
+  // The pressed button leaves with its card, so focus moves to the next card's
+  // dismiss button (or the previous one), and to the tab panel after the last.
+  const dismissPriority = (slot: number) => {
+    const position = visibleSlots.indexOf(slot);
+    const next = visibleSlots[position + 1] ?? visibleSlots[position - 1];
+    const target =
+      next === undefined
+        ? containerRef.current?.closest<HTMLElement>('[role="tabpanel"]')
+        : containerRef.current?.querySelector<HTMLElement>(`[data-dismiss-slot="${next}"]`);
+    target?.focus();
+    const key = slotKey(slot);
+    setDismissedKeys((prev) => new Set([...prev, key]));
+  };
+
+  // Dismissing every priority must not take the undismissed insight and
+  // trade-off cards with it.
+  const hasDetail =
+    (strategic.insight && !dismissedPriorities.has(-1)) ||
+    (strategic.tradeoff && !dismissedPriorities.has(-2));
+  if (visiblePriorities.length === 0 && !strategic.isThinking && !hasDetail) {
     return null;
   }
 
   return (
-    <div className={`space-y-2 ${className}`}>
+    <div ref={containerRef} className={`space-y-2 ${className}`}>
+      {/* Every child keyed: AnimatePresence tracks exits by key, and an unkeyed
+          card was drawn twice while a dismissed priority animated out. */}
       <AnimatePresence>
         {/* Thinking indicator */}
         {strategic.isThinking && (
           <motion.div
+            key="thinking"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -121,6 +194,7 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                 </div>
                 <button
                   onClick={() => dismissPriority(index)}
+                  data-dismiss-slot={index}
                   aria-label={t('dismissPriority')}
                   className="p-1 hover:bg-slate-700/50 rounded transition-colors"
                 >
@@ -136,10 +210,10 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                 <p className="text-sm text-slate-200">{priority}</p>
 
                 {/* Focus Machine indicator if this is top priority */}
-                {isHighPriority && strategic.focusMachine && (
+                {isHighPriority && focusMachineName && (
                   <div className="mt-2 flex items-center gap-1.5 text-[10px] text-amber-400">
                     <Gauge className="w-3 h-3" />
-                    <span>{t('focus', { machine: strategic.focusMachine })}</span>
+                    <span>{t('focus', { machine: focusMachineName })}</span>
                   </div>
                 )}
               </div>
@@ -150,6 +224,7 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
         {/* Insight Card (if available) */}
         {strategic.insight && !dismissedPriorities.has(-1) && (
           <motion.div
+            key="insight"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
@@ -164,7 +239,8 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                 <p className="text-xs text-purple-200 mt-0.5">{strategic.insight}</p>
               </div>
               <button
-                onClick={() => setDismissedPriorities((prev) => new Set([...prev, -1]))}
+                onClick={() => dismissPriority(-1)}
+                data-dismiss-slot={-1}
                 aria-label={t('dismissInsight')}
                 className="p-1 hover:bg-purple-800/30 rounded transition-colors ml-auto"
               >
@@ -177,6 +253,7 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
         {/* Tradeoff Warning (if available) */}
         {strategic.tradeoff && !dismissedPriorities.has(-2) && (
           <motion.div
+            key="tradeoff"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
@@ -191,7 +268,8 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
                 <p className="text-xs text-amber-200 mt-0.5">{strategic.tradeoff}</p>
               </div>
               <button
-                onClick={() => setDismissedPriorities((prev) => new Set([...prev, -2]))}
+                onClick={() => dismissPriority(-2)}
+                data-dismiss-slot={-2}
                 aria-label={t('dismissTradeoff')}
                 className="p-1 hover:bg-amber-800/30 rounded transition-colors ml-auto"
               >
@@ -204,6 +282,7 @@ export const StrategicPriorityCards: React.FC<StrategicPriorityCardsProps> = ({
         {/* Confidence Score (if available) */}
         {strategic.confidenceScores?.overall !== undefined && (
           <motion.div
+            key="confidence"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-slate-800/80 rounded-lg p-3 border border-slate-700/50"

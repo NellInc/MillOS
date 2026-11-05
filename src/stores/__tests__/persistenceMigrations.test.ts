@@ -23,7 +23,6 @@ describe('persistence migrations', () => {
       })
     ).toEqual({
       hasSeenIntro: true,
-      theme: 'dark',
       uiScale: 1.5,
       showFPSCounter: false,
     });

@@ -234,7 +234,8 @@ it('uses applied handling geometry prospectively while preserving load, quality 
     },
   }));
   const layout = currentLogisticsLayout();
-  layout.staging.shipping[2] -= 3;
+  // A fresh copy from currentLogisticsLayout(); the tuple type is read-only.
+  (layout.staging.shipping as unknown as number[])[2] -= 3;
   useLogisticsLayoutStore
     .getState()
     .restoreSaved({ layout, previous: currentLogisticsLayout(), revision: 1 });

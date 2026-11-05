@@ -64,8 +64,10 @@ export const CameraPresetMenu: React.FC = () => {
         closeMenu();
       }
     };
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
+    // Window capture runs before the tour's and the guide's document
+    // listeners, so one Escape closes this menu and nothing behind it.
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, closeMenu]);
 
   return (
@@ -97,11 +99,11 @@ export const CameraPresetMenu: React.FC = () => {
           flex items-center justify-center
           transition-all duration-200
           touch-none select-none
-          backdrop-blur-sm
+          millos-glass
           ${
             isOpen
               ? 'bg-cyan-500/80 border-cyan-400 rotate-0'
-              : 'bg-slate-800/70 border-slate-600/50 hover:bg-slate-700/70'
+              : 'border-slate-600/50 hover:bg-slate-700/70'
           }
           border-2
         `}
@@ -133,7 +135,7 @@ export const CameraPresetMenu: React.FC = () => {
               maxHeight:
                 'calc(100dvh - 12rem - max(8px, env(safe-area-inset-top)) - env(safe-area-inset-bottom))',
             }}
-            className="absolute right-0 top-14 z-10 flex flex-col bg-slate-900/95 backdrop-blur-xl rounded-xl border border-slate-700/50 shadow-2xl overflow-hidden min-w-[140px]"
+            className="absolute right-0 top-14 z-10 flex flex-col millos-glass rounded-xl overflow-hidden min-w-[140px]"
           >
             {/* Header */}
             <div className="shrink-0 px-3 py-2 border-b border-slate-700/50">

@@ -22,8 +22,10 @@ export interface NearCityBuildingSpec {
   readonly massing: number;
   /** Pitched roofs: 0 gable end to the site, 1 ridge along the facade. */
   readonly ridgeAxis: number;
-  /** Ground under the building's lowest corner; the uphill side sinks into the slope. */
+  /** Foot of the walls: the highest ground under the footprint, so no hill is inside them. */
   readonly baseY: number;
+  /** The lowest ground under the footprint, which the stone plinth reaches down to. */
+  readonly footingY: number;
 }
 
 const deterministicNoise = (index: number, channel: number): number => {
@@ -72,18 +74,22 @@ export const buildNearCitySpecs = (
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius;
     const yaw = Math.atan2(-x, -z);
-    const ground = nearCityFootprint({ x, z, width, depth, yaw }).map(([px, pz]) =>
+    // Seated at its lowest corner, the uphill side sank 1.3-4.4 m and the hill
+    // cut across the ground floors. The walls start above the highest ground
+    // under the footprint and a stone plinth takes the slope, as a hill town is
+    // built. Working if no ground rises inside a wall and no plinth hangs in air.
+    const ground = nearCityGroundSamples({ x, z, width, depth, yaw }).map(([px, pz]) =>
       groundAt(px, pz)
     );
-    const baseY = Math.min(...ground);
+    const baseY = Math.max(...ground);
+    const footingY = Math.min(...ground);
     return {
       x,
       z,
       width,
       depth,
-      // A hillside building keeps its full height on the uphill side and shows
-      // the difference as a lower storey downhill, rather than sinking into the slope.
-      height: height + districtBand * 1.25 + (landmark ? 6 : 0) + (Math.max(...ground) - baseY),
+      // The plinth takes the slope, so the walls keep their authored height.
+      height: height + districtBand * 1.25 + (landmark ? 6 : 0),
       yaw,
       tone: deterministicNoise(index, 5),
       roofStyle,
@@ -93,6 +99,7 @@ export const buildNearCitySpecs = (
       // turn a gable or hip to the site.
       ridgeAxis: deterministicNoise(index, 19) < (massing === 0 ? 0.3 : 0.85) ? 1 : 0,
       baseY,
+      footingY,
     };
   });
 
@@ -116,6 +123,32 @@ export function nearCityFootprint(building: {
     building.x + u * building.width * cos + v * building.depth * sin,
     building.z - u * building.width * sin + v * building.depth * cos,
   ]);
+}
+
+/**
+ * A 5 x 5 grid over a building's footprint, edges and corners included, in
+ * world x/z. The corners alone missed ground rising between them.
+ */
+export function nearCityGroundSamples(building: {
+  readonly x: number;
+  readonly z: number;
+  readonly width: number;
+  readonly depth: number;
+  readonly yaw: number;
+}): Array<[number, number]> {
+  const cos = Math.cos(building.yaw),
+    sin = Math.sin(building.yaw);
+  const samples: Array<[number, number]> = [];
+  for (let i = 0; i <= 4; i++)
+    for (let j = 0; j <= 4; j++) {
+      const u = i / 4 - 0.5;
+      const v = j / 4 - 0.5;
+      samples.push([
+        building.x + u * building.width * cos + v * building.depth * sin,
+        building.z - u * building.width * sin + v * building.depth * cos,
+      ]);
+    }
+  return samples;
 }
 
 /** Closed shared gable volume. The eaves sit just inside the actual wall top.
@@ -159,6 +192,15 @@ const CITY_BODY_MATERIAL = new THREE.MeshStandardMaterial({
   // enabling vertexColors additionally multiplies the authored palette by zero.
   vertexColors: false,
 });
+// Dressed stone under each building, taking the slope (buildNearCitySpecs).
+const CITY_PLINTH_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#857d70',
+  roughness: 0.95,
+  metalness: 0,
+});
+/** Plinth margin beyond the walls, and how far it runs into the ground. */
+const PLINTH_MARGIN = 0.35;
+const PLINTH_BURY = 1;
 const CITY_ROOF_MATERIAL = new THREE.MeshStandardMaterial({
   color: '#666d6c',
   roughness: 0.82,
@@ -237,8 +279,17 @@ interface RooftopSpec {
 /** Visible rooms on the town-facing facade and the exposed pitched-roof sides.
  * All panes share the existing instance draw and clock-dimmed window material.
  */
-export function buildNearCityWindows(buildings: readonly NearCityBuildingSpec[]): WindowSpec[] {
+export function buildNearCityWindows(
+  buildings: readonly NearCityBuildingSpec[],
+  groundAt: (x: number, z: number) => number = sampleFoothillGroundHeight
+): WindowSpec[] {
   const result: WindowSpec[] = [];
+  // Floors count up from the lowest corner, so on a wall running up the slope
+  // the lower panes near the uphill end were inside the hill: three wholly
+  // buried and six cut through by the turf. A pane is placed only where its
+  // sill clears the ground just outside the wall.
+  // Working if every pane on the hill town shows its whole frame above grade.
+  const SILL_CLEARANCE = 0.25;
   buildings.forEach((building, buildingIndex) => {
     // Every pane top stays 0.8 m under the eaves, which terraces now reach.
     const floors = Math.max(1, Math.floor((building.height - 3.56) / 3.5) + 1);
@@ -252,6 +303,17 @@ export function buildNearCityWindows(buildings: readonly NearCityBuildingSpec[])
       const firstOnFace = result.length;
       for (let floor = 0; floor < floors; floor++) {
         for (let column = 0; column < columns; column++) {
+          const across = (column + 0.5) / columns - 0.5;
+          const pane = {
+            x: building.x + normalX * (reach / 2 + 0.05) - normalZ * across * span * 0.76,
+            y: building.baseY + 2.3 + floor * 3.5,
+            z: building.z + normalZ * (reach / 2 + 0.05) + normalX * across * span * 0.76,
+            width: Math.min(1.3, (span / columns) * 0.38),
+            height: 0.9,
+            yaw,
+          };
+          const outside = groundAt(pane.x + normalX * 0.6, pane.z + normalZ * 0.6);
+          if (pane.y - pane.height / 2 < outside + SILL_CLEARANCE) continue;
           // A single-storey terrace end has two panes; never blank a whole face.
           const lastPane = floor === floors - 1 && column === columns - 1;
           if (
@@ -259,15 +321,7 @@ export function buildNearCityWindows(buildings: readonly NearCityBuildingSpec[])
             !(lastPane && result.length === firstOnFace)
           )
             continue;
-          const across = (column + 0.5) / columns - 0.5;
-          result.push({
-            x: building.x + normalX * (reach / 2 + 0.05) - normalZ * across * span * 0.76,
-            y: building.baseY + 2.3 + floor * 3.5,
-            z: building.z + normalZ * (reach / 2 + 0.05) + normalX * across * span * 0.76,
-            width: Math.min(1.3, (span / columns) * 0.38),
-            height: 0.9,
-            yaw,
-          });
+          result.push(pane);
         }
       }
     };
@@ -325,6 +379,7 @@ export const NearHorizonCity: React.FC = () => {
     [buildings]
   );
   const bodiesRef = useRef<THREE.InstancedMesh>(null);
+  const plinthsRef = useRef<THREE.InstancedMesh>(null);
   const roofsRef = useRef<THREE.InstancedMesh>(null);
   const pitchedRoofsRef = useRef<THREE.InstancedMesh>(null);
   const windowsRef = useRef<THREE.InstancedMesh>(null);
@@ -344,7 +399,17 @@ export const NearHorizonCity: React.FC = () => {
     const windowMesh = windowsRef.current;
     const equipmentMesh = equipmentRef.current;
     const stackMesh = stacksRef.current;
-    if (!bodies || !roofs || !pitchedRoofs || !windowMesh || !equipmentMesh || !stackMesh) return;
+    const plinths = plinthsRef.current;
+    if (
+      !bodies ||
+      !plinths ||
+      !roofs ||
+      !pitchedRoofs ||
+      !windowMesh ||
+      !equipmentMesh ||
+      !stackMesh
+    )
+      return;
     const matrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
     const rotation = new THREE.Quaternion();
@@ -357,6 +422,16 @@ export const NearHorizonCity: React.FC = () => {
       scale.set(building.width, building.height, building.depth);
       bodies.setMatrixAt(index, matrix.compose(position, rotation, scale));
       bodies.setColorAt(index, nearCityBodyColour(building));
+      // The plinth runs from below the lowest ground to just above the highest.
+      const plinthBottom = building.footingY - PLINTH_BURY;
+      const plinthTop = building.baseY + 0.15;
+      position.set(building.x, (plinthBottom + plinthTop) / 2, building.z);
+      scale.set(
+        building.width + PLINTH_MARGIN * 2,
+        plinthTop - plinthBottom,
+        building.depth + PLINTH_MARGIN * 2
+      );
+      plinths.setMatrixAt(index, matrix.compose(position, rotation, scale));
     });
     flatBuildings.forEach((building, index) => {
       position.set(building.x, building.baseY + building.height - 0.35, building.z);
@@ -397,6 +472,8 @@ export const NearHorizonCity: React.FC = () => {
       stackMesh.setMatrixAt(index, matrix.compose(position, rotation, scale));
     });
     bodies.instanceMatrix.needsUpdate = true;
+    plinths.instanceMatrix.needsUpdate = true;
+    plinths.computeBoundingSphere();
     bodies.instanceColor!.needsUpdate = true;
     roofs.instanceMatrix.needsUpdate = true;
     pitchedRoofs.instanceMatrix.needsUpdate = true;
@@ -432,6 +509,12 @@ export const NearHorizonCity: React.FC = () => {
 
   return (
     <group name="near-horizon-city" dispose={null}>
+      <instancedMesh
+        ref={plinthsRef}
+        name="near-city-plinths"
+        args={[UNIT_BOX, CITY_PLINTH_MATERIAL, buildings.length]}
+        renderOrder={RENDER_ORDER.cityNear}
+      />
       <instancedMesh
         ref={bodiesRef}
         name="near-city-buildings"

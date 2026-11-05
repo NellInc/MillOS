@@ -21,11 +21,55 @@ import {
   FaultInjection,
 } from '../types';
 import { deterministicVariance, idToSeed } from '../../systems/CentralTickSystem';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { plantSecondsForRealSeconds } from '../../simulation/pace';
+import { safeJSONStorage } from '../../stores/storage';
 
-/** Seconds for a setpoint-following reading to close ~63% of the gap. */
+/**
+ * Setpoints written to the simulated plant, kept across a reload. Every shipped
+ * write reaches writeTag through SCADAService.writeSetpoint with an operator or
+ * agent actor; a live adapter's setpoints belong to the PLC and are not kept.
+ * The millos- prefix puts it in Reset Simulation's sweep, and suspendPersistence
+ * stops it like every other saved store. Working if a setpoint written before a
+ * reload is the setpoint after it.
+ */
+export const SCADA_SETPOINT_STORAGE_KEY = 'millos-scada-setpoints';
+const SCADA_SETPOINT_STORAGE_VERSION = 1;
+
+function readStoredSetpoints(): Record<string, number> {
+  try {
+    const stored = safeJSONStorage.getItem(SCADA_SETPOINT_STORAGE_KEY);
+    if (!stored || typeof (stored as { then?: unknown }).then === 'function') return {};
+    const setpoints = (stored as { state?: { setpoints?: unknown } }).state?.setpoints;
+    if (!setpoints || typeof setpoints !== 'object') return {};
+    const result: Record<string, number> = {};
+    for (const [tagId, value] of Object.entries(setpoints as Record<string, unknown>)) {
+      if (typeof value === 'number' && Number.isFinite(value)) result[tagId] = value;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+function storeSetpoint(tagId: string, value: number): void {
+  try {
+    const setpoints = { ...readStoredSetpoints(), [tagId]: value };
+    void safeJSONStorage.setItem(SCADA_SETPOINT_STORAGE_KEY, {
+      state: { setpoints },
+      version: SCADA_SETPOINT_STORAGE_VERSION,
+    });
+  } catch {
+    // Unsaved: the setpoint still holds for this session.
+  }
+}
+
+/** PLANT seconds for a setpoint-following reading to close ~63% of the gap. */
 const SETPOINT_TIME_CONSTANT_S = 4;
-/** Fraction of the remaining gap closed per 1 Hz sample. */
-const SETPOINT_LAG_PER_SAMPLE = 1 - Math.exp(-1 / SETPOINT_TIME_CONSTANT_S);
+/** Real seconds between samples. */
+const SAMPLE_INTERVAL_S = 1;
+/** Background vibration velocity of a stopped unit (the offline model's idle level). */
+const STOPPED_VIBRATION_MM_S = 0.2;
 
 /** Machine state from Zustand store */
 interface MachineState {
@@ -40,8 +84,10 @@ interface ActiveFault {
   tagId: string;
   faultType: FaultType;
   startTime: number;
-  duration: number; // 0 = permanent
+  duration: number; // PLANT milliseconds; 0 = permanent
   severity: number;
+  /** Plant milliseconds the fault has run: it holds with the clock, like the readings. */
+  elapsedPlantMs: number;
 }
 
 export class SimulationAdapter implements IProtocolAdapter {
@@ -106,6 +152,7 @@ export class SimulationAdapter implements IProtocolAdapter {
     if (this.connected) return;
 
     this.sampleIndex = 0;
+    this.restoreStoredSetpoints();
 
     // Initialize all tag values with base values
     this.tags.forEach((tag, id) => {
@@ -121,7 +168,37 @@ export class SimulationAdapter implements IProtocolAdapter {
     this.connected = true;
     this.connectTime = Date.now();
     this.tick(); // Force immediate update to apply machine states and populate subscribers
-    this.simulationInterval = setInterval(() => this.tick(), 1000);
+    // The readings are plant readings: each sample advances them by the plant
+    // time its real second carried, so P holds them and 4x runs them 4x.
+    this.simulationInterval = setInterval(
+      () =>
+        this.tick(
+          plantSecondsForRealSeconds(SAMPLE_INTERVAL_S, useGameSimulationStore.getState().gameSpeed)
+        ),
+      SAMPLE_INTERVAL_S * 1000
+    );
+  }
+
+  /**
+   * Reapply the setpoints saved before a reload to this adapter's own copy of
+   * the tags. A reading that follows a restored setpoint starts at it: the
+   * drive was already running there. A value the tag cannot hold is skipped.
+   */
+  private restoreStoredSetpoints(): void {
+    const restored = new Map<string, number>();
+    for (const [tagId, value] of Object.entries(readStoredSetpoints())) {
+      const tag = this.tags.get(tagId);
+      if (!tag?.simulation || tag.accessMode === 'READ') continue;
+      if (value < tag.engLow || value > tag.engHigh) continue;
+      tag.simulation.baseValue = value;
+      restored.set(tagId, value);
+    }
+    if (restored.size === 0) return;
+    this.tags.forEach((tag, id) => {
+      const setpointTagId = tag.simulation?.setpointTagId;
+      const target = setpointTagId ? restored.get(setpointTagId) : undefined;
+      if (target !== undefined) this.trackedBase.set(id, target);
+    });
   }
 
   async disconnect(): Promise<void> {
@@ -189,6 +266,7 @@ export class SimulationAdapter implements IProtocolAdapter {
     // For setpoints, update the base value in simulation
     if (tag.simulation) {
       tag.simulation.baseValue = value as number;
+      if (typeof value === 'number' && Number.isFinite(value)) storeSetpoint(tagId, value);
     }
 
     const tagValue: TagValue = {
@@ -325,6 +403,7 @@ export class SimulationAdapter implements IProtocolAdapter {
       startTime: Date.now(),
       duration: fault.duration ?? 0,
       severity: fault.severity ?? 1.0,
+      elapsedPlantMs: 0,
     });
 
     if (this.connected) {
@@ -365,14 +444,25 @@ export class SimulationAdapter implements IProtocolAdapter {
   // Simulation Engine
   // =========================================================================
 
-  private tick(): void {
+  /**
+   * One sample. `plantSeconds` is the plant time since the previous sample: 0
+   * for an immediate refresh (connect, a fault change) and under a held clock,
+   * when noise, setpoint lag and cool-down all hold.
+   */
+  private tick(plantSeconds = 0): void {
     const now = Date.now();
-    this.sampleIndex += 1;
+    if (plantSeconds > 0) this.sampleIndex += 1;
+    const setpointLag = 1 - Math.exp(-plantSeconds / SETPOINT_TIME_CONSTANT_S);
+    const coolingEase = 1 - Math.pow(0.99, plantSeconds);
+    // The offline model's vibration ease: 10% per two plant seconds.
+    const settlingEase = 1 - Math.pow(0.9, plantSeconds / 2);
     const changedTags: TagValue[] = [];
 
-    // Check for expired faults
+    // Expire faults on plant time: a held clock holds an injected fault with
+    // the reading it distorts, and 4x runs it out four times as fast.
     this.activeFaults.forEach((fault, tagId) => {
-      if (fault.duration > 0 && now - fault.startTime >= fault.duration) {
+      fault.elapsedPlantMs += plantSeconds * 1000;
+      if (fault.duration > 0 && fault.elapsedPlantMs >= fault.duration) {
         this.activeFaults.delete(tagId);
       }
     });
@@ -402,7 +492,7 @@ export class SimulationAdapter implements IProtocolAdapter {
 
       // Handle faults first
       if (activeFault) {
-        const faultResult = this.applyFault(activeFault, tag, newValue);
+        const faultResult = this.applyFault(activeFault, tag, newValue, plantSeconds);
         // A transmitter saturates at its range limits.
         newValue = Math.max(tag.engLow, Math.min(tag.engHigh, faultResult.value));
         quality = faultResult.quality;
@@ -415,20 +505,30 @@ export class SimulationAdapter implements IProtocolAdapter {
       // Status-dependent tags
       else if (sim.statusDependent && !isRunning) {
         // Machine not running - return idle values
+        // A tripped machine's transmitters are healthy; only the process is
+        // stopped. Its process values (speed, flow, current) are UNCERTAIN, but
+        // a bearing temperature and a vibration velocity go on measuring the
+        // machine, and the store takes GOOD readings only: marked UNCERTAIN
+        // they froze at their running values, so a trip never read cooled.
+        quality = 'UNCERTAIN';
         if (tag.group === 'SPEED' || tag.group === 'FLOW') {
           newValue = 0;
         } else if (tag.group === 'TEMPERATURE') {
           // Temperature drops slowly when machine stops
           const ambientTemp = 24;
-          newValue = newValue + (ambientTemp - newValue) * 0.01;
+          newValue = newValue + (ambientTemp - newValue) * coolingEase;
+          quality = 'GOOD';
+        } else if (tag.group === 'VIBRATION' && tag.engUnit === 'mm/s') {
+          // A stopped rotor settles to background vibration, as the offline
+          // model's does. A plansifter's stroke amplitude (mm) holds instead.
+          newValue = newValue + (STOPPED_VIBRATION_MM_S - newValue) * settlingEase;
+          quality = 'GOOD';
         }
-        // A tripped machine's transmitters are healthy; only the process is stopped.
-        quality = 'UNCERTAIN';
       }
       // Normal operation
       else {
         // FIXED: Start from base value each tick to prevent accumulation
-        const baseValue = this.followSetpoint(id, sim.baseValue, sim.setpointTagId);
+        const baseValue = this.followSetpoint(id, sim.baseValue, sim.setpointTagId, setpointLag);
         newValue = baseValue;
 
         // 1. Apply load factor FIRST (scales the base value)
@@ -483,16 +583,21 @@ export class SimulationAdapter implements IProtocolAdapter {
 
   /**
    * A drive does not jump to a new speed: the reading closes the gap to its
-   * setpoint with a first-order lag (time constant SETPOINT_TIME_CONSTANT_S at
-   * the 1 Hz sample rate). It advances only on running samples, so a stopped
-   * machine still reads zero and resumes from where it was. Noise is applied
-   * on top by the caller, so it never accumulates in the tracked value.
+   * setpoint with a first-order lag (time constant SETPOINT_TIME_CONSTANT_S in
+   * plant seconds). It advances only on running samples, so a stopped machine
+   * still reads zero and resumes from where it was. Noise is applied on top by
+   * the caller, so it never accumulates in the tracked value.
    */
-  private followSetpoint(tagId: string, ownBase: number, setpointTagId?: string): number {
+  private followSetpoint(
+    tagId: string,
+    ownBase: number,
+    setpointTagId: string | undefined,
+    lag: number
+  ): number {
     const target = setpointTagId ? this.tags.get(setpointTagId)?.simulation?.baseValue : undefined;
     if (target === undefined || !Number.isFinite(target)) return ownBase;
     const current = this.trackedBase.get(tagId) ?? ownBase;
-    const next = current + (target - current) * SETPOINT_LAG_PER_SAMPLE;
+    const next = current + (target - current) * lag;
     this.trackedBase.set(tagId, next);
     return next;
   }
@@ -500,7 +605,8 @@ export class SimulationAdapter implements IProtocolAdapter {
   private applyFault(
     fault: ActiveFault,
     tag: TagDefinition,
-    currentValue: number
+    currentValue: number,
+    plantSeconds: number
   ): { value: number; quality: Quality } {
     switch (fault.faultType) {
       case 'sensor_fail':
@@ -514,8 +620,9 @@ export class SimulationAdapter implements IProtocolAdapter {
         };
 
       case 'drift': {
-        // Accelerated drift
-        const driftAmount = (tag.engHigh - tag.engLow) * 0.001 * fault.severity;
+        // Accelerated drift: 0.1% of span per plant second, so it holds while
+        // paused (an immediate refresh passes 0) and keeps pace with 4x.
+        const driftAmount = (tag.engHigh - tag.engLow) * 0.001 * fault.severity * plantSeconds;
         return {
           value: Math.min(tag.engHigh, currentValue + driftAmount),
           quality: 'GOOD',

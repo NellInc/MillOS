@@ -102,7 +102,7 @@ describe('startup world asset preload', () => {
   it('skips on Low only the models the Low tier never mounts', () => {
     const medium = startupAssetManifest('medium').models;
     const low = startupAssetManifest('low').models;
-    const detailOnly = [
+    const detailOnly: readonly string[] = [
       MODEL_PATHS.forklift,
       GENERATED_ASSET_PATHS.forkliftChassisUnit,
       GENERATED_ASSET_PATHS.spoutingFlangeUnit,

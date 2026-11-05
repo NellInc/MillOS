@@ -54,7 +54,7 @@ describe('concrete hardstanding slabs', () => {
     expect(opened).toBeGreaterThanOrEqual(0);
     expect(body).toMatch(/weights\.g/);
     // A changed program needs a changed, stable cache key.
-    expect(source).toContain('terrain_v14_');
+    expect(source).toContain('terrain_v15_');
   });
 
   it('gives exposed and sheltered hardstanding the same slab joints', () => {

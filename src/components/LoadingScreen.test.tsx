@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   prepared: false,
   opened: false,
   ready: false,
+  deferredShaders: false,
 }));
 const beginTask = vi.hoisted(() =>
   vi.fn(() => {
@@ -65,6 +66,7 @@ beforeEach(() => {
   state.ready = false;
   state.prepared = false;
   state.opened = false;
+  state.deferredShaders = false;
   state.errors = 0;
   state.pendingAssets = 0;
   state.pendingTasks = 0;
@@ -164,6 +166,22 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.queryByRole('button', { name: 'Open loaded scene (slow)' })).toBeNull();
   });
 
+  // A deferred truck prewarm is offered through the slow-device path; the
+  // status must name what is unfinished, not claim the animation is slow.
+  it('says the trucks are still being prepared when a deferred prewarm is offered', async () => {
+    state.prepared = true;
+    state.deferredShaders = true;
+    render(<LoadingScreen minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(
+      screen.getByText('The scene is loaded, but the delivery trucks are still being prepared.')
+    ).toBeVisible();
+    expect(screen.queryByText(/animation is still slow/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Open loaded scene (slow)' }));
+    expect(openPrepared).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps "Open loaded scene" through a hitch in the same revision, and it still opens', async () => {
     useGraphicsStore.getState().setGraphicsQuality('medium');
     state.prepared = true;
@@ -207,6 +225,75 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
   });
 
+  // A tab opened in the background cannot become ready: rendering and the
+  // readiness probe stop while it is hidden. The 30 s timer ran on wall time,
+  // so the player came back to "taking longer than usual" and an offer to drop
+  // to Low, a choice that is then kept for every later visit.
+  // Working if only visible time counts towards the slow-load offer.
+  it('counts only visible time towards the slow-load offer', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    let visibility: DocumentVisibilityState = 'visible';
+    const visibilitySpy = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockImplementation(() => visibility);
+    try {
+      render(<LoadingScreen />);
+      await act(async () => vi.advanceTimersByTimeAsync(10_000));
+      visibility = 'hidden';
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(60_000));
+      visibility = 'visible';
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+      expect(screen.queryByText(/taking longer than usual/)).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(19_999));
+      expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
+    } finally {
+      visibilitySpy.mockRestore();
+    }
+  });
+
+  // The slow-world confirmation ran on wall time too. Nothing renders while
+  // the tab is hidden, so `prepared` keeps its last value and the 5 s ran out
+  // in the background: a world slow for a moment before the player switched
+  // tabs came back latched as slow, offering Low (a choice that is kept).
+  // Working if only visible time confirms a slow world.
+  it('counts only visible time towards confirming a slow world', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.prepared = true;
+    let visibility: DocumentVisibilityState = 'visible';
+    const visibilitySpy = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockImplementation(() => visibility);
+    try {
+      render(<LoadingScreen />);
+      await act(async () => vi.advanceTimersByTimeAsync(2_000));
+      visibility = 'hidden';
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(20_000));
+      visibility = 'visible';
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+      expect(screen.queryByText(/animation is still slow/)).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(2_999));
+      expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
+    } finally {
+      visibilitySpy.mockRestore();
+    }
+  });
+
   it('never lets optional quote failure invalidate scene startup', async () => {
     flags.KNOWLEDGE_LOADING_QUOTES_ENABLED = true;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -241,6 +328,25 @@ describe('LoadingScreen final readiness', () => {
     expect(useGraphicsStore.getState().graphics.quality).toBe('low');
     expect(screen.getByRole('progressbar')).toBeVisible();
     expect(openPrepared).not.toHaveBeenCalled();
+  });
+
+  it('keeps keyboard focus on the cover when Use low graphics removes itself', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    render(
+      <>
+        <LoadingScreen recoveryDelayMs={1} minimumLoadTimeMs={0} />
+        <button>Covered application control</button>
+      </>
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(2));
+    const lowGraphics = screen.getByRole('button', { name: 'Use low graphics' });
+    lowGraphics.focus();
+    fireEvent.click(lowGraphics);
+    expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+    const cover = screen.getByRole('dialog', { name: 'Loading MillOS' });
+    expect(cover).toHaveFocus();
+    fireEvent.keyDown(cover, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: 'Covered application control' })).not.toHaveFocus();
   });
 
   it('does not offer slow access after a loading error', async () => {
@@ -299,6 +405,19 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.getByRole('progressbar', { name: 'Loading MillOS' })).toBeVisible();
     expect(document.documentElement.dataset.loaderFallback).toBeUndefined();
     expect(screen.queryByRole('button', { name: 'Continue while preparing' })).toBeNull();
+  });
+
+  // At Low graphics a load that stops moving (an asset fetch with no timeout)
+  // left only the progress bar: no control at all. A slow device still gets no
+  // routine reload prompt (the test below), but nothing moving for 90 s is a
+  // stall. Working if the cover then says so and offers Reload.
+  it('offers Reload when nothing has moved for 90 seconds, at Low graphics', async () => {
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(35000));
+    expect(screen.getByText('Loading has not moved for a while.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeVisible();
   });
 
   it('keeps prolonged preparation covered without a reload prompt or automatic reveal', async () => {

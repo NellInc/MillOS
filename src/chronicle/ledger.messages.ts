@@ -27,6 +27,11 @@ export const ledgerMessages = defineMessages({
     m23: 'Maintenance work orders',
     m24: 'Demurrage',
     m25: 'Late and quality penalties',
+    m26: 'Crop treatment',
+    m27: 'Federation premium',
+    m28: 'Co-op reserve',
+    m29: 'Needs met',
+    m30: 'Policy changes',
   },
   'pt-BR': {
     m0: 'Fundo inicial',
@@ -55,5 +60,10 @@ export const ledgerMessages = defineMessages({
     m23: 'Ordens de serviço de manutenção',
     m24: 'Estadia',
     m25: 'Penalidades por atraso e qualidade',
+    m26: 'Tratamento da safra',
+    m27: 'Prêmio da federação',
+    m28: 'Reserva da cooperativa',
+    m29: 'Necessidades atendidas',
+    m30: 'Mudanças de política',
   },
 });

@@ -32,7 +32,7 @@ export const workplaceParticipationMessages = defineMessages({
     mandateChecksLegend: 'Current mandate checks',
     mandateChecksStatus:
       'Mandate checks: {done} of {total} match the current agreement. Confirming understanding remains a separate choice.',
-    turnCheckLabel: 'Turn check: {id}',
+    turnCheckLabel: 'Turn check: {prompt}',
     selectAnswer: 'Select an answer',
     matchesTerms: 'Matches the current terms. ',
     needsAnotherLook: 'Needs another look. ',
@@ -144,7 +144,7 @@ export const workplaceParticipationMessages = defineMessages({
     mandateChecksLegend: 'Verificações do mandato atual',
     mandateChecksStatus:
       'Verificações do mandato: {done} de {total} conferem com o acordo atual. Confirmar o entendimento continua sendo uma escolha separada.',
-    turnCheckLabel: 'Verificação da vez: {id}',
+    turnCheckLabel: 'Verificação da vez: {prompt}',
     selectAnswer: 'Selecione uma resposta',
     matchesTerms: 'Confere com os termos atuais. ',
     needsAnotherLook: 'Precisa de outra revisão. ',

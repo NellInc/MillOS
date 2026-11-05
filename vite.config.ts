@@ -290,7 +290,10 @@ export default defineConfig((): UserConfig => {
       // when the operator opts into the local WebGPU brain), ships a large WASM
       // runtime, and uses require() inside ESM that breaks esbuild pre-bundling.
       // Rollup auto-splits the dynamic import into its own lazy chunk for prod.
-      exclude: ['troika-three-text', '@mlc-ai/web-llm'],
+      // Exclude phonon-webgpu (the PA voice, also dynamically imported): its CPU
+      // tier finds its worker and WebAssembly with new URL(..., import.meta.url),
+      // which pre-bundling into .vite/deps would point at files that are not there.
+      exclude: ['troika-three-text', '@mlc-ai/web-llm', 'phonon-webgpu'],
       esbuildOptions: {
         target: 'esnext',
         supported: {

@@ -179,6 +179,32 @@ describe('PAAnnouncementSystem caption lifecycle', () => {
     expect(useAnnouncementsStore.getState().getActiveAnnouncements()).toHaveLength(0);
   });
 
+  it('does not bring back a caption that a more urgent one displaced', async () => {
+    enqueueAnnouncement();
+    render(<PAAnnouncementSystem />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(13_000);
+    });
+    act(() => {
+      useAnnouncementsStore.getState().addAnnouncement({
+        type: 'emergency',
+        message: 'Emergency stop activated. Everything is stationary.',
+        priority: 4,
+        channel: 'safety',
+        cooldownMs: 0,
+      });
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    // The urgent line has run its interval; the displaced routine line was
+    // already on screen for 3 s and is minutes stale by the time a queue drains.
+    expect(
+      screen.queryAllByText('Receiving bay is ready for the next scheduled delivery.')
+    ).toHaveLength(0);
+    expect(useAnnouncementsStore.getState().getActiveAnnouncements()).toHaveLength(0);
+  });
+
   it('moves the PA below the primary safety overlay', async () => {
     useGameSimulationStore.setState({ emergencyActive: true });
     enqueueAnnouncement();

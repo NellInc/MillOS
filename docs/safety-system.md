@@ -4,7 +4,7 @@
 
 **Current orientation:** [MillOS Architecture](./architecture.md) and [State Management](./state-management.md)
 
-MillOS implements a safety simulation for an uncrewed site: forklift and truck collision avoidance, speed zones, emergency stop interlocks, and an automated egress-verification drill. Worker-related behaviours described below are historical.
+MillOS implements a safety simulation for a site with crewed forklifts and autonomous trucks: forklift and truck collision avoidance, speed zones, emergency stop interlocks, and an automated egress-verification drill. Forklift operators (roster residents, `src/simulation/forkliftCrew.ts`) stay seated in a stopped cab during a drill or e-stop; an unmanned forklift works nothing and parks at its crew point. The older worker behaviours described below are historical.
 
 ## Table of Contents
 

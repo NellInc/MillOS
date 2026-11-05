@@ -184,8 +184,9 @@ function LoadedHenhouse({ fallback }: { fallback: ReactNode }) {
     useCameraStore.setState({ targetFov: stage === 1 ? 12 : 14 });
     const ownedTarget = useCameraStore.getState().targetPosition;
     return () => {
-      const camera = useCameraStore.getState();
-      if (camera.isAnimating && camera.targetPosition === ownedTarget) camera.cancelAnimation();
+      // Closing never fights a newer player/preset flight, and hands the
+      // narrow detail lens back to the ordinary one.
+      useCameraStore.getState().releaseFocus(ownedTarget);
     };
   }, [open, prepared, stage]);
   return (

@@ -4,7 +4,7 @@ import type {
   OrderExecutionState,
 } from '../../../stores/operationsCampaignStore';
 import { CAMPAIGN_MASS_EPSILON_KG } from '../../../simulation/operationsPlay';
-import { formatFixed, translate } from '../../../i18n';
+import { formatFixed, formatGrouped, translate } from '../../../i18n';
 import { dispatchBlockText } from '../../../stores/dispatchBlockText';
 import { deliveryJourneyMessages as m } from './deliveryJourney.messages';
 
@@ -19,6 +19,8 @@ interface DeliveryJourney {
   focus?: 'maintenance';
   /** The opening lesson: the card offers a keyboard route to inspect a machine. */
   inspect?: true;
+  /** The quality-hold step: the only one whose Overview route is a QC review. */
+  quality?: true;
 }
 
 /** The oldest open work order, as the guide reads it; read-only. */
@@ -56,6 +58,19 @@ export function deriveDeliveryDeadline(order: CustomerOrder | null, elapsedMinut
   };
 }
 
+/**
+ * Whole kilograms shipped, as every guide and shift-card line shows them.
+ * Credit is fractional, so an order can stay open a few tenths short; rounded,
+ * it read as the full commitment beside a live due time. An open order reads
+ * at most one kilogram short; a fulfilled one reads what it shipped.
+ * Working if no surface shows "4,000 / 4,000" for an order still open.
+ */
+export function shownShippedKg(order: Pick<CustomerOrder, 'shippedKg' | 'requiredKg' | 'status'>) {
+  const shipped = Math.max(0, Math.round(order.shippedKg));
+  if (order.status === 'fulfilled') return shipped;
+  return Math.min(shipped, Math.max(0, Math.round(order.requiredKg) - 1));
+}
+
 /** The shipping dock as the guide reads it; read-only. */
 export interface ShippingTruckView {
   active: boolean;
@@ -79,8 +94,9 @@ function deriveTripStatus(
   const trip = translate(m, 'tripStatus', {
     loads,
     loadsText: formatFixed(loads, 0),
-    capacity: formatFixed(capacity, 0),
-    left: formatFixed(leftKg, 0),
+    capacity: formatGrouped(Math.round(capacity)),
+    // At least 1: the order is open, so something is still to ship.
+    left: formatGrouped(Math.max(1, Math.round(leftKg))),
   });
   if (!truck || truck.docked) return trip;
   return (
@@ -118,7 +134,7 @@ export function deriveDeliveryJourney(
     return {
       title: translate(m, 'fulfilledTitle'),
       detail: translate(m, 'fulfilledDetail', {
-        kg: formatFixed(order.shippedKg, 0),
+        kg: formatGrouped(Math.round(order.shippedKg)),
         product,
         customer: order.customer,
       }),
@@ -168,6 +184,7 @@ export function deriveDeliveryJourney(
         reason: dispatchBlockText(execution.dispatchLoad) ?? translate(m, 'qualityHoldUnknown'),
       }),
       workspace: 'overview' as const,
+      quality: true,
       entryId: 'batch-quality',
     };
   const load = execution.dispatchLoad;
@@ -185,7 +202,7 @@ export function deriveDeliveryJourney(
     const waiting =
       dispatchBlockText(load) ??
       translate(m, 'releasedWaiting', {
-        kg: formatFixed(execution.releasedFinishedKg, 0),
+        kg: formatGrouped(Math.round(execution.releasedFinishedKg)),
         product,
       });
     return {
@@ -213,9 +230,11 @@ export function deriveDeliveryJourney(
   }
   if (execution.stage === 'dispatched') {
     const receipt = translate(m, 'departedDetail', {
-      lastKg: formatFixed(load.lastDispatchKg, 0),
-      shippedKg: formatFixed(order.shippedKg, 0),
-      requiredKg: formatFixed(order.requiredKg, 0),
+      lastKg: formatGrouped(Math.round(load.lastDispatchKg)),
+      // Only reached while the order is open: a few tenths short must not
+      // read as the full commitment received.
+      shippedKg: formatGrouped(shownShippedKg(order)),
+      requiredKg: formatGrouped(Math.round(order.requiredKg)),
       customer: order.customer,
     });
     return {
@@ -247,11 +266,11 @@ export function deriveDeliveryJourney(
     title: translate(m, 'followTitle'),
     view: 'Milling',
     detail: translate(m, 'followDetail', {
-      sourceKg: formatFixed(execution.sourceInventoryKg, 0),
+      sourceKg: formatGrouped(Math.round(execution.sourceInventoryKg)),
       grain,
       setpoint: formatFixed(execution.lineSetpointPercent, 0),
       product,
-      releasedKg: formatFixed(execution.releasedFinishedKg, 0),
+      releasedKg: formatGrouped(Math.round(execution.releasedFinishedKg)),
       quality,
     }),
     workspace: 'scada' as const,

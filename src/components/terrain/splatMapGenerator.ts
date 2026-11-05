@@ -23,6 +23,12 @@ import {
 } from './terrainTypes';
 import { createLinearDataTexture } from '../../utils/textureGenerator';
 import { GAS_STATION_SITE, getLandmarkBounds, SITE_LAYOUT } from '../../constants/siteLayout';
+import {
+  RAILWAY_CORRIDOR_HALF_WIDTH,
+  RAILWAY_NORTH_CORRIDOR,
+  RAILWAY_STATION,
+  RAILWAY_STRAIGHT_CORRIDOR,
+} from '../../constants/railwayLayout';
 
 /**
  * Calculate signed distance to a shape (negative = inside, positive = outside)
@@ -67,6 +73,24 @@ export function signedDistanceToShape(worldX: number, worldZ: number, shape: Reg
       const avgRadius = (shape.radiusX + shape.radiusZ) / 2;
       return (dist - 1) * avgRadius;
     }
+
+    case 'path': {
+      // Exact distance to the nearest segment, less the band's half-width.
+      let nearest = Infinity;
+      const { points } = shape;
+      for (let i = 1; i < points.length; i++) {
+        const [ax, az] = points[i - 1];
+        const ex = points[i][0] - ax;
+        const ez = points[i][1] - az;
+        const lengthSquared = ex * ex + ez * ez;
+        const t =
+          lengthSquared > 0
+            ? Math.min(1, Math.max(0, ((worldX - ax) * ex + (worldZ - az) * ez) / lengthSquared))
+            : 0;
+        nearest = Math.min(nearest, Math.hypot(worldX - ax - ex * t, worldZ - az - ez * t));
+      }
+      return nearest - shape.halfWidth;
+    }
   }
 }
 
@@ -102,6 +126,16 @@ function shapeWorldBounds(shape: RegionShape): TerrainBounds {
         minZ: shape.z - shape.radiusZ,
         maxZ: shape.z + shape.radiusZ,
       };
+    case 'path': {
+      const xs = shape.points.map(([x]) => x);
+      const zs = shape.points.map(([, z]) => z);
+      return {
+        minX: Math.min(...xs) - shape.halfWidth,
+        maxX: Math.max(...xs) + shape.halfWidth,
+        minZ: Math.min(...zs) - shape.halfWidth,
+        maxZ: Math.max(...zs) + shape.halfWidth,
+      };
+    }
   }
 }
 
@@ -251,6 +285,73 @@ export const MILLOS_TERRAIN_REGIONS: TerrainRegion[] = [
     intensity: 1,
     edgeSoftness: 1.5,
     priority: 15,
+  },
+
+  // ============================================
+  // RIVERSIDE STATION AND THE RAILWAY (constants/railwayLayout.ts)
+  // ============================================
+  // Forecourt between the car park kerb and the station's street front.
+  {
+    channel: TerrainChannel.ASPHALT,
+    shape: {
+      type: 'rect',
+      x: (RAILWAY_STATION.forecourt.minX + RAILWAY_STATION.forecourt.maxX) / 2,
+      z: (RAILWAY_STATION.forecourt.minZ + RAILWAY_STATION.forecourt.maxZ) / 2,
+      width: RAILWAY_STATION.forecourt.maxX - RAILWAY_STATION.forecourt.minX,
+      height: RAILWAY_STATION.forecourt.maxZ - RAILWAY_STATION.forecourt.minZ,
+    },
+    intensity: 1,
+    edgeSoftness: 1,
+    clearance: 4,
+    priority: 15,
+  },
+  // Station yard gravel under the platforms, their ramps and the crossing.
+  {
+    channel: TerrainChannel.DIRT,
+    shape: {
+      type: 'rect',
+      x: (RAILWAY_STATION.forecourt.minX + RAILWAY_STATION.platform2.maxX + 1.5) / 2,
+      z: (RAILWAY_STATION.platform1.minZ + RAILWAY_STATION.platform1.maxZ) / 2,
+      width: RAILWAY_STATION.platform2.maxX + 1.5 - RAILWAY_STATION.forecourt.minX,
+      height:
+        RAILWAY_STATION.platform1.maxZ -
+        RAILWAY_STATION.platform1.minZ +
+        2 * RAILWAY_STATION.rampLength +
+        6,
+    },
+    intensity: 0.7,
+    edgeSoftness: 2.5,
+    clearance: 5,
+    priority: 12,
+  },
+  // Ballast cess along the whole line: the north curve, then the straight
+  // and south bore. Its clearance keeps meadow relief, trees and scrub off
+  // the formation all the way into both bores.
+  {
+    channel: TerrainChannel.DIRT,
+    shape: {
+      type: 'path',
+      points: RAILWAY_NORTH_CORRIDOR,
+      halfWidth: RAILWAY_CORRIDOR_HALF_WIDTH,
+    },
+    intensity: 0.8,
+    edgeSoftness: 2,
+    clearance: 5,
+    priority: 12,
+  },
+  {
+    channel: TerrainChannel.DIRT,
+    shape: {
+      type: 'rect',
+      x: RAILWAY_STRAIGHT_CORRIDOR.x,
+      z: (RAILWAY_STRAIGHT_CORRIDOR.minZ + RAILWAY_STRAIGHT_CORRIDOR.maxZ) / 2,
+      width: RAILWAY_CORRIDOR_HALF_WIDTH * 2,
+      height: RAILWAY_STRAIGHT_CORRIDOR.maxZ - RAILWAY_STRAIGHT_CORRIDOR.minZ,
+    },
+    intensity: 0.8,
+    edgeSoftness: 2,
+    clearance: 5,
+    priority: 12,
   },
 
   // ============================================
@@ -752,7 +853,10 @@ export const VALLEY_HILLS = [
 export const VALLEY_HOLLOWS = [
   [-181, 151, 24, 24, -1.05],
   [-111, 188, 38, 30, -0.85],
-  [162, 197, 28, 28, -0.9],
+  // Was (162, 197): under the railway's south tunnel hill, where the ballast
+  // cess corridor now flattens it. It lies instead in the open meadow east of
+  // Riverside station, clear of the line, the meadow hills and the valley rim.
+  [212, 40, 28, 28, -0.9],
 ] as const;
 const MEADOW_RELIEF = [...VALLEY_HILLS, ...VALLEY_HOLLOWS];
 

@@ -13,6 +13,7 @@ export const storeMessages = defineMessages({
     alarmTypeBadQuality: 'BAD QUALITY',
     alarmReturnedToNormal: 'Returned to normal; acknowledge to clear.',
     alarmTypeRateOfChange: 'RATE OF CHANGE',
+    bellControlSource: 'Operator (alert bell)',
   },
   'pt-BR': {
     alarmBadQuality: '{tag}: a qualidade do sinal de origem é BAD',
@@ -26,5 +27,6 @@ export const storeMessages = defineMessages({
     alarmTypeBadQuality: 'QUALIDADE RUIM',
     alarmReturnedToNormal: 'Voltou ao normal; reconheça para limpar.',
     alarmTypeRateOfChange: 'TAXA DE VARIAÇÃO',
+    bellControlSource: 'Operador (sino de alertas)',
   },
 });

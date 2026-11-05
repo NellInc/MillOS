@@ -54,6 +54,23 @@ describe('door column albedo', () => {
     }
   });
 
+  /**
+   * sync-check-20261103 milling (1780-2290, 0-295): the shipping dock hood's
+   * underside rendered (7, 23, 29) beside the roof liner's (63, 75, 75), a hole
+   * in the roof. It faces down from y 15.4, under the work-light rows, so fill
+   * is all it gets; at the coal floor that was black. It is a liner sheet now.
+   */
+  it('gives the dock hood a light liner soffit the fill alone can show', () => {
+    const color = (dock.DOCK_FRAME_MATERIALS.canopy as THREE.MeshStandardMaterial).color;
+    expect(luminance(color)).toBeGreaterThanOrEqual(0.4);
+    expect(Math.max(color.r, color.g, color.b) / Math.min(color.r, color.g, color.b)).toBeLessThan(
+      1.1
+    );
+    // Lit by the hall, not the grass: the liner's bounce (uSurfDeck.w).
+    const surface = dock.DOCK_FRAME_MATERIALS.canopy.userData.millosWorldSurface;
+    expect(surface?.uSurfDeck.value.w).toBeCloseTo(0.85, 6);
+  });
+
   it('lifts the hall structural steel half a stop without losing its hue', () => {
     const color = (FACTORY_STRUCTURE_MATERIAL as THREE.MeshStandardMaterial).color;
     expect(luminance(color)).toBeGreaterThanOrEqual(0.08);

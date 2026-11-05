@@ -196,6 +196,114 @@
       border: 1px solid currentColor;
     }
   }
+
+  /* LIQUID GLASS, on small chrome only (the dock first). Data-dense panels
+     stay near-opaque: light text over a moving factory loses legibility.
+     Layers: projection shadow, blurred and saturated backdrop, a tint whose
+     strength follows the scene's daylight (glassDaylight.ts writes
+     --millos-glass-daylight, 0 night to 1 noon), a rim lit top-left and
+     bottom-right, and an inset streak for thickness. The text stays light at
+     every hour, so only the tint moves: thicker by day, when what is behind
+     the glass is bright. No SVG refraction: backdrop-filter url() is
+     Chromium-only and adds a displacement pass per frame over a live canvas. */
+  .millos-glass {
+    --glass-alpha-night: 0.42;
+    --glass-alpha-day: 0.62;
+    /* Anchors the rim. Any position utility (fixed, absolute) still wins,
+       because utilities sit in a later layer. */
+    position: relative;
+    isolation: isolate;
+    background-color: rgb(
+      7 23 34 /
+        calc(
+          var(--glass-alpha-night) + (var(--glass-alpha-day) - var(--glass-alpha-night)) *
+            var(--millos-glass-daylight, 1)
+        )
+    );
+    -webkit-backdrop-filter: blur(14px) saturate(160%) brightness(0.8);
+    backdrop-filter: blur(14px) saturate(160%) brightness(0.8);
+    border: 1px solid rgb(148 190 205 / 0.12);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.3),
+      0 10px 24px -6px rgb(0 0 0 / 0.45),
+      0 28px 56px -16px rgb(0 0 0 / 0.5),
+      inset 0 1px 0 rgb(255 255 255 / 0.05);
+    text-shadow: 0 1px 2px rgb(0 0 0 / 0.45);
+  }
+
+  /* The same glass cut thick, for surfaces that carry dense small text: the
+     sidebar, the attached status bar, notifications and the guide card. It
+     keeps the rim, streak and shadow so the whole interface reads as one
+     material, and drops the text shadow, which softens small type. */
+  .millos-glass.millos-glass-thick {
+    --glass-alpha-night: 0.7;
+    --glass-alpha-day: 0.82;
+    text-shadow: none;
+  }
+
+  .millos-glass::before,
+  .millos-glass::after {
+    content: '';
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* The rim: a 1px gradient ring, bright at the top-left, cyan at the
+     bottom-right, clear along the middle of each edge. It sits inside the
+     padding box, so overflow-hidden panels do not clip it away. */
+  .millos-glass::before {
+    inset: 0;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgb(255 255 255 / 0.2),
+      rgb(255 255 255 / 0.04) 22%,
+      transparent 45%,
+      transparent 70%,
+      rgb(165 243 252 / 0.12)
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+  }
+
+  .millos-glass::after {
+    inset: 2px;
+    box-shadow:
+      inset 1px 1px 0 rgb(255 255 255 / 0.04),
+      inset -1px -1px 0 rgb(0 0 0 / 0.22);
+  }
+
+  /* A surface that scrolls itself would scroll its pseudo-element rim with
+     the content, so it draws the rim with fixed inset shadows instead. */
+  .millos-glass.millos-glass-scroll::before,
+  .millos-glass.millos-glass-scroll::after {
+    content: none;
+  }
+
+  .millos-glass.millos-glass-scroll {
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.3),
+      0 10px 24px -6px rgb(0 0 0 / 0.45),
+      0 28px 56px -16px rgb(0 0 0 / 0.5),
+      inset 1px 1px 0 rgb(255 255 255 / 0.07),
+      inset -1px -1px 0 rgb(165 243 252 / 0.06);
+  }
+
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .millos-glass {
+      background-color: rgb(7 23 34 / 0.95);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
 }
 
 /* Soft page-to-page cross-fade, matching nellwatson.com. Browsers without
@@ -230,15 +338,27 @@ html[data-motion='reduce']::view-transition-new(*) {
     }
   }
 
+  /* In the compact layout the dock stays centred, so the machine Inspector
+     (the sidebar's only compact use) ends above it instead of under it.
+     Working if the Inspector's last row is not covered by the dock. */
+  [data-testid='game-interface'][data-compact-layout] [data-context-sidebar] {
+    bottom: calc(5.75rem + env(safe-area-inset-bottom));
+  }
+
+  /* On a short phone the branding footer would take most of the Inspector's
+     room; the compact layout never showed it before the Inspector opened here. */
+  [data-testid='game-interface'][data-compact-layout] [data-sidebar-footer] {
+    display: none;
+  }
+
   /* These two quiet overlays share a column on smaller screens. Keep playback
      above the agreement, including enlarged text, without hiding either task. */
   @media (max-width: 960px) {
-    [data-testid='game-interface']:has(> [aria-label='Working agreement companion'])
-      [aria-label='Music player'] {
+    [data-testid='game-interface']:has(> [data-agreement-companion]) [data-music-player] {
       top: calc(5rem + env(safe-area-inset-top));
     }
 
-    [data-testid='game-interface'] > [aria-label='Working agreement companion'] {
+    [data-testid='game-interface'] > [data-agreement-companion] {
       top: calc(9rem + env(safe-area-inset-top));
       bottom: auto;
       max-height: max(0px, calc(100dvh - 16rem - env(safe-area-inset-top)));
@@ -246,30 +366,40 @@ html[data-motion='reduce']::view-transition-new(*) {
   }
 
   @media (max-width: 767px) {
-    [data-testid='game-interface']:has(> [aria-label='Working agreement companion'])
-      [aria-label='Music player'] {
+    [data-testid='game-interface']:has(> [data-agreement-companion]) [data-music-player] {
       top: calc(1rem + env(safe-area-inset-top));
     }
 
-    [data-testid='game-interface'] > [aria-label='Working agreement companion'] {
+    [data-testid='game-interface'] > [data-agreement-companion] {
       top: calc(5rem + env(safe-area-inset-top));
       max-height: max(0px, calc(100dvh - 10.5rem - env(safe-area-inset-top)));
+    }
+
+    /* The phone season notice holds the top-left corner the player moved to,
+       and covered its playlist, lyrics and pause controls. Move both down a
+       row while it shows. Working if every player control is hit-testable. */
+    [data-testid='game-interface']:has([data-season-notice='top']) [data-music-player] {
+      top: calc(4.25rem + env(safe-area-inset-top));
+    }
+
+    [data-testid='game-interface']:has([data-season-notice='top']) > [data-agreement-companion] {
+      top: calc(8.5rem + env(safe-area-inset-top));
+      max-height: max(0px, calc(100dvh - 14rem - env(safe-area-inset-top)));
     }
   }
 
   @media (max-height: 500px) {
-    [data-testid='game-interface'] > [aria-label='Working agreement companion'] {
+    [data-testid='game-interface'] > [data-agreement-companion] {
       padding: 0.5rem;
     }
   }
 
   @media (min-width: 768px) and (max-width: 960px) and (max-height: 500px) {
-    [data-testid='game-interface']:has(> [aria-label='Working agreement companion'])
-      [aria-label='Music player'] {
+    [data-testid='game-interface']:has(> [data-agreement-companion]) [data-music-player] {
       width: 10rem;
     }
 
-    [data-testid='game-interface'] > [aria-label='Working agreement companion'] {
+    [data-testid='game-interface'] > [data-agreement-companion] {
       top: calc(5rem + env(safe-area-inset-top));
       max-height: max(0px, calc(100dvh - 10.5rem - env(safe-area-inset-top)));
     }

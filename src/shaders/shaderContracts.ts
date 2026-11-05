@@ -310,7 +310,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['high', 'ultra'],
     uniformOwner: 'TerrainMaterial stable uniform refs',
     timeSource: 'none',
-    cacheKey: 'terrain_v14_{disp|nodisp}',
+    cacheKey: 'terrain_v15_{disp|nodisp}',
     disposalOwner: 'TerrainMaterial cleanup effect',
     fallbackMaterial: 'calibrated grass MeshStandardMaterial',
   },

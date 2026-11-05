@@ -49,6 +49,17 @@ export const Dock: React.FC<DockProps> = ({
   const toggleFpsMode = useUIStore((state) => state.toggleFpsMode);
   const { isMobile, isCompactLayout } = useMobileDetection();
   const openMobilePanel = useMobileControlStore((state) => state.openMobilePanel);
+  // The compact layout opens sheets and never changes the sidebar's
+  // activeMode, so there the dock marks the open sheet (and nothing while
+  // none is open) rather than a sidebar workspace that is not shown.
+  // Working if the Safety sheet lights Safety, not Overview.
+  const mobilePanelVisible = useMobileControlStore((state) => state.mobilePanelVisible);
+  const mobilePanelContent = useMobileControlStore((state) => state.mobilePanelContent);
+  const shownMode: DockMode | null = isCompactLayout
+    ? mobilePanelVisible
+      ? (mobilePanelContent ?? null)
+      : null
+    : activeMode;
 
   // Fullscreen state (mobile only)
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -80,12 +91,34 @@ export const Dock: React.FC<DockProps> = ({
   useEffect(() => {
     if (!moreOpen) return;
     const closeOnOutside = (event: MouseEvent) => {
+      // A click in a modal opened over the menu, or on its backdrop, is not a
+      // click away from it: closing here unmounted the item that modal hands
+      // focus back to.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       if (!moreMenuRef.current?.contains(event.target as Node)) setMoreOpen(false);
     };
     const menuItems = () =>
       Array.from(moreMenuRef.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? []);
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      // A modal opened over the menu (? on a menu item opens the keyboard
+      // help) owns every key: this capture listener took its Escape, closing
+      // the menu behind it and leaving the help open with focus outside it,
+      // and its Tab unmounted the item the help hands focus back to.
+      // Working if Escape closes the help first and returns to the menu item.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      // Tab leaves a menu and closes it, as the menu-button pattern does. Left
+      // open, this capture listener kept taking the arrow keys (and Escape)
+      // from whatever focus moved on to: a slider, a list, the sidebar.
+      // Working if the arrows act where focus is once it has left.
+      if (event.key === 'Tab') {
+        setMoreOpen(false);
+        return;
+      }
+      if (
+        (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
+        (document.activeElement === document.body ||
+          moreMenuRef.current?.contains(document.activeElement))
+      ) {
         // role="menu" promises arrow-key movement; keep that promise.
         const items = menuItems();
         if (items.length === 0) return;
@@ -143,7 +176,9 @@ export const Dock: React.FC<DockProps> = ({
 
   // AI Partner lives only in the More menu, so its trigger carries the highlight.
   const moreActive =
-    fpsMode || activeMode === 'ai' || (isCompactLayout && activeMode === 'chronicle');
+    fpsMode ||
+    shownMode === 'ai' ||
+    (isCompactLayout && (shownMode === 'chronicle' || shownMode === 'management'));
 
   // On mobile, clicking a dock item opens the mobile panel instead of sidebar
   const handleModeChange = (mode: DockMode, trigger?: HTMLElement) => {
@@ -168,7 +203,7 @@ export const Dock: React.FC<DockProps> = ({
     <nav
       id="navigation-dock"
       data-dock-layout={isCompactLayout ? 'compact' : 'wide'}
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#071722]/95 backdrop-blur-xl border border-cyan-100/15 rounded-md flex items-center shadow-2xl z-50 pointer-events-auto ${
+      className={`millos-glass fixed bottom-6 left-1/2 -translate-x-1/2 rounded-md flex items-center z-50 pointer-events-auto ${
         isCompactLayout
           ? 'p-1 gap-0.5 max-w-[calc(100vw-1rem)]'
           : 'p-0 gap-0 w-[min(48rem,calc(100vw-2rem))]'
@@ -194,7 +229,7 @@ export const Dock: React.FC<DockProps> = ({
         mode="overview"
         icon={<Factory size={24} />}
         label={t('itemOverview')}
-        isActive={activeMode === 'overview'}
+        isActive={shownMode === 'overview'}
         onClick={(trigger) => handleModeChange('overview', trigger)}
         isMobile={isCompactLayout}
       />
@@ -202,7 +237,7 @@ export const Dock: React.FC<DockProps> = ({
         mode="production"
         icon={<ChartColumn size={26} />}
         label={t('itemProduction')}
-        isActive={activeMode === 'production'}
+        isActive={shownMode === 'production'}
         onClick={(trigger) => handleModeChange('production', trigger)}
         isMobile={isCompactLayout}
       />
@@ -211,7 +246,7 @@ export const Dock: React.FC<DockProps> = ({
           mode="management"
           icon={<Heart size={24} />}
           label={t('itemManagement')}
-          isActive={activeMode === 'management'}
+          isActive={shownMode === 'management'}
           onClick={(trigger) => handleModeChange('management', trigger)}
           isMobile={isCompactLayout}
         />
@@ -221,7 +256,7 @@ export const Dock: React.FC<DockProps> = ({
           mode="chronicle"
           icon={<ScrollText size={24} />}
           label={t('itemChronicle')}
-          isActive={activeMode === 'chronicle'}
+          isActive={shownMode === 'chronicle'}
           onClick={(trigger) => handleModeChange('chronicle', trigger)}
           isMobile={isCompactLayout}
         />
@@ -230,7 +265,7 @@ export const Dock: React.FC<DockProps> = ({
         mode="safety"
         icon={<Shield size={24} />}
         label={t('itemSafety')}
-        isActive={activeMode === 'safety'}
+        isActive={shownMode === 'safety'}
         onClick={(trigger) => handleModeChange('safety', trigger)}
         isMobile={isCompactLayout}
       />
@@ -238,7 +273,7 @@ export const Dock: React.FC<DockProps> = ({
         mode="scada"
         icon={<Activity size={26} />}
         label={t('itemScada')}
-        isActive={activeMode === 'scada'}
+        isActive={shownMode === 'scada'}
         onClick={(trigger) => handleModeChange('scada', trigger)}
         isMobile={isCompactLayout}
       />
@@ -246,7 +281,7 @@ export const Dock: React.FC<DockProps> = ({
         mode="settings"
         icon={<Settings size={24} />}
         label={t('itemSettings')}
-        isActive={activeMode === 'settings'}
+        isActive={shownMode === 'settings'}
         onClick={(trigger) => handleModeChange('settings', trigger)}
         isMobile={isCompactLayout}
       />
@@ -275,7 +310,7 @@ export const Dock: React.FC<DockProps> = ({
               role="menuitem"
               type="button"
               data-dock-mode="ai"
-              aria-current={activeMode === 'ai' ? 'page' : undefined}
+              aria-current={shownMode === 'ai' ? 'page' : undefined}
               onClick={() => handleMoreModeChange('ai')}
               className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
             >
@@ -288,6 +323,7 @@ export const Dock: React.FC<DockProps> = ({
                 <button
                   role="menuitem"
                   type="button"
+                  aria-current={shownMode === 'management' ? 'page' : undefined}
                   onClick={() => handleMoreModeChange('management')}
                   className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
                 >
@@ -298,7 +334,7 @@ export const Dock: React.FC<DockProps> = ({
                   role="menuitem"
                   type="button"
                   data-dock-mode="chronicle"
-                  aria-current={activeMode === 'chronicle' ? 'page' : undefined}
+                  aria-current={shownMode === 'chronicle' ? 'page' : undefined}
                   onClick={() => handleMoreModeChange('chronicle')}
                   className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
                 >

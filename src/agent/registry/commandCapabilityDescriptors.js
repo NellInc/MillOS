@@ -122,8 +122,10 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
       note: { type: 'string' },
       modifiedAction: { type: 'string' },
     },
-    reads: ['production.aiDecisions[]'],
-    writes: ['production.aiDecisions[].response', 'production.aiDecisions[].status'],
+    // The answered card only: a new card filed meanwhile must not make the
+    // player's response preview stale.
+    reads: ['production.aiDecisions[target]'],
+    writes: ['production.aiDecisions[target].response', 'production.aiDecisions[target].status'],
     sideEffects: ['Records a bounded response to the recommendation.'],
     verifier:
       'The target decision records the requested disposition and a current response timestamp.',
@@ -138,9 +140,14 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     targetKinds: ['breakdown'],
     required: ['breakdownUri'],
     properties: { breakdownUri: { type: 'string', pattern: '^millos://breakdown/' } },
+    // The fields the handler decides on. The kernel hashes reads into the
+    // preview's revision, and a down machine's downtime grows every tick.
     reads: [
-      'maintenance.activeBreakdowns[]',
-      'maintenance.workOrders[]',
+      'maintenance.activeBreakdowns[].id',
+      'maintenance.workOrders[].breakdownId',
+      'maintenance.workOrders[].phase',
+      'maintenance.workOrders[].openedAt',
+      'maintenance.workOrders[].requiredParts',
       'maintenance.partsInventory',
     ],
     writes: ['maintenance.workOrders[].phase', 'maintenance.partsInventory'],
@@ -157,7 +164,7 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     targetKinds: ['breakdown'],
     required: ['breakdownUri'],
     properties: { breakdownUri: { type: 'string', pattern: '^millos://breakdown/' } },
-    reads: ['maintenance.workOrders[]'],
+    reads: ['maintenance.workOrders[].breakdownId', 'maintenance.workOrders[].phase'],
     writes: ['maintenance.workOrders[].phase', 'maintenance.workOrders[].audit'],
     sideEffects: ['Queues the far-side central tick restart confirmation.'],
     verifier: 'Only a verified repair enters restart_requested.',
@@ -175,7 +182,8 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
       batchUri: { type: 'string', pattern: '^millos://batch/' },
       reason: { type: 'string' },
     },
-    reads: ['material.productionBatches[]'],
+    // Not the whole batch: the open batch's packed kg grows every tick.
+    reads: ['material.productionBatches[].id', 'material.productionBatches[].disposition'],
     writes: [
       'material.productionBatches[].disposition',
       'material.productionBatches[].dispositionReason',
@@ -196,7 +204,11 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
       batchUri: { type: 'string', pattern: '^millos://batch/' },
       reason: { type: 'string' },
     },
-    reads: ['material.productionBatches[]', 'quality.contaminationAlerts[]'],
+    reads: [
+      'material.productionBatches[].id',
+      'material.productionBatches[].disposition',
+      'quality.contaminationAlerts[]',
+    ],
     writes: [
       'material.productionBatches[].disposition',
       'material.productionBatches[].dispositionReason',
@@ -236,7 +248,8 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     reads: ['simulation.gameSpeed'],
     writes: ['simulation.gameSpeed'],
     sideEffects: ['Changes future simulated-time advancement while preserving wall time.'],
-    verifier: 'The sanitized game speed equals the requested value.',
+    verifier:
+      'The sanitized chosen pace (the handoff resume pace while it holds the clock) equals the requested value.',
     sourcePath: 'src/stores/gameSimulationStore.ts',
     sourceSymbol: 'setGameSpeed',
   }),
@@ -273,8 +286,11 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
       alarmUri: { type: 'string', pattern: '^millos://alarm/' },
       note: { type: 'string' },
     },
-    reads: ['scada.activeAlarms[]'],
-    writes: ['scada.activeAlarms[].acknowledged'],
+    // The target alarm's identity and acknowledgement only. The AlarmManager
+    // rewrites a standing alarm's value on every evaluation, and hashing the
+    // whole list made each preview stale before the player could commit it.
+    reads: ['scada.activeAlarms[target].id', 'scada.activeAlarms[target].acknowledgedAt'],
+    writes: ['scada.activeAlarms[target].acknowledgedAt'],
     sideEffects: ['Records acknowledgement while preserving the alarm condition.'],
     verifier: 'The exact active alarm records acknowledgement.',
     sourcePath: 'src/scada/SCADAService.ts',

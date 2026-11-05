@@ -26,6 +26,7 @@ import {
   REQUIRED_REPLAY_PARTICIPANTS,
   beginReplayClock,
   endReplayClock,
+  notifyReplayRecordChanged,
 } from '../../simulation/workplaceReplayRuntime';
 import {
   MAX_MATERIAL_MANIFESTS,
@@ -38,6 +39,7 @@ import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useQCLabStore } from '../../stores/qcLabStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
 import { captureUnifiedTickState, resetUnifiedTickState } from '../../systems/UnifiedGameTick';
 import { MachineType } from '../../types';
@@ -124,6 +126,165 @@ function heldShift() {
   return batch.id;
 }
 
+// A save written before a store gained a field lacked that key, and decode
+// rejected it as an incomplete domain: the player's shift was lost on reload.
+// Working if a save from before each added field still restores, and a newly
+// added saved field fails this pin until it is given a fallback.
+describe('saves written before a saved field was added', () => {
+  it('restores a save that predates stopHeldForklifts and sessionIncidentCount', () => {
+    useSafetyStore.getState().addSafetyIncident({ type: 'emergency', description: 'Stop' });
+    const record = capturePhysicalSession();
+    const older = JSON.parse(encodePhysicalSession(record)) as {
+      game: Record<string, unknown>;
+      safety: Record<string, unknown>;
+    };
+    delete older.game.stopHeldForklifts;
+    delete older.safety.sessionIncidentCount;
+    const saved = decodePhysicalSession(JSON.stringify(older));
+    expect(saved.game.stopHeldForklifts).toBe(false);
+    expect(saved.safety.sessionIncidentCount).toBe(saved.safety.safetyIncidents.length);
+  });
+
+  it('pins the saved field set (add a fallback for any field added here)', () => {
+    const capture = capturePhysicalSession() as unknown as Record<string, object>;
+    const keys = Object.fromEntries(
+      Object.keys(PINNED_SAVED_FIELDS).map((domain) => [
+        domain,
+        Object.keys(capture[domain]).sort(),
+      ])
+    );
+    expect(keys).toEqual(PINNED_SAVED_FIELDS);
+  });
+});
+
+const PINNED_SAVED_FIELDS: Record<string, string[]> = {
+  production: [
+    '_indices',
+    '_metricTracking',
+    'aiDecisions',
+    'dailyBagsProduced',
+    'dockStatus',
+    'heatMapData',
+    'machines',
+    'metrics',
+    'productionSpeed',
+    'productionTarget',
+    'scadaLive',
+    'selectedMachine',
+    'showHeatMap',
+    'totalBagsProduced',
+  ],
+  material: [
+    'batchSequence',
+    'byproductKg',
+    'byproductSourceContributions',
+    'currentFlowRate',
+    'currentPackerFlowRate',
+    'initialInventoryKg',
+    'lotSequence',
+    'machineBuffers',
+    'manifestSequence',
+    'manifests',
+    'network',
+    'processGenealogy',
+    'processSequence',
+    'productionBatches',
+    'receivedKg',
+    'sessionId',
+    'shippedKg',
+    'shippedSourceContributions',
+    'simulationTime',
+    'sourceLots',
+    'totalFlourProduced',
+    'totalMaterialProcessed',
+    'wasteKg',
+    'wasteSourceContributions',
+  ],
+  operations: [
+    'activeChallenge',
+    'activeOrderId',
+    'challengeHistory',
+    'constraints',
+    'costRates',
+    'creditedBatchKg',
+    'currentShiftKey',
+    'currentShiftLabel',
+    'economics',
+    'elapsedMinutes',
+    'execution',
+    'incidents',
+    'initialized',
+    'lastMaterialSessionId',
+    'lastWasteKg',
+    'logbook',
+    'orders',
+    'processedManifestIds',
+    'programmeCount',
+    'reports',
+    'sequence',
+    'shiftMetrics',
+    'shiftStartedAtMinute',
+    'utilityAssets',
+  ],
+  game: [
+    'activeSafetyEventId',
+    'celebrations',
+    'clockHolds',
+    'crisisState',
+    'currentShift',
+    'drillMetrics',
+    'emergencyActive',
+    'emergencyDrillMode',
+    'emergencyMachineId',
+    'gameDay',
+    'gameSpeed',
+    'gameTime',
+    'isTabVisible',
+    'preEmergencyMachineStatuses',
+    'safetyEvents',
+    'shiftChangeActive',
+    'shiftStartTime',
+    'stopHeldForklifts',
+    'timeOfDayHeld',
+    'weather',
+  ],
+  maintenance: [
+    'activeBreakdowns',
+    'breakdownHistory',
+    'idSequence',
+    'maintenanceSchedule',
+    'partsInventory',
+    'predictiveAlerts',
+    'workOrders',
+  ],
+  trucks: ['truckSchedule'],
+  quality: ['qcLab'],
+  safety: [
+    '_incidentIndices',
+    'forkliftEmergencyStop',
+    'forkliftMetrics',
+    'forkliftUpdateTimes',
+    'incidentHeatMap',
+    'safetyConfig',
+    'safetyIncidents',
+    'safetyMetrics',
+    'sessionIncidentCount',
+    'showIncidentHeatMap',
+    'speedZones',
+  ],
+  achievements: ['achievements'],
+  tick: [
+    'bagCarry',
+    'departureCount',
+    'milestones',
+    'receivingReady',
+    'shippingDelay',
+    'shippingLoad',
+    'wearCarry',
+  ],
+  clock: ['tickCount', 'tickInterval'],
+};
+
 describe('atomic local physical shift continuation', () => {
   it('roundtrips actual stock, maps, dated quality holds and immutable actions', () => {
     const id = heldShift();
@@ -178,6 +339,27 @@ describe('atomic local physical shift continuation', () => {
     expect(useProductionStore.getState().scadaLive).toBe(false);
   });
 
+  // The bell was emptied by a reload while the breakdown it reported came back,
+  // so the repair shortcut was gone and the critical-alert quiet hold lifted
+  // with the machine still down. Working if the restored plant keeps its notices.
+  it('restores the notices that describe the restored faults', () => {
+    heldShift();
+    useUIStore.getState().addAlert({
+      id: 'breakdown-rm-101',
+      type: 'critical',
+      title: 'R.M. 101 broke down',
+      message: 'Bearing failure',
+      timestamp: new Date(),
+      acknowledged: false,
+    });
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(capturePhysicalSession()));
+    resetPlant();
+    useUIStore.setState({ alerts: [] });
+    dispose = installPhysicalSession();
+    expect(useUIStore.getState().alerts.map((alert) => alert.id)).toContain('breakdown-rm-101');
+    expect(useUIStore.getState().alerts[0]?.timestamp).toBeInstanceOf(Date);
+  });
+
   it('restores once and saves actual holds after explicit slow-device access', () => {
     const id = heldShift();
     const saved = capturePhysicalSession();
@@ -197,6 +379,100 @@ describe('atomic local physical shift continuation', () => {
     exit();
     const resumed = decodePhysicalSession(localStorage.getItem(PHYSICAL_SESSION_KEY)!);
     expect(resumed.material.productionBatches.find((b) => b.id === id)?.disposition).toBe('hold');
+  });
+
+  // The persist merge swaps an untouched old default speed-zone set for today's
+  // defaults, but the physical restore then set the saved old six straight
+  // back, so a returning player's Speed Zone Rate slider still did nothing.
+  // Working if the restore adopts the zones the same way, and keeps an edited set.
+  it('restores an untouched old speed-zone set as today’s defaults', () => {
+    heldShift();
+    const legacy = [
+      ['zone-1', 0, 0, 5],
+      ['zone-2', 0, 28, 4],
+      ['zone-3', 0, -28, 4],
+      ['zone-4', -28, 0, 3],
+      ['zone-5', 28, 0, 3],
+      ['zone-6', 0, 18, 4],
+    ].map(([id, x, z, radius]) => ({ id, x, z, radius, name: `Old ${id}` })) as ReturnType<
+      typeof useSafetyStore.getState
+    >['speedZones'];
+    const saved = capturePhysicalSession();
+    saved.safety.speedZones = legacy;
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(saved));
+    resetPlant();
+    dispose = installPhysicalSession();
+    const ids = useSafetyStore.getState().speedZones.map((zone) => zone.id);
+    expect(ids).not.toContain('zone-1');
+    expect(ids.length).toBeGreaterThan(0);
+    dispose();
+
+    const edited = legacy.map((zone, index) => (index === 0 ? { ...zone, radius: 9 } : zone));
+    saved.safety.speedZones = edited;
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(saved));
+    resetPlant();
+    dispose = installPhysicalSession();
+    expect(useSafetyStore.getState().speedZones.map((zone) => zone.id)).toContain('zone-1');
+  });
+
+  // A save from before part reservations can hold two diagnosed orders on one
+  // part. The tick corrects that, but a session restores paused, so the newer
+  // card read 'diagnosed' beside 'Awaiting stock' until the clock ran.
+  // Working if the restore itself leaves only the covered order diagnosed.
+  it('normalises two diagnosed orders on one part as the session restores', () => {
+    heldShift();
+    const [mill] = useProductionStore.getState().machines;
+    useProductionStore
+      .getState()
+      .setMachines([
+        ...useProductionStore.getState().machines,
+        { ...mill, id: 'rm-102', name: 'R.M. 102' },
+      ]);
+    useBreakdownStore.setState((state) => ({
+      partsInventory: { bearings: 9, belts: 9, filters: 9, motors: 9, sensors: 9 },
+      workOrders: state.workOrders,
+    }));
+    useBreakdownStore.getState().triggerBreakdown('rm-101', 'R.M. 101', 'mechanical');
+    useBreakdownStore.getState().triggerBreakdown('rm-102', 'R.M. 102', 'mechanical');
+    const [first, second] = useBreakdownStore.getState().workOrders;
+    expect([first?.phase, second?.phase]).toEqual(['diagnosed', 'diagnosed']);
+    const saved = capturePhysicalSession();
+    // Stock for exactly one of the two orders, as an older save could hold.
+    const stock = { bearings: 0, belts: 0, filters: 0, motors: 0, sensors: 0 };
+    for (const part of first.requiredParts) stock[part] += 1;
+    saved.maintenance.partsInventory = stock;
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(saved));
+    resetPlant();
+    dispose = installPhysicalSession();
+    const phases = useBreakdownStore.getState().workOrders.map((w) => [w.id, w.phase]);
+    expect(phases).toEqual([
+      [first.id, 'diagnosed'],
+      [second.id, 'awaiting_parts'],
+    ]);
+  });
+
+  // The Mill Chronicle credits a shift close at once, but the plant record
+  // waited for its 5 s autosave: a crash in between restored a campaign from
+  // before a close the chronicle had already counted. A retained or forgotten
+  // replay review writes the workplace at once too. Working if each writes the
+  // plant record in the same microtask.
+  it('saves the plant record at once when a shift closes or a replay review is kept', async () => {
+    dispose = installPhysicalSession();
+    ready();
+    heldShift();
+    useGameSimulationStore.getState().setGameSpeed(30);
+    await Promise.resolve();
+    // (Removing the key would read as Reset Simulation, which stops writes.)
+    const stored = () => decodePhysicalSession(localStorage.getItem(PHYSICAL_SESSION_KEY)!);
+    useOperationsCampaignStore.setState((state) => ({
+      reports: [...state.reports, { ...(state.reports[0] ?? {}), id: 'report-close' } as never],
+    }));
+    await Promise.resolve();
+    expect(stored().operations.reports.map((report) => report.id)).toContain('report-close');
+    useGameSimulationStore.setState({ gameTime: 13.25 });
+    notifyReplayRecordChanged();
+    await Promise.resolve();
+    expect(stored().game.gameTime).toBe(13.25);
   });
 
   it('flushes the latest held batch on page exit without waiting for autosave', () => {
@@ -311,6 +587,41 @@ describe('atomic local physical shift continuation', () => {
     }
   });
 
+  // The bell is restored with the plant, so a notice worded once kept its
+  // filing language through a switch and a reload. Working if the autosave
+  // notice carries keys and reads in Portuguese after a switch.
+  it('files the autosave notice with keys, so it follows the language', async () => {
+    const { alertText } = await import('../../i18n/alertCopy');
+    const { setLocale } = await import('../../i18n');
+    heldShift();
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(capturePhysicalSession()));
+    const storage = {
+      getItem: (key: string) => localStorage.getItem(key),
+      setItem: vi.fn((key: string, value: string) => localStorage.setItem(key, value)),
+    };
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession(storage);
+      ready();
+      storage.setItem.mockImplementationOnce(() => {
+        throw new Error('Non-finite saved value at x');
+      });
+      useGameSimulationStore.getState().setGameSpeed(30);
+      vi.advanceTimersByTime(5000);
+      const notice = useUIStore
+        .getState()
+        .alerts.find((a) => a.id === 'physical-autosave-skipped')!;
+      expect(notice.title).toContain('Autosave');
+      setLocale('pt-BR');
+      expect(alertText(notice).title).not.toBe(notice.title);
+    } finally {
+      setLocale('en');
+      vi.useRealTimers();
+      logged.mockRestore();
+    }
+  });
+
   it('retries a failed autosave on the next interval without pausing the shift', () => {
     heldShift();
     const previous = encodePhysicalSession(capturePhysicalSession());
@@ -342,13 +653,17 @@ describe('atomic local physical shift continuation', () => {
       expect(localStorage.getItem(PHYSICAL_SESSION_KEY)).not.toBe(previous);
       expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
       expect(notices()).toHaveLength(1);
-      // A later failure after a good write is announced again.
+      // A later failure after a good write is announced again: re-raised,
+      // unread and on top (one row per id since the bell dedupes by id).
+      useUIStore.getState().acknowledgeAlert('physical-autosave-skipped');
       storage.setItem.mockImplementationOnce(() => {
         throw new Error('again');
       });
       useGameSimulationStore.getState().setGameSpeed(60);
       vi.advanceTimersByTime(5000);
-      expect(notices()).toHaveLength(2);
+      expect(notices()).toHaveLength(1);
+      expect(notices()[0]?.acknowledged).toBe(false);
+      expect(useUIStore.getState().alerts[0]?.id).toBe('physical-autosave-skipped');
       expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
     } finally {
       vi.useRealTimers();
@@ -519,7 +834,7 @@ describe('atomic local physical shift continuation', () => {
   });
 });
 
-it('migrates old shift records and restores layout before owner motion, with comparisons invalidated', () => {
+it('migrates old shift records and restores layout before owner motion, with the comparison carried', () => {
   heldShift();
   const old = capturePhysicalSession();
   delete (old as Partial<typeof old>).logistics;
@@ -527,7 +842,8 @@ it('migrates old shift records and restores layout before owner motion, with com
     defaultSavedLogisticsLayout()
   );
   const layout = currentLogisticsLayout();
-  layout.staging.shipping[0] = 18;
+  // A fresh copy from currentLogisticsLayout(); the tuple type is read-only.
+  (layout.staging.shipping as unknown as number[])[0] = 18;
   useLogisticsLayoutStore
     .getState()
     .restoreSaved({ layout, previous: currentLogisticsLayout(), revision: 3 });

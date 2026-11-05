@@ -5,7 +5,8 @@ import type {
   WorkplaceState,
   ImprovementEpisode,
 } from '../types/workplace';
-import { campaignTotals } from './workplaceCampaign';
+import { campaignTotals, formatKg, shiftResumable } from './workplaceCampaign';
+import { displayAdviceText } from './workplaceAdvice';
 import { formatFixed, translate } from '../i18n';
 import { workplaceImprovementMessages as msg } from './workplaceImprovement.messages';
 
@@ -135,7 +136,7 @@ export function improvementEpisodeOutcome(s: WorkplaceState, releasedKg: number 
       : null;
     return remaining !== null && releasedKg !== null
       ? translate(msg, 'outcomeSmallerKnown', {
-          kg: formatFixed(Math.min(remaining / 2, releasedKg), 0),
+          kg: formatKg(Math.min(remaining / 2, releasedKg)),
         })
       : translate(msg, 'outcomeSmallerUnknown');
   }
@@ -341,16 +342,18 @@ export function improvementSummary(s: WorkplaceState) {
             : translate(msg, 'nextConfirm')
         : s.phase === 'active'
           ? translate(msg, 'nextWatch')
-          : !i.reviewAcknowledged
-            ? translate(msg, 'nextHearComparison')
-            : !i.verdict
-              ? translate(msg, 'nextVerdicts')
-              : translate(
-                  msg,
-                  i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES
-                    ? 'nextCloseExperiment'
-                    : 'nextOpenShift'
-                ),
+          : shiftResumable(s)
+            ? translate(msg, 'nextResume')
+            : !i.reviewAcknowledged
+              ? translate(msg, 'nextHearComparison')
+              : !i.verdict
+                ? translate(msg, 'nextVerdicts')
+                : translate(
+                    msg,
+                    i.history.length + 1 >= MAX_IMPROVEMENT_CYCLES
+                      ? 'nextCloseExperiment'
+                      : 'nextOpenShift'
+                  ),
   };
 }
 
@@ -371,11 +374,12 @@ export function improvementLearningReview(s: WorkplaceState) {
     }),
     s.mode === 'game'
       ? translate(msg, 'evidenceDispatch', {
-          kg: formatFixed(s.shippedKg, 1),
+          // Grouped like the delivery lines beside this review (formatKg).
+          kg: formatKg(s.shippedKg, 1),
           receipts: mission
             ? translate(msg, 'evidenceReceipts', {
-                credited: formatFixed(mission.creditedKg, 1),
-                owed: formatFixed(Math.max(0, mission.originalTargetKg - mission.creditedKg), 1),
+                credited: formatKg(mission.creditedKg, 1),
+                owed: formatKg(Math.max(0, mission.originalTargetKg - mission.creditedKg), 1),
                 evidence: mission.evidence,
               })
             : translate(msg, 'evidenceTeachingCounter'),
@@ -386,8 +390,11 @@ export function improvementLearningReview(s: WorkplaceState) {
   evidence.push(
     advice
       ? advice.reasonToAbstain
-        ? translate(msg, 'evidenceAbstained', { reason: advice.reasonToAbstain })
-        : translate(msg, 'evidenceBound', { kg: formatFixed(advice.dispatchUpperKg, 1) })
+        ? // Frozen sentences, shown in the language chosen now (as beside it).
+          translate(msg, 'evidenceAbstained', {
+            reason: displayAdviceText(advice.reasonToAbstain),
+          })
+        : translate(msg, 'evidenceBound', { kg: formatKg(advice.dispatchUpperKg, 1) })
       : translate(msg, 'evidenceNoForecast')
   );
   const focus = open.length

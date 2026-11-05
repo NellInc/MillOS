@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { setLocale } from './i18n';
+import { alertText } from './i18n/alertCopy';
+import { useUIStore } from './stores/uiStore';
 import { getTagById, OPERATION_TAG_IDS, VEHICLE_TAG_IDS } from './scada/tagDatabase';
 import type { Alarm } from './scada/types';
 import {
   buildOperationalTelemetry,
   formatAlarmMessage,
+  alarmsAcknowledgedFromBell,
+  bellRowsAcknowledgedInScada,
   reconcileReturnedAlarmAlerts,
+  scadaAlarmAlert,
   selectSCADAAlarmsToAlert,
   storeOwnedLoad,
 } from './store';
@@ -132,6 +138,43 @@ describe('reconcileReturnedAlarmAlerts (ISA-18.2 RTN_UNACK)', () => {
   });
 });
 
+// The bell is restored with the session and AlarmManager re-words its own list
+// on a language switch, but a SCADA bell row was stored text. Working if a
+// standing alarm's row and its 'returned to normal' row both follow pt-BR.
+describe('SCADA alarm bell notices follow the language', () => {
+  it('reads a standing and a returned alarm in the language active now', () => {
+    const filed = { id: 'scada-a1', ...scadaAlarmAlert(alarm({ id: 'a1' })) };
+    expect(alertText(filed).message).toContain('at or above');
+    setLocale('pt-BR');
+    try {
+      expect(alertText(filed).message).toContain('igual ou acima do');
+    } finally {
+      setLocale('en');
+    }
+    useUIStore.setState({ alerts: [] });
+    useUIStore.getState().addAlert({
+      ...filed,
+      type: 'critical',
+      timestamp: new Date(0),
+      acknowledged: false,
+    });
+    const [change] = reconcileReturnedAlarmAlerts(useUIStore.getState().alerts, []);
+    useUIStore
+      .getState()
+      .setAlertReturnedToNormal(change.id, change.returned, change.message, change.copy);
+    const returned = useUIStore.getState().alerts.find((a) => a.id === 'scada-a1')!;
+    expect(alertText(returned).message).toContain('Returned to normal');
+    setLocale('pt-BR');
+    try {
+      expect(alertText(returned).message).toContain('Voltou ao normal');
+      expect(alertText(returned).message).toContain('igual ou acima do');
+    } finally {
+      setLocale('en');
+      useUIStore.setState({ alerts: [] });
+    }
+  });
+});
+
 describe('formatAlarmMessage', () => {
   it('prints integer count tags without decimals and says the limit is inclusive', () => {
     const tag = getTagById(OPERATION_TAG_IDS.openWorkOrders)!;
@@ -199,7 +242,8 @@ describe('storeOwnedLoad', () => {
     expect(storeOwnedLoad(machine('running', 80), 0.5)).toBeCloseTo(80 + (65 - 80) * 0.1, 5);
     expect(storeOwnedLoad(machine('idle', 50), 1)).toBeCloseTo(45, 5);
     expect(storeOwnedLoad(machine('critical', 63), 1)).toBe(63);
-    expect(storeOwnedLoad(machine('running', 70), 0)).toBe(70);
+    // A 0% line feeds the rolls nothing: its load eases to zero, as idle does.
+    expect(storeOwnedLoad(machine('running', 70), 0)).toBeCloseTo(63, 5);
   });
 
   it('never returns a non-finite load', () => {
@@ -234,5 +278,43 @@ describe('vehicle Motion Phase tag range', () => {
       expect(code).toBeGreaterThan(0);
       expect(code).toBeLessThanOrEqual(phaseTag.engHigh);
     }
+  });
+});
+
+// One plant alarm needed two acknowledgements: the SCADA panel's left its
+// bell row standing (a critical row holds the quiet UI), and the bell's left
+// the alarm unacknowledged in SCADA. Working if acknowledging either side
+// acknowledges the other.
+describe('one acknowledgement per SCADA alarm', () => {
+  const row = (extra: Partial<AlertData> = {}): AlertData => ({
+    id: 'scada-a1',
+    type: 'critical',
+    title: 'SCADA: HIHI',
+    message: 'Truck articulation high.',
+    timestamp: new Date(0),
+    acknowledged: false,
+    ...extra,
+  });
+  it('acknowledges the bell row of an alarm acknowledged in SCADA', () => {
+    expect(bellRowsAcknowledgedInScada([row()], [alarm({ id: 'a1', state: 'ACKED' })])).toEqual([
+      'scada-a1',
+    ]);
+    expect(bellRowsAcknowledgedInScada([row()], [alarm({ id: 'a1', state: 'UNACK' })])).toEqual([]);
+    expect(
+      bellRowsAcknowledgedInScada(
+        [row({ acknowledged: true })],
+        [alarm({ id: 'a1', state: 'ACKED' })]
+      )
+    ).toEqual([]);
+  });
+  it('acknowledges in SCADA the alarm of a bell row the player acknowledged', () => {
+    expect(alarmsAcknowledgedFromBell([row()], [row({ acknowledged: true })])).toEqual(['a1']);
+    expect(alarmsAcknowledgedFromBell([row()], [row()])).toEqual([]);
+    expect(
+      alarmsAcknowledgedFromBell(
+        [row({ id: 'breakdown-x' })],
+        [row({ id: 'breakdown-x', acknowledged: true })]
+      )
+    ).toEqual([]);
   });
 });

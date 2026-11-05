@@ -296,9 +296,9 @@ export const GeneratedWindmillModel: React.FC = () => {
     useCameraStore.setState({ targetFov: stage === 'power' ? 45 : 20 });
     const ownedTarget = useCameraStore.getState().targetPosition;
     return () => {
-      const camera = useCameraStore.getState();
-      // Closing never fights a newer player/preset flight or resumes the clock.
-      if (camera.isAnimating && camera.targetPosition === ownedTarget) camera.cancelAnimation();
+      // Closing never fights a newer player/preset flight, and hands the
+      // narrow detail lens back to the ordinary one.
+      useCameraStore.getState().releaseFocus(ownedTarget);
     };
   }, [frame, open, stage]);
 

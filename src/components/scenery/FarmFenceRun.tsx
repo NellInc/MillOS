@@ -3,12 +3,18 @@ import * as THREE from 'three';
 import { useDracoGLTF } from '../../utils/dracoLoader';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 import { AUTHORED_PROP_TRIM, AUTHORED_PROP_TRIM_MATERIALS } from './AuthoredPropTrim';
-import { createFarmFenceRun } from './farmFenceGeometry';
+import { createFarmFenceRun, type FarmFenceEnd } from './farmFenceGeometry';
 
 /** Farm-local assembly; immutable loader geometry/materials remain shared and
  * only the derived run geometries are owned/disposed by this component.
  */
-export const FarmFenceRun = React.memo<{ length: number }>(({ length }) => {
+export const FarmFenceRun = React.memo<{
+  length: number;
+  /** Run-local -x end; see `FarmFenceEnd`. */
+  start?: FarmFenceEnd;
+  /** Run-local +x end. */
+  end?: FarmFenceEnd;
+}>(({ length, start = 'free', end = 'free' }) => {
   const { scene } = useDracoGLTF(GENERATED_ASSET_PATHS.fence);
   const data = useMemo(() => {
     scene.updateMatrixWorld(true);
@@ -22,7 +28,7 @@ export const FarmFenceRun = React.memo<{ length: number }>(({ length }) => {
     const source = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld);
     try {
       return {
-        ...createFarmFenceRun(source, AUTHORED_PROP_TRIM.fence, length),
+        ...createFarmFenceRun(source, AUTHORED_PROP_TRIM.fence, length, start, end),
         material: mesh.material,
         castShadow:
           typeof mesh.userData.authoredCastShadow === 'boolean'
@@ -36,7 +42,7 @@ export const FarmFenceRun = React.memo<{ length: number }>(({ length }) => {
     } finally {
       source.dispose();
     }
-  }, [scene, length]);
+  }, [scene, length, start, end]);
   useEffect(
     () => () => {
       data.body.dispose();

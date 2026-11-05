@@ -69,6 +69,10 @@ const GOLDEN_0DBB4ED6: Record<string, string> = {
   'flourSackCloth.normal': '256x256::021ee147dbc6c92c',
   'flourSackCloth.roughness': '256x256::062a86015853c761',
   spoutDetailNormal: '256x256::df4517730e743a02',
+  // Riverside station's roof (textures/railwayStationTiles.ts), added 2026-10-31.
+  railwayStationTiles: '256x256:srgb:3f968f921930492a',
+  // Its engine's steam puff (same module), added 2026-11-01.
+  railwaySteamPuff: '64x64:srgb:c480410b282db97f',
 };
 
 const fingerprint = (texture: THREE.Texture): string => {

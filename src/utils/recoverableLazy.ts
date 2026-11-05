@@ -15,6 +15,13 @@ interface RecoverableLazyOptions {
   attempts?: number;
   attemptTimeoutMs?: number;
   retryDelayMs?: number;
+  /**
+   * Work the chunk must wait for before it may evaluate (the shared texture
+   * bake). Awaited untimed, before the first attempt: it keeps its own
+   * deadline, and inside the importer it ran down the chunk's download budget.
+   * Working if a chunk always gets its full budget after the wait.
+   */
+  awaitBefore?: () => Promise<unknown>;
 }
 
 const DEFAULT_OPTIONS = {
@@ -127,7 +134,11 @@ export function recoverableLazy<T extends ComponentType<any>>(
   let loaded: { default: T } | null = null;
   let inFlight: Promise<{ default: T }> | null = null;
   const load = (): Promise<{ default: T }> => {
-    inFlight ??= importWithBoundedRetry(importer, options).then(
+    const importNow = () => importWithBoundedRetry(importer, options);
+    const prelude = options?.awaitBefore;
+    inFlight ??= (
+      prelude ? Promise.resolve().then(prelude).then(importNow, importNow) : importNow()
+    ).then(
       (module) => {
         loaded = module;
         return module;

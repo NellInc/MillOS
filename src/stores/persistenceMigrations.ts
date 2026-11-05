@@ -73,9 +73,7 @@ export interface PersistedUIState {
   journeyOrderId?: string | null;
   inspectedMachineIds?: string[];
   showZones?: boolean;
-  showAIPanel?: boolean;
   panelMinimized?: boolean;
-  theme?: 'dark' | 'light';
   uiScale?: number;
   legendPosition?: { x: number; y: number };
   showMiniMap?: boolean;
@@ -90,7 +88,8 @@ export function sanitizeUIState(value: unknown): PersistedUIState {
     'hasSeenIntro',
     'journeyVisible',
     'showZones',
-    'showAIPanel',
+    // showAIPanel is no longer saved (App owns the AI panel); an older
+    // record's value is dropped here rather than restored into a dead field.
     'panelMinimized',
     'showMiniMap',
     // First-person and blueprint views are never restored, so an older
@@ -105,7 +104,9 @@ export function sanitizeUIState(value: unknown): PersistedUIState {
     output.journeyOrderId = source.journeyOrderId;
   const inspections = stringArray(source.inspectedMachineIds, 100);
   if (inspections) output.inspectedMachineIds = inspections;
-  if (source.theme === 'dark' || source.theme === 'light') output.theme = source.theme;
+  // The saved theme is retired: no control has set it since the December 2025
+  // shell change, so an older record's 'light' (or 'dark') is dropped here and
+  // the store's dark default stands.
   const uiScale = finiteNumber(source.uiScale, 0.9, 1.5);
   if (uiScale !== undefined) output.uiScale = uiScale;
   const position = asRecord(source.legendPosition);

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { WORLD_SURFACE_STRENGTH } from '../../utils/worldSurface';
+import { WATER_CAUSTIC_STRENGTH } from '../../utils/waterCaustics';
 
 /**
  * A/B instrument: switch the world surface treatment off without changing
@@ -52,8 +53,19 @@ export function SurfaceTreatmentIsolation() {
     WORLD_SURFACE_STRENGTH.value = disableSurfaceTreatment ? 0 : 1;
   }, [disableSurfaceTreatment]);
 
+  // The bed caustics ride the same instrument shape: one shared uniform. Low
+  // draws its water opaque, so no bed shows through and the term stays off.
+  const disableWaterCaustics = useGraphicsStore(
+    (state) => state.graphics.perfDebug.disableWaterCaustics
+  );
+  const lowQuality = useGraphicsStore((state) => state.graphics.quality === 'low');
+  useEffect(() => {
+    WATER_CAUSTIC_STRENGTH.value = disableWaterCaustics || lowQuality ? 0 : 1;
+  }, [disableWaterCaustics, lowQuality]);
+
   useEffect(
     () => () => {
+      WATER_CAUSTIC_STRENGTH.value = 1;
       // The uniform object outlives this component - it is module state shared
       // by every treated material - so an unmount that left it at 0 would
       // silently strip the finish from the whole app.

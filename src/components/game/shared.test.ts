@@ -23,8 +23,8 @@ vi.mock('../../utils/audioManager', () => ({
 }));
 
 const REASSURING = [
-  'The mill is calm. This is a measured condition, not optimism.',
-  'Process path verified, receiving through packing. All interlocks ready.',
+  'The mill is calm. Measured, not hoped.',
+  'Process path verified. Interlocks ready.',
 ];
 
 const articulationHiHi = (state: Alarm['state']): Alarm => ({

@@ -249,11 +249,19 @@ async function supportFixture(quality: string) {
   });
   const full = new THREE.Group();
   full.add(objectFromRecord(river.River())!);
+  // The bridge's own source constants, so the fixture is the bridge as drawn
+  // (lowered to the road datum, with its north abutment), not a stale copy.
+  const bridge = declarations(
+    factoryFile,
+    ['ROAD_RIVER_BRIDGE_DROP', 'ROAD_RIVER_BRIDGE_ABUTMENT'],
+    { SITE_LAYOUT }
+  );
   const road = objectFromRecord(
     expression(
       factoryFile,
-      (text) => text.startsWith('<group name="road-river-bridge" position={[-20, 0, -145]}>'),
+      (text) => text.startsWith('<group name="road-river-bridge" position={[-20, '),
       {
+        ...bridge,
         ROAD_RIVER_BRIDGE_FRAME_GEOMETRY: createRoadRiverBridgeFrameGeometry(),
         TARMAC_ROAD_MAP: null,
         TARMAC_ROAD_ROUGHNESS: null,
@@ -284,10 +292,11 @@ async function supportFixture(quality: string) {
   const path = declarations(factoryFile, ['createGroundPathGeometry'], {
     sampleTerrainGroundHeight,
   });
-  const pathOwner = declarations(factoryFile, ['GravelPath'], {
+  const pathOwner = declarations(factoryFile, ['GravelPath', 'ROAD_PAINT_WHITE'], {
     React: recordReact,
     EXTERIOR_LAYERS,
     POLYGON_OFFSET,
+    RENDER_ORDER,
     TARMAC_PATH_MAP: null,
     TARMAC_PATH_ROUGHNESS: null,
     GroundPathGeometry: (p: Record<string, number>) =>
@@ -338,8 +347,9 @@ async function supportFixture(quality: string) {
       }),
     }
   );
+  // The one bench beside the footbridge (moved from x 3 to x 5.5, clear of the stairs).
   const benchData = benchOwner.MAIN_EXTERIOR_BENCHES.filter(
-    (entry: any) => JSON.stringify(entry.position) === '[3,0,-112]'
+    (entry: any) => entry.position[2] === -112 && Math.abs(entry.position[0]) < 10
   );
   expect(benchData).toHaveLength(1);
   const benchMesh = benchOwner.generatedBenchSource(bench);
@@ -512,7 +522,7 @@ it('mounts one target-only owner beside the current path hedges and river approa
     '<InfoSign position={[10, 0, -110]} text="RIVER" rotation={0} />'
   );
   expect(source(factoryFile)).toContain(
-    '<GravelPath {...RIVER_FOOTBRIDGE_APPROACH} type="paved" />'
+    '<GravelPath {...RIVER_FOOTBRIDGE_APPROACH} type="walkway" />'
   );
   expect(source('src/components/TruckBay.tsx')).toContain('<group position={[0, 0, -50]}>');
   const culverts = calls('RiverTunnel').found.map((n) => n.getText());
@@ -643,7 +653,8 @@ describe.each(['low', 'medium', 'high', 'ultra'])('intact riverbank hedge %s', (
         [fixture.full.getObjectByName('complete-road-bridge')!, 15.499],
         [bridge, 1.1624],
         [fixture.full.getObjectByName('complete-river-approach')!, 2.8249],
-        [fixture.full.getObjectByName('loaded-nearby-park-bench')!, 3.546],
+        // 3.546 with the bench at x 3; at x 5.5 (clear of the footbridge stairs) 3.4949.
+        [fixture.full.getObjectByName('loaded-nearby-park-bench')!, 3.4949],
         [fixture.full.getObjectByName('protected-RIVER-sign')!, 5.7028],
         [fixture.full.getObjectByName('receiving-yard')!, 5.7999],
         [fixture.full.getObjectByName('receiving-road')!, 19.499],
@@ -673,10 +684,13 @@ it('rejects unsupported grid densities without a geometry or renderer allocation
 // Deliberately strict custody guards for this placement-only change. A future
 // intentional asset/shared-route edit must be reviewed before updating these.
 const unchangedSourceHashes = {
+  // Re-baselined 2026-11-03 (with Nell's consent) after syncing main to origin/main:
+  // local work had edited these files. Reviewed in test-results/art-review/
+  // river-custody-20261103 (river, receiving, water); the grounding checks above pass.
   'src/components/exterior/HedgeFoliage.tsx':
     '127e51627a4e407fd3ea8ca36f568d6aadfca254184b224458fc0c59788ba989',
   'src/components/scenery/InstancedFoliage.tsx':
-    'bfded40ab445b3b8e1fd1235a6f2062e95a51a14ec09f2f76a6b65ca5c78eddb',
+    '22c541209adbbc8bd83c8aee8af4b88334f9c3a99b2f303b4a3302c352dc5a75',
   'src/components/scenery/WindDriver.tsx':
     '4b9337add2f65164982234a6e6808fe2534665fd09cfca38d7f8c231ac4a034b',
   'src/utils/worldSurface.ts': 'c3e05f3b2158ae4b94c3b25b2c5ab9cdcdf2067e8ba0b88b38e48694402e85ca',
@@ -687,19 +701,19 @@ const unchangedSourceHashes = {
   'src/components/models/GeneratedModel.tsx':
     'c35f00e3956e2dfceeb075fbe3b3885fc61707d56f2db4cde9dcb8e6ecb73dac',
   'src/components/exterior/ExteriorVegetation.tsx':
-    '317d7f5f0682eccd9fe4c2273e3a3cc9e1e923bbe5ae0dba97b43595b5c23b08',
+    'f91d7a4d847a7acf237b5d586de02587b92e58885de826fab7e610ba6d9e3bf5',
   'src/components/terrain/splatMapGenerator.ts':
-    '6fde6a92bb780387fa90ca6d498c9d6d2671d850dcd62550640e12d77d9db608',
+    '256448f6186026291e423fd60797a47d86c2e469565190b4f7ea3102d1b5f1e6',
   'src/components/terrain/terrainTypes.ts':
-    '2c9a478e927c018961504c0bbd134f8b619fb7e8fe8b87e0192984443f57faef',
+    '7725c817cd4b1fe4aae9cde34b62196d5b304a7cc36beb0803970614e5c078a4',
   'src/components/terrain/TerrainGround.tsx':
-    'db63cede9939ebe7614004dc60bf21c757e3240c36154e940fc8bf70851da792',
-  'src/constants/siteLayout.ts': '64faad27fd58ab12ef16cf64c8b281cbc5481abdeef988a662f2e09cc28bdb00',
+    'c9fbe826e1a1c58f6af84581628f0a98a9e1c9e94b582e1cd0200bfa28dd0e16',
+  'src/constants/siteLayout.ts': 'ec42ddef51dd13f1d6bdad86451bf80da1b73f02fc4438bbdbf7c40e8bb22842',
   'src/constants/renderLayers.ts':
-    '9f264d3c17065e5f23cd6f852f46ec72154195904ac508eba4906e49ad9c7107',
+    '35ab482feb104c5d0f4a6f19b7c7649746d13761a80c83c53906b1c6ba926f40',
   'src/utils/castleNavigation.ts':
-    '745f2f3ee41ba92ac8d9b5185728359613a778175ebfaf0171e98852ca547eba',
-  'src/components/TruckBay.tsx': '96535720c39545d1e2cedd0bd3f2617d814a5fea928e356efaf14fdb40cc687f',
+    '92f86b420d9aea8ed6192e2e32a1049046bf5c7de0c1ac44bbd64fe67505e8e0',
+  'src/components/TruckBay.tsx': '34531b7ccb949398b7940b885b3bc104be5e8e1b4f066e7be35a423978e63c29',
   'public/models/world/hedge-unit.glb':
     '808a45bf2a900a731887ef2605cec8a8de691b6c15e8440a3f82d64b0d8cf81b',
   'public/models/world/park-bench.glb':

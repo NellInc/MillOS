@@ -17,14 +17,14 @@ import {
 const source = (path: string): string => readFileSync(resolve(process.cwd(), path), 'utf8');
 const manifest = () => JSON.parse(source('public/models/asset-manifest.json'));
 
-describe('inhabited-world and autonomous-vehicle contract', () => {
+describe('inhabited-world and crewed-forklift contract', () => {
   it('enables anonymous personnel while retaining explicit exclusions', () => {
     expect(Object.isFrozen(HUMAN_PRESENCE_POLICY)).toBe(true);
     expect(HUMAN_PRESENCE_POLICY).toEqual({
       personnelModels: true,
-      vehicleOperators: false,
+      vehicleOperators: true,
       remoteAvatars: false,
-      humanVoiceAudio: false,
+      humanVoiceAudio: true,
       workforceUI: true,
       syntheticWorkplaceOnly: true,
     });
@@ -108,7 +108,7 @@ describe('inhabited-world and autonomous-vehicle contract', () => {
   it('fails positive source requirements when personnel are disabled, unmounted or missing their scene root', () => {
     const valid = {
       policy:
-        'personnelModels:true, vehicleOperators:false, remoteAvatars:false, humanVoiceAudio:false, workforceUI:true, syntheticWorkplaceOnly:true',
+        'personnelModels:true, vehicleOperators:true, remoteAvatars:false, humanVoiceAudio:true, workforceUI:true, syntheticWorkplaceOnly:true',
       scene: 'import { CommunityLife } from "./CommunityLife"; <CommunityLife />',
       community:
         'COMMUNITY_ROSTER.map(() => <WorkerModel />); <group name="world-personnel"/><group name="world-community-details"/>',
@@ -120,6 +120,24 @@ describe('inhabited-world and autonomous-vehicle contract', () => {
         policy: valid.policy.replace('personnelModels:true', 'personnelModels:false'),
       })
     ).toContain('personnelModels must be enabled');
+    expect(
+      validateCommunitySource({
+        ...valid,
+        policy: valid.policy.replace('vehicleOperators:true', 'vehicleOperators:false'),
+      })
+    ).toContain('vehicleOperators must be enabled for crewed forklifts');
+    expect(
+      validateCommunitySource({
+        ...valid,
+        policy: valid.policy.replace('humanVoiceAudio:true', 'humanVoiceAudio:false'),
+      })
+    ).toContain('humanVoiceAudio must be enabled for the on-device PA voice');
+    expect(
+      validateCommunitySource({
+        ...valid,
+        policy: valid.policy.replace('remoteAvatars:false', 'remoteAvatars:true'),
+      })
+    ).toContain('remoteAvatars must remain disabled');
     expect(validateCommunitySource({ ...valid, scene: '' })).toContain(
       'MillScene must import and mount CommunityLife'
     );
@@ -134,7 +152,9 @@ describe('inhabited-world and autonomous-vehicle contract', () => {
     );
   });
 
-  it('retains canaries for forbidden voices, remote avatars, portraits and vehicle crews', () => {
+  // The PA voice is on-device (D-025); host speech and the retired worker and
+  // radio voices stay forbidden.
+  it('retains canaries for host speech, retired voices, remote avatars, portraits and vehicle crews', () => {
     for (const content of [
       'speechSynthesis.speak()',
       'startWorkerVoices()',
@@ -212,7 +232,7 @@ it('the delivery gate fails when approved personnel are absent or modified in se
     }
     await writeFile(
       join(root, 'src/config/featureFlags.ts'),
-      'personnelModels:true,vehicleOperators:false,remoteAvatars:false,humanVoiceAudio:false,workforceUI:true,syntheticWorkplaceOnly:true'
+      'personnelModels:true,vehicleOperators:true,remoteAvatars:false,humanVoiceAudio:true,workforceUI:true,syntheticWorkplaceOnly:true'
     );
     await writeFile(
       join(root, 'src/components/MillScene.tsx'),

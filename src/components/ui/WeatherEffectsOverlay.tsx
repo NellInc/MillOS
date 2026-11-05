@@ -133,7 +133,7 @@ export const WeatherEffectsOverlay: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="absolute top-20 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-slate-900/80 backdrop-blur-sm rounded-full border border-slate-700/50"
+          className="absolute top-20 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 millos-glass rounded-full"
         >
           {getWeatherIcon()}
           <div className="flex flex-col">

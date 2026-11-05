@@ -18,6 +18,8 @@ export const EmergencyOverlay: React.FC = () => {
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
   const emergencyDrillMode = useGameSimulationStore((state) => state.emergencyDrillMode);
+  // 'E-STOP' is the Safety panel's own stop: the operator is the cause.
+  const deliberateStop = useGameSimulationStore((state) => state.emergencyMachineId === 'E-STOP');
   // A Mill Chronicle duct fire is cleared from its own prompt, not the Safety panel.
   const chronicleFire = useGameSimulationStore(
     (state) =>
@@ -26,6 +28,10 @@ export const EmergencyOverlay: React.FC = () => {
   // A Chronicle dialog on screen is either the fire's own guidance or one the
   // player opened; the strip would cover it, and returns when it closes.
   const dialogOpen = useChronicleStore((state) => state.dialogOpen);
+  // Once suppression or a clean is under way the fire has no prompt left.
+  const chronicleCleaning = useChronicleStore(
+    (state) => state.chronicle.fire.active && state.chronicle.fire.suppressing
+  );
   // framer's hook reads only the OS media query; the in-app setting is OR'd in.
   const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
   const reduceMotion = useReducedMotion() || inAppReducedMotion;
@@ -48,8 +54,12 @@ export const EmergencyOverlay: React.FC = () => {
     : forkliftOnly
       ? t('forkliftStopGuidance')
       : chronicleFire
-        ? t('chronicleFireGuidance')
-        : t('facilityStopGuidance');
+        ? chronicleCleaning
+          ? t('chronicleFireCleaningGuidance')
+          : t('chronicleFireGuidance')
+        : deliberateStop
+          ? t('deliberateStopGuidance')
+          : t('facilityStopGuidance');
 
   return (
     <>

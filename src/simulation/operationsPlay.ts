@@ -47,9 +47,79 @@ export interface OperationsChallengeRun {
   deadlineMinute: number;
   startingShippedKg: number;
   startingQualityFailureKg: number;
+  /**
+   * Kilograms of the order's finished product shipped, and failed on quality,
+   * across every order when the run started. Dispatch credits a product to the
+   * highest-priority open order of it, not to the order the player chose, so
+   * the run counts the product. Absent on runs saved before it was recorded:
+   * those read the order alone until withMaterialBaseline fills it in.
+   */
+  startingMaterialShippedKg?: number;
+  startingMaterialQualityFailureKg?: number;
   targetKg: number;
   status: 'active' | 'completed' | 'failed' | 'abandoned';
   endedAtMinute: number | null;
+}
+
+type ChallengeLedgerOrder = Pick<CustomerOrder, 'id' | 'recipe' | 'shippedKg' | 'qualityFailureKg'>;
+
+/** Shipped and quality-failed kilograms of one finished product over every order. */
+export function materialShipmentTotals(
+  orders: readonly ChallengeLedgerOrder[],
+  material: CustomerOrder['recipe']['finishedMaterial']
+): { shippedKg: number; qualityFailureKg: number } {
+  let shippedKg = 0;
+  let qualityFailureKg = 0;
+  for (const order of orders) {
+    if (order.recipe.finishedMaterial !== material) continue;
+    shippedKg += order.shippedKg;
+    qualityFailureKg += order.qualityFailureKg;
+  }
+  return { shippedKg, qualityFailureKg };
+}
+
+/**
+ * A run saved before the product baseline existed, given one that keeps the
+ * progress its own order already shows. The same run is returned when nothing
+ * is missing or its order is gone.
+ */
+export function withMaterialBaseline(
+  run: OperationsChallengeRun,
+  orders: readonly ChallengeLedgerOrder[]
+): OperationsChallengeRun {
+  if (
+    Number.isFinite(run.startingMaterialShippedKg) &&
+    Number.isFinite(run.startingMaterialQualityFailureKg)
+  )
+    return run;
+  const order = orders.find((candidate) => candidate.id === run.orderId);
+  if (!order) return run;
+  const totals = materialShipmentTotals(orders, order.recipe.finishedMaterial);
+  return {
+    ...run,
+    startingMaterialShippedKg: totals.shippedKg - (order.shippedKg - run.startingShippedKg),
+    startingMaterialQualityFailureKg:
+      totals.qualityFailureKg - (order.qualityFailureKg - run.startingQualityFailureKg),
+  };
+}
+
+/**
+ * What the run has shipped of its product, and failed on quality, since it
+ * started. Null when its order is gone. The completion check and the card both
+ * read it, so they cannot disagree.
+ */
+export function challengeCredit(
+  run: OperationsChallengeRun,
+  orders: readonly ChallengeLedgerOrder[]
+): { shippedKg: number; qualityFailureKg: number } | null {
+  const order = orders.find((candidate) => candidate.id === run.orderId);
+  if (!order) return null;
+  const baseline = withMaterialBaseline(run, orders);
+  const totals = materialShipmentTotals(orders, order.recipe.finishedMaterial);
+  return {
+    shippedKg: totals.shippedKg - (baseline.startingMaterialShippedKg ?? 0),
+    qualityFailureKg: totals.qualityFailureKg - (baseline.startingMaterialQualityFailureKg ?? 0),
+  };
 }
 export interface OperationsPlaySnapshot {
   orders: readonly CustomerOrder[];
@@ -88,7 +158,15 @@ export function challengeBlockReason(state: OperationsPlaySnapshot): string | nu
   if (state.execution.stage === 'planning')
     return translate(operationsPlayMessages, 'blockPlanning');
   if (state.execution.orderId !== order.id || state.execution.sourceInventoryKg <= 0)
-    return translate(operationsPlayMessages, 'blockNoFeedstock');
+    // A packed remainder's route is empty because the feed budget admits no
+    // more of its grain; receiving any is not possible, the truck is next.
+    // Working if a packed order never asks for feedstock it will not admit.
+    return translate(
+      operationsPlayMessages,
+      state.execution.orderId === order.id && !feedStillNeeded(state, order)
+        ? 'blockPackedAwaitingTruck'
+        : 'blockNoFeedstock'
+    );
   if (!state.execution.qualityReleased || state.execution.stage === 'quality_hold')
     return translate(operationsPlayMessages, 'blockQualityHold');
   return null;
@@ -114,10 +192,42 @@ export function getChallengeRecoveryIncident(
   );
 }
 
+/*
+ * Whether the dispatch order still needs its grain, as the shift card's
+ * Blocked line decides it (makeConstraints' feedNeeded, with the store's
+ * remainderPacked test): not once its remainder is packed, even before those
+ * batches are released, unless the line pre-stages an order on the same grain.
+ * The feed budget admits only the grain still owed, so the route runs empty as
+ * the last of an order is packed.
+ * Working if a packed, resting remainder never asks for grain it does not need.
+ */
+function feedStillNeeded(state: OperationsPlaySnapshot, activeOrder: CustomerOrder): boolean {
+  const remainingKg = Math.max(0, activeOrder.requiredKg - activeOrder.shippedKg);
+  const packedKg = state.execution.finishedAvailableKg;
+  const packed =
+    remainingKg > CAMPAIGN_MASS_EPSILON_KG &&
+    packedKg > CAMPAIGN_MASS_EPSILON_KG &&
+    packedKg >= remainingKg - 1;
+  if (!packed) return true;
+  const lineOrder = state.orders.find((order) => order.id === state.execution.lineOrderId);
+  return (
+    !!lineOrder &&
+    lineOrder.id !== activeOrder.id &&
+    lineOrder.recipe.sourceMaterial === activeOrder.recipe.sourceMaterial
+  );
+}
+
 export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
   const activeOrder = state.orders.find((order) => order.id === state.activeOrderId) ?? null;
   const blockers = state.constraints.filter((constraint) => constraint.severity !== 'info');
-  const incident = state.incidents.find((candidate) => candidate.phase !== 'resolved');
+  // The incident that most needs the operator: a raised one, then one awaiting
+  // mitigation, then any still open. Working if an incident raised behind an
+  // earlier mitigated one is offered for acknowledgement.
+  const openIncidents = state.incidents.filter((candidate) => candidate.phase !== 'resolved');
+  const incident =
+    openIncidents.find((candidate) => candidate.phase === 'raised') ??
+    openIncidents.find((candidate) => candidate.phase === 'acknowledged') ??
+    openIncidents[0];
   const run = state.activeChallenge;
   const recovery = getChallengeRecoveryIncident(state);
   // A stopped machine outranks the delivery steps: its line cannot run until
@@ -195,9 +305,21 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
     };
   } else if (
     activeOrder &&
+    // 'planning': a commitment just chosen or accepted, its route not yet read
+    // by a tick; the inventory held is another order's, or none.
+    state.execution.stage !== 'planning' &&
     state.execution.sourceInventoryKg <= 0 &&
     state.execution.releasedFinishedKg <= 0 &&
-    state.execution.dispatchLoad.loadedKg <= 0
+    feedStillNeeded(state, activeOrder) &&
+    // A departed load keeps its mass until the next truck docks; nothing of it
+    // is at the dock. Working if an empty route after a departure asks for
+    // grain rather than "Check shipping" for the whole gap between trucks.
+    // A truck still holding the product switched away from is not this
+    // order's product either: deriveExecution then reads the order as
+    // milling, never loading or ready (its ownLoad).
+    (state.execution.dispatchLoad.status === 'departed' ||
+      state.execution.dispatchLoad.loadedKg <= 0 ||
+      state.execution.dispatchLoad.materialType !== activeOrder.recipe.finishedMaterial)
   ) {
     nextAction = {
       kind: 'receiving',
@@ -233,9 +355,19 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
     };
   }
   const blockedReason = challengeBlockReason(state);
-  const challengeOrder = run && state.orders.find((order) => order.id === run.orderId);
   const challengeIncident =
     run && state.incidents.find((incident) => incident.id === run.incidentId);
+  // The run completes only while no serious incident is open (tickCampaign's
+  // `safe`). Working if a storm raised during a restored run is named as what
+  // the run waits on, not hidden behind "dispatch goods".
+  const seriousOpen =
+    challengeIncident?.phase === 'resolved'
+      ? state.incidents.filter(
+          (candidate) =>
+            candidate.phase !== 'resolved' &&
+            (candidate.severity === 'high' || candidate.severity === 'critical')
+        )
+      : [];
   const instruction = !challengeIncident
     ? translate(operationsPlayMessages, 'instructionInspect')
     : challengeIncident.phase === 'raised'
@@ -243,7 +375,12 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       : challengeIncident.phase === 'acknowledged'
         ? translate(operationsPlayMessages, 'instructionMitigate')
         : challengeIncident.phase === 'resolved'
-          ? translate(operationsPlayMessages, 'instructionRestored')
+          ? seriousOpen.length
+            ? translate(operationsPlayMessages, 'instructionAwaitingIncidents', {
+                titles: seriousOpen.map((candidate) => incidentTitle(candidate)).join(', '),
+                count: seriousOpen.length,
+              })
+            : translate(operationsPlayMessages, 'instructionRestored')
           : challengeIncident.effectApplied
             ? translate(operationsPlayMessages, 'instructionRestore')
             : translate(operationsPlayMessages, 'instructionQueued');
@@ -263,10 +400,7 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
           label: OPERATIONS_CHALLENGES.some((challenge) => challenge.id === run.challengeId)
             ? challengeLabel(run.challengeId)
             : translate(operationsPlayMessages, 'challengeFallback'),
-          dispatchedKg: Math.max(
-            0,
-            (challengeOrder?.shippedKg ?? run.startingShippedKg) - run.startingShippedKg
-          ),
+          dispatchedKg: Math.max(0, challengeCredit(run, state.orders)?.shippedKg ?? 0),
           targetKg: run.targetKg,
           remainingMinutes: Math.max(0, run.deadlineMinute - state.elapsedMinutes),
           instruction,

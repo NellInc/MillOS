@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useCameraStore, CAMERA_PRESETS } from '../../CameraController';
+import { useUIStore } from '../../../stores/uiStore';
 import type {
   WorkplaceState,
   WorkplaceTransitionResult,
@@ -13,6 +14,7 @@ import {
   useWorkplaceControls,
 } from '../../../stores/workplaceStore';
 import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
+import { formatKg } from '../../../simulation/workplaceCampaign';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
@@ -25,6 +27,7 @@ import {
   packingInspectionPrompts,
   PACKING_PREDICTIONS,
   packingPredictionReview,
+  displayAdviceText,
   type PackingPrediction,
 } from '../../../simulation/workplaceAdvice';
 import {
@@ -33,7 +36,7 @@ import {
   improvementEpisodeOutcome,
   improvementConduct,
 } from '../../../simulation/workplaceImprovement';
-import { displayEventDetail } from '../../../simulation/bilateralWorkplace';
+import { displayEventDetail, workplaceActorName } from '../../../simulation/bilateralWorkplace';
 import { formatFixed, translate, useT } from '../../../i18n';
 import { workplacePackingEvidenceMessages } from './WorkplacePackingEvidence.messages';
 
@@ -166,20 +169,22 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
         {advice.reasonToAbstain ? t('adviserAbstains') : t('conditionalBounds')}
       </p>
       {advice.reasonToAbstain ? (
-        <p className="text-amber-100">{t('abstainReason', { reason: advice.reasonToAbstain })}</p>
+        <p className="text-amber-100">
+          {t('abstainReason', { reason: displayAdviceText(advice.reasonToAbstain) })}
+        </p>
       ) : (
         <>
           <p className="tabular-nums">
             {t('modeledPacking', {
-              low: formatFixed(advice.packedLowKg, 0),
-              high: formatFixed(advice.packedHighKg, 0),
+              low: formatKg(advice.packedLowKg),
+              high: formatKg(advice.packedHighKg),
               material:
                 e.finishedMaterial === 'flour'
                   ? t('materialFlour')
                   : e.finishedMaterial === 'semolina'
                     ? t('materialSemolina')
                     : '',
-              upper: formatFixed(advice.dispatchUpperKg, 0),
+              upper: formatKg(advice.dispatchUpperKg),
             })}
           </p>
           <p className="text-xs text-slate-300">{t('scenarioBounds')}</p>
@@ -202,7 +207,7 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
                   remaining:
                     e.remainingOrderKg === null
                       ? t('unknown')
-                      : t('kg', { value: formatFixed(e.remainingOrderKg, 0) }),
+                      : t('kg', { value: formatKg(e.remainingOrderKg) }),
                 })}
               </dd>
             </div>
@@ -233,11 +238,16 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
               <button
                 type="button"
                 className={button}
-                onClick={() =>
+                onClick={() => {
+                  // Walk mode has no camera controller: a preset set now moves
+                  // nothing, then flies the camera away when the player leaves
+                  // it. Leave it first, as the number keys do. Working if the
+                  // view moves now and stays put after leaving walk mode.
+                  if (useUIStore.getState().fpsMode) useUIStore.getState().setFpsMode(false);
                   useCameraStore
                     .getState()
-                    .setPreset(CAMERA_PRESETS.findIndex((preset) => preset.name === item.view))
-                }
+                    .setPreset(CAMERA_PRESETS.findIndex((preset) => preset.name === item.view));
+                }}
               >
                 {item.action}
               </button>
@@ -246,7 +256,7 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
         </div>
         <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-slate-300">
           {advice.assumptions.map((a) => (
-            <li key={a}>{a}</li>
+            <li key={a}>{displayAdviceText(a)}</li>
           ))}
         </ul>
         <p className="mt-2 break-all text-xs text-slate-300">
@@ -278,6 +288,18 @@ export function MatchedPackingRehearsal({
   > | null>(null);
   const [qualityRunning, setQualityRunning] = useState(false);
   const qualityPredictionRef = useRef<HTMLSelectElement>(null);
+  // Each rehearsal control disables itself while its model runs, and a browser
+  // then drops focus to <body>, where Space is the forklift emergency stop.
+  // Focus returns to it once it is enabled again, unless it moved elsewhere.
+  // Working if Tab and Space continue from the rehearsal after a run.
+  const runRef = useRef<HTMLButtonElement>(null);
+  const qualityRunRef = useRef<HTMLButtonElement>(null);
+  const restoreFocus = (control: { current: HTMLButtonElement | null }) =>
+    requestAnimationFrame(() => {
+      const active = document.activeElement as HTMLButtonElement | null;
+      if (active && active !== document.body && !active.disabled) return;
+      control.current?.focus({ preventScroll: true });
+    });
   const qualityChoices = [
     { id: 'override', label: t('qualityOverride') },
     { id: 'held', label: t('qualityHeld') },
@@ -303,6 +325,7 @@ export function MatchedPackingRehearsal({
       report({
         changed: false,
         reason: translate(workplacePackingEvidenceMessages, 'pauseFirst'),
+        reasonCopy: { catalog: 'packingEvidence', key: 'pauseFirst' },
       });
       return;
     }
@@ -326,6 +349,7 @@ export function MatchedPackingRehearsal({
         report({
           changed: false,
           reason: translate(workplacePackingEvidenceMessages, 'inputsChangedDuring'),
+          reasonCopy: { catalog: 'packingEvidence', key: 'inputsChangedDuring' },
         });
       } else {
         setResult(matched);
@@ -337,9 +361,11 @@ export function MatchedPackingRehearsal({
       report({
         changed: false,
         reason: translate(workplacePackingEvidenceMessages, 'rehearsalFailed'),
+        reasonCopy: { catalog: 'packingEvidence', key: 'rehearsalFailed' },
       });
     } finally {
       setRunning(false);
+      restoreFocus(runRef);
     }
   };
   const rehearseQuality = async () => {
@@ -375,9 +401,11 @@ export function MatchedPackingRehearsal({
       report({
         changed: false,
         reason: translate(workplacePackingEvidenceMessages, 'qualityFailed'),
+        reasonCopy: { catalog: 'packingEvidence', key: 'qualityFailed' },
       });
     } finally {
       setQualityRunning(false);
+      restoreFocus(qualityRunRef);
     }
   };
   const learning = result ? packingPredictionReview(result, retainedPrediction) : null;
@@ -408,6 +436,7 @@ export function MatchedPackingRehearsal({
       </label>
       <p className="text-xs text-slate-300">{t('compareIdeas')}</p>
       <button
+        ref={runRef}
         type="button"
         className={button}
         disabled={running || qualityRunning}
@@ -452,11 +481,11 @@ export function MatchedPackingRehearsal({
                   </strong>
                   :{' '}
                   {a.reasonToAbstain
-                    ? t('armAbstained', { reason: a.reasonToAbstain })
+                    ? t('armAbstained', { reason: displayAdviceText(a.reasonToAbstain) })
                     : t('armRange', {
-                        low: formatFixed(a.packedLowKg, 0),
-                        high: formatFixed(a.packedHighKg, 0),
-                        upper: formatFixed(a.dispatchUpperKg, 0),
+                        low: formatKg(a.packedLowKg),
+                        high: formatKg(a.packedHighKg),
+                        upper: formatKg(a.dispatchUpperKg),
                       })}
                 </p>
               ))}
@@ -534,6 +563,7 @@ export function MatchedPackingRehearsal({
                   <p className="text-xs text-amber-100">{t('resolveMissing')}</p>
                 )}
                 <button
+                  ref={qualityRunRef}
                   type="button"
                   className={button}
                   disabled={
@@ -555,7 +585,9 @@ export function MatchedPackingRehearsal({
                     </p>
                     {qualityResult.reasonToAbstain ? (
                       <p className="text-amber-100">
-                        {t('keepOpen', { reason: qualityResult.reasonToAbstain })}
+                        {t('keepOpen', {
+                          reason: displayAdviceText(qualityResult.reasonToAbstain),
+                        })}
                       </p>
                     ) : (
                       <>
@@ -568,10 +600,10 @@ export function MatchedPackingRehearsal({
                                   : arm.arrangement === 'briefing'
                                     ? t('arrangementBriefing')
                                     : t('arrangementBuffer'),
-                              low: formatFixed(arm.packedLowKg, 0),
-                              high: formatFixed(arm.packedHighKg, 0),
-                              lower: formatFixed(arm.dispatchLowerKg, 0),
-                              upper: formatFixed(arm.dispatchUpperKg, 0),
+                              low: formatKg(arm.packedLowKg),
+                              high: formatKg(arm.packedHighKg),
+                              lower: formatKg(arm.dispatchLowerKg),
+                              upper: formatKg(arm.dispatchUpperKg),
                             })}
                           </p>
                         ))}
@@ -690,7 +722,7 @@ export function HandoffConduct({ state }: { state: WorkplaceState }) {
             <li key={e.id}>
               {t('receipt', {
                 minute: formatFixed(e.minute, 1),
-                actor: e.actorId,
+                actor: workplaceActorName(e.actorId),
                 detail: displayEventDetail(e.detail),
               })}
             </li>

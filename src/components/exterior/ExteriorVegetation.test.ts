@@ -3,8 +3,11 @@ import * as THREE from 'three';
 import {
   generatedBenchSource,
   MAIN_EXTERIOR_BENCHES,
+  PARKLAND_BENCHES,
+  FRONT_PARKLAND_BENCHES,
   LANDSCAPE_GROVE_TREES,
   VALLEY_WOODLAND_TREES,
+  WOODLAND_TRUNK_SPACING,
   MAIN_EXTERIOR_TREES,
   PARKLAND_TREES,
   FRONT_PARKLAND_TREES,
@@ -24,6 +27,7 @@ import {
 } from '../terrain/splatMapGenerator';
 import { TERRAIN_BOUNDS, SPLAT_BOUNDS } from '../terrain/terrainTypes';
 import { getLandmarkBounds, SITE_LAYOUT } from '../../constants/siteLayout';
+import { onRealmWalk } from '../../constants/publicRealmLayout';
 import { createTreeMatrix, treeFormFromPosition } from '../scenery/treeForms';
 
 describe('generated park bench instancing', () => {
@@ -188,12 +192,35 @@ describe('tree sites', () => {
     expect(blocked).toEqual([]);
   });
 
+  it('seats every bench beside the walks, not across them', () => {
+    // The towpath bench at (-157, -60) blocked the village lane's mouth.
+    const benches = [...MAIN_EXTERIOR_BENCHES, ...PARKLAND_BENCHES, ...FRONT_PARKLAND_BENCHES];
+    expect(
+      benches
+        .filter(({ position: [x, , z] }) => onRealmWalk(x, z, 0.3))
+        .map(({ position: [x, , z] }) => `${x}, ${z}`)
+    ).toEqual([]);
+  });
+
+  it('keeps woodland trunks apart, so no two boles fuse', () => {
+    // The jittered spiral once put two trunks 0.45 m apart at (-167, -106).
+    const close = VALLEY_WOODLAND_TREES.flatMap(({ position: a }, i) =>
+      VALLEY_WOODLAND_TREES.slice(i + 1)
+        .filter(({ position: b }) => Math.hypot(a[0] - b[0], a[2] - b[2]) < WOODLAND_TRUNK_SPACING)
+        .map(({ position: b }) => `${a[0]},${a[2]} / ${b[0]},${b[2]}`)
+    );
+    expect(close).toEqual([]);
+    expect(VALLEY_WOODLAND_TREES.length).toBeGreaterThan(240);
+  });
+
   it('rejects the reported sites, so the rule is not vacuous', () => {
     expect(treeSiteClear(-145, 20, 3)).toBe(false); // canal water
     expect(treeSiteClear(-151.2, 20, 3)).toBe(false); // canal wall
     expect(treeSiteClear(-75, -97, 3)).toBe(false); // Nissen hut
     expect(treeSiteClear(120, 120, 3)).toBe(false); // lake
     expect(treeSiteClear(-125, 105, 3)).toBe(false); // pond
+    expect(treeSiteClear(-154.9, 81.6, 3)).toBe(false); // towpath (woodland seed)
+    expect(treeSiteClear(-118.3, -49.4, 3)).toBe(false); // footbridge walk
     expect(treeSiteClear(-70, -60, 3)).toBe(true);
     // The old x 40 river tree stood 3.6 m down in the channel.
     expect(sampleTerrainGroundHeight(40, -170, 128)).toBeLessThan(

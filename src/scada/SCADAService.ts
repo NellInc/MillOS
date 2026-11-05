@@ -297,6 +297,7 @@ export class SCADAService {
           ...config,
           type: 'rest',
           baseUrl: config.proxyUrl ?? config.baseUrl,
+          apiKeyAuth: 'x-api-key',
         };
         return new RESTAdapter(MILL_TAGS, proxyConfig);
       }

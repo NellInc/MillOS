@@ -179,6 +179,8 @@ src/components/village/
 
 **To restore:** Uncomment tickMetrics, optionally restore intervals.
 
+> **Superseded (2026-11-02):** do not restore. `UnifiedGameTick` (`src/systems/UnifiedGameTick.ts`) took over machine wear, status and metric tracking; `tickMetrics`, `tickMachineMetrics` and `updateMachinesForTick` were then removed from `productionStore.ts`, as running them beside it would have doubled wear.
+
 ### FPSMonitor.tsx
 
 **Line ~178:** SAMPLE_INTERVAL_DEFAULT changed 0.5s → 2.0s
@@ -213,7 +215,7 @@ src/components/village/
 - [ ] MillScene.tsx: Uncomment `<FarmArea />`
 - [ ] MillScene.tsx: Uncomment `<TruckBay ... />`
 - [ ] MillScene.tsx: Uncomment `<TerrainGround ... />`
-- [ ] Environment.tsx: Uncomment `tickMetrics(delta)`
+- [x] Environment.tsx: `tickMetrics(delta)` - superseded by `UnifiedGameTick`, not to be restored (see above)
 
 ### Keep As-Is (Improvements)
 - [x] Use `<VillageAreaOptimized />` instead of `<VillageArea />`

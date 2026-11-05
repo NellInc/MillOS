@@ -16,15 +16,19 @@ import { useUIStore } from '../../../stores/uiStore';
 import { useProductionStore, wearHoldsWarning } from '../../../stores/productionStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
 import { openRepairWorkspace } from '../openRepairWorkspace';
-import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { selectClockHolder, useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { paceMessages } from '../../../simulation/pace.messages';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { workplaceCapacity } from '../../../simulation/bilateralWorkplace';
 import type { WorkplaceState } from '../../../types/workplace';
 import { useShallow } from 'zustand/react/shallow';
-import { formatFixed, formatGrouped, useLocale, useT } from '../../../i18n';
+import { formatFixed, formatGrouped, useT } from '../../../i18n';
 import { statusHudMessages } from './StatusHUD.messages';
+import { formatPlantStamp, formatTime } from '../../../utils/timeFormatting';
+import { alertText } from '../../../i18n/alertCopy';
+import { useRunningThroughput } from '../../../hooks/useRunningThroughput';
 
 const SHIFT_KEYS = {
   morning: 'shiftMorning',
@@ -52,7 +56,6 @@ function agreementPacingReading(s: WorkplaceState): number | 'between' | null {
 
 export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspaceProp }) => {
   const t = useT(statusHudMessages);
-  const locale = useLocale();
   const workspace = workspaceProp ?? t('defaultWorkspace');
   const safetyMetrics = useSafetyStore((state) => state.safetyMetrics);
   const fps = useFPSStore((state) => state.fps);
@@ -67,12 +70,20 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
       targetBags: state.productionTarget?.targetBags ?? 0,
     }))
   );
+  // The rate shown: 0 while the clock is held (the idle check keeps the raw value).
+  const shownThroughput = useRunningThroughput();
   const { gameTime, currentShift } = useGameSimulationStore(
     useShallow((state) => ({
       gameTime: state.gameTime,
       currentShift: state.currentShift,
     }))
   );
+  // The P notice fades and the delivery card's pace control goes with the
+  // card, so the clock reads as a state here for as long as it is held,
+  // naming the holder; the full sentence (how it resumes) is its label.
+  // Working if a pause by any control shows until the clock runs again.
+  const clockHolder = useGameSimulationStore(selectClockHolder);
+  const pace = useT(paceMessages);
   const scadaEnabled = useGraphicsStore((state) => state.graphics.enableSCADA);
   // The order feed budget (materialFlowStore) admits no more grain once the
   // active order's whole remaining mass is packed or in process, and packed
@@ -135,12 +146,19 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
   );
   const repairableIds = new Set(`${faultedIds}|${wornIds}`.split('|').filter(Boolean));
 
-  // Handle mouse down on grip
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  // Pointer events, so a finger or pen drags the grip as a mouse does: a
+  // tablet wide enough for this header sends no mouse events during a drag,
+  // and a tap's compatibility mousedown detached the bar where touch could
+  // neither move it nor dock it again. The bar detaches once the grip moves,
+  // so a press that does not drag leaves it where it is.
+  // Working if a finger drags the bar and a tap leaves it docked.
+  const dragMovedRef = useRef(false);
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
       e.preventDefault();
       setIsDragging(true);
-      setDetached(true);
+      dragMovedRef.current = false;
       dragStartPos.current = { x: e.clientX, y: e.clientY };
       elementStartPos.current = { x: position.x, y: position.y };
     },
@@ -207,13 +225,17 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
     };
   }, []);
 
-  // Handle mouse move while dragging
+  // Handle pointer move while dragging
   useEffect(() => {
     if (!isDragging) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const deltaX = e.clientX - dragStartPos.current.x;
       const deltaY = e.clientY - dragStartPos.current.y;
+      // A few pixels of jitter in a tap or click is not a drag.
+      if (!dragMovedRef.current && Math.hypot(deltaX, deltaY) < 4) return;
+      dragMovedRef.current = true;
+      setDetached(true);
       const newX = elementStartPos.current.x + deltaX;
       const newY = elementStartPos.current.y + deltaY;
 
@@ -227,15 +249,17 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
       });
     };
 
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       setIsDragging(false);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
     };
   }, [isDragging]);
 
@@ -258,17 +282,32 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
   // Close panel when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
+      // A click in a modal opened over the list (the ? help, Reset, About) or
+      // on its backdrop is not a click away from it: closing here unmounted
+      // the row button that modal hands focus back to, dropping it to <body>.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         setShowNotifications(false);
       }
     };
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        setShowNotifications(false);
-        bellRef.current?.focus();
-      }
+      if (e.key !== 'Escape') return;
+      // A modal opened over the list (Reset, About, the shortcuts help) and a
+      // text field clearing its search own this Escape; this capture listener
+      // stopped it before either saw it. Working if the first Escape closes
+      // the dialog on top and the list stays open behind it.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      if (
+        e.target instanceof Element &&
+        e.target.closest(
+          'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
+        )
+      )
+        return;
+      e.preventDefault();
+      e.stopPropagation();
+      setShowNotifications(false);
+      bellRef.current?.focus();
     };
     if (showNotifications) {
       document.addEventListener('mousedown', handleClickOutside);
@@ -279,6 +318,18 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
       document.removeEventListener('keydown', handleEscape, true);
     };
   }, [showNotifications]);
+
+  // Acknowledge and Dismiss remove the button that was pressed; hand focus to
+  // the row now at that place, else the list's Close, never to <body>.
+  // Working if a keyboard user can acknowledge and clear a list in a row.
+  const listRef = useRef<HTMLDivElement>(null);
+  const handOffRowFocus = (rowIndex: number) => {
+    requestAnimationFrame(() => {
+      const rows = listRef.current?.querySelectorAll<HTMLElement>('[data-alert-row]');
+      const row = rows?.length ? rows[Math.min(rowIndex, rows.length - 1)] : undefined;
+      (row?.querySelector<HTMLElement>('button') ?? notificationsCloseRef.current)?.focus();
+    });
+  };
 
   // A dialog takes focus when it opens; Escape and Close hand it back to the bell.
   useEffect(() => {
@@ -307,7 +358,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
     <header
       ref={hudRef}
       style={detached ? { left: position.x, top: position.y } : { left: 0, top: 0 }}
-      className={`fixed flex items-center bg-[#06141e]/98 backdrop-blur-md border-b border-cyan-100/15 pointer-events-auto ${showNotifications ? 'z-50' : 'z-30'} ${detached ? 'max-w-[calc(100vw-32px)] rounded-md border shadow-lg' : 'w-full min-h-12'} ${isDragging ? 'cursor-grabbing' : ''}`}
+      className={`millos-glass fixed flex items-center pointer-events-auto ${showNotifications ? 'z-50' : 'z-30'} ${detached ? 'max-w-[calc(100vw-32px)] rounded-md' : 'millos-glass-thick w-full min-h-12 border-0 border-b'} ${isDragging ? 'cursor-grabbing' : ''}`}
       role="banner"
       aria-label={t('bannerLabel')}
     >
@@ -315,9 +366,9 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
       <div className="flex min-w-0 flex-1 items-stretch overflow-hidden">
         {/* Drag Handle */}
         <div
-          onMouseDown={handleMouseDown}
+          onPointerDown={handlePointerDown}
           onKeyDown={handleKeyDown}
-          className="px-1 py-2 min-w-[28px] cursor-grab hover:bg-white/10 transition-colors flex items-center border-r border-white/10"
+          className="touch-none px-1 py-2 min-w-[28px] cursor-grab hover:bg-white/10 transition-colors flex items-center border-r border-white/10"
           role="button"
           aria-label={t('repositionLabel')}
           tabIndex={0}
@@ -367,11 +418,11 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
 
           <div
             className="flex shrink-0 items-center gap-1.5 text-[12px] text-cyan-300 font-mono"
-            aria-label={t('throughputLabel', { value: formatGrouped(throughput) })}
+            aria-label={t('throughputLabel', { value: formatGrouped(shownThroughput) })}
             title={t('throughputTitle')}
           >
             <span className="hidden text-slate-400 min-[1400px]:inline">{t('production')}</span>
-            <span>{t('throughputValue', { value: formatGrouped(throughput) })}</span>
+            <span>{t('throughputValue', { value: formatGrouped(shownThroughput) })}</span>
           </div>
 
           {agreementPacing !== null && (
@@ -440,6 +491,23 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
                 .toString()
                 .padStart(2, '0')}
             </time>
+            {/* A live region inserted with its text is not read, so the hold
+                is announced through one that stays on the page (sr-only is
+                out of flow); the chip is its visual copy. Working if a tour,
+                planner or workplace pause reaches a screen reader. */}
+            <span role="status" aria-atomic="true" className="sr-only">
+              {clockHolder !== null ? pace(`heldBy_${clockHolder}`) : ''}
+            </span>
+            {clockHolder !== null && (
+              <span
+                aria-hidden="true"
+                className="rounded border border-amber-300/40 px-1.5 py-0.5 text-[12px] font-semibold text-amber-200"
+                aria-label={pace(`heldBy_${clockHolder}`)}
+                title={pace(`heldBy_${clockHolder}`)}
+              >
+                {t(`pausedBy_${clockHolder}`)}
+              </span>
+            )}
           </div>
 
           <div className="hidden w-px h-3 bg-white/10 min-[1200px]:block" aria-hidden="true"></div>
@@ -498,7 +566,7 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
               ...notificationPosition,
               maxHeight: `calc(100dvh - ${notificationPosition.top + 16}px)`,
             }}
-            className="fixed flex w-[min(320px,calc(100vw-32px))] flex-col bg-[#071722]/98 backdrop-blur-xl border border-cyan-100/15 rounded-lg shadow-2xl overflow-hidden pointer-events-auto"
+            className="millos-glass millos-glass-thick fixed flex w-[min(320px,calc(100vw-32px))] flex-col rounded-lg overflow-hidden pointer-events-auto"
           >
             <div className="p-3 border-b border-white/10 flex items-center justify-between">
               <h3 className="text-sm font-bold text-white">{t('notifications')}</h3>
@@ -516,13 +584,14 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
                 <X size={14} />
               </button>
             </div>
-            <div className="min-h-0 max-h-80 overflow-y-auto">
+            <div ref={listRef} className="min-h-0 max-h-80 overflow-y-auto">
               {alerts.length === 0 ? (
                 <div className="p-6 text-center text-slate-400 text-sm">{t('allClear')}</div>
               ) : (
-                alerts.slice(0, 10).map((alert) => (
+                alerts.slice(0, 10).map((alert, rowIndex) => (
                   <div
                     key={alert.id}
+                    data-alert-row=""
                     className={`p-3 border-b border-white/5 last:border-0 ${
                       unread(alert) ? 'bg-white/5' : ''
                     }`}
@@ -545,14 +614,15 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
                       {/* The dot is colour-only; name the type for screen readers. */}
                       <span className="sr-only">{t('alertType', { type: alert.type })}: </span>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-white truncate">{alert.title}</div>
+                        <div className="text-xs font-medium text-white truncate">
+                          {alertText(alert).title}
+                        </div>
                         <div className="text-[12px] text-slate-300 break-words">
-                          {alert.message}
+                          {alertText(alert).message}
                         </div>
                         <div className="text-[12px] text-slate-400 mt-1">
-                          {new Date(alert.timestamp).toLocaleTimeString(
-                            locale === 'en' ? undefined : locale
-                          )}
+                          {formatPlantStamp(alert.gameClock) ??
+                            formatTime(alert.timestamp, { seconds: true })}
                         </div>
                       </div>
                       <div className="flex gap-1">
@@ -564,26 +634,32 @@ export const StatusHUD: React.FC<{ workspace?: string }> = ({ workspace: workspa
                             }}
                             className="p-2 text-slate-400 hover:text-amber-300 transition-colors"
                             title={t('openRepair')}
-                            aria-label={t('openRepairLabel', { title: alert.title })}
+                            aria-label={t('openRepairLabel', { title: alertText(alert).title })}
                           >
                             <Wrench size={12} />
                           </button>
                         )}
                         {unread(alert) && (
                           <button
-                            onClick={() => acknowledgeAlert(alert.id)}
+                            onClick={() => {
+                              acknowledgeAlert(alert.id);
+                              handOffRowFocus(rowIndex);
+                            }}
                             className="p-2 text-slate-400 hover:text-green-400 transition-colors"
                             title={t('acknowledge')}
-                            aria-label={t('acknowledgeLabel', { title: alert.title })}
+                            aria-label={t('acknowledgeLabel', { title: alertText(alert).title })}
                           >
                             <CheckCircle size={12} />
                           </button>
                         )}
                         <button
-                          onClick={() => removeAlert(alert.id)}
+                          onClick={() => {
+                            removeAlert(alert.id);
+                            handOffRowFocus(rowIndex);
+                          }}
                           className="p-2 text-slate-400 hover:text-red-400 transition-colors"
                           title={t('dismiss')}
-                          aria-label={t('dismissLabel', { title: alert.title })}
+                          aria-label={t('dismissLabel', { title: alertText(alert).title })}
                         >
                           <X size={12} />
                         </button>

@@ -10227,14 +10227,14 @@
       "sha256": "5bb02b56fc9759e7b4856a4e207541da2c8627ac4df9eec5dbf1fa55566b6346",
       "blenderPreparation": {
         "file": "assets/source/models/world/nissen-hut-crafted.glb",
-        "sha256": "8c22b88d644d3ba5597ccb79ed3f1fff9da8db516bc628bc80081301ac508ece",
+        "sha256": "b8b72906a34fec2f1e9117cbeedf94b974d409f14cdf8fb33b8d9de539f2b4e8",
         "script": "scripts/blender/refine_architecture_assets.py",
         "method": "Added five transverse rolled arch seams to corrugated shell; preserved entrance and longitudinal profile. Retain the source coordinate system and existing normalization."
       },
       "runtimeDerivative": {
         "file": "public/models/world/nissen-hut.glb",
-        "sha256": "533483865c372ec0b638465d4e73bf43ed1286191eda3c109999e68818a2b9af",
-        "bytes": 422436
+        "sha256": "84eaf1c3bcc9c6206263e6e668ffdc74059021f8de375c62e891b889e7efb2bd",
+        "bytes": 391196
       },
       "normalization": {
         "sizedBy": "width",
@@ -10281,14 +10281,14 @@
       "sha256": "465a6ea3af674b809fdcdf806d13257d420d508dc380af88f7ba51709814c5e9",
       "blenderPreparation": {
         "file": "assets/source/models/world/park-bench-crafted.glb",
-        "sha256": "2519af52520581070e72039c070d0e5a1a174d5fc6993920bb3db860ea804518",
+        "sha256": "4d7e1e3700684cd00f8c56d5954e6912e0fb434485f36de9602055272f565fb2",
         "script": "scripts/blender/refine_civic_props.py",
         "method": "Reference-concept refinement: continuous curved cast arms with wood grips, rounded end-grain slats, anchored feet and low frame stretcher. Single mesh and existing colour/roughness atlas; original envelope and provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/world/park-bench.glb",
-        "sha256": "a44763b704605b3c7b0c5389557cb50274a9a23b1eaa2200bf6899ecf2b20bf1",
-        "bytes": 163876
+        "sha256": "ac5f84601b036ad719f8c0797c5e1a6ca8512f664b48ddb6b42cdb0a8d72d0a0",
+        "bytes": 181364
       },
       "normalization": {
         "sizedBy": "width",

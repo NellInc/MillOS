@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TrendingUp, ChevronDown, ChevronUp, Truck, FileText, Download } from 'lucide-react';
-import { useSafetyStore } from '../../stores/safetyStore';
+import { incidentDescription, useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { formatFixed, useT } from '../../i18n';
 import { safetyAnalyticsPanelMessages } from './SafetyAnalyticsPanel.messages';
 
@@ -10,18 +11,41 @@ import { safetyAnalyticsPanelMessages } from './SafetyAnalyticsPanel.messages';
 // re-render every time the forklift metrics or incident log change.
 const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) => {
   const t = useT(safetyAnalyticsPanelMessages);
+  // Plant hours at one-minute resolution: enough to age Last Hour, no more.
+  const plantHours = useGameSimulationStore(
+    (state) => Math.floor((state.gameDay * 24 + state.gameTime) * 60) / 60
+  );
   // Two-step inline confirmation for destructive, irreversible data wipes.
   const [confirmClearHeatMap, setConfirmClearHeatMap] = useState(false);
   const [confirmResetMetrics, setConfirmResetMetrics] = useState(false);
   const clearConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resetConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safetyIncidents = useSafetyStore((state) => state.safetyIncidents);
+  // A session restored from a save that predates the counter has a log and no
+  // count; the total never reads below the incidents the log is showing.
+  const sessionIncidents = useSafetyStore((state) =>
+    Math.max(
+      Number.isFinite(state.sessionIncidentCount) ? state.sessionIncidentCount : 0,
+      state.safetyIncidents.length
+    )
+  );
   const forkliftMetrics = useSafetyStore((state) => state.forkliftMetrics);
   const incidentHeatMap = useSafetyStore((state) => state.incidentHeatMap);
   const showIncidentHeatMap = useSafetyStore((state) => state.showIncidentHeatMap);
   const setShowIncidentHeatMap = useSafetyStore((state) => state.setShowIncidentHeatMap);
   const clearIncidentHeatMap = useSafetyStore((state) => state.clearIncidentHeatMap);
   const resetForkliftMetrics = useSafetyStore((state) => state.resetForkliftMetrics);
+
+  // "Last Hour" is read against the wall clock at render. Re-render on a timer
+  // so an incident ages out while nothing else writes to the store (a held
+  // clock stops the forklift sampler that otherwise re-renders this body).
+  const [, setAgeTick] = useState(0);
+  const hasIncidents = safetyIncidents.length > 0;
+  useEffect(() => {
+    if (!hasIncidents) return;
+    const id = setInterval(() => setAgeTick((tick) => tick + 1), 30_000);
+    return () => clearInterval(id);
+  }, [hasIncidents]);
 
   // Clear any pending confirmation timers on unmount.
   useEffect(() => {
@@ -57,10 +81,22 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
     resetConfirmTimer.current = setTimeout(() => setConfirmResetMetrics(false), 4000);
   };
 
-  // Calculate stats. The incident log is session-only (not persisted, capped
-  // at 50), so the honest windows are the last hour and this session.
+  // Calculate stats. The incident log is capped at 50, so Last Hour reads it
+  // and This Session reads the store's own session counter.
+  // Last Hour is a plant hour, like the log's stamps; it holds while paused.
+  // Records from before the stamp fall back to the wall clock. The stamp is
+  // read to the same whole minute as the clock, or one logged part-way
+  // through the current minute would read as not yet happened.
   const lastHourMs = Date.now() - 3_600_000;
-  const lastHourIncidents = safetyIncidents.filter((i) => i.timestamp >= lastHourMs);
+  // A stamp ahead of the clock was logged before the clock was wound back
+  // (Reset to 10 AM); it ages on the wall clock, as the Last Event card does.
+  const lastHourIncidents = safetyIncidents.filter((i) => {
+    if (!i.gameClock) return i.timestamp >= lastHourMs;
+    const stampHours = Math.floor((i.gameClock.day * 24 + i.gameClock.hour) * 60) / 60;
+    const age = plantHours - stampHours;
+    if (age < 0) return i.timestamp >= lastHourMs;
+    return age < 1;
+  });
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const weekAgoMs = today.getTime() - 7 * 24 * 60 * 60 * 1000;
@@ -84,6 +120,8 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
         end: new Date().toISOString(),
       },
       summary: {
+        // Every incident this session; the log below holds the latest 50.
+        sessionIncidents,
         totalIncidents: weekIncidents.length,
         byType: {
           emergency: weekIncidents.filter((i) => i.type === 'emergency').length,
@@ -96,14 +134,20 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
       incidents: weekIncidents.map((i) => ({
         timestamp: new Date(i.timestamp).toISOString(),
         type: i.type,
-        description: i.description,
+        description: incidentDescription(i),
+        gameClock: i.gameClock,
         location: i.location,
+        forkliftId: i.forkliftId,
       })),
-      hotspots: incidentHeatMap.slice(0, 10).map((h) => ({
-        location: { x: h.x, z: h.z },
-        intensity: h.intensity,
-        type: h.type,
-      })),
+      // The ten hottest cells. The heat map is kept in insertion order.
+      hotspots: [...incidentHeatMap]
+        .sort((a, b) => (b.intensity ?? 0) - (a.intensity ?? 0))
+        .slice(0, 10)
+        .map((h) => ({
+          location: { x: h.x, z: h.z },
+          intensity: h.intensity,
+          type: h.type,
+        })),
     };
 
     // Download as JSON
@@ -140,7 +184,7 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
           >
             {t('thisSession')}
           </div>
-          <div className="text-xl font-bold text-blue-500">{safetyIncidents.length}</div>
+          <div className="text-xl font-bold text-blue-500">{formatFixed(sessionIncidents, 0)}</div>
           <div className={`text-[9px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}>
             {t('incidents')}
           </div>

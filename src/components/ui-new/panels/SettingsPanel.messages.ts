@@ -36,6 +36,13 @@ export const settingsPanelMessages = defineMessages({
     paOff: 'Off',
     paModeHelp:
       'Focused keeps the PA terse. Characterful lets it talk. Safety messages come through regardless.',
+    paVoice: 'PA voice',
+    paVoiceChoice: 'PA voice choice',
+    paVoiceGroup_british: 'British',
+    paVoiceGroup_american: 'American',
+    paVoiceGroup_characters: 'Characters',
+    paVoiceGroup_brazilian: 'Brazilian',
+    paVoiceSample: 'Packing line verified. The mill is calm.',
     paCaptions: 'PA captions',
     paTranscriptSummary: 'PA transcript ({count})',
     searchPaTranscript: 'Search PA transcript',
@@ -61,7 +68,6 @@ export const settingsPanelMessages = defineMessages({
     qualityName: (p: { quality: string }) => p.quality,
     qualityLabel: (p: { quality: string }) => `${p.quality} quality`,
     postProcessing: 'Post-Processing',
-    lightShafts: 'Light Shafts',
     colourGrade: 'Colour Grade',
     ambientOcclusion: 'Ambient Occlusion',
     bloomGlow: 'Bloom Glow',
@@ -72,13 +78,11 @@ export const settingsPanelMessages = defineMessages({
     dustParticles: 'Dust Particles',
     grainFlow: 'Grain Flow',
     sceneMachines: 'Scene & Machines',
-    machineVibration: 'Machine Vibration',
     wireframeMode: 'Wireframe Mode',
-    contactShadows: 'Contact Shadows',
     highResShadows: 'High-Res Shadows',
-    floorPuddles: 'Floor Puddles',
     audioReactive: 'Audio Reactive',
     zoneMarkers: 'Zone Markers',
+    fpsCounter: 'FPS counter',
     resolutionScale: 'Resolution Scale',
     resolutionScaleLabel: 'Resolution scale',
 
@@ -107,10 +111,11 @@ export const settingsPanelMessages = defineMessages({
     resetDayMessage:
       'Wind the clock back to 10 AM at the current pace. Weather, run window and emergency state reset. Customer orders and their deadlines keep their own clock, so an overdue order stays overdue; production totals, machine states and achievements carry on. For a fresh shift use Reset Simulation.',
     resetEverything: 'Reset Everything',
+    resetting: 'Resetting...',
     resetFullMessage:
-      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound and language settings are kept. There is no undo.',
+      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound, language and interface scale settings are kept. There is no undo.',
     resetFullMessageWithMotion:
-      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound, language and motion settings are kept. There is no undo.',
+      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound, language, motion and interface scale settings are kept. There is no undo.',
 
     toggleOn: 'On',
     toggleOff: 'Off',
@@ -136,6 +141,13 @@ export const settingsPanelMessages = defineMessages({
     paOff: 'Desligado',
     paModeHelp:
       'Focado mantém os avisos curtos. Com personalidade deixa o sistema de avisos conversar. Mensagens de segurança sempre são transmitidas.',
+    paVoice: 'Voz dos avisos',
+    paVoiceChoice: 'Escolha da voz dos avisos',
+    paVoiceGroup_british: 'Britânico',
+    paVoiceGroup_american: 'Americano',
+    paVoiceGroup_characters: 'Personagens',
+    paVoiceGroup_brazilian: 'Brasileiro',
+    paVoiceSample: 'Linha de ensaque verificada. O moinho está tranquilo.',
     paCaptions: 'Legendas dos avisos',
     paTranscriptSummary: 'Transcrição dos avisos ({count})',
     searchPaTranscript: 'Pesquisar na transcrição dos avisos',
@@ -160,7 +172,6 @@ export const settingsPanelMessages = defineMessages({
     qualityName: (p: { quality: string }) => PT_QUALITY[p.quality] ?? p.quality,
     qualityLabel: (p: { quality: string }) => `qualidade ${PT_QUALITY[p.quality] ?? p.quality}`,
     postProcessing: 'Pós-processamento',
-    lightShafts: 'Feixes de luz',
     colourGrade: 'Correção de cor',
     ambientOcclusion: 'Oclusão ambiente',
     bloomGlow: 'Brilho (bloom)',
@@ -171,13 +182,11 @@ export const settingsPanelMessages = defineMessages({
     dustParticles: 'Partículas de poeira',
     grainFlow: 'Fluxo de grãos',
     sceneMachines: 'Cena e máquinas',
-    machineVibration: 'Vibração das máquinas',
     wireframeMode: 'Modo aramado',
-    contactShadows: 'Sombras de contato',
     highResShadows: 'Sombras em alta resolução',
-    floorPuddles: 'Poças no piso',
     audioReactive: 'Reação ao áudio',
     zoneMarkers: 'Marcadores de zona',
+    fpsCounter: 'Contador de FPS',
     resolutionScale: 'Escala de resolução',
     resolutionScaleLabel: 'Escala de resolução',
 
@@ -206,10 +215,11 @@ export const settingsPanelMessages = defineMessages({
     resetDayMessage:
       'Volta o relógio para as 10h, no ritmo atual. Clima, janela de operação e estado de emergência são redefinidos. Os pedidos dos clientes e seus prazos seguem o próprio relógio, então um pedido atrasado continua atrasado; totais de produção, estados das máquinas e conquistas continuam. Para um turno novo, use Reiniciar simulação.',
     resetEverything: 'Apagar tudo',
+    resetting: 'Reiniciando...',
     resetFullMessage:
-      'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som e idioma são mantidas. Não é possível desfazer.',
+      'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som, idioma e escala da interface são mantidas. Não é possível desfazer.',
     resetFullMessageWithMotion:
-      'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som, idioma e movimento são mantidas. Não é possível desfazer.',
+      'Apaga tudo (progresso salvo, configurações gráficas, suas preferências de IA salvas) e recarrega do zero. As configurações de som, idioma, movimento e escala da interface são mantidas. Não é possível desfazer.',
 
     toggleOn: 'Ligado',
     toggleOff: 'Desligado',

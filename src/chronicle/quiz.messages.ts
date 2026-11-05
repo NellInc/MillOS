@@ -488,6 +488,68 @@ const portuguese: Record<string, QuizCopy> = {
     option2: 'As mós são a melhor forma de moer',
     option3: 'Os rios são a única fonte de energia',
   },
+  'q-ogas-1': {
+    prompt: 'Quem propôs a rede soviética nacional de planejamento que se tornou o OGAS?',
+    option0: 'Stafford Beer',
+    option1: 'Viktor Glushkov',
+    option2: 'Martin Weitzman',
+    option3: 'Fernando Flores',
+  },
+  'q-ogas-2': {
+    prompt: 'Que fim levou o OGAS?',
+    option0: 'Foi construído por inteiro e funcionou até 1991',
+    option1: 'Foi entregue aos militares e usado na defesa aérea',
+    option2:
+      'Foi reduzido, e cada ministério construiu os próprios sistemas de computação separados',
+    option3: 'Foi vendido ao exterior para pagar importações de grãos',
+  },
+  'q-cybersyn-1': {
+    prompt: 'Como a rede do Cybersyn levava mensagens entre as empresas e Santiago?',
+    option0: 'Por rádio',
+    option1: 'Por telex',
+    option2: 'Por mensageiro',
+    option3: 'Por cartões perfurados enviados pelo correio',
+  },
+  'q-cybersyn-2': {
+    prompt: 'Quando um número de uma fábrica saía da faixa, o que acontecia primeiro?',
+    option0: 'O presidente era avisado na hora',
+    option1: 'A fábrica era fechada até ser inspecionada',
+    option2: 'A empresa tinha um prazo definido para resolvê-lo antes que o alerta subisse',
+    option3: 'Nada, até o fim do mês',
+  },
+  'q-ratchet-1': {
+    prompt:
+      'No planejamento "a partir do nível alcançado", como era fixada a meta do período seguinte?',
+    option0: 'Por votação dos trabalhadores',
+    option1: 'A partir dos preços do mercado mundial',
+    option2:
+      'A partir do que tinha sido alcançado no período anterior, mais um acréscimo para o crescimento',
+    option3: 'A partir da capacidade original de projeto da fábrica',
+  },
+  'q-ratchet-2': {
+    prompt: 'Qual economista analisou o "princípio da catraca" em 1980?',
+    option0: 'Martin Weitzman',
+    option1: 'Stafford Beer',
+    option2: 'Viktor Glushkov',
+    option3: 'Joseph Berliner',
+  },
+  'q-assembly-1': {
+    prompt:
+      'Pelo segundo princípio cooperativo, como votam os membros de uma cooperativa singular?',
+    option0: 'Na proporção do capital que cada um investiu',
+    option1: 'Um cooperado, um voto',
+    option2: 'Só os representantes eleitos votam',
+    option3: 'Pelo tempo de associação',
+  },
+  'q-assembly-2': {
+    prompt:
+      'Por que as reservas indivisíveis de uma cooperativa não são repartidas entre seus membros?',
+    option0: 'São devidas ao governo como imposto',
+    option1: 'Pertencem ao banco que as emprestou',
+    option2:
+      'Foram formadas por muitas gerações de cooperados e pertencem à cooperativa como um todo',
+    option3: 'São pagas aos herdeiros dos fundadores',
+  },
 };
 
 /** English stays in quiz.ts; every call reads copy for the active locale. */

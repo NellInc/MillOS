@@ -9,6 +9,8 @@ export interface EntityPosition {
   dirZ?: number;
   isStopped?: boolean;
   kind?: 'forklift' | 'truck';
+  /** Under manual control (driven, or returning to its lane): never released past. */
+  manual?: boolean;
 }
 
 export interface Obstacle {
@@ -34,10 +36,12 @@ class PositionRegistry {
     dirZ?: number,
     isStopped?: boolean,
     y = 0,
-    kind: EntityPosition['kind'] = 'forklift'
+    kind: EntityPosition['kind'] = 'forklift',
+    manual = false
   ): void {
     const existing = this.positions.get(id);
     if (existing) {
+      existing.manual = manual;
       existing.x = x;
       existing.y = y;
       existing.z = z;
@@ -47,7 +51,7 @@ class PositionRegistry {
       existing.kind = kind;
       return;
     }
-    this.positions.set(id, { id, x, y, z, dirX, dirZ, isStopped, kind });
+    this.positions.set(id, { id, x, y, z, dirX, dirZ, isStopped, kind, manual });
   }
 
   /** Read the live position without allocating a registry snapshot. */
@@ -164,6 +168,11 @@ class PositionRegistry {
       if (checkObstacles && this.isInsideObstacle(checkX, checkZ, safetyRadius * 0.5)) return false;
     }
     return true;
+  }
+
+  /** Every registered vehicle, trucks included, without copying. */
+  getAllEntities(): IterableIterator<EntityPosition> {
+    return this.positions.values();
   }
 
   getAllForklifts(): EntityPosition[] {

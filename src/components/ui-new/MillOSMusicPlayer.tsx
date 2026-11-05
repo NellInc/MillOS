@@ -1,4 +1,12 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -25,8 +33,29 @@ import { useMusicPlayerState } from '../../hooks/useAudioState';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useT } from '../../i18n';
 import { millOSMusicPlayerMessages } from './MillOSMusicPlayer.messages';
+import { focusDockItem } from './dock/focusDockItem';
 
 const LIVE_LYRICS_STORAGE_KEY = 'millos-music-live-lyrics';
+
+/**
+ * A critical alert, a drill or a stop holds the player, closing the playlist
+ * and the lyrics under a keyboard player. Focus inside fell to <body>, where
+ * Space stops every forklift, and the expand button is disabled while held.
+ * A layout cleanup runs while the closing part is still in the document, and
+ * before a safety panel that opens focuses itself, so it hands focus to the
+ * dock. The player's own close returns focus itself, so only a hold hands on.
+ * Working if Tab continues from the dock after a hold closes the playlist.
+ */
+const HeldFocusHandoff: React.FC<{ held: React.RefObject<boolean> }> = ({ held }) => {
+  const markerRef = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const container = markerRef.current?.parentElement ?? null;
+    return () => {
+      if (held.current && container?.contains(document.activeElement)) focusDockItem('overview');
+    };
+  }, [held]);
+  return <span ref={markerRef} hidden />;
+};
 
 function readLiveLyricsPreference(): boolean {
   try {
@@ -52,6 +81,9 @@ export const MillOSMusicPlayer: React.FC<{
   const playlistId = useId();
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [liveLyrics, setLiveLyricsState] = useState(readLiveLyricsPreference);
+  // Read by HeldFocusHandoff's unmount cleanup, which only sees its last props.
+  const heldRef = useRef(distractionFree);
+  heldRef.current = distractionFree;
   const expandButtonRef = useRef<HTMLButtonElement>(null);
   const collapseButtonRef = useRef<HTMLButtonElement>(null);
   // Whichever control opened the dialog: the playlist's lyrics button or the
@@ -99,6 +131,23 @@ export const MillOSMusicPlayer: React.FC<{
     if (lyricsOpen) cancelPendingFocus();
   }, [lyricsOpen, cancelPendingFocus]);
 
+  // Hiding or restoring a song unmounts the button that was pressed. Land on
+  // the same song's opposite control, so a keyboard user keeps their place.
+  const playlistRef = useRef<HTMLDivElement>(null);
+  const visibilityFocus = useRef<string | null>(null);
+  const setTrackVisibility = (trackId: string, hidden: boolean) => {
+    visibilityFocus.current = `${trackId}:${hidden ? 'show' : 'hide'}`;
+    player.setTrackHidden(trackId, hidden);
+  };
+  useEffect(() => {
+    const target = visibilityFocus.current;
+    if (!target) return;
+    visibilityFocus.current = null;
+    const buttons =
+      playlistRef.current?.querySelectorAll<HTMLButtonElement>('[data-track-visibility]');
+    [...(buttons ?? [])].find((button) => button.dataset.trackVisibility === target)?.focus();
+  }, [player.availableTracks, player.hiddenTracks]);
+
   useEffect(() => {
     if (!distractionFree) return;
     cancelPendingFocus();
@@ -115,6 +164,8 @@ export const MillOSMusicPlayer: React.FC<{
     <>
       <section
         aria-label={t('musicPlayer')}
+        // src/index.css places it on small screens by this hook: the label is translated.
+        data-music-player=""
         style={
           {
             '--millos-view-width': sidebarVisible
@@ -129,7 +180,7 @@ export const MillOSMusicPlayer: React.FC<{
             setPlayerExpanded(false);
           }
         }}
-        className={`pointer-events-auto fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[calc(4rem+env(safe-area-inset-top))] ${playlistVisible ? 'z-[60]' : 'z-40'} w-[min(20rem,calc(var(--millos-view-width)-1.5rem))] rounded-lg border border-cyan-100/15 bg-[#071722]/95 shadow-lg backdrop-blur-md [&_button]:min-h-11`}
+        className={`pointer-events-auto fixed left-[max(0.75rem,env(safe-area-inset-left))] top-[calc(4rem+env(safe-area-inset-top))] ${playlistVisible ? 'z-[60]' : 'z-40'} w-[min(20rem,calc(var(--millos-view-width)-1.5rem))] millos-glass rounded-lg [&_button]:min-h-11`}
       >
         <div className="flex items-center gap-0.5 p-1">
           <button
@@ -193,16 +244,19 @@ export const MillOSMusicPlayer: React.FC<{
             sheet={getMillosSoundtrackLyrics(player.currentTrack.trackNumber ?? 1)}
             positionSeconds={player.positionSeconds}
             onOpen={distractionFree ? undefined : openLyrics}
+            held={heldRef}
           />
         )}
 
         {playlistVisible && (
           <div
+            ref={playlistRef}
             id={playlistId}
             role="region"
             aria-label={t('playlist')}
             className="flex max-h-[min(25rem,calc(100dvh-14rem))] flex-col overflow-y-auto overscroll-contain border-t border-white/10 p-2"
           >
+            <HeldFocusHandoff held={heldRef} />
             <div className="shrink-0 [@media(max-height:500px)]:order-2">
               <p
                 className="truncate px-1 text-[11px] text-slate-400"
@@ -285,9 +339,10 @@ export const MillOSMusicPlayer: React.FC<{
                     )}
                   </button>
                   <TrackVisibilityButton
-                    label={`Hide ${track.name}`}
+                    label={t('hideSong', { name: track.name })}
                     disabled={lastVisibleTrack}
-                    onClick={() => player.setTrackHidden(track.id, true)}
+                    focusKey={`${track.id}:hide`}
+                    onClick={() => setTrackVisibility(track.id, true)}
                   >
                     <EyeOff size={14} aria-hidden="true" />
                   </TrackVisibilityButton>
@@ -310,8 +365,9 @@ export const MillOSMusicPlayer: React.FC<{
                       </span>
                     </span>
                     <TrackVisibilityButton
-                      label={`Show ${track.name}`}
-                      onClick={() => player.setTrackHidden(track.id, false)}
+                      label={t('showSong', { name: track.name })}
+                      focusKey={`${track.id}:show`}
+                      onClick={() => setTrackVisibility(track.id, false)}
                     >
                       <Eye size={14} aria-hidden="true" />
                     </TrackVisibilityButton>
@@ -322,7 +378,7 @@ export const MillOSMusicPlayer: React.FC<{
           </div>
         )}
       </section>
-      {lyricsOpen && !distractionFree && <LyricsDialog onClose={closeLyrics} />}
+      {lyricsOpen && !distractionFree && <LyricsDialog onClose={closeLyrics} held={heldRef} />}
     </>
   );
 };
@@ -356,10 +412,13 @@ const TrackVisibilityButton: React.FC<{
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** Where focus lands after the opposite control hides or restores this song. */
+  focusKey: string;
   children: React.ReactNode;
-}> = ({ label, onClick, disabled = false, children }) => (
+}> = ({ label, onClick, disabled = false, focusKey, children }) => (
   <button
     type="button"
+    data-track-visibility={focusKey}
     onClick={onClick}
     disabled={disabled}
     aria-label={label}
@@ -418,7 +477,12 @@ const MiniLyricLine: React.FC<{
   positionSeconds: number;
   /** Absent while the full dialog cannot open; the line is then plain text. */
   onOpen?: (event: React.MouseEvent<HTMLButtonElement>) => void;
-}> = ({ sheet, positionSeconds, onOpen }) => {
+  /**
+   * A hold hides the line, or (an opened sidebar) makes it plain text: either
+   * way the focused button leaves, so it hands focus on as the playlist does.
+   */
+  held: React.RefObject<boolean>;
+}> = ({ sheet, positionSeconds, onOpen, held }) => {
   const t = useT(millOSMusicPlayerMessages);
   const shown = useMemo(() => {
     const active = findActiveMillosLyricWord(sheet, positionSeconds);
@@ -465,12 +529,16 @@ const MiniLyricLine: React.FC<{
       data-testid="live-lyric"
       className={`${frame} hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300`}
     >
+      <HeldFocusHandoff held={held} />
       {text}
     </button>
   );
 };
 
-const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const LyricsDialog: React.FC<{ onClose: () => void; held: React.RefObject<boolean> }> = ({
+  onClose,
+  held,
+}) => {
   const t = useT(millOSMusicPlayerMessages);
   const player = useMusicPlayerState();
   const reducedMotion = useReducedMotion();
@@ -536,6 +604,7 @@ const LyricsDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         aria-labelledby="millos-lyrics-title"
         className="flex h-[min(52rem,calc(100dvh-1.5rem))] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 shadow-2xl"
       >
+        <HeldFocusHandoff held={held} />
         <header className="flex shrink-0 items-center gap-3 border-b border-white/10 p-3 sm:p-4">
           {player.currentTrack.artwork && (
             <img

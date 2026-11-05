@@ -9,6 +9,8 @@ export interface VehicleTelemetrySnapshot {
   stopReason: string;
   articulationRadians: number;
   transferReady: boolean;
+  /** A forklift's load, for the inspector that stays open while it works. */
+  cargo?: 'pallet' | 'empty';
 }
 
 class VehicleTelemetryRegistry {
@@ -32,6 +34,7 @@ class VehicleTelemetryRegistry {
       existing.stopReason = snapshot.stopReason;
       existing.articulationRadians = snapshot.articulationRadians;
       existing.transferReady = snapshot.transferReady;
+      existing.cargo = snapshot.cargo;
       return;
     }
     this.vehicles.set(snapshot.id, { ...snapshot });

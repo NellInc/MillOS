@@ -17,6 +17,11 @@ import {
 } from './ExteriorLighting';
 import { createWestRiverLampGrounding } from './westRiverLampGrounding';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
+import { RAILWAY_LAMPS } from '../scenery/RailwayStation';
+
+/** Every exterior pool: 21 park, path and canal lamps (the silo-yard lamp at z 30,
+ * which stood inside a silo, is gone) plus the railway's platform and forecourt lamps. */
+const POOL_COUNT = 21 + RAILWAY_LAMPS.length;
 
 type Placement = { position: [number, number, number]; radius: number; selected?: boolean };
 
@@ -37,36 +42,70 @@ function actualExteriorPoolPlacements(): Placement[] {
         (p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && p.name.getText(ast) === 'position'
       );
       const init = position?.initializer;
-      if (
+      const name = attributes.find(
+        (p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && p.name.getText(ast) === 'name'
+      )?.initializer;
+      if (name && ts.isStringLiteral(name) && name.text === 'railway-lamp') {
+        // Destructured from the real RAILWAY_LAMPS rows; placed from them below.
+        expect(init?.getText(ast)).toBe('{[x, y, z]}');
+      } else if (
         init &&
         ts.isJsxExpression(init) &&
         init.expression &&
         ts.isArrayLiteralExpression(init.expression)
       ) {
-        const coordinates = init.expression.elements.flatMap((coordinate) => {
+        // A coordinate may be the parameter of an enclosing `[...literals].map((v) =>`,
+        // as the towpath row is; that call places one lamp per literal.
+        const mapped = (identifier: string) => {
+          for (let up: ts.Node | undefined = node.parent; up; up = up.parent) {
+            if (
+              ts.isArrowFunction(up) &&
+              up.parameters.length === 1 &&
+              up.parameters[0].name.getText(ast) === identifier &&
+              ts.isCallExpression(up.parent) &&
+              ts.isPropertyAccessExpression(up.parent.expression) &&
+              up.parent.expression.name.getText(ast) === 'map' &&
+              ts.isArrayLiteralExpression(up.parent.expression.expression)
+            ) {
+              const values = up.parent.expression.expression.elements.map((e) =>
+                Number(e.getText(ast))
+              );
+              if (!values.every(Number.isFinite)) break;
+              return values;
+            }
+          }
+          throw new Error('Unknown lamp position coordinate');
+        };
+        const axes = init.expression.elements.flatMap((coordinate) => {
           if (ts.isSpreadElement(coordinate)) {
             if (coordinate.expression.getText(ast) !== 'CAFE_COURT_LANTERN')
               throw new Error('Unknown lamp position spread');
-            return [...CAFE_COURT_LANTERN];
+            return CAFE_COURT_LANTERN.map((value) => [value]);
           }
           const value = Number(coordinate.getText(ast));
-          if (!Number.isFinite(value)) throw new Error('Unknown lamp position coordinate');
-          return [value];
+          if (Number.isFinite(value)) return [[value]];
+          if (!ts.isIdentifier(coordinate)) throw new Error('Unknown lamp position coordinate');
+          return [mapped(coordinate.getText(ast))];
         });
-        expect(coordinates).toHaveLength(3);
-        expect(coordinates.every(Number.isFinite)).toBe(true);
+        expect(axes).toHaveLength(3);
+        expect(axes.filter((values) => values.length > 1).length).toBeLessThanOrEqual(1);
+        const count = Math.max(...axes.map((values) => values.length));
         const style = attributes.find(
           (p): p is ts.JsxAttribute => ts.isJsxAttribute(p) && p.name.getText(ast) === 'style'
         );
-        placements.push({
-          position: coordinates as [number, number, number],
-          radius:
-            style?.initializer &&
-            ts.isStringLiteral(style.initializer) &&
-            style.initializer.text === 'victorian'
-              ? 5.5
-              : 4.8,
-        });
+        for (let i = 0; i < count; i++) {
+          const coordinates = axes.map((values) => values[values.length > 1 ? i : 0]);
+          expect(coordinates.every(Number.isFinite)).toBe(true);
+          placements.push({
+            position: coordinates as [number, number, number],
+            radius:
+              style?.initializer &&
+              ts.isStringLiteral(style.initializer) &&
+              style.initializer.text === 'victorian'
+                ? 5.5
+                : 4.8,
+          });
+        }
       } else if (
         !init ||
         !ts.isJsxExpression(init) ||
@@ -87,6 +126,16 @@ function actualExteriorPoolPlacements(): Placement[] {
       radius: WEST_FACTORY_PATH_POOL_RADIUS,
     }))
   );
+  // The railway's platform and forecourt lamps share the same pool material and
+  // batch with every other exterior pool, at their own per-lamp radius.
+  expect(text).toContain('RAILWAY_LAMPS.map(([x, y, z, pool]) => (');
+  expect(text).toContain('poolRadius={pool}');
+  placements.push(
+    ...RAILWAY_LAMPS.map(([x, y, z, pool]) => ({
+      position: [x, y, z] as [number, number, number],
+      radius: pool,
+    }))
+  );
   expect(text.match(/<WestRiverPathLamp\s*\/>/g)).toHaveLength(1);
   expect(text).toContain('CANAL_CROSSING_LAMPS.map((lamp) => (');
   placements.push(
@@ -96,7 +145,7 @@ function actualExteriorPoolPlacements(): Placement[] {
     }))
   );
   placements.push({ position: [-60, 0, -110], radius: 4.8, selected: true });
-  expect(placements).toHaveLength(22);
+  expect(placements).toHaveLength(POOL_COUNT);
   return placements;
 }
 
@@ -131,7 +180,7 @@ function batchedPoolFixture(quality: string, after: boolean) {
   }
   root.updateMatrixWorld(true);
   const candidates = collectStaticBatchCandidates(root);
-  expect(candidates).toHaveLength(22);
+  expect(candidates).toHaveLength(POOL_COUNT);
   const batches = createStaticMeshBatches(root, candidates, 'west-lamp-contract', 2);
   const submissions: THREE.Mesh[] = [];
   root.traverse((object) => {
@@ -171,10 +220,10 @@ describe.each(['low', 'medium', 'high', 'ultra'])(
       try {
         expect(before.submissions).toHaveLength(1);
         expect(after.submissions).toHaveLength(2);
-        expect(before.triangles).toBe(22 * 28);
+        expect(before.triangles).toBe(POOL_COUNT * 28);
         expect(after.triangles).toBe(before.triangles + 6);
-        expect(before.root.userData.staticBatchStats.instancedOriginals).toBe(22);
-        expect(after.root.userData.staticBatchStats.instancedOriginals).toBe(21);
+        expect(before.root.userData.staticBatchStats.instancedOriginals).toBe(POOL_COUNT);
+        expect(after.root.userData.staticBatchStats.instancedOriginals).toBe(POOL_COUNT - 1);
         const materials = [...before.submissions, ...after.submissions].map(
           (mesh) => mesh.material
         );

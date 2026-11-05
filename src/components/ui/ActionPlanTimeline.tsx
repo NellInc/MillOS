@@ -5,10 +5,11 @@
  * Shows immediate, short-term, and preparatory actions from strategic decisions.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Circle, Pause, Play, RotateCcw, Timer } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { formatFixed, useT } from '../../i18n';
 import { actionPlanTimelineMessages } from './ActionPlanTimeline.messages';
 
@@ -30,12 +31,75 @@ const DEFAULT_STEPS: StepPreset[] = [
   { labelKey: 'preparation', duration: 30 },
 ];
 
+// Where the current plan stood when the timeline last rendered. The Strategic
+// tab unmounts it on every tab switch; the same plan resumes from here rather
+// than starting over at its first step. Keyed by the plan array itself, which
+// setStrategicPriorities replaces with every new plan.
+let savedPlace: {
+  plan: readonly string[];
+  activeStep: number;
+  countdown: number;
+  isRunning: boolean;
+  /** runningMs() when it was saved: the plant time that passes while unmounted counts. */
+  savedAt: number;
+} | null = null;
+
+// Wall time with the shift clock running and the tab visible, the clock the
+// countdown keeps on screen. Kept here so the time the timeline spends
+// unmounted (another AI tab, the panel closed) counts, minus any hold.
+type ClockState = { gameSpeed: number; isTabVisible?: boolean };
+const isHeld = (state: ClockState) => state.gameSpeed === 0 || state.isTabVisible === false;
+let heldTotalMs = 0;
+let heldSince: number | null = null;
+let watchingClock = false;
+function runningMs(): number {
+  if (!watchingClock) {
+    watchingClock = true;
+    heldSince = isHeld(useGameSimulationStore.getState()) ? Date.now() : null;
+    useGameSimulationStore.subscribe((state) => {
+      if (isHeld(state)) heldSince ??= Date.now();
+      else if (heldSince !== null) {
+        heldTotalMs += Date.now() - heldSince;
+        heldSince = null;
+      }
+    });
+  }
+  const now = Date.now();
+  return now - heldTotalMs - (heldSince === null ? 0 : now - heldSince);
+}
+
+const stepMinutes = (index: number) => DEFAULT_STEPS[index]?.duration || 10;
+
+/** The saved place moved on by the running time since it was saved. */
+function resumePlace(place: NonNullable<typeof savedPlace>) {
+  if (!place.isRunning) return place;
+  let activeStep = place.activeStep;
+  let countdown = place.countdown - Math.floor(Math.max(0, runningMs() - place.savedAt) / 1000);
+  while (countdown <= 0 && activeStep < place.plan.length - 1) {
+    activeStep += 1;
+    countdown += stepMinutes(activeStep) * 60;
+  }
+  return countdown > 0
+    ? { ...place, activeStep, countdown }
+    : { ...place, activeStep, countdown: 0, isRunning: false };
+}
+
 export const ActionPlanTimeline: React.FC = () => {
   const t = useT(actionPlanTimelineMessages);
   const strategic = useAIConfigStore((state) => state.strategic);
-  const [activeStep, setActiveStep] = useState(0);
-  const [countdown, setCountdown] = useState(5 * 60); // 5 minutes in seconds
-  const [isRunning, setIsRunning] = useState(false);
+  const [resumed] = useState(() =>
+    savedPlace && savedPlace.plan === strategic.actionPlan ? resumePlace(savedPlace) : null
+  );
+  const [activeStep, setActiveStep] = useState(resumed?.activeStep ?? 0);
+  const [countdown, setCountdown] = useState(resumed?.countdown ?? 5 * 60); // seconds
+  const [isRunning, setIsRunning] = useState(resumed?.isRunning ?? false);
+  // The plan is about the plant, so it holds while the shift clock is held (P,
+  // Paused, tour, handoff), as aiEngine's cadence does. Otherwise it counts on
+  // wall time: on game time a 5-minute step would pass in seconds at 1x. A
+  // hidden browser tab stops the frames that run the plant, so it holds too.
+  const clockHeld = useGameSimulationStore(
+    (state) => state.gameSpeed === 0 || state.isTabVisible === false
+  );
 
   // Parse action plan from strategic priorities
   const steps: ActionStep[] = strategic.actionPlan?.length
@@ -43,7 +107,7 @@ export const ActionPlanTimeline: React.FC = () => {
         label: DEFAULT_STEPS[i]
           ? t(DEFAULT_STEPS[i].labelKey)
           : t('step', { number: formatFixed(i + 1, 0) }),
-        duration: DEFAULT_STEPS[i]?.duration || 10,
+        duration: stepMinutes(i),
         action,
       }))
     : DEFAULT_STEPS.map((s) => ({
@@ -52,17 +116,23 @@ export const ActionPlanTimeline: React.FC = () => {
         action: t('waiting'),
       }));
 
-  // Countdown timer
+  // Countdown timer. The interval lives as long as the plan runs: keyed on the
+  // steps array (new every render), it restarted on each re-render of the panel
+  // around it, which the plant clock causes every half second, and never fired.
+  const planRef = useRef({ activeStep, steps });
+  planRef.current = { activeStep, steps };
+  const hasTimeLeft = countdown > 0;
   useEffect(() => {
-    if (!isRunning || countdown <= 0) return;
+    if (!isRunning || clockHeld || !hasTimeLeft) return;
 
     const timer = setInterval(() => {
+      const { activeStep: step, steps: current } = planRef.current;
       setCountdown((prev) => {
         if (prev <= 1) {
           // Move to next step
-          if (activeStep < steps.length - 1) {
-            setActiveStep(activeStep + 1);
-            return steps[activeStep + 1].duration * 60;
+          if (step < current.length - 1) {
+            setActiveStep(step + 1);
+            return current[step + 1].duration * 60;
           }
           setIsRunning(false);
           return 0;
@@ -72,16 +142,22 @@ export const ActionPlanTimeline: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isRunning, countdown, activeStep, steps]);
+  }, [isRunning, clockHeld, hasTimeLeft]);
 
-  // Reset when strategic plan changes
+  // Reset when strategic plan changes (a remount on the same plan resumes)
   useEffect(() => {
-    if (strategic.actionPlan?.length) {
+    if (strategic.actionPlan?.length && savedPlace?.plan !== strategic.actionPlan) {
       setActiveStep(0);
       setCountdown(steps[0].duration * 60);
       setIsRunning(true);
     }
   }, [strategic.actionPlan]);
+
+  useEffect(() => {
+    savedPlace = strategic.actionPlan?.length
+      ? { plan: strategic.actionPlan, activeStep, countdown, isRunning, savedAt: runningMs() }
+      : null;
+  }, [strategic.actionPlan, activeStep, countdown, isRunning]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -89,8 +165,14 @@ export const ActionPlanTimeline: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Controls are only meaningful once a real action plan is present.
+  const hasPlan = !!strategic.actionPlan?.length;
+  // The last step's countdown has run out: the whole plan is done, and no step
+  // is still the active one.
+  const finished = hasPlan && !isRunning && countdown <= 0;
+
   const getStepStatus = (index: number): 'completed' | 'active' | 'pending' => {
-    if (index < activeStep) return 'completed';
+    if (finished || index < activeStep) return 'completed';
     if (index === activeStep) return 'active';
     return 'pending';
   };
@@ -112,9 +194,6 @@ export const ActionPlanTimeline: React.FC = () => {
     }
     setIsRunning((prev) => !prev);
   };
-
-  // Controls are only meaningful once a real action plan is present.
-  const hasPlan = !!strategic.actionPlan?.length;
 
   if (!strategic.actionPlan?.length && !strategic.isThinking) return null;
 

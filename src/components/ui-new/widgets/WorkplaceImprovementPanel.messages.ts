@@ -115,6 +115,7 @@ export const workplaceImprovementPanelMessages = defineMessages({
     endToReviewNote:
       'This later shift keeps earlier trial pay, so it cannot be cancelled. Ending it moves to its member review; finalising that review releases the plant.',
     finaliseToReleaseNote: 'Finalising the member review below releases the plant.',
+    resumeDeliberation: 'Resume the deliberation with fresh consent',
     seasonOpened: 'Season opened. Use Shift and Agreement / Voices for current decisions.',
     pilotPlanningOnly:
       'Pilot preparation remains planning-only. Use Game or Workshop for a local experiment.',
@@ -178,7 +179,8 @@ export const workplaceImprovementPanelMessages = defineMessages({
     kgValue: '{kg} kg',
     workshopNoShipment: ' (workshop has no plant shipment)',
     commitmentRemaining: 'Full customer commitment remaining: ',
-    commitmentValue: (p: EvidenceParams) => `${p.kg} kg; ${p.evidence} evidence`,
+    commitmentValue: (p: EvidenceParams) =>
+      `${p.kg} kg; ${p.evidence === 'quality-failed' ? 'failed quality' : p.evidence} evidence`,
     paidThisShift: 'Paid this shift: ',
     paidValue: '{wages} credits; purchase {spend}; closing cash {cash}',
     retainedPay: 'Retained earned pay: ',
@@ -218,7 +220,7 @@ export const workplaceImprovementPanelMessages = defineMessages({
     originNote:
       'Origin closing cash: {cash} credits. Earlier earned pay and any campaign review remain retained; old consent supplies no current permission.',
     historyLine: (p: HistoryParams) =>
-      `Shift ${p.cycle}: ${p.proposal}, ${p.verdict}; dispatched ${p.kg} kg, wages ${p.wages}, purchase ${p.spend}, closing cash ${p.cash}.`,
+      `Shift ${p.cycle}: ${p.proposal || 'no proposal'}, ${p.verdict}; dispatched ${p.kg} kg, wages ${p.wages}, purchase ${p.spend}, closing cash ${p.cash}.`,
   },
   'pt-BR': {
     regionLabel: 'Experimento de passagem de turno',
@@ -244,6 +246,7 @@ export const workplaceImprovementPanelMessages = defineMessages({
     endToReviewNote:
       'Este turno posterior mantém a remuneração de testes anteriores, então não pode ser cancelado. Encerrá-lo leva à avaliação dos cooperados; concluir essa avaliação libera a planta.',
     finaliseToReleaseNote: 'Concluir a avaliação dos cooperados abaixo libera a planta.',
+    resumeDeliberation: 'Retomar a deliberação com novo consentimento',
     seasonOpened: 'Temporada aberta. Use Turno e Acordo / Vozes para as decisões atuais.',
     pilotPlanningOnly:
       'A preparação de piloto continua apenas como planejamento. Use Jogo ou Oficina para um experimento local.',
@@ -353,6 +356,6 @@ export const workplaceImprovementPanelMessages = defineMessages({
     originNote:
       'Caixa de fechamento de origem: {cash} créditos. A remuneração conquistada anteriormente e qualquer revisão de campanha continuam mantidas; um consentimento antigo não concede permissão atual.',
     historyLine: (p: HistoryParams) =>
-      `Turno ${p.cycle}: ${pt(PT_PROPOSAL, p.proposal)}, ${pt(PT_VERDICT, p.verdict)}; expedido ${p.kg} kg, remuneração ${p.wages}, compra ${p.spend}, caixa de fechamento ${p.cash}.`,
+      `Turno ${p.cycle}: ${p.proposal ? pt(PT_PROPOSAL, p.proposal) : 'sem proposta'}, ${pt(PT_VERDICT, p.verdict)}; expedido ${p.kg} kg, remuneração ${p.wages}, compra ${p.spend}, caixa de fechamento ${p.cash}.`,
   },
 });

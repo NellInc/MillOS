@@ -7,7 +7,7 @@
  * - Maintenance schedule
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   AlertTriangle,
   Wrench,
@@ -22,13 +22,17 @@ import {
 } from 'lucide-react';
 import {
   breakdownDescription,
+  freePartsInventory,
   missingParts,
+  missingPartsForOrder,
+  predictionMinutesLeft,
   useBreakdownStore,
   type PredictiveAlert,
 } from '../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { minimumServiceWear, useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
+import { recordOperatorAction } from '../../stores/operationsCampaignStore';
 import { capitalizeIn, formatFixed, translate, useLocale, useT } from '../../i18n';
 import { predictiveMaintenancePanelMessages } from './PredictiveMaintenancePanel.messages';
 
@@ -38,6 +42,52 @@ const formatDowntime = (downtimeSeconds: number): string => {
   const s = Math.round(downtimeSeconds);
   if (s < 60) return `${s}s`;
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+/**
+ * Each action here removes or replaces the control that was pressed. This
+ * moves focus, after the commit that does so, to whatever `resolve` returns,
+ * so a keyboard user is never dropped on <body>. Call it only for an action
+ * that changed state: a call with no re-render would fire on a later one.
+ * Working if focus stays in the section the player was working in.
+ */
+const useFocusAfterAction = () => {
+  const pending = useRef<(() => HTMLElement | null | undefined) | null>(null);
+  useEffect(() => {
+    const resolve = pending.current;
+    if (!resolve) return;
+    pending.current = null;
+    resolve()?.focus();
+  });
+  return (resolve: () => HTMLElement | null | undefined) => {
+    pending.current = resolve;
+  };
+};
+
+/**
+ * The plant also removes controls: the tick closes a restarted work order, a
+ * breakdown closes the open prediction, a service elsewhere closes a booking.
+ * When the control a keyboard user rests on goes that way, focus moves to
+ * `fallback` instead of <body>. Spread the handlers on the section's root.
+ * Working if focus stays in the panel when the plant changes it.
+ */
+const useFocusRescue = (fallback: () => HTMLElement | null | undefined) => {
+  const within = useRef(false);
+  useEffect(() => {
+    if (!within.current) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    within.current = false;
+    fallback()?.focus();
+  });
+  return {
+    onFocus: () => {
+      within.current = true;
+    },
+    onBlur: (event: React.FocusEvent<HTMLElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) within.current = false;
+    },
+  };
 };
 
 // Parts display with low inventory warning
@@ -90,6 +140,33 @@ const PartsInventorySection: React.FC = () => {
   );
 };
 
+/**
+ * A prediction's window as what is left of it on the plant clock. Only this
+ * line follows the clock, and only when its whole minute changes, so the list
+ * is not re-rendered on every tick.
+ */
+const PredictionWindow: React.FC<{ alert: PredictiveAlert }> = ({ alert }) => {
+  const t = useT(messages);
+  const minutesLeft = useGameSimulationStore((state) =>
+    Math.max(
+      0,
+      Math.ceil(predictionMinutesLeft(alert, { day: state.gameDay, hour: state.gameTime }) - 1e-6)
+    )
+  );
+  return (
+    <span>
+      {minutesLeft <= 0
+        ? t('windowPassed')
+        : t('estimatedWindow', {
+            window:
+              minutesLeft >= 120
+                ? t('windowHours', { hours: formatFixed(minutesLeft / 60, 1) })
+                : t('windowMinutes', { minutes: formatFixed(minutesLeft, 0) }),
+          })}
+    </span>
+  );
+};
+
 // Active predictions list
 const PredictionsSection: React.FC = () => {
   const predictiveAlerts = useBreakdownStore((state) => state.predictiveAlerts);
@@ -98,15 +175,21 @@ const PredictionsSection: React.FC = () => {
   const scheduleMaintenanceTask = useBreakdownStore((state) => state.scheduleMaintenanceTask);
   const getPartsForBreakdown = useBreakdownStore((state) => state.getPartsForBreakdown);
   const t = useT(messages);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const rescue = useFocusRescue(() => headingRef.current);
+  const focusAfter = useFocusAfterAction();
+  const focusHeading = () => focusAfter(() => headingRef.current);
 
   const unacknowledgedAlerts = predictiveAlerts.filter((a) => !a.acknowledged);
   const scheduledMachineIds = new Set(
     maintenanceSchedule.filter((task) => !task.completed).map((task) => task.machineId)
   );
   const schedulePrediction = (alert: PredictiveAlert) => {
-    const leadTimeHours = Math.max(5, alert.predictedTimeToFailure * 0.5) / 60;
     // Read on click: subscribing would re-render this list on every game tick.
-    const gameTime = useGameSimulationStore.getState().gameTime;
+    const { gameDay, gameTime } = useGameSimulationStore.getState();
+    // Half of the window that is left, as the panel shows it.
+    const minutesLeft = predictionMinutesLeft(alert, { day: gameDay, hour: gameTime });
+    const leadTimeHours = Math.max(5, minutesLeft * 0.5) / 60;
     scheduleMaintenanceTask({
       machineId: alert.machineId,
       machineName: alert.machineName,
@@ -116,14 +199,21 @@ const PredictionsSection: React.FC = () => {
       partsNeeded: getPartsForBreakdown(alert.predictedFailureType),
     });
     acknowledgePredictiveAlert(alert.id);
+    focusHeading();
   };
 
   if (unacknowledgedAlerts.length === 0) {
     return (
-      <div className="bg-slate-800/50 rounded-lg p-3">
+      <div className="bg-slate-800/50 rounded-lg p-3" {...rescue}>
         <div className="flex items-center gap-2 mb-2">
           <TrendingUp className="w-4 h-4 text-emerald-400" />
-          <h4 className="text-sm font-semibold text-slate-200">{t('predictiveAlerts')}</h4>
+          <h4
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-sm font-semibold text-slate-200 focus:outline-none"
+          >
+            {t('predictiveAlerts')}
+          </h4>
         </div>
         <div className="flex items-center gap-2 text-emerald-400 text-sm py-2">
           <CheckCircle className="w-4 h-4" />
@@ -134,10 +224,16 @@ const PredictionsSection: React.FC = () => {
   }
 
   return (
-    <div className="bg-slate-800/50 rounded-lg p-3">
+    <div className="bg-slate-800/50 rounded-lg p-3" {...rescue}>
       <div className="flex items-center gap-2 mb-3">
         <AlertTriangle className="w-4 h-4 text-amber-400" />
-        <h4 className="text-sm font-semibold text-slate-200">{t('predictiveAlerts')}</h4>
+        <h4
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-sm font-semibold text-slate-200 focus:outline-none"
+        >
+          {t('predictiveAlerts')}
+        </h4>
         <span className="text-xs bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">
           {unacknowledgedAlerts.length}
         </span>
@@ -162,18 +258,7 @@ const PredictionsSection: React.FC = () => {
               <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-slate-600">
                 <div className="flex items-center gap-1 text-xs text-slate-400">
                   <Clock className="w-3 h-3" />
-                  <span>
-                    {t('estimatedWindow', {
-                      window:
-                        alert.predictedTimeToFailure >= 120
-                          ? t('windowHours', {
-                              hours: formatFixed(alert.predictedTimeToFailure / 60, 1),
-                            })
-                          : t('windowMinutes', {
-                              minutes: formatFixed(alert.predictedTimeToFailure, 0),
-                            }),
-                    })}
-                  </span>
+                  <PredictionWindow alert={alert} />
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -189,7 +274,10 @@ const PredictionsSection: React.FC = () => {
                     {alreadyScheduled ? t('scheduled') : t('schedule')}
                   </button>
                   <button
-                    onClick={() => acknowledgePredictiveAlert(alert.id)}
+                    onClick={() => {
+                      acknowledgePredictiveAlert(alert.id);
+                      focusHeading();
+                    }}
                     aria-label={t('acknowledgeFor', { machine: alert.machineName })}
                     className="min-h-11 px-3 text-xs bg-blue-800 hover:bg-blue-700 text-white rounded transition-colors"
                   >
@@ -206,15 +294,32 @@ const PredictionsSection: React.FC = () => {
 };
 
 // Active breakdowns list
-const ActiveBreakdownsSection: React.FC = () => {
+const ActiveBreakdownsSection: React.FC<{
+  fallbackRef: React.RefObject<HTMLElement | null>;
+}> = ({ fallbackRef }) => {
   const activeBreakdowns = useBreakdownStore((state) => state.activeBreakdowns);
   const workOrders = useBreakdownStore((state) => state.workOrders);
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const startRepair = useBreakdownStore((state) => state.startRepair);
   const verifyRepair = useBreakdownStore((state) => state.verifyRepair);
   const requestMachineRestart = useBreakdownStore((state) => state.requestMachineRestart);
+  // The tick holds a requested restart until a facility stop clears.
+  const facilityStopped = useGameSimulationStore((state) => state.emergencyActive);
   const t = useT(messages);
   const locale = useLocale();
+  const listRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // The section goes when its last order closes; the panel title takes focus then.
+  const rescue = useFocusRescue(() => headingRef.current ?? fallbackRef.current);
+  const focusAfter = useFocusAfterAction();
+  // A step that took lands on the next step's button, or on the work order.
+  const focusWorkOrder = (breakdownId: string) =>
+    focusAfter(() => {
+      const card = Array.from(
+        listRef.current?.querySelectorAll<HTMLElement>('[data-breakdown-id]') ?? []
+      ).find((element) => element.dataset.breakdownId === breakdownId);
+      return card?.querySelector<HTMLElement>('button:not([disabled])') ?? card;
+    });
   const listParts = (parts: readonly string[]) =>
     parts.map((part) => t('part', { part })).join(', ');
 
@@ -223,24 +328,40 @@ const ActiveBreakdownsSection: React.FC = () => {
   }
 
   return (
-    <div className="bg-red-900/30 rounded-lg p-3 border border-red-500/30">
+    <div className="bg-red-900/30 rounded-lg p-3 border border-red-500/30" {...rescue}>
       <div className="flex items-center gap-2 mb-3">
         <Wrench className="w-4 h-4 text-red-400" />
-        <h4 className="text-sm font-semibold text-red-300">{t('activeFaults')}</h4>
+        <h4
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-sm font-semibold text-red-300 focus:outline-none"
+        >
+          {t('activeFaults')}
+        </h4>
         <span className="text-xs bg-red-500/30 text-red-300 px-1.5 py-0.5 rounded">
           {activeBreakdowns.length}
         </span>
       </div>
-      <div className="space-y-2">
+      <div ref={listRef} className="space-y-2">
         {activeBreakdowns.map((breakdown) => {
           const workOrder = workOrders.find((candidate) => candidate.id === breakdown.workOrderId);
           if (!workOrder) return null;
-          const unavailableParts = workOrder.requiredParts.filter(
-            (part) => partsInventory[part] <= 0
-          );
+          // What startRepair would refuse on, stock reserved for an order
+          // ahead counted as gone; only an order not yet dispatched waits.
+          const unavailableParts =
+            workOrder.phase === 'diagnosed' || workOrder.phase === 'awaiting_parts'
+              ? missingPartsForOrder(workOrders, partsInventory, workOrder)
+              : [];
           const phaseLabel = t('phase', { phase: workOrder.phase });
           return (
-            <div key={breakdown.id} className="bg-slate-800/50 rounded p-3">
+            <div
+              key={breakdown.id}
+              data-breakdown-id={breakdown.id}
+              tabIndex={-1}
+              role="group"
+              aria-label={breakdown.machineName}
+              className="bg-slate-800/50 rounded p-3 focus:outline-none"
+            >
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="text-sm font-medium text-slate-200">{breakdown.machineName}</div>
@@ -291,7 +412,9 @@ const ActiveBreakdownsSection: React.FC = () => {
                   <button
                     type="button"
                     disabled={unavailableParts.length > 0}
-                    onClick={() => startRepair(breakdown.id)}
+                    onClick={() => {
+                      if (startRepair(breakdown.id).started) focusWorkOrder(breakdown.id);
+                    }}
                     className="inline-flex min-h-11 items-center gap-2 rounded bg-amber-800 px-3 text-xs font-semibold text-white hover:bg-amber-700 disabled:bg-slate-600 disabled:text-white/90"
                   >
                     <Play className="h-4 w-4" aria-hidden="true" />
@@ -324,7 +447,9 @@ const ActiveBreakdownsSection: React.FC = () => {
                 {workOrder.phase === 'verification' && (
                   <button
                     type="button"
-                    onClick={() => verifyRepair(breakdown.id)}
+                    onClick={() => {
+                      if (verifyRepair(breakdown.id)) focusWorkOrder(breakdown.id);
+                    }}
                     className="inline-flex min-h-11 items-center gap-2 rounded bg-cyan-800 px-3 text-xs font-semibold text-white hover:bg-cyan-700"
                   >
                     <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
@@ -334,7 +459,12 @@ const ActiveBreakdownsSection: React.FC = () => {
                 {workOrder.phase === 'ready_to_restart' && (
                   <button
                     type="button"
-                    onClick={() => requestMachineRestart(breakdown.id)}
+                    onClick={() => {
+                      if (requestMachineRestart(breakdown.id)) {
+                        recordOperatorAction({ kind: 'restart', machine: breakdown.machineName });
+                        focusWorkOrder(breakdown.id);
+                      }
+                    }}
                     className="inline-flex min-h-11 items-center gap-2 rounded bg-purple-800 px-3 text-xs font-semibold text-white hover:bg-purple-700"
                   >
                     <RotateCcw className="h-4 w-4" aria-hidden="true" />
@@ -343,7 +473,7 @@ const ActiveBreakdownsSection: React.FC = () => {
                 )}
                 {workOrder.phase === 'restart_requested' && (
                   <div role="status" className="flex min-h-11 items-center text-xs text-purple-300">
-                    {t('restartQueued')}
+                    {facilityStopped ? t('restartHeldByStop') : t('restartQueued')}
                   </div>
                 )}
               </div>
@@ -361,6 +491,12 @@ const ScheduleSection: React.FC = () => {
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
   const completeMaintenanceTask = useBreakdownStore((state) => state.completeMaintenanceTask);
   const activeBreakdowns = useBreakdownStore((state) => state.activeBreakdowns);
+  const workOrders = useBreakdownStore((state) => state.workOrders);
+  // Parts held for a diagnosed repair are not stock a booked service may use.
+  const freeParts = freePartsInventory(workOrders, partsInventory);
+  // performMaintenance returns a critical unit to service whatever the
+  // facility state, so Complete is locked for the stop, as Maintain is.
+  const facilityStopped = useGameSimulationStore((state) => state.emergencyActive);
   // `id=minimum` for each unit performMaintenance would refuse as still new.
   // A string keeps the selector stable while wear creeps up every tick.
   const belowMinimum = useProductionStore((state) =>
@@ -376,6 +512,9 @@ const ScheduleSection: React.FC = () => {
       .map((entry) => [entry.split('=')[0], Number(entry.split('=')[1])] as const)
   );
   const t = useT(messages);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const rescue = useFocusRescue(() => headingRef.current);
+  const focusAfter = useFocusAfterAction();
   const pendingTasks = maintenanceSchedule.filter((task) => !task.completed);
   const formatScheduledTime = (time: number): string => {
     const normalized = ((time % 24) + 24) % 24;
@@ -390,11 +529,13 @@ const ScheduleSection: React.FC = () => {
   // active fault must go through its work order (repair, verify, controlled
   // restart) instead.
   const completeTask = (taskId: string, machineId: string, machineName: string) => {
+    if (useGameSimulationStore.getState().emergencyActive) return;
     const maintenance = useBreakdownStore.getState();
     if (maintenance.getBreakdownForMachine(machineId)) return;
     const task = maintenance.maintenanceSchedule.find((candidate) => candidate.id === taskId);
     if (!task || task.completed) return;
-    if (missingParts(maintenance.partsInventory, task.partsNeeded).length > 0) return;
+    const free = freePartsInventory(maintenance.workOrders, maintenance.partsInventory);
+    if (missingParts(free, task.partsNeeded).length > 0) return;
     const result = useProductionStore.getState().performMaintenance(machineId);
     if (!result.success) {
       useUIStore.getState().addAlert({
@@ -408,15 +549,25 @@ const ScheduleSection: React.FC = () => {
       });
       return;
     }
-    completeMaintenanceTask(taskId);
+    // The service ran, so it is the player's decision whatever the task does.
+    recordOperatorAction({ kind: 'maintenance', machine: machineName });
+    if (completeMaintenanceTask(taskId)) focusAfter(() => headingRef.current);
+    // Service took wear below the warning threshold: the prediction is spent.
+    useBreakdownStore.getState().acknowledgeMachinePredictiveAlerts(machineId);
   };
 
   if (pendingTasks.length === 0) {
     return (
-      <div className="bg-slate-800/50 rounded-lg p-3">
+      <div className="bg-slate-800/50 rounded-lg p-3" {...rescue}>
         <div className="flex items-center gap-2 mb-2">
           <Calendar className="w-4 h-4 text-purple-400" />
-          <h4 className="text-sm font-semibold text-slate-200">{t('scheduledMaintenance')}</h4>
+          <h4
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-sm font-semibold text-slate-200 focus:outline-none"
+          >
+            {t('scheduledMaintenance')}
+          </h4>
         </div>
         <div className="text-sm text-slate-400 py-2">{t('noScheduledMaintenance')}</div>
       </div>
@@ -424,14 +575,21 @@ const ScheduleSection: React.FC = () => {
   }
 
   return (
-    <div className="bg-slate-800/50 rounded-lg p-3">
+    <div className="bg-slate-800/50 rounded-lg p-3" {...rescue}>
       <div className="flex items-center gap-2 mb-3">
         <Calendar className="w-4 h-4 text-purple-400" />
-        <h4 className="text-sm font-semibold text-slate-200">{t('scheduledMaintenance')}</h4>
+        <h4
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-sm font-semibold text-slate-200 focus:outline-none"
+        >
+          {t('scheduledMaintenance')}
+        </h4>
       </div>
       <div className="space-y-2 max-h-[150px] overflow-y-auto">
         {pendingTasks.map((task) => {
-          const partsAvailable = missingParts(partsInventory, task.partsNeeded).length === 0;
+          const shortParts = missingParts(freeParts, task.partsNeeded);
+          const partsAvailable = shortParts.length === 0;
           const underRepair = activeBreakdowns.some(
             (breakdown) => breakdown.machineId === task.machineId
           );
@@ -458,8 +616,25 @@ const ScheduleSection: React.FC = () => {
                         : t('inspectionOnly'),
                   })}
                 </div>
-                {notNeededYet && !underRepair && (
+                {/* A title is no reason on a phone: every lock on Complete is
+                    named on the card, in the title's order. */}
+                {underRepair ? (
+                  <div className="text-[11px] leading-4 text-slate-300">{t('underRepairHint')}</div>
+                ) : facilityStopped ? (
+                  <div className="text-[11px] leading-4 text-slate-300">
+                    {t('facilityStopHint')}
+                  </div>
+                ) : null}
+                {notNeededYet && !underRepair && !facilityStopped && (
                   <div className="text-[11px] leading-4 text-slate-300">{notNeededYet}</div>
+                )}
+                {/* Short or held parts are named as a work order names them. */}
+                {!partsAvailable && !underRepair && !facilityStopped && !notNeededYet && (
+                  <div role="status" className="text-[11px] leading-4 text-red-300">
+                    {t('awaitingStock', {
+                      parts: shortParts.map((part) => t('part', { part })).join(', '),
+                    })}
+                  </div>
                 )}
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
@@ -476,16 +651,20 @@ const ScheduleSection: React.FC = () => {
                 </span>
                 <button
                   onClick={() => completeTask(task.id, task.machineId, task.machineName)}
-                  disabled={underRepair || !partsAvailable || notNeededYet !== null}
+                  disabled={
+                    underRepair || facilityStopped || !partsAvailable || notNeededYet !== null
+                  }
                   aria-label={t('completeMaintenanceOn', { machine: task.machineName })}
                   title={
                     underRepair
                       ? t('underRepairHint')
-                      : notNeededYet
-                        ? notNeededYet
-                        : partsAvailable
-                          ? t('completeHint')
-                          : t('partsUnavailableHint')
+                      : facilityStopped
+                        ? t('facilityStopHint')
+                        : notNeededYet
+                          ? notNeededYet
+                          : partsAvailable
+                            ? t('completeHint')
+                            : t('partsUnavailableHint')
                   }
                   className="min-h-11 px-3 rounded bg-purple-800 text-xs font-semibold text-white hover:bg-purple-700 disabled:bg-slate-600 disabled:text-white/90"
                 >
@@ -503,17 +682,24 @@ const ScheduleSection: React.FC = () => {
 // Main panel component
 export const PredictiveMaintenancePanel: React.FC = () => {
   const t = useT(messages);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   return (
     <div className="bg-slate-900/95 backdrop-blur-sm rounded-lg border border-slate-700 p-4 w-full">
       {/* Header */}
       <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-700">
         <Wrench className="w-5 h-5 text-blue-400" />
-        <h3 className="text-base font-semibold text-slate-100">{t('title')}</h3>
+        <h3
+          ref={titleRef}
+          tabIndex={-1}
+          className="text-base font-semibold text-slate-100 focus:outline-none"
+        >
+          {t('title')}
+        </h3>
       </div>
 
       {/* Sections */}
       <div className="space-y-3">
-        <ActiveBreakdownsSection />
+        <ActiveBreakdownsSection fallbackRef={titleRef} />
         <PredictionsSection />
         <PartsInventorySection />
         <ScheduleSection />

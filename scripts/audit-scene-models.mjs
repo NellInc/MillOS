@@ -239,7 +239,11 @@ async function main() {
 
   lock = await acquireCaptureLock('audit-scene-models', { root: ROOT });
   const baseUrl = await startPreview();
-  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  const browser = await chromium.launch({
+    chromiumSandbox: true,
+    headless: true,
+    channel: 'chrome',
+  });
   const findings = new Map();
   const perScene = [];
   /** Per-branch texture coverage, for the scenes that hold the whole world. */

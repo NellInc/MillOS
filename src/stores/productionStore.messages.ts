@@ -1,4 +1,7 @@
-import { defineMessages } from '../i18n';
+import { defineMessages, formatFixed } from '../i18n';
+
+/** Raw figures, formatted by the message itself so a kept notice follows the language. */
+type ServiceNoticeParams = { name: string; reduced?: number; wear?: number; efficiency: number };
 
 export const productionStoreMessages = defineMessages({
   en: {
@@ -22,17 +25,15 @@ export const productionStoreMessages = defineMessages({
     maintenanceBelowMinimumWear:
       'Wear is {wear}%, below the {minimum}% service minimum: the machine still runs at full efficiency.',
     maintenanceCompleteTitle: 'Maintenance Complete',
-    maintenanceCompleteWearMessage:
-      '{name} maintained. Wear reduced by {reduced}%, now at {wear}%. Efficiency: {efficiency}%',
-    maintenanceCompleteRestoredMessage: '{name} restored to service. Efficiency: {efficiency}%',
+    maintenanceCompleteWearMessage: (p: ServiceNoticeParams) =>
+      `${p.name} maintained. Wear reduced by ${formatFixed(p.reduced ?? 0, 1, 'en')}%, now at ${formatFixed(p.wear ?? 0, 1, 'en')}%. Efficiency: ${formatFixed(p.efficiency, 0, 'en')}%`,
+    maintenanceCompleteRestoredMessage: (p: ServiceNoticeParams) =>
+      `${p.name} restored to service. Efficiency: ${formatFixed(p.efficiency, 0, 'en')}%`,
     maintenanceResultWearReduced: 'Wear reduced from {from}% to {to}%',
     maintenanceResultRestored: 'Restored to service',
     maintenanceRecordDate: 'Day {day}, {time}',
     maintenanceRecordRoutineUnit: 'Line maintenance',
     maintenanceRecordRestartNote: 'Repaired and restarted under the work order. {wear}.',
-    breakdownTitle: 'Machine Breakdown',
-    breakdownMessage:
-      '{name} ({type}) has broken down due to excessive wear. Maintenance required.',
   },
   'pt-BR': {
     observationThroughput: 'Vazão de produção',
@@ -54,16 +55,14 @@ export const productionStoreMessages = defineMessages({
     maintenanceBelowMinimumWear:
       'O desgaste está em {wear}%, abaixo do mínimo de {minimum}% para manutenção: a máquina ainda opera com eficiência total.',
     maintenanceCompleteTitle: 'Manutenção concluída',
-    maintenanceCompleteWearMessage:
-      'Manutenção feita em {name}. Desgaste reduzido em {reduced}%, agora em {wear}%. Eficiência: {efficiency}%',
-    maintenanceCompleteRestoredMessage: '{name} voltou a operar. Eficiência: {efficiency}%',
+    maintenanceCompleteWearMessage: (p: ServiceNoticeParams) =>
+      `Manutenção feita em ${p.name}. Desgaste reduzido em ${formatFixed(p.reduced ?? 0, 1, 'pt-BR')}%, agora em ${formatFixed(p.wear ?? 0, 1, 'pt-BR')}%. Eficiência: ${formatFixed(p.efficiency, 0, 'pt-BR')}%`,
+    maintenanceCompleteRestoredMessage: (p: ServiceNoticeParams) =>
+      `${p.name} voltou a operar. Eficiência: ${formatFixed(p.efficiency, 0, 'pt-BR')}%`,
     maintenanceResultWearReduced: 'Desgaste reduzido de {from}% para {to}%',
     maintenanceResultRestored: 'De volta à operação',
     maintenanceRecordDate: 'Dia {day}, {time}',
     maintenanceRecordRoutineUnit: 'Manutenção de linha',
     maintenanceRecordRestartNote: 'Reparada e reiniciada pela ordem de serviço. {wear}.',
-    breakdownTitle: 'Pane de máquina',
-    breakdownMessage:
-      '{name} ({type}) entrou em pane por desgaste excessivo. Manutenção necessária.',
   },
 });

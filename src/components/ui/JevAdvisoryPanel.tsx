@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  keyedText,
+  registerAlertCatalog,
+  sanitizeKeyedLine,
+  type KeyedLine,
+} from '../../i18n/alertCopy';
 import { Shield } from 'lucide-react';
 import {
   advisoryProviders,
@@ -9,13 +15,18 @@ import {
   type AdvisoryProvider,
   type JevAdvice,
 } from '../../utils/jevClient';
-import { formatFixed, translate, useT } from '../../i18n';
+import { formatFixed, translate, useLocale, useT } from '../../i18n';
+import { jevQueueLabel } from '../../utils/jevClient.messages';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { DEFAULT_WEBGPU_MODEL_LABEL } from '../../utils/webgpuClient';
 import { jevAdvisoryPanelMessages } from './JevAdvisoryPanel.messages';
 
+const JEV_PANEL_CATALOG = 'jevAdvisoryPanel';
+registerAlertCatalog(JEV_PANEL_CATALOG, jevAdvisoryPanelMessages);
+
 export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
   const t = useT(jevAdvisoryPanelMessages);
+  const locale = useLocale();
   const localReady = useAIConfigStore((state) => state.webgpuModelReady);
   const providers = advisoryProviders(localReady);
   const [chosen, setProvider] = useState<AdvisoryProvider>('jev');
@@ -41,15 +52,34 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
   const [consent, setConsent] = useState(false);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<JevAdvice | null>(null);
-  const [error, setError] = useState('');
+  // The failure's text and, when the client filed one, its key: a kept alert
+  // reads in the language active now.
+  const [error, setError] = useState<{ text: string; copy?: KeyedLine } | null>(null);
   const request = useRef<AbortController | null>(null);
+  const sendButton = useRef<HTMLButtonElement | null>(null);
+  // Forget key leaves with the key; the emptied field takes focus in its place.
+  const keyField = useRef<HTMLInputElement | null>(null);
+  const cancelButton = useRef<HTMLButtonElement | null>(null);
+  // Send disables itself while a request runs and Cancel leaves when it ends,
+  // so focus moves between them: to Cancel once the request starts, back to
+  // Send once it is cancelled or answered.
+  const [refocus, setRefocus] = useState<'send' | 'cancel' | null>(null);
+  useEffect(() => {
+    if (refocus === 'cancel' && pending) {
+      setRefocus(null);
+      cancelButton.current?.focus();
+    } else if (refocus === 'send' && !pending) {
+      setRefocus(null);
+      sendButton.current?.focus();
+    }
+  }, [refocus, pending]);
 
   function cancel() {
     request.current?.abort();
     request.current = null;
     setPending(false);
     setResult(null);
-    setError('');
+    setError(null);
   }
   useEffect(
     () => () => {
@@ -71,9 +101,10 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
     if (request.current || !ready(consent, apiKey) || !text.trim()) return;
     const controller = new AbortController();
     request.current = controller;
+    if (document.activeElement === sendButton.current) setRefocus('cancel');
     setPending(true);
     setResult(null);
-    setError('');
+    setError(null);
     try {
       const advice = await requestJevAdvice({
         text,
@@ -87,12 +118,19 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
       if (request.current === controller)
         setError(
           failure instanceof Error
-            ? failure.message
-            : translate(jevAdvisoryPanelMessages, 'noAdvisory')
+            ? {
+                text: failure.message,
+                copy: sanitizeKeyedLine((failure as { copy?: unknown }).copy),
+              }
+            : {
+                text: translate(jevAdvisoryPanelMessages, 'noAdvisory'),
+                copy: { catalog: JEV_PANEL_CATALOG, key: 'noAdvisory' },
+              }
         );
     } finally {
       if (request.current === controller) {
         request.current = null;
+        if (document.activeElement === cancelButton.current) setRefocus('send');
         setPending(false);
       }
     }
@@ -154,6 +192,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
             {copy('apiKeyLabel')}
           </label>
           <input
+            ref={keyField}
             id="jev-api-key"
             type="password"
             autoComplete="off"
@@ -179,6 +218,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
                 cancel();
                 setApiKey('');
                 setConsent(false);
+                keyField.current?.focus();
               }}
             >
               {t('forgetKey')}
@@ -239,6 +279,7 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
       )}
       <div className="flex flex-wrap gap-2">
         <button
+          ref={sendButton}
           type="button"
           className={`${buttonClass} border-cyan-500/50 bg-cyan-500/10 text-cyan-300`}
           disabled={pending || !ready(consent, apiKey) || !text.trim()}
@@ -247,7 +288,15 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
           {pending ? t('requesting') : copy('send')}
         </button>
         {pending && (
-          <button type="button" className={buttonClass} onClick={cancel}>
+          <button
+            ref={cancelButton}
+            type="button"
+            className={buttonClass}
+            onClick={() => {
+              cancel();
+              setRefocus('send');
+            }}
+          >
             {t('cancelRequest')}
           </button>
         )}
@@ -258,14 +307,16 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
           role="alert"
           className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-200"
         >
-          {error}
+          {keyedText(error.copy, error.text)}
         </p>
       )}
       <div role="status" aria-live="polite">
         {result && (
           <div className="space-y-2 rounded-lg border border-cyan-500/30 bg-slate-800/70 p-3">
             <p className="text-slate-400">{t('resultHeading')}</p>
-            <p className="text-sm font-semibold text-slate-100">{result.queue}</p>
+            <p className="text-sm font-semibold text-slate-100">
+              {jevQueueLabel(result.queue, locale)}
+            </p>
             <p>{t('resultCaveat')}</p>
             <p className="text-slate-400">{t('resultExpiry')}</p>
           </div>

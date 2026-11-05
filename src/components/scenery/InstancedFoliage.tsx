@@ -55,6 +55,7 @@ import {
 import { applyWindShader } from './WindDriver';
 import { createTreeMatrix } from './treeForms';
 import { composeWorldSurface } from '../../utils/worldSurface';
+import { useInstanceDistanceLod } from '../performance/DistanceLod';
 
 export type TreeSpecies = 'oak' | 'pine' | 'birch';
 
@@ -710,6 +711,8 @@ const MULCH_MATERIAL = new THREE.MeshStandardMaterial({
 
 interface SpeciesDef {
   trunk: THREE.BufferGeometry;
+  /** Foot, knee and top of `trunk` on 8 sides, past `SPECIES_TRUNK_LOD`. */
+  trunkFar: THREE.BufferGeometry;
   canopy: THREE.BufferGeometry;
   trunkMaterial: THREE.MeshStandardMaterial;
   kind: FoliageKind;
@@ -820,21 +823,36 @@ const PINE_TRUNK_PROFILE: readonly (readonly [number, number])[] = [
   [0.0, 1.5],
 ];
 
+/**
+ * A species trunk at distance: the cap, foot, knee (`knee` is its index) and
+ * top of the same profile, so the envelope, base and bark v-mapping match the
+ * near trunk. The whorl collars and the flare's curve are a pixel or less past
+ * `SPECIES_TRUNK_LOD.distance`.
+ */
+function farTrunkProfile(profile: readonly (readonly [number, number])[], knee: number) {
+  return [0, 1, knee, profile.length - 2, profile.length - 1].map((i) => profile[i]);
+}
+/** Trunks switch per tree; hysteresis as in `DistanceLod`. */
+export const SPECIES_TRUNK_LOD = { distance: 40, hysteresis: 0.1 } as const;
+
 const SPECIES: Record<TreeSpecies, SpeciesDef> = {
   oak: {
     trunk: createTrunkGeometry(OAK_TRUNK_PROFILE),
+    trunkFar: createTrunkGeometry(farTrunkProfile(OAK_TRUNK_PROFILE, 5), 8),
     canopy: createCanopyCage({ radius: 1.85, height: 1.55, centerY: 3.3, taper: 0 }),
     trunkMaterial: TREE_MATERIALS.trunk,
     kind: 'broadleaf',
   },
   birch: {
     trunk: createTrunkGeometry(BIRCH_TRUNK_PROFILE),
+    trunkFar: createTrunkGeometry(farTrunkProfile(BIRCH_TRUNK_PROFILE, 4), 8),
     canopy: createCanopyCage({ radius: 1.25, height: 1.5, centerY: 3.6, taper: 0.15 }),
     trunkMaterial: TREE_MATERIALS.birchTrunk,
     kind: 'broadleaf',
   },
   pine: {
     trunk: createTrunkGeometry(PINE_TRUNK_PROFILE),
+    trunkFar: createTrunkGeometry(farTrunkProfile(PINE_TRUNK_PROFILE, 4), 8),
     canopy: createCanopyCage({ radius: 1.45, height: 1.9, centerY: 3.1, taper: 1 }),
     // Pine reuses the oak bark map; there is no dedicated pine trunk material
     // in sharedMaterials and adding one is not this domain's file.
@@ -888,11 +906,24 @@ interface SpeciesBucket {
 const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
   const def = SPECIES[bucket.species];
   const trunkRef = useRef<THREE.InstancedMesh>(null);
+  const trunkFarRef = useRef<THREE.InstancedMesh>(null);
   const canopyRef = useRef<THREE.InstancedMesh>(null);
   const branchRef = useRef<THREE.InstancedMesh>(null);
   const sprayRef = useRef<THREE.InstancedMesh>(null);
   const details = TREE_CROWN_DETAILS[bucket.species];
   const count = bucket.items.length;
+  const matrices = useMemo(
+    () =>
+      bucket.items.map((item) => {
+        const jit = foliageJitter(item.position);
+        const scale = (item.scale ?? 1) * jit.scaleJitter;
+        return createTreeMatrix(item.position, scale, jit.rotY, bucket.species === 'pine');
+      }),
+    [bucket]
+  );
+  const trunkNear = useMemo(() => [trunkRef], []);
+  const trunkFar = useMemo(() => [trunkFarRef], []);
+  useInstanceDistanceLod({ near: trunkNear, far: trunkFar, matrices, ...SPECIES_TRUNK_LOD });
 
   useLayoutEffect(() => {
     const trunk = trunkRef.current;
@@ -903,12 +934,10 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
 
     bucket.items.forEach((item, i) => {
       const jit = foliageJitter(item.position);
-      const scale = (item.scale ?? 1) * jit.scaleJitter;
-      const matrix = createTreeMatrix(item.position, scale, jit.rotY, bucket.species === 'pine');
-      trunk.setMatrixAt(i, matrix);
-      canopy.setMatrixAt(i, matrix);
-      branches.setMatrixAt(i, matrix);
-      sprays.setMatrixAt(i, matrix);
+      trunk.setMatrixAt(i, matrices[i]);
+      canopy.setMatrixAt(i, matrices[i]);
+      branches.setMatrixAt(i, matrices[i]);
+      sprays.setMatrixAt(i, matrices[i]);
       sprays.setColorAt(i, canopyTint(jit.frac, jit.frac2));
       canopy.setColorAt(i, canopyTint(jit.frac, jit.frac2));
     });
@@ -922,7 +951,7 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
       mesh.computeBoundingBox();
       mesh.computeBoundingSphere();
     }
-  }, [bucket]);
+  }, [bucket, matrices]);
 
   // The alpha-tested canopy needs a matching custom depth material or its
   // shadow is a solid card silhouette instead of dappled leaf shade.
@@ -956,6 +985,13 @@ const SpeciesGroup: React.FC<{ bucket: SpeciesBucket }> = ({ bucket }) => {
           />
         </GeneratedBoundary>
       </instancedMesh>
+      <instancedMesh
+        name="tree-trunks-far"
+        ref={trunkFarRef}
+        args={[def.trunkFar, def.trunkMaterial, count]}
+        castShadow
+        receiveShadow
+      />
       <instancedMesh
         name="tree-crown-branches"
         ref={branchRef}

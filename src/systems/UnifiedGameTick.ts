@@ -23,6 +23,7 @@ import {
   DAILY_TARGET_BAGS,
   calculateEfficiency,
   getWearConfig,
+  wearHoldsWarning,
 } from '../stores/productionStore';
 import { getDispatchQualityStatus, useQCLabStore } from '../stores/qcLabStore';
 import {
@@ -33,6 +34,7 @@ import {
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useBreakdownStore, type BreakdownType } from '../stores/breakdownStore';
 import { useUIStore } from '../stores/uiStore';
+import { useSafetyStore } from '../stores/safetyStore';
 import { useAnnouncementsStore } from '../stores/announcementsStore';
 import { BAG_WEIGHT_KG, type MachineData } from '../types';
 import {
@@ -42,6 +44,7 @@ import {
   type DispatchQualityBlockCode,
   type DispatchLoadSnapshot,
   type OperationalIncident,
+  incidentHoldsMachineWarning,
 } from '../stores/operationsCampaignStore';
 import { getSiteDemandKw } from '../utils/energyCalculations';
 import { sanitizeGameSpeed } from '../stores/persistenceMigrations';
@@ -55,16 +58,28 @@ import {
   isWorkplaceReplayActive,
 } from '../simulation/workplaceReplayRuntime';
 import { peekSCADAService } from '../scada/SCADAService';
-import { useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
+import { layoutComparisonCondition, useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
 import { logisticsLoadingRate } from '../simulation/layoutPlanning';
 import { useChronicleStore } from '../stores/chronicleStore';
-import { formatFixed, formatGrouped, translate } from '../i18n';
+import { formatFixed, formatGrouped, getLocale, translate } from '../i18n';
 import { unifiedGameTickMessages as msg } from './UnifiedGameTick.messages';
+import { registerAlertCatalog } from '../i18n/alertCopy';
+import { nothingDueYet } from '../simulation/shiftReview';
+import { readPlantClock } from '../utils/timeFormatting';
+import { incidentAlertCopy } from '../stores/incidentText';
+import { dispatchHoldAlertCopy } from '../stores/dispatchBlockText';
+
+// The tick's bell notices are keyed (src/i18n/alertCopy.ts), so the bell, which
+// a reload restores, reads them in the language active now.
+const TICK_ALERT_CATALOG = 'unifiedGameTick';
+registerAlertCatalog(TICK_ALERT_CATALOG, msg);
 
 // Tracks the receiving dock's docked state across ticks so a false->true
 // transition (a grain truck arriving) triggers exactly one silo delivery.
 let _lastReceivingTransferReady = false;
 let _lastShippingDepartureCount = 0;
+/** The language the last shipping-hold reason was compared in (page-local). */
+let _holdNoticeLocale = getLocale();
 let _shippingLoad: DispatchLoadSnapshot = {
   cycleId: 'shipping-0',
   status: 'away',
@@ -173,8 +188,11 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
         const machine = production.machines.find(
           (candidate) => candidate.id === incident.affectedMachineId
         );
-        production.updateMachineStatus(incident.affectedMachineId, 'warning');
-        if (machine && machine.status !== 'warning') {
+        // 'warning' is a running state: written over a stopped or locked-out
+        // unit it would start it. Only a running unit takes the warning.
+        // Working if a facility stop or open repair keeps the unit as it was.
+        if (machine?.status === 'running') production.updateMachineStatus(machine.id, 'warning');
+        if (machine && (machine.status === 'running' || machine.status === 'idle')) {
           useBreakdownStore.getState().addPredictiveAlert(machine.id, machine.name, {
             vibration: machine.metrics.vibration,
             temperature: machine.metrics.temperature,
@@ -202,6 +220,8 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
           .map((batch) => batch.id),
         controlSource: 'Operations campaign controller',
         controlNote: translate(msg, 'supplierTraceabilityNote'),
+        // Keyed, so Batch Genealogy reads the hold in the language active now.
+        controlNoteKey: { catalog: 'qcLab', key: 'supplierTraceabilityNote' },
       });
       break;
     case 'severe_rain':
@@ -224,6 +244,7 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
     acknowledged: false,
     // Read from the bell, so a muted PA does not hide it from a screen reader.
     announce: incident.severity === 'critical' ? 'assertive' : 'polite',
+    copy: incidentAlertCopy(incident),
   });
   useOperationsCampaignStore.getState().markIncidentEffectApplied(incident.id);
 }
@@ -240,16 +261,34 @@ function announceClosedShift(lastReportBefore: string | undefined): void {
   const report = useOperationsCampaignStore.getState().reports.at(-1);
   if (!report || report.id === lastReportBefore) return;
   const shift = /(morning|afternoon|night)$/.exec(report.shiftKey)?.[1] ?? report.shiftLabel;
-  // An ungraded shift is not a clean one while a serious incident is open.
+  // An ungraded shift is not a clean one while a serious incident is open,
+  // and one whose commitment had not yet fallen due is not commitment-free.
+  // Nothing due is checked first: a window whose commitment had not fallen due
+  // had commitments, whether or not an incident is open.
+  const nothingDue = !!report.gradeBasis && nothingDueYet(report.gradeBasis);
+  const incidentOpen = !!report.gradeBasis?.unsafeTitles.length;
+  const titleKey =
+    report.grade !== null
+      ? 'shiftClosedTitle'
+      : nothingDue
+        ? incidentOpen
+          ? 'shiftClosedNothingDueIncidentTitle'
+          : 'shiftClosedNothingDueTitle'
+        : incidentOpen
+          ? 'shiftClosedUngradedIncidentTitle'
+          : 'shiftClosedUngradedTitle';
+  const variant = (
+    {
+      shiftClosedTitle: 'graded',
+      shiftClosedNothingDueIncidentTitle: 'nothingDueIncident',
+      shiftClosedNothingDueTitle: 'nothingDue',
+      shiftClosedUngradedIncidentTitle: 'incident',
+      shiftClosedUngradedTitle: 'ungraded',
+    } as const
+  )[titleKey];
   const title =
     report.grade === null
-      ? translate(
-          msg,
-          report.gradeBasis?.unsafeTitles.length
-            ? 'shiftClosedUngradedIncidentTitle'
-            : 'shiftClosedUngradedTitle',
-          { shift }
-        )
+      ? translate(msg, titleKey, { shift })
       : translate(msg, 'shiftClosedTitle', { shift, grade: report.grade });
   const message = translate(msg, 'shiftClosedMessage');
   useUIStore.getState().addAlert({
@@ -260,17 +299,32 @@ function announceClosedShift(lastReportBefore: string | undefined): void {
     timestamp: new Date(),
     acknowledged: false,
     announce: 'polite',
+    copy: {
+      catalog: TICK_ALERT_CATALOG,
+      title: titleKey,
+      message: 'shiftClosedMessage',
+      params: report.grade === null ? { shift } : { shift, grade: report.grade },
+    },
   });
   // The bell files it and reads it once to screen readers, whatever the PA
   // mode or mute; the PA caption is what a sighted player sees at the moment
   // the shift ends, so it is caption-only rather than read a second time.
   useAnnouncementsStore.getState().addAnnouncement({
     type: report.grade === 'A' || report.grade === 'B' ? 'success' : 'info',
-    message: `${title}. ${message}`,
+    message: translate(msg, 'shiftClosedCaption', {
+      variant,
+      shift,
+      grade: report.grade ?? undefined,
+    }),
     priority: 3,
     source: 'Shift review',
     channel: 'operational',
     captionOnly: true,
+    copy: {
+      catalog: TICK_ALERT_CATALOG,
+      key: 'shiftClosedCaption',
+      params: report.grade === null ? { variant, shift } : { variant, shift, grade: report.grade },
+    },
   });
 }
 
@@ -354,6 +408,7 @@ const _changedData: Array<{
   newStatus: MachineStatus;
   newWear: number;
   newEfficiency: number;
+  crossedWarning: boolean;
 }> = [];
 
 // Sub-resolution wear carried between ticks, per machine. Stored wear keeps
@@ -447,6 +502,7 @@ function updateMachineTruth(
   newWear: number;
   newEfficiency: number;
   breakdown: boolean;
+  crossedWarning: boolean;
 } {
   const isRunning = machine.status === 'running' || machine.status === 'warning';
   const isBrokenDown = machine.status === 'critical';
@@ -459,6 +515,7 @@ function updateMachineTruth(
       newWear: machine.metrics.wear ?? 0,
       newEfficiency: machine.metrics.efficiency ?? 100,
       breakdown: false,
+      crossedWarning: false,
     };
   }
 
@@ -504,6 +561,14 @@ function updateMachineTruth(
     newWear,
     newEfficiency,
     breakdown,
+    // The wear prediction and its notice fire on this crossing, whatever the
+    // status: a unit already held in warning (hot, shaking, or by a dust-filter
+    // incident) would otherwise never get them, and a restart of a unit past
+    // the threshold would repeat them. Working if each crossing warns once.
+    crossedWarning:
+      !breakdown &&
+      baseWear < wearConfig.warningThreshold &&
+      newWear >= wearConfig.warningThreshold,
   };
 }
 
@@ -539,6 +604,8 @@ function unifiedGameTick(ctx: TickContext): void {
     useWorkplaceStore.getState().stop();
     useGameSimulationStore.getState().holdClock('scada');
     endReplayClock();
+    // The stop's write was skipped while the replay ran; write what it left.
+    useWorkplaceStore.setState({});
     return;
   }
   if (replayActive || improvementActive) {
@@ -556,7 +623,10 @@ function unifiedGameTick(ctx: TickContext): void {
     if (game.gameSpeed === 0 || remainingMinutes === 0) {
       // A handoff decision holds through its derived hold (workplaceStore), which
       // keeps a pace chosen meanwhile as its resume pace; this is the backstop.
-      if (game.gameSpeed !== 0)
+      // A safety stop is the exception: the plant still gains no time here, but
+      // a running clock lets the egress drill verify its zones and end itself.
+      // Working if a drill over an open review completes once play is resumed.
+      if (game.gameSpeed !== 0 && !(game.emergencyActive && !replayActive))
         game.holdClock(!replayActive && handoffHoldsClock(agreement) ? 'handoff' : 'workplace');
       return;
     }
@@ -596,6 +666,8 @@ function unifiedGameTick(ctx: TickContext): void {
     const dayEndStore = useProductionStore.getState();
     dayEndStore.resetDailyBagsProduced();
     _milestonesReachedMask = 0;
+    // 'Days safe' rides the same rollover; a safety stop resets it to 0.
+    useSafetyStore.getState().incrementDaysSafe();
   }
 
   // 2. Update machine TRUTH (not cosmetics)
@@ -606,6 +678,23 @@ function unifiedGameTick(ctx: TickContext): void {
     .getState()
     .incidents.filter((incident) => incident.phase !== 'resolved' && !incident.effectApplied)
     .forEach(applyCampaignIncidentConsequence);
+  // An incident's warning lasts until it is mitigated, in either SCADA mode;
+  // with SCADA on nothing else would lift it short of maintenance. A unit
+  // still hot, shaking or worn keeps its warning for those reasons. A live
+  // SCADA link may escalate status from its own alarms; those are not ours.
+  const scadaMode = peekSCADAService()?.getState().mode;
+  const plantOwnsStatus = scadaMode === undefined || scadaMode === 'simulation';
+  for (const machine of useProductionStore.getState().machines) {
+    if (
+      plantOwnsStatus &&
+      machine.status === 'warning' &&
+      machine.metrics.temperature < 55 &&
+      machine.metrics.vibration < 3.5 &&
+      !wearHoldsWarning(machine) &&
+      !incidentHoldsMachineWarning(machine.id)
+    )
+      useProductionStore.getState().updateMachineStatus(machine.id, 'running');
+  }
   prodStore = useProductionStore.getState();
   const maintenanceStore = useBreakdownStore.getState();
   // Downtime is read against the shift clock, so it is counted in game seconds.
@@ -616,7 +705,10 @@ function unifiedGameTick(ctx: TickContext): void {
   // work order close and release the lockout.
   let maintenanceRestarted = false;
   for (const workOrder of maintenanceStore.workOrders) {
-    if (workOrder.phase === 'restart_requested') {
+    // A facility stop, drill or interlocked crisis holds a queued restart; it
+    // applies on the first tick after the stop clears, which restores only
+    // what the stop idled. Working if no repaired unit runs during a stop.
+    if (workOrder.phase === 'restart_requested' && !gameStore.emergencyActive) {
       const result = useProductionStore
         .getState()
         .performMaintenance(workOrder.machineId, workOrder.id);
@@ -676,6 +768,7 @@ function unifiedGameTick(ctx: TickContext): void {
         newStatus: result.newStatus,
         newWear: result.newWear,
         newEfficiency: result.newEfficiency,
+        crossedWarning: result.crossedWarning,
       });
     }
   }
@@ -763,7 +856,7 @@ function unifiedGameTick(ctx: TickContext): void {
           efficiency: data.newEfficiency,
         },
       };
-      if (data.newStatus === 'warning' && oldMachine.status !== 'warning') {
+      if (data.crossedWarning) {
         useBreakdownStore.getState().addPredictiveAlert(
           oldMachine.id,
           oldMachine.name,
@@ -793,6 +886,12 @@ function unifiedGameTick(ctx: TickContext): void {
           acknowledged: false,
           // The bell reads it to screen readers; the PA line is caption-only.
           announce: 'polite',
+          copy: {
+            catalog: TICK_ALERT_CATALOG,
+            title: 'wearWarningTitle',
+            message: 'wearWarningMessage',
+            params: { name: oldMachine.name },
+          },
         });
       }
     }
@@ -930,7 +1029,10 @@ function unifiedGameTick(ctx: TickContext): void {
     // Replays and improvement trials are not history; their lots stay unstamped.
     const crop =
       replayActive || improvementActive ? null : useChronicleStore.getState().stampDelivery();
-    flowStore.receiveGrainDelivery(GRAIN_DELIVERY_KG, crop ? { crop } : undefined);
+    flowStore.receiveGrainDelivery(GRAIN_DELIVERY_KG, {
+      ...(crop ? { crop } : {}),
+      gameClock: readPlantClock(),
+    });
     // The same truck also carries a spare-parts resupply, closing the
     // maintenance loop: consume parts to repair, trucks bring them back.
     useBreakdownStore.getState().restockDelivery();
@@ -983,7 +1085,9 @@ function unifiedGameTick(ctx: TickContext): void {
     const departureBlockReason = departureBlockCode ? translate(msg, departureBlockCode) : null;
     const actualKg = departureBlockReason
       ? 0
-      : dockFlow.shipFinishedGoods(_shippingLoad.loadedKg, _shippingLoad.materialType);
+      : dockFlow.shipFinishedGoods(_shippingLoad.loadedKg, _shippingLoad.materialType, {
+          gameClock: readPlantClock(),
+        });
     _shippingLoad = {
       ..._shippingLoad,
       status: 'departed',
@@ -1049,16 +1153,34 @@ function unifiedGameTick(ctx: TickContext): void {
     const activeOrder = useOperationsCampaignStore
       .getState()
       .orders.find((order) => order.id === activeProductionPlan?.orderId);
-    const orderRemainingKg = activeOrder
-      ? Math.max(0, activeOrder.requiredKg - activeOrder.shippedKg)
-      : FINISHED_GOODS_SHIPMENT_KG;
-    const loadTargetKg = Math.min(
-      _shippingLoad.capacityKg,
-      orderRemainingKg,
-      Math.max(_shippingLoad.loadedKg, releasedKg)
+    // After a mid-load switch to another product's order the truck still holds
+    // its own product, which departure credits to that product's open orders:
+    // it loads toward what they owe, never the new order's remainder, and
+    // never sheds what it already holds.
+    const orderRemainingKg = !activeOrder
+      ? FINISHED_GOODS_SHIPMENT_KG
+      : activeOrder.recipe.finishedMaterial === _shippingLoad.materialType
+        ? Math.max(0, activeOrder.requiredKg - activeOrder.shippedKg)
+        : useOperationsCampaignStore
+            .getState()
+            .orders.filter(
+              (order) =>
+                order.status !== 'fulfilled' &&
+                order.status !== 'cancelled' &&
+                order.recipe.finishedMaterial === _shippingLoad.materialType
+            )
+            .reduce((sum, order) => sum + Math.max(0, order.requiredKg - order.shippedKg), 0);
+    const loadTargetKg = Math.max(
+      _shippingLoad.loadedKg,
+      Math.min(
+        _shippingLoad.capacityKg,
+        orderRemainingKg,
+        Math.max(_shippingLoad.loadedKg, releasedKg)
+      )
     );
     const previousStatus = _shippingLoad.status;
     const previousBlockReason = _shippingLoad.blockReason;
+    const previousBlockCode = _shippingLoad.blockCode;
 
     if (commitmentHoldReason) {
       _shippingLoad = {
@@ -1106,9 +1228,16 @@ function unifiedGameTick(ctx: TickContext): void {
       };
     }
 
+    // The reason is translated copy: a language switch alone changes its text,
+    // so text counts as a new hold only within one language (a different held
+    // batch under the same code still re-announces).
+    const locale = getLocale();
+    const reasonChanged =
+      previousBlockReason !== _shippingLoad.blockReason && locale === _holdNoticeLocale;
+    _holdNoticeLocale = locale;
     if (
       _shippingLoad.status === 'held' &&
-      (previousStatus !== 'held' || previousBlockReason !== _shippingLoad.blockReason)
+      (previousStatus !== 'held' || previousBlockCode !== _shippingLoad.blockCode || reasonChanged)
     ) {
       useUIStore.getState().addAlert(
         commitmentHoldReason
@@ -1119,6 +1248,7 @@ function unifiedGameTick(ctx: TickContext): void {
               message: commitmentHoldReason,
               timestamp: new Date(),
               acknowledged: false,
+              copy: dispatchHoldAlertCopy({ kind: 'programme' }),
             }
           : {
               id: `${qualityBlockReason ? 'dispatch-quality-hold' : 'dispatch-supply-wait'}-${_shippingLoad.cycleId}`,
@@ -1136,6 +1266,17 @@ function unifiedGameTick(ctx: TickContext): void {
               acknowledged: false,
               // A quality hold stops the truck: read it whatever the PA or mute.
               ...(qualityBlockReason ? { announce: 'polite' as const } : {}),
+              copy: qualityBlockCode
+                ? dispatchHoldAlertCopy({
+                    kind: 'quality',
+                    code: qualityBlockCode,
+                    rate: DEMURRAGE_COST_PER_HOUR,
+                  })
+                : dispatchHoldAlertCopy({
+                    kind: 'supply',
+                    code: _shippingLoad.blockCode,
+                    material: _shippingLoad.materialType,
+                  }),
             }
       );
     }
@@ -1147,25 +1288,23 @@ function unifiedGameTick(ctx: TickContext): void {
   const latestGame = useGameSimulationStore.getState();
   const latestTrucks = useTruckScheduleStore.getState().truckSchedule;
   const materialSeconds = Math.max(0, latestFlow.simulationTime - materialTimeBefore);
-  useLogisticsLayoutStore
-    .getState()
-    .observe(
-      latestFlow.sessionId,
-      plantSeconds,
-      materialSeconds,
-      latestFlow.currentPackerFlowRate * plantSeconds,
-      Math.max(0, latestFlow.shippedKg - workplaceShippedBefore),
-      JSON.stringify([
-        latestProduction.productionSpeed,
-        safeGameSpeed,
-        effectiveProductionSpeed,
-        latestProduction.machines.map((m) => [m.id, m.status]),
-        activeProductionPlan?.orderId,
-      ])
-    );
   const dispatchStatus = getDispatchQualityStatus(
     useQCLabStore.getState().qcLab,
     latestFlow.productionBatches
+  );
+  useLogisticsLayoutStore.getState().observe(
+    latestFlow.sessionId,
+    plantSeconds,
+    materialSeconds,
+    latestFlow.currentPackerFlowRate * plantSeconds,
+    Math.max(0, latestFlow.shippedKg - workplaceShippedBefore),
+    layoutComparisonCondition({
+      productionSpeed: latestProduction.productionSpeed,
+      gameSpeed: safeGameSpeed,
+      machines: latestProduction.machines,
+      dispatchReleased: dispatchStatus.released,
+      forkliftsStopped: useSafetyStore.getState().forkliftEmergencyStop,
+    })
   );
   const totalEnergyKw = getSiteDemandKw(
     latestProduction.machines,
@@ -1237,21 +1376,28 @@ function unifiedGameTick(ctx: TickContext): void {
     breakdownsCopy.forEach(({ id, name, machineType, breakdownType }) => {
       const breakdown = useBreakdownStore.getState().triggerBreakdown(id, name, breakdownType);
       if (!breakdown) return;
+      const breakdownParams = {
+        name,
+        machineType,
+        workOrderId: breakdown.workOrderId,
+        rate: MAINTENANCE_COST_PER_WORK_ORDER_HOUR,
+      };
       useUIStore.getState().addAlert({
         id: `breakdown-${id}-${Date.now()}`,
         type: 'critical',
         title: translate(msg, 'breakdownTitle'),
-        message: translate(msg, 'breakdownMessage', {
-          name,
-          machineType,
-          workOrderId: breakdown.workOrderId,
-          rate: formatFixed(MAINTENANCE_COST_PER_WORK_ORDER_HOUR, 2),
-        }),
+        message: translate(msg, 'breakdownMessage', breakdownParams),
         machineId: id,
         timestamp: new Date(),
         acknowledged: false,
         // The bell reads it to screen readers; the PA line is caption-only.
         announce: 'assertive',
+        copy: {
+          catalog: TICK_ALERT_CATALOG,
+          title: 'breakdownTitle',
+          message: 'breakdownMessage',
+          params: breakdownParams,
+        },
       });
     });
   }

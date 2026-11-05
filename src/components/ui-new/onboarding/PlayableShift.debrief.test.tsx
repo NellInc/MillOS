@@ -149,7 +149,7 @@ describe('decisions in the debrief', () => {
     ).toBeVisible();
     const narration = screen.getByText('What the mill did');
     expect(narration.closest('details')).not.toHaveAttribute('open');
-    expect(screen.getAllByText('Shipping load is 0 of 5000 kg.')[0].closest('details')).toBe(
+    expect(screen.getAllByText('Shipping load is 0 of 5,000 kg.')[0].closest('details')).toBe(
       narration.closest('details')
     );
   });
@@ -274,7 +274,7 @@ describe('the review persists across reload', () => {
                 grade: 'C',
                 summary: 'Saved summary.',
                 gradeReasons: ['Saved reason one.', 'Saved reason two.'],
-                decisions: ['Shipping load is 0 of 5000 kg.'],
+                decisions: ['Shipping load is 0 of 5,000 kg.'],
               },
             ],
           },
@@ -290,7 +290,7 @@ describe('the review persists across reload', () => {
     expect(screen.getByText('Saved summary.')).toBeVisible();
     expect(screen.getByText('Saved reason two.')).toBeVisible();
     fireEvent.click(screen.getByText('Shift log'));
-    expect(screen.getByText('Shipping load is 0 of 5000 kg.')).toBeVisible();
+    expect(screen.getByText('Shipping load is 0 of 5,000 kg.')).toBeVisible();
     // An old untagged entry is narration, never the player's decision.
     tick(1, { shiftKey: 'day-0-night', shiftLabel: 'Night' });
     expect(useOperationsCampaignStore.getState().reports.at(-1)?.choices).toEqual([]);

@@ -67,6 +67,10 @@ interface TerrainGroundProps {
  * the transparent list, which three sorts and draws separately after all
  * opaque - so this cannot reorder anything against them.
  *
+ * The one consequence: an OPAQUE overlay that does not write depth (road and
+ * yard paint) must draw after this, at `RENDER_ORDER.floorMarkings`. At the
+ * default 0 it drew first, left no depth, and this mesh painted over it.
+ *
  * This has to be on the MESH and it has to have no `<group renderOrder>` above
  * it: `projectObject` turns an ancestor group's `renderOrder` into `groupOrder`
  * for its descendants, and `groupOrder` is compared BEFORE `renderOrder`, so a

@@ -66,42 +66,61 @@ const pushOutsideObstacle = (
   obstacle: FactoryObstacle,
   clearance: number
 ): Vec3Tuple => {
+  // Just past the face, as a stopped step lands just short of it: exactly on
+  // it, the next step along the face read as entering and went nowhere.
+  const reach = clearance + 0.001;
   const faces = [
     {
-      distance: Math.abs(point[0] - (obstacle.minX - clearance)),
+      distance: Math.abs(point[0] - (obstacle.minX - reach)),
       axis: 0,
-      value: obstacle.minX - clearance,
+      value: obstacle.minX - reach,
     },
     {
-      distance: Math.abs(point[0] - (obstacle.maxX + clearance)),
+      distance: Math.abs(point[0] - (obstacle.maxX + reach)),
       axis: 0,
-      value: obstacle.maxX + clearance,
+      value: obstacle.maxX + reach,
     },
     {
-      distance: Math.abs(point[1] - (obstacle.minY - clearance)),
+      distance: Math.abs(point[1] - (obstacle.minY - reach)),
       axis: 1,
-      value: obstacle.minY - clearance,
+      value: obstacle.minY - reach,
     },
     {
-      distance: Math.abs(point[1] - (obstacle.maxY + clearance)),
+      distance: Math.abs(point[1] - (obstacle.maxY + reach)),
       axis: 1,
-      value: obstacle.maxY + clearance,
+      value: obstacle.maxY + reach,
     },
     {
-      distance: Math.abs(point[2] - (obstacle.minZ - clearance)),
+      distance: Math.abs(point[2] - (obstacle.minZ - reach)),
       axis: 2,
-      value: obstacle.minZ - clearance,
+      value: obstacle.minZ - reach,
     },
     {
-      distance: Math.abs(point[2] - (obstacle.maxZ + clearance)),
+      distance: Math.abs(point[2] - (obstacle.maxZ + reach)),
       axis: 2,
-      value: obstacle.maxZ + clearance,
+      value: obstacle.maxZ + reach,
     },
   ] as const;
-  const nearest = faces.reduce((best, face) => (face.distance < best.distance ? face : best));
-  const result: [number, number, number] = [...point];
-  result[nearest.axis] = nearest.value;
-  return result;
+  // A face below the camera floor is the ground, not a way out: pushed there,
+  // the camera sat under the slab and every later step re-entered the machine
+  // at once, so W A S D moved nothing. Nor is a face inside a neighbour's
+  // envelope (the silos' overlap across their 1 m gaps): pushed back and forth
+  // between two, the camera stayed wedged and W and S did nothing. Working if
+  // a camera left inside a machine by a cancelled flight or a silo lesson's
+  // eye comes out at a clear side and moves again.
+  const exits = faces
+    .filter((face) => face.axis !== 1 || face.value >= CAMERA_MIN_HEIGHT)
+    .map((face) => {
+      const result: [number, number, number] = [...point];
+      result[face.axis] = face.value;
+      return { distance: face.distance, result };
+    })
+    .sort((a, b) => a.distance - b.distance);
+  const clear = exits.find(
+    (exit) =>
+      !MACHINE_OBSTACLES.some((other) => isInsideExpandedObstacle(exit.result, other, clearance))
+  );
+  return (clear ?? exits[0]).result;
 };
 
 const crossingValue = (

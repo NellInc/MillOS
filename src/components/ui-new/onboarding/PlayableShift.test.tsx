@@ -81,9 +81,10 @@ describe('playable shift UI', () => {
       expect(useOperationsCampaignStore.getState().activeChallenge).not.toBeNull();
     }
     render(<OperationsPlayCard />);
-    expect(
-      screen.getByRole('button', { name: 'Start linked cooperative campaign' })
-    ).toBeDisabled();
+    // Inert rather than disabled (a tick can block it under focus); a press starts nothing.
+    const start = screen.getByRole('button', { name: 'Start linked cooperative campaign' });
+    expect(start).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(start);
     expect(useWorkplaceStore.getState().workplace.phase).toBe('idle');
   });
   it('keeps an existing laboratory run separate from ordinary play', () => {
@@ -327,7 +328,7 @@ describe('playable shift UI', () => {
     const progress = screen.getByRole('progressbar', { name: 'Shipping truck load' });
     expect(progress).toHaveAttribute('value', '1500');
     expect(progress).toHaveAttribute('max', '6000');
-    expect(progress).toHaveAttribute('aria-valuetext', '1500 of 6000 kilograms on the truck');
+    expect(progress).toHaveAttribute('aria-valuetext', '1,500 of 6,000 kilograms on the truck');
     expect(screen.getByText(/Delivery: 0 kg dispatched/)).toBeInTheDocument();
     expect(useOperationsCampaignStore.getState()).toBe(before);
     act(() =>
@@ -393,7 +394,14 @@ describe('playable shift UI', () => {
         orderId: second.id,
         stage: 'loading',
         qualityReleased: true,
-        dispatchLoad: { ...state.execution.dispatchLoad, loadedKg: 2000 },
+        // deriveExecution reads 'loading' only while the truck holds this
+        // order's own product (semolina for Community Pasta Works).
+        dispatchLoad: {
+          ...state.execution.dispatchLoad,
+          status: 'loading' as const,
+          materialType: 'semolina' as const,
+          loadedKg: 2000,
+        },
       },
     });
     const before = useOperationsCampaignStore.getState();
@@ -514,7 +522,11 @@ describe('playable shift UI', () => {
       before.orders.map((order) => order.shippedKg)
     );
     expect(after.economics).toBe(before.economics);
-    expect(screen.getByRole('button', { name: 'Recover from a power sag' })).toBeDisabled();
+    // Inert rather than disabled, so a tick that blocks it keeps keyboard focus.
+    expect(screen.getByRole('button', { name: 'Recover from a power sag' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
   });
   it('routes the current blocker to its real workspace', () => {
     const state = useOperationsCampaignStore.getState();
@@ -705,6 +717,32 @@ it.each(['mounted', 'lazy-mount', 'resolved', 'fps'] as const)(
   }
 );
 
+it('reads one remaining challenge minute in the singular, and a part minute as one', () => {
+  const state = useOperationsCampaignStore.getState();
+  useOperationsCampaignStore.setState({
+    execution: {
+      ...state.execution,
+      stage: 'milling',
+      sourceInventoryKg: 10000,
+      qualityReleased: true,
+    },
+  });
+  expect(useOperationsCampaignStore.getState().startChallenge('power_recovery')).toBe(true);
+  const run = useOperationsCampaignStore.getState().activeChallenge!;
+  useOperationsCampaignStore.setState({ elapsedMinutes: run.deadlineMinute - 0.4 });
+  render(<OperationsPlayCard />);
+  const progress = screen.getByRole('group', { name: 'Recovery challenge progress' });
+  expect(progress).toHaveTextContent('1 simulation minute left');
+  cleanup();
+  setLocale('pt-BR');
+  try {
+    render(<OperationsPlayCard />);
+    expect(screen.getByText(/falta 1 minuto de simulação/)).toBeInTheDocument();
+  } finally {
+    setLocale('en');
+  }
+});
+
 it.each(['responding', 'recovering'] as const)(
   'keeps %s challenge progress outside collapsed setup without advancing it',
   (phase) => {
@@ -733,7 +771,7 @@ it.each(['responding', 'recovering'] as const)(
     render(<OperationsPlayCard />);
     const progress = screen.getByRole('group', { name: 'Recovery challenge progress' });
     expect(progress.closest('details')).toBeNull();
-    expect(progress).toHaveTextContent('0 / 1000 kg');
+    expect(progress).toHaveTextContent('0 / 1,000 kg');
     expect(progress).toHaveTextContent('360 simulation minutes left');
     expect(progress).toHaveTextContent(
       phase === 'responding'
@@ -789,7 +827,7 @@ it.each([0, 30, 180])(
     expect(
       screen.getByRole('button', { name: 'Abandon challenge' }).closest('details')
     ).not.toHaveAttribute('open');
-    if (speed) expect(action).toBeDisabled();
+    if (speed) expect(action).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(action);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(speed || 30);
     expect(useOperationsCampaignStore.getState()).toBe(campaign);

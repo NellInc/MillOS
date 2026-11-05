@@ -2,6 +2,7 @@ import { readFile, readdir, writeFile, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 import { getBounds, NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { MeshoptDecoder } from 'meshoptimizer';
@@ -84,8 +85,9 @@ async function createIO() {
   });
 }
 
-async function validateAsset(io, definition) {
-  const file = path.join(MODELS_ROOT, definition.file);
+// `file` defaults to the delivered GLB; the asset loop passes a candidate path to
+// grade an unshipped build against the same contract.
+async function validateAsset(io, definition, file = path.join(MODELS_ROOT, definition.file)) {
   const checks = [];
   const errors = [];
   const bytes = await readFile(file);
@@ -313,7 +315,12 @@ async function main() {
   if (!report.passed) process.exitCode = 1;
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.stack : String(error));
-  process.exitCode = 1;
-});
+export { createIO, validateAsset };
+
+// Importable by scripts/asset-turntable.mjs without running the whole gate.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.stack : String(error));
+    process.exitCode = 1;
+  });
+}

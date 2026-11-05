@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import {
   useMaterialFlowStore,
+  type DispositionReasonKey,
   type MaterialDisposition,
   type ProductionBatch,
 } from './materialFlowStore';
@@ -117,12 +118,23 @@ export interface QCLabStore {
     batchIds?: string[];
     controlSource?: string;
     controlNote?: string;
+    /** The canned note `controlNote` was rendered from, so the hold reason follows the language. */
+    controlNoteKey?: DispositionReasonKey;
   }) => string;
+  /**
+   * Settle an investigation. A release covers only batches with a passing test
+   * recorded after the alert; a recall covers `batchIds` when given, else the
+   * whole remaining scope. The alert stays open, narrowed, while any batch it
+   * names is still on hold, and closes once none is.
+   */
   resolveContaminationAlert: (
     alertId: string,
     resolution: 'released' | 'recalled',
     controlSource?: string,
-    note?: string
+    note?: string,
+    batchIds?: readonly string[],
+    /** The canned note `note` was rendered from, so the batch reason follows the language. */
+    noteKey?: DispositionReasonKey
   ) => boolean;
   updateCertificationStatus: (status: QCLabState['certificationStatus']) => void;
   getLatestTestResult: () => QualityTestResult | null;
@@ -142,14 +154,26 @@ export interface DispatchQualityStatus {
 /** Translate laboratory and optional batch state into the shipping interlock. */
 export function getDispatchQualityStatus(
   qcLab: QCLabState,
-  // Kept for callers; see the note below on why batches no longer stop the plant.
-  _productionBatches: readonly ProductionBatch[] = []
+  productionBatches: readonly ProductionBatch[] = []
 ): DispatchQualityStatus {
   if (qcLab.certificationStatus === 'expired') {
     return { released: false, reason: 'certification_expired' };
   }
 
-  if (qcLab.contaminationAlerts.some((alert) => !alert.resolved)) {
+  // An open investigation stops dispatch while it holds something: a source
+  // lot, or a batch still on hold. One that holds nothing (raised when no stock
+  // was packed, or whose batches were all recalled through another alert) has
+  // no batch control left to close it, and stopped every truck for good.
+  const heldBatchIds = new Set(
+    productionBatches.filter((batch) => batch.disposition === 'hold').map((batch) => batch.id)
+  );
+  if (
+    qcLab.contaminationAlerts.some(
+      (alert) =>
+        !alert.resolved &&
+        (alert.sourceLotIds.length > 0 || alert.batchIds.some((id) => heldBatchIds.has(id)))
+    )
+  ) {
     return { released: false, reason: 'unresolved_contamination' };
   }
 
@@ -157,10 +181,31 @@ export function getDispatchQualityStatus(
   // shipFinishedGoods loads only released batches, and loading waits for
   // released stock. A plant-wide stop here wedged every truck for the session.
 
+  // A failed result holds dispatch while what it judged is still on hold. A
+  // batch-scoped failure stops holding once its batch holds no stock on hold
+  // (recalled and scrapped); an unscoped one, or a batch not in the list,
+  // still holds. Working if recalling the failed batch lets released stock ship.
+  const failed = (test: QualityTestResult) => !test.passed || test.grade === 'FAIL';
   const latestTest = qcLab.testHistory[qcLab.testHistory.length - 1];
-  if (latestTest && (!latestTest.passed || latestTest.grade === 'FAIL')) {
-    return { released: false, reason: 'failed_quality_test' };
+  if (latestTest && failed(latestTest)) {
+    const judged = latestTest.batchId
+      ? productionBatches.find((batch) => batch.id === latestTest.batchId)
+      : undefined;
+    const settled =
+      judged !== undefined && !(judged.disposition === 'hold' && judged.availableKg > 0);
+    if (!settled) return { released: false, reason: 'failed_quality_test' };
   }
+  // An earlier failure holds too while its batch's own latest test failed and
+  // the batch still has stock on hold: a test of another batch (a pass, or a
+  // failure then recalled) says nothing about it. A batch no longer listed has
+  // no control left to settle it, so only listed batches hold here.
+  const latestByBatch = new Map<string, QualityTestResult>();
+  for (const test of qcLab.testHistory) if (test.batchId) latestByBatch.set(test.batchId, test);
+  const failedOnHold = productionBatches.some((batch) => {
+    const test = latestByBatch.get(batch.id);
+    return !!test && failed(test) && batch.disposition === 'hold' && batch.availableKg > 0;
+  });
+  if (failedOnHold) return { released: false, reason: 'failed_quality_test' };
 
   return { released: true, reason: null };
 }
@@ -176,6 +221,58 @@ function createInitialQCLabState(): QCLabState {
     dispositionHistory: [],
     auditSequence: 0,
   };
+}
+
+/**
+ * Batches held on their own evidence: the latest test of the batch failed, or
+ * an open investigation (other than `resolvingAlertId`) names it. Releasing a
+ * shared lot, or clearing another alert, must leave these held. Working if a
+ * failed batch stays held until it passes its own retest or is recalled.
+ */
+function independentlyHeldBatchIds(qcLab: QCLabState, resolvingAlertId?: string): Set<string> {
+  const latestPassed = new Map<string, boolean>();
+  for (const test of qcLab.testHistory) {
+    if (test.batchId) latestPassed.set(test.batchId, test.passed && test.grade !== 'FAIL');
+  }
+  const held = new Set<string>();
+  latestPassed.forEach((passed, batchId) => {
+    if (!passed) held.add(batchId);
+  });
+  for (const alert of qcLab.contaminationAlerts) {
+    if (alert.resolved || alert.id === resolvingAlertId) continue;
+    alert.batchIds.forEach((batchId) => held.add(batchId));
+  }
+  return held;
+}
+
+const sequenceOf = (id: string, prefix: string): number | null => {
+  const match = new RegExp(`^${prefix}-(\\d+)$`).exec(id);
+  return match ? Number(match[1]) : null;
+};
+
+const timeOf = (value: Date | string | number): number => new Date(value).getTime();
+
+/**
+ * Batches of `alert` whose latest test passed after the alert was raised: the
+ * evidence a release may act on. Alerts and tests share the audit sequence, so
+ * order is read from it; ids from elsewhere fall back to the timestamps.
+ */
+function batchesWithPassingEvidence(qcLab: QCLabState, alert: ContaminationAlert): Set<string> {
+  const latest = new Map<string, QualityTestResult>();
+  for (const test of qcLab.testHistory) if (test.batchId) latest.set(test.batchId, test);
+  const alertSequence = sequenceOf(alert.id, 'contamination');
+  const evidenced = new Set<string>();
+  for (const batchId of alert.batchIds) {
+    const test = latest.get(batchId);
+    if (!test || !test.passed || test.grade === 'FAIL') continue;
+    const testSequence = sequenceOf(test.id, 'qc');
+    const after =
+      alertSequence !== null && testSequence !== null
+        ? testSequence > alertSequence
+        : timeOf(test.timestamp) >= timeOf(alert.timestamp);
+    if (after) evidenced.add(batchId);
+  }
+  return evidenced;
 }
 
 function auditId(sequence: number): string {
@@ -257,16 +354,33 @@ export const useQCLabStore = create<QCLabStore>()(
       }));
 
       const flow = useMaterialFlowStore.getState();
+      const testReasonKey: DispositionReasonKey = {
+        catalog: 'qcLab',
+        key: testType === 'retest' ? 'retestReason' : 'testReason',
+        params: { id: fullResult.id, grade: result.grade },
+      };
       const testReason = () =>
         translate(qcLabStoreMessages, testType === 'retest' ? 'retestReason' : 'testReason', {
           id: fullResult.id,
           grade: result.grade,
         });
       if (batchId) {
-        flow.setBatchDisposition([batchId], disposition, testReason(), fullResult.id);
+        flow.setBatchDisposition(
+          [batchId],
+          disposition,
+          testReason(),
+          fullResult.id,
+          testReasonKey
+        );
       }
       if (sourceLotIds.length > 0) {
-        flow.setLotDisposition(sourceLotIds, disposition, testReason());
+        flow.setLotDisposition(
+          sourceLotIds,
+          disposition,
+          testReason(),
+          independentlyHeldBatchIds(get().qcLab),
+          testReasonKey
+        );
       }
       return fullResult;
     },
@@ -284,14 +398,22 @@ export const useQCLabStore = create<QCLabStore>()(
               .map((batch) => batch.id);
       const alertId = `contamination-${String(sequence).padStart(5, '0')}`;
       const controlSource = scope?.controlSource?.trim() || 'Autonomous QC controller';
-      const note =
-        scope?.controlNote?.trim() || translate(qcLabStoreMessages, 'contaminationNoteDefault');
+      const operatorNote = scope?.controlNote?.trim();
+      const note = operatorNote || translate(qcLabStoreMessages, 'contaminationNoteDefault');
+      // A canned note is keyed; an operator's own words stay as written.
+      const noteKey: DispositionReasonKey | undefined = operatorNote
+        ? scope?.controlNoteKey
+        : { catalog: 'qcLab', key: 'contaminationNoteDefault' };
+      const holdReason = `${alertId}: ${note}`;
+      const holdReasonKey: DispositionReasonKey | undefined = noteKey
+        ? { catalog: 'qcLab', key: 'holdReason', params: { alertId, note: noteKey } }
+        : undefined;
 
       const lotAffectedBatches = sourceLotIds.length
-        ? flow.setLotDisposition(sourceLotIds, 'hold', `${alertId}: ${note}`)
+        ? flow.setLotDisposition(sourceLotIds, 'hold', holdReason, undefined, holdReasonKey)
         : [];
       const allBatchIds = [...new Set([...batchIds, ...lotAffectedBatches])];
-      flow.setBatchDisposition(allBatchIds, 'hold', `${alertId}: ${note}`);
+      flow.setBatchDisposition(allBatchIds, 'hold', holdReason, undefined, holdReasonKey);
 
       set((state) => ({
         qcLab: {
@@ -334,7 +456,9 @@ export const useQCLabStore = create<QCLabStore>()(
       alertId,
       resolution,
       controlSource = 'Autonomous QC controller',
-      note = ''
+      note = '',
+      scopeBatchIds,
+      noteKey
     ) => {
       const alert = get().qcLab.contaminationAlerts.find((candidate) => candidate.id === alertId);
       if (!alert || alert.resolved) return false;
@@ -347,20 +471,69 @@ export const useQCLabStore = create<QCLabStore>()(
           resolution === 'recalled' ? 'recallReason' : 'clearedReason',
           { alertId }
         );
+      // A canned reason is keyed; an operator's own words stay as written.
+      const reasonKey: DispositionReasonKey | undefined = note.trim()
+        ? noteKey
+        : {
+            catalog: 'qcLab',
+            key: resolution === 'recalled' ? 'recallReason' : 'clearedReason',
+            params: { alertId },
+          };
       const flow = useMaterialFlowStore.getState();
-      const lotAffected = alert.sourceLotIds.length
-        ? flow.setLotDisposition(alert.sourceLotIds, disposition, reason)
-        : [];
-      const batchIds = [...new Set([...alert.batchIds, ...lotAffected])];
-      flow.setBatchDisposition(batchIds, disposition, reason);
+      // One passing retest is evidence for its own batch only, and a recall
+      // pressed on one batch scraps that batch only. Whatever this call does not
+      // settle stays under the investigation while it is still on hold; a batch
+      // that left hold elsewhere (recalled, shipped) no longer keeps it open,
+      // so an alert can always be closed from the batches it still shows.
+      const requested = scopeBatchIds ? new Set(scopeBatchIds) : null;
+      const evidenced =
+        disposition === 'released' ? batchesWithPassingEvidence(get().qcLab, alert) : null;
+      const settled = alert.batchIds.filter(
+        (batchId) =>
+          (!requested || requested.has(batchId)) && (!evidenced || evidenced.has(batchId))
+      );
+      const onHold = new Set(
+        flow.productionBatches
+          .filter((batch) => batch.disposition === 'hold')
+          .map((batch) => batch.id)
+      );
+      const remaining = alert.batchIds.filter(
+        (batchId) => !settled.includes(batchId) && onHold.has(batchId)
+      );
+      const closes = remaining.length === 0;
+      if (settled.length === 0 && !closes) return false;
+
+      const retainedHolds =
+        disposition === 'released' ? independentlyHeldBatchIds(get().qcLab, alertId) : undefined;
+      // The alert's source lots are released or recalled only with the alert.
+      const lotAffected =
+        closes && alert.sourceLotIds.length
+          ? flow.setLotDisposition(
+              alert.sourceLotIds,
+              disposition,
+              reason,
+              retainedHolds,
+              reasonKey
+            )
+          : [];
+      const batchIds = [...new Set([...settled, ...lotAffected])];
+      flow.setBatchDisposition(
+        retainedHolds ? batchIds.filter((batchId) => !retainedHolds.has(batchId)) : batchIds,
+        disposition,
+        reason,
+        undefined,
+        reasonKey
+      );
 
       set((state) => ({
         qcLab: {
           ...state.qcLab,
           contaminationAlerts: state.qcLab.contaminationAlerts.map((candidate) =>
-            candidate.id === alertId
-              ? { ...candidate, resolved: true, resolution, resolvedAt: new Date() }
-              : candidate
+            candidate.id !== alertId
+              ? candidate
+              : closes
+                ? { ...candidate, resolved: true, resolution, resolvedAt: new Date() }
+                : { ...candidate, batchIds: remaining }
           ),
           dispositionHistory: [
             ...state.qcLab.dispositionHistory.slice(-199),

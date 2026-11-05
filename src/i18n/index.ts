@@ -87,6 +87,22 @@ export function detectLocale(): Locale {
   return DEFAULT_LOCALE;
 }
 
+/**
+ * `?lang=` outranks the saved choice, so once the player picks a language the
+ * shared link's parameter would undo it on reload. Drop it, keeping the rest
+ * of the URL and the history entry's state.
+ */
+function dropUrlLocale(): void {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('lang')) return;
+    url.searchParams.delete('lang');
+    window.history.replaceState(window.history.state, '', url);
+  } catch {
+    // No history API (or a sandboxed frame): the choice lasts until reload.
+  }
+}
+
 function applyDocumentLanguage(locale: Locale): void {
   if (typeof document !== 'undefined') document.documentElement.lang = locale;
 }
@@ -104,10 +120,17 @@ export const useLocaleStore = create<LocaleState>()((set) => ({
   setLocale: (locale) => {
     if (!isLocale(locale)) return;
     writeSavedLocale(locale);
-    applyDocumentLanguage(locale);
+    if (typeof window !== 'undefined') dropUrlLocale();
     set({ locale });
   },
 }));
+
+// <html lang> follows the store itself, not one setter, so screen readers and
+// the browser's own translation offer agree with the copy whatever changed it.
+// Working if every locale write, setState included, relabels the document.
+useLocaleStore.subscribe((state, previous) => {
+  if (state.locale !== previous.locale) applyDocumentLanguage(state.locale);
+});
 
 export const getLocale = (): Locale => useLocaleStore.getState().locale;
 export const setLocale = (locale: Locale): void => useLocaleStore.getState().setLocale(locale);

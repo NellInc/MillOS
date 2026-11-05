@@ -10,8 +10,10 @@
  */
 
 import { logger } from '../utils/logger';
-import { formatGrouped, getLocale, translate } from '../i18n';
+import { formatGrouped, getLocale, translate, useLocaleStore } from '../i18n';
 import { alarmManagerMessages } from './AlarmManager.messages';
+import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { safeJSONStorage } from '../stores/storage';
 import {
   TagDefinition,
   TagValue,
@@ -32,6 +34,35 @@ const formatThreshold = (threshold: number): string =>
   getLocale() === 'en' || !Number.isFinite(threshold)
     ? String(threshold)
     : formatGrouped(threshold, { useGrouping: false, maximumFractionDigits: 10 });
+
+/** An alarm's condition in the current language. */
+const conditionText = (tag: TagDefinition, type: AlarmType, threshold: number): string =>
+  type === 'BAD_QUALITY'
+    ? translate(alarmManagerMessages, 'sourceQualityBad')
+    : translate(alarmManagerMessages, 'thresholdCondition', {
+        type,
+        threshold: formatThreshold(threshold),
+        unit: tag.engUnit,
+      });
+
+/** No alarm is raised for this long after start-up, while the readings settle. */
+export const ALARM_STARTUP_WARMUP_MS = 5000;
+
+/**
+ * Shelves, suppressions and out-of-service dispositions are operator decisions
+ * about a tag, so they are kept across a reload (and a SCADA restart) until the
+ * tag is returned to service or a timed shelf runs out. The millos- prefix puts
+ * them in Reset Simulation's sweep, and suspendPersistence stops the write like
+ * every other saved store. Working if a tag taken out of service before a
+ * reload is out of service after it, with no alarm awaiting acknowledgement.
+ */
+export const SCADA_DISPOSITION_STORAGE_KEY = 'millos-scada-dispositions';
+const SCADA_DISPOSITION_STORAGE_VERSION = 1;
+const STORED_DISPOSITIONS: ReadonlySet<string> = new Set([
+  'SHELVED',
+  'SUPPRESSED',
+  'OUT_OF_SERVICE',
+]);
 
 export class AlarmManager {
   private activeAlarms: Map<string, Alarm> = new Map();
@@ -71,7 +102,7 @@ export class AlarmManager {
 
   // Startup warmup - suppress alarms during initialization
   private startupTime: number;
-  private static WARMUP_PERIOD_MS = 5000; // 5 seconds warmup for system stabilization
+  private static WARMUP_PERIOD_MS = ALARM_STARTUP_WARMUP_MS;
 
   constructor(tags: TagDefinition[]) {
     this.startupTime = Date.now();
@@ -79,6 +110,68 @@ export class AlarmManager {
       this.tagThresholds.set(t.id, t);
       this.lastAlarmStates.set(t.id, { inAlarm: false, value: t.engLow });
     });
+    this.restoreDispositions();
+  }
+
+  /**
+   * Re-apply the dispositions saved before a reload. A timed shelf that ran out
+   * meanwhile is dropped; one a pause was holding when the page closed keeps
+   * the time it had left, and a game loaded paused holds it again.
+   */
+  private restoreDispositions(): void {
+    let stored: unknown;
+    try {
+      stored = safeJSONStorage.getItem(SCADA_DISPOSITION_STORAGE_KEY);
+    } catch {
+      return;
+    }
+    if (!stored || typeof (stored as { then?: unknown }).then === 'function') return;
+    const state = (stored as { state?: { suppressions?: unknown; heldAt?: unknown } }).state;
+    if (!state || !Array.isArray(state.suppressions)) return;
+    const now = Date.now();
+    const heldAt =
+      typeof state.heldAt === 'number' && Number.isFinite(state.heldAt) ? state.heldAt : null;
+    for (const entry of state.suppressions as unknown[]) {
+      if (!entry || typeof entry !== 'object') continue;
+      const saved = entry as Partial<Record<keyof AlarmSuppression, unknown>>;
+      const { tagId, disposition } = saved;
+      if (typeof tagId !== 'string' || !this.tagThresholds.has(tagId)) continue;
+      if (typeof disposition !== 'string' || !STORED_DISPOSITIONS.has(disposition)) continue;
+      let expiresAt: number | undefined;
+      if (saved.expiresAt !== undefined) {
+        if (typeof saved.expiresAt !== 'number' || !Number.isFinite(saved.expiresAt)) continue;
+        expiresAt = heldAt !== null ? now + (saved.expiresAt - heldAt) : saved.expiresAt;
+        if (expiresAt <= now) continue;
+      }
+      this.suppressions.set(tagId, {
+        tagId,
+        disposition: disposition as AlarmSuppression['disposition'],
+        suppressedAt:
+          typeof saved.suppressedAt === 'number' && Number.isFinite(saved.suppressedAt)
+            ? saved.suppressedAt
+            : now,
+        suppressedBy: typeof saved.suppressedBy === 'string' ? saved.suppressedBy : '',
+        reason: typeof saved.reason === 'string' ? saved.reason : '',
+        expiresAt,
+      });
+    }
+    this.syncPauseWatch();
+    this.persistDispositions();
+  }
+
+  /** Save the standing dispositions, and the pause instant holding their clocks. */
+  private persistDispositions(): void {
+    try {
+      void safeJSONStorage.setItem(SCADA_DISPOSITION_STORAGE_KEY, {
+        state: {
+          suppressions: Array.from(this.suppressions.values()),
+          heldAt: this.pausedAt ?? undefined,
+        },
+        version: SCADA_DISPOSITION_STORAGE_VERSION,
+      });
+    } catch {
+      // Unsaved: the disposition still holds for this session.
+    }
   }
 
   /**
@@ -196,14 +289,27 @@ export class AlarmManager {
     if (alarmType) {
       // Value is in alarm condition
       if (!lastState?.inAlarm || lastState.type !== alarmType) {
-        // De-escalation retires the higher alarm rather than leaving it
-        // CRITICAL beside the HI/LO that replaces it.
-        if (
-          lastState?.inAlarm &&
-          ((lastState.type === 'HIHI' && alarmType === 'HI') ||
-            (lastState.type === 'LOLO' && alarmType === 'LO'))
-        ) {
-          this.clearAlarm(tag.id, lastState.type);
+        // Retire every standing alarm the new condition contradicts: the
+        // higher alarm on de-escalation (no CRITICAL beside the HI/LO that
+        // replaces it), a bad-quality alarm once a good sample arrives, and
+        // the opposite side when the value jumps across the normal band.
+        // Escalation keeps HI under HIHI (and LO under LOLO): it still holds.
+        if (lastState?.inAlarm && lastState.type) {
+          const isHigh = (type: AlarmType) => type === 'HI' || type === 'HIHI';
+          const isLow = (type: AlarmType) => type === 'LO' || type === 'LOLO';
+          const retire: AlarmType[] = [];
+          if (
+            lastState.type === 'BAD_QUALITY' ||
+            (lastState.type === 'HIHI' && alarmType === 'HI') ||
+            (lastState.type === 'LOLO' && alarmType === 'LO')
+          ) {
+            retire.push(lastState.type);
+          } else if (isLow(lastState.type) && isHigh(alarmType)) {
+            retire.push('LO', 'LOLO');
+          } else if (isHigh(lastState.type) && isLow(alarmType)) {
+            retire.push('HI', 'HIHI');
+          }
+          retire.forEach((type) => this.clearAlarm(tag.id, type));
         }
         // New alarm or alarm type changed
         this.raiseAlarm(tag, alarmType, numValue, threshold, priority, tagValue.quality);
@@ -291,14 +397,7 @@ export class AlarmManager {
         occurrenceCount: 1,
         unit: tag.engUnit,
         quality,
-        condition:
-          type === 'BAD_QUALITY'
-            ? translate(alarmManagerMessages, 'sourceQualityBad')
-            : translate(alarmManagerMessages, 'thresholdCondition', {
-                type,
-                threshold: formatThreshold(threshold),
-                unit: tag.engUnit,
-              }),
+        condition: conditionText(tag, type, threshold),
         disposition: 'IN_SERVICE',
         machineId: tag.machineId,
       };
@@ -313,9 +412,12 @@ export class AlarmManager {
       // Update value in existing alarm
       existing.value = value;
       existing.quality = quality;
-      existing.lastOccurrenceAt = now;
-      existing.occurrenceCount = (existing.occurrenceCount ?? 1) + 1;
+      // Only a returned alarm re-enters. HI standing under a HIHI excursion
+      // never left its condition, so falling back to it is not a new
+      // occurrence (store.ts raises one UI alert per occurrence).
       if (existing.state === 'RTN_UNACK') {
+        existing.lastOccurrenceAt = now;
+        existing.occurrenceCount = (existing.occurrenceCount ?? 1) + 1;
         existing.state = 'UNACK';
         existing.clearedAt = undefined;
       }
@@ -383,8 +485,9 @@ export class AlarmManager {
       alarm.state = 'ACKED';
       logger.scada.info(`[AlarmManager] ALARM ACKED: ${alarm.tagName} by ${controlSource}`);
     } else if (alarm.state === 'RTN_UNACK') {
-      // Returned to normal - archive and clear
-      this.archiveAlarm(alarm, now);
+      // Returned to normal - archive and clear. It cleared when the reading
+      // returned, not when it was acknowledged.
+      this.archiveAlarm(alarm, alarm.clearedAt ?? now);
       this.activeAlarms.delete(alarmId);
       logger.scada.info(`[AlarmManager] ALARM CLEARED (RTN): ${alarm.tagName} by ${controlSource}`);
     }
@@ -449,14 +552,20 @@ export class AlarmManager {
     durationMs?: number
   ): void {
     const now = Date.now();
+    // A shelf set while paused starts its clock when play resumes.
+    if (durationMs && this.pausedAt === null && useGameSimulationStore.getState().gameSpeed <= 0)
+      this.pausedAt = now;
+    const clockNow = this.suppressionNow(now);
     this.suppressions.set(tagId, {
       tagId,
       disposition,
       suppressedAt: now,
       suppressedBy: controlSource,
       reason,
-      expiresAt: durationMs ? now + durationMs : undefined,
+      expiresAt: durationMs ? clockNow + durationMs : undefined,
     });
+    this.syncPauseWatch();
+    this.persistDispositions();
     this.activeAlarms.forEach((alarm) => {
       if (alarm.tagId === tagId) alarm.disposition = disposition;
     });
@@ -481,6 +590,8 @@ export class AlarmManager {
    */
   unsuppress(tagId: string): void {
     this.suppressions.delete(tagId);
+    this.syncPauseWatch();
+    this.persistDispositions();
     this.activeAlarms.forEach((alarm) => {
       if (alarm.tagId === tagId) alarm.disposition = 'IN_SERVICE';
     });
@@ -499,12 +610,63 @@ export class AlarmManager {
     if (!suppression) return false;
 
     // Check expiration
-    if (suppression.expiresAt && Date.now() >= suppression.expiresAt) {
+    if (suppression.expiresAt && this.suppressionNow(Date.now()) >= suppression.expiresAt) {
       this.unsuppress(tagId);
       return false;
     }
 
     return true;
+  }
+
+  /**
+   * Wall time the game paused at while a timed shelf stands, else null. A
+   * paused plant holds its readings, so a shelf's clock holds with it: expiry
+   * is judged at the pause instant, and on resume every timed shelf moves on by
+   * the time spent paused, so the panel's "until" time moves with it. Working
+   * if a shelf comes back from a pause with the time it had left.
+   */
+  private pausedAt: number | null = null;
+  private unsubscribePause: (() => void) | null = null;
+
+  /** The wall time a shelf's expiry is judged at: held at the pause instant. */
+  private suppressionNow(now: number): number {
+    return this.pausedAt ?? now;
+  }
+
+  /** Follow the game's pause only while a timed shelf stands. */
+  private syncPauseWatch(): void {
+    let timed = false;
+    this.suppressions.forEach((suppression) => {
+      if (suppression.expiresAt !== undefined) timed = true;
+    });
+    if (!timed) {
+      this.unsubscribePause?.();
+      this.unsubscribePause = null;
+      this.pausedAt = null;
+      return;
+    }
+    if (this.unsubscribePause) return;
+    if (this.pausedAt === null && useGameSimulationStore.getState().gameSpeed <= 0)
+      this.pausedAt = Date.now();
+    this.unsubscribePause = useGameSimulationStore.subscribe((state) => {
+      const paused = state.gameSpeed <= 0;
+      if (paused && this.pausedAt === null) {
+        this.pausedAt = Date.now();
+        this.persistDispositions();
+      } else if (!paused && this.pausedAt !== null) this.resumeSuppressionClock();
+    });
+  }
+
+  private resumeSuppressionClock(): void {
+    const held = Date.now() - (this.pausedAt ?? Date.now());
+    this.pausedAt = null;
+    if (!(held > 0)) return;
+    this.suppressions.forEach((suppression, tagId) => {
+      if (suppression.expiresAt !== undefined)
+        this.suppressions.set(tagId, { ...suppression, expiresAt: suppression.expiresAt + held });
+    });
+    this.persistDispositions();
+    this.notifyListeners();
   }
 
   // =========================================================================
@@ -604,7 +766,7 @@ export class AlarmManager {
   private maybeCleanExpiredSuppressions(now: number): void {
     if (now - this.lastSuppressionCleanup < AlarmManager.SUPPRESSION_CLEANUP_INTERVAL_MS) return;
     this.lastSuppressionCleanup = now;
-    this.cleanExpiredSuppressions(now);
+    this.cleanExpiredSuppressions(this.suppressionNow(now));
   }
 
   private cleanExpiredSuppressions(now: number): void {
@@ -622,7 +784,7 @@ export class AlarmManager {
    */
   getSuppressedTags(): AlarmSuppression[] {
     // Clean up expired suppressions first
-    this.cleanExpiredSuppressions(Date.now());
+    this.cleanExpiredSuppressions(this.suppressionNow(Date.now()));
     return Array.from(this.suppressions.values());
   }
 
@@ -635,13 +797,43 @@ export class AlarmManager {
    */
   subscribe(callback: (alarms: Alarm[]) => void): () => void {
     this.listeners.add(callback);
+    // While anyone is listening, a language switch re-words the standing list.
+    this.unsubscribeLocale ??= useLocaleStore.subscribe((state, previous) => {
+      if (state.locale !== previous.locale) this.relabelActiveAlarms();
+    });
 
     // Immediately notify with current alarms
     callback(this.getActiveAlarms());
 
     return () => {
       this.listeners.delete(callback);
+      if (this.listeners.size === 0) {
+        this.unsubscribeLocale?.();
+        this.unsubscribeLocale = null;
+      }
     };
+  }
+
+  private unsubscribeLocale: (() => void) | null = null;
+
+  /**
+   * A standing alarm's tag name and condition were worded when it was raised.
+   * Re-word them in the current language so the alarm list follows a switch;
+   * the archive keeps what was recorded. Working if no standing alarm stays in
+   * the language it was raised in.
+   */
+  private relabelActiveAlarms(): void {
+    let changed = false;
+    this.activeAlarms.forEach((alarm, id) => {
+      const tag = this.tagThresholds.get(alarm.tagId);
+      if (!tag) return;
+      const tagName = tag.name;
+      const condition = conditionText(tag, alarm.type, alarm.threshold);
+      if (tagName === alarm.tagName && condition === alarm.condition) return;
+      this.activeAlarms.set(id, { ...alarm, tagName, condition });
+      changed = true;
+    });
+    if (changed) this.notifyListeners();
   }
 
   private notifyListeners(): void {
@@ -686,6 +878,8 @@ export class AlarmManager {
     high: number;
     suppressed: number;
   } {
+    // A shelf that ran out is not counted as standing.
+    this.cleanExpiredSuppressions(this.suppressionNow(Date.now()));
     const counts = this.getCountByPriority();
     return {
       total: this.activeAlarms.size,
@@ -702,7 +896,9 @@ export class AlarmManager {
   reset(): void {
     this.activeAlarms.clear();
     this.alarmHistory = [];
-    this.suppressions.clear();
+    // Dispositions are operator decisions about a tag, like stoppedEquipment
+    // is plant state: a SCADA restart keeps them, as a reload does.
+    this.syncPauseWatch();
     this.lastLogTime.clear();
     this.startupTime = Date.now();
     this.lastAlarmStates.forEach((state) => {

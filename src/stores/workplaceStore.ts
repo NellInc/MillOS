@@ -5,8 +5,10 @@ import type {
   WorkplaceActions,
   WorkplaceState,
   WorkplaceProfile,
+  WorkplaceReasonCopy,
   WorkplaceTransitionResult,
 } from '../types/workplace';
+import { bilateralWorkplaceMessages } from '../simulation/bilateralWorkplace.messages';
 import { useOperationsCampaignStore } from './operationsCampaignStore';
 import { useMaterialFlowStore } from './materialFlowStore';
 import { useProductionStore } from './productionStore';
@@ -23,10 +25,16 @@ import {
   type WorkplaceCommand,
 } from '../simulation/bilateralWorkplace';
 import { handoffHoldsClock, workplaceMission } from '../simulation/workplaceImprovement';
+import { shiftResumable } from '../simulation/workplaceCampaign';
 import { safeJSONStorage } from './storage';
 import { isWorkplaceReplayActive } from '../simulation/workplaceReplayRuntime';
 import { translate, useLocaleStore } from '../i18n';
 import { workplaceStoreMessages as msg } from './workplaceStore.messages';
+import { workplaceReplayStoreMessages } from './workplaceReplayStore.messages';
+import { workplaceCampaignMessages } from '../simulation/workplaceCampaign.messages';
+import { workplaceParticipationMessages } from '../simulation/workplaceParticipation.messages';
+import { workplaceImprovementPanelMessages } from '../components/ui-new/widgets/WorkplaceImprovementPanel.messages';
+import { workplacePackingEvidenceMessages } from '../components/ui-new/widgets/WorkplacePackingEvidence.messages';
 
 import {
   ROLE_COMMANDS,
@@ -39,6 +47,60 @@ import {
 } from '../simulation/workplaceParticipation';
 
 const MAX_COMPLETED_CAMPAIGNS = 6;
+
+/** A store refusal: a key whose copy takes no params. */
+type StoreReasonKey = {
+  [K in keyof typeof msg.en]: (typeof msg.en)[K] extends string ? K : never;
+}[keyof typeof msg.en];
+const refuse = (key: StoreReasonKey): WorkplaceTransitionResult => ({
+  changed: false,
+  reason: translate(msg, key),
+  reasonCopy: { catalog: 'store', key },
+});
+
+const REASON_CATALOGS: Record<WorkplaceReasonCopy['catalog'], unknown> = {
+  store: msg,
+  engine: bilateralWorkplaceMessages,
+  replay: workplaceReplayStoreMessages,
+  // Understanding-check clarifications (season checks, participant turn checks).
+  campaign: workplaceCampaignMessages,
+  participation: workplaceParticipationMessages,
+  // Lab status lines set by the handoff panel (season opened) and the matched
+  // packing rehearsal (pause first, inputs changed, rehearsal failed).
+  improvementPanel: workplaceImprovementPanelMessages,
+  packingEvidence: workplacePackingEvidenceMessages,
+};
+
+/**
+ * A transition's reason in the language active now. A status line that keeps a
+ * result renders it through this, so a language switch reaches it; a reason
+ * with no key, or a key its catalogue lacks, keeps the text it was given.
+ * Working if a refusal shown in English reads in Portuguese after a switch.
+ */
+export function workplaceReasonText(
+  result: Pick<WorkplaceTransitionResult, 'reason' | 'reasonCopy'>
+): string | null {
+  const copy = result.reasonCopy;
+  const catalog = copy ? (REASON_CATALOGS[copy.catalog] as typeof msg | undefined) : undefined;
+  if (!copy || !catalog || !Object.prototype.hasOwnProperty.call(catalog.en, copy.key))
+    return result.reason;
+  // A joined reason with a key that no longer resolves answers empty.
+  return (
+    (translate as (c: unknown, k: string, p?: unknown) => string)(catalog, copy.key, copy.params) ||
+    result.reason
+  );
+}
+
+// The physical session never saves while a matched replay runs, so a reload
+// brings back the plant from before it. The workplace keeps its pre-replay
+// record on disk alongside, rather than the replay's season bound to a plant it
+// never ran on; forgetting the replay writes the season it left (replay store).
+// Working if a reload mid-replay restores the pre-replay workplace.
+const workplaceStorage: typeof safeJSONStorage = {
+  ...safeJSONStorage,
+  setItem: (name, value) =>
+    isWorkplaceReplayActive() ? undefined : safeJSONStorage.setItem(name, value),
+};
 
 /** A fresh link to the mill's active order, when it is open and quality-qualified. */
 function openActiveOrderMission(exceptOrderId?: string): WorkplaceMission | undefined {
@@ -173,8 +235,9 @@ const recoveryOutstanding = (state: WorkplaceState) =>
     shift.members.some((member) => member.recoveryOwedMinutes > 0)
   );
 
+// A retained season was never itself reloaded: it keeps why its shift ended.
 function completedReview(input: unknown): WorkplaceState | null {
-  const restored = restoreWorkplace(input);
+  const restored = restoreWorkplace(input, true);
   if (
     restored.mode !== 'game' ||
     restored.phase !== 'review' ||
@@ -191,7 +254,7 @@ function completedReview(input: unknown): WorkplaceState | null {
 
 /** A season left early: a validated, redacted stopped review that owes nothing. */
 function leftReview(input: unknown): WorkplaceState | null {
-  const restored = restoreWorkplace(input);
+  const restored = restoreWorkplace(input, true);
   if (
     restored.mode !== 'game' ||
     restored.phase !== 'review' ||
@@ -262,33 +325,18 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
               turn.anchor !== access.workplace ||
               commandActor(command) !== turn.actorId
             )
-              return {
-                changed: false,
-                reason: translate(msg, 'useCurrentTurn'),
-              };
+              return refuse('useCurrentTurn');
             if (command.type === 'respondToPressure' && command.args[1] === 'accept-demand')
-              return {
-                changed: false,
-                reason: translate(msg, 'challengeCannotSpeak'),
-              };
+              return refuse('challengeCannotSpeak');
             if (
               ['understand', 'acknowledgeImprovement'].includes(command.type) &&
               !turnChecks(access.workplace).every((q) => turn.answers[q.id] === q.correct)
             )
-              return {
-                changed: false,
-                reason: translate(msg, 'answerChecksFirst'),
-              };
+              return refuse('answerChecksFirst');
           } else if (command.type === 'simulateResponses')
-            return {
-              changed: false,
-              reason: translate(msg, 'simulatedResponsesDisabled'),
-            };
+            return refuse('simulatedResponsesDisabled');
           else if (command.type !== 'tick' && command.type !== 'stop' && access.turn)
-            return {
-              changed: false,
-              reason: translate(msg, 'endTurnBeforeSetup'),
-            };
+            return refuse('endTurnBeforeSetup');
         }
         if (
           [
@@ -300,11 +348,11 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           ].includes(command.type) &&
           isWorkplaceReplayActive()
         )
-          return {
-            changed: false,
-            reason: translate(msg, 'finishReplayBeforeObligations'),
-          };
-        const { state, changed, reason } = transitionWorkplace(get().workplace, command);
+          return refuse('finishReplayBeforeObligations');
+        const { state, changed, reason, reasonCopy } = transitionWorkplace(
+          get().workplace,
+          command
+        );
         if (changed) {
           const turn = get().turn;
           set({
@@ -315,7 +363,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
                 : null,
           });
         }
-        return { changed, reason };
+        return { changed, reason, ...(reasonCopy ? { reasonCopy } : {}) };
       };
       const linkedMission = (mode = get().workplace.mode) => {
         const state = get().workplace;
@@ -382,10 +430,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             s.members.some((m) => m.earnedPay || m.recoveryOwedMinutes) ||
             isWorkplaceReplayActive()
           )
-            return {
-              changed: false,
-              reason: translate(msg, 'chooseModeBeforeScenario'),
-            };
+            return refuse('chooseModeBeforeScenario');
           set({ participationMode: mode, turn: null });
           return { changed: true, reason: null };
         },
@@ -398,10 +443,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             s.phase === 'idle' ||
             ![...s.members.map((m) => m.id), 'mind'].includes(actorId)
           )
-            return {
-              changed: false,
-              reason: translate(msg, 'chooseFictionalRole'),
-            };
+            return refuse('chooseFictionalRole');
           set({ turn: { token: crypto.randomUUID(), actorId, anchor: s, answers: {} } });
           return { changed: true, reason: null };
         },
@@ -422,12 +464,8 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             !q ||
             !q.options.some((o) => o.value === answer)
           )
-            return {
-              changed: false,
-              reason: translate(msg, 'knownAnswerRequired'),
-            };
-          if (turn.answers[question] === answer)
-            return { changed: false, reason: translate(msg, 'answerUnchanged') };
+            return refuse('knownAnswerRequired');
+          if (turn.answers[question] === answer) return refuse('answerUnchanged');
           const state = structuredClone(workplace);
           const actor = state.members.find((m) => m.id === turn.actorId);
           if (actor) {
@@ -445,11 +483,17 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             workplace: state,
             turn: { ...turn, anchor: state, answers: { ...turn.answers, [question]: answer } },
           });
-          return { changed: true, reason: answer === q.correct ? null : q.clarification };
+          // A clarification kept on a status line follows a language switch.
+          return answer === q.correct
+            ? { changed: true, reason: null }
+            : {
+                changed: true,
+                reason: q.clarification,
+                reasonCopy: { catalog: 'participation', key: q.clarificationKey },
+              };
         },
         runTurnCommand: (token, command) => {
-          if (!isRoleCommand(command))
-            return { changed: false, reason: translate(msg, 'roleDecisionsOnly') };
+          if (!isRoleCommand(command)) return refuse('roleDecisionsOnly');
           return command.type === 'acknowledgeImprovement'
             ? presentAdvice(token)
             : apply(command, token);
@@ -457,14 +501,12 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         rehearseReload: (revision) => {
           interruptAutomaticWorkplace();
           if (revision !== get().workplace.revision || isWorkplaceReplayActive())
-            return {
-              changed: false,
-              reason: translate(msg, 'readBeforeReload'),
-            };
+            return refuse('readBeforeReload');
           set({ workplace: restoreWorkplace(saveWorkplace(get().workplace)), turn: null });
           return {
             changed: true,
             reason: translate(msg, 'reloadRehearsed'),
+            reasonCopy: { catalog: 'store', key: 'reloadRehearsed' },
           };
         },
         beginImprovement: (profile, revision, _mission, mode = get().workplace.mode) =>
@@ -508,25 +550,22 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         archiveCampaign: (expectedRevision) => {
           interruptAutomaticWorkplace();
           if (get().participationMode === 'separate-turns' && get().turn)
-            return { changed: false, reason: translate(msg, 'endTurnBeforeArchive') };
+            return refuse('endTurnBeforeArchive');
           const current = get().workplace;
           if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== current.revision)
-            return {
-              changed: false,
-              reason: translate(msg, 'reviewChanged'),
-            };
-          if (isWorkplaceReplayActive())
-            return { changed: false, reason: translate(msg, 'finishReplayFirst') };
+            return refuse('reviewChanged');
+          if (isWorkplaceReplayActive()) return refuse('finishReplayFirst');
           if (
             current.mode !== 'game' ||
             current.phase !== 'review' ||
             current.campaign?.shift !== 2 ||
             current.campaign.history.length !== 2
           )
-            return {
-              changed: false,
-              reason: translate(msg, 'completeThreeShifts'),
-            };
+            return refuse('completeThreeShifts');
+          // An archived season can never resume, so a final shift a reload
+          // paused would be kept as "agreement pending" for good. Working if
+          // it archives only once resumed and finished or ended.
+          if (shiftResumable(current)) return refuse('resumePausedBeforeArchive');
           if (
             recoveryOutstanding(current) ||
             current.objections.some((objection) => objection.status === 'open') ||
@@ -535,16 +574,9 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             current.activeCoverMemberId !== null ||
             current.coverRemainingMinutes > 0
           )
-            return {
-              changed: false,
-              reason: translate(msg, 'settleBeforeArchive'),
-            };
+            return refuse('settleBeforeArchive');
           const review = completedReview(saveWorkplace(current));
-          if (!review)
-            return {
-              changed: false,
-              reason: translate(msg, 'reviewNotValidated'),
-            };
+          if (!review) return refuse('reviewNotValidated');
           const fresh = createWorkplace('game', current.seed === 0xffffffff ? 1 : current.seed + 1);
           fresh.revision = current.revision + 1;
           set({
@@ -560,24 +592,28 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         leaveCampaign: (expectedRevision) => {
           interruptAutomaticWorkplace();
           if (get().participationMode === 'separate-turns' && get().turn)
-            return { changed: false, reason: translate(msg, 'endTurnBeforeLeave') };
+            return refuse('endTurnBeforeLeave');
           const current = get().workplace;
           if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== current.revision)
-            return { changed: false, reason: translate(msg, 'reviewChanged') };
-          if (isWorkplaceReplayActive())
-            return { changed: false, reason: translate(msg, 'finishReplayFirst') };
+            return refuse('reviewChanged');
+          if (isWorkplaceReplayActive()) return refuse('finishReplayFirst');
           const result = transitionWorkplace(current, {
             type: 'leaveCampaign',
             args: [expectedRevision],
           });
-          if (!result.changed) return { changed: false, reason: result.reason };
+          if (!result.changed)
+            return {
+              changed: false,
+              reason: result.reason,
+              ...(result.reasonCopy ? { reasonCopy: result.reasonCopy } : {}),
+            };
           // An unworked deliberation is kept as stopped, never as a worked shift.
           const stopped =
             current.phase === 'deliberating'
               ? transitionWorkplace(current, { type: 'stop', args: [] }).state
               : current;
           const record = leftReview(saveWorkplace(stopped));
-          if (!record) return { changed: false, reason: translate(msg, 'reviewNotValidated') };
+          if (!record) return refuse('reviewNotValidated');
           set({
             workplace: result.state,
             turn: null,
@@ -585,13 +621,13 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           });
           return { changed: true, reason: null };
         },
+        endExercise: (expectedRevision) => {
+          if (isWorkplaceReplayActive()) return refuse('finishReplayFirst');
+          return apply({ type: 'endExercise', args: [expectedRevision] });
+        },
         startMission: (profile, seed = 1) => {
           const mission = openActiveOrderMission();
-          if (!mission)
-            return {
-              changed: false,
-              reason: translate(msg, 'openCommitmentRequired'),
-            };
+          if (!mission) return refuse('openCommitmentRequired');
           return apply({ type: 'startCampaign', args: [profile, seed, mission] });
         },
         startCampaign: (...args) => apply({ type: 'startCampaign', args }),
@@ -623,42 +659,31 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             get().workplace.mode === 'game' &&
             (safety.emergencyActive || safety.emergencyDrillMode)
           )
-            return {
-              changed: false,
-              reason: translate(msg, 'safetyStopHolds'),
-            };
+            return refuse('safetyStopHolds');
           if (get().participationMode === 'separate-turns' && get().turn)
-            return {
-              changed: false,
-              reason: translate(msg, 'endTurnBeforeActivation'),
-            };
+            return refuse('endTurnBeforeActivation');
           const mission = workplaceMission(get().workplace);
           if (mission && mission.materialSessionId !== useMaterialFlowStore.getState().sessionId)
-            return {
-              changed: false,
-              reason: translate(msg, 'materialSessionChanged'),
-            };
+            return refuse('materialSessionChanged');
           const current = get().workplace;
           if (current.mode === 'game' && current.improvement) {
             const advice = current.improvement.advice;
             if (!advice || advice.fingerprint !== captureCurrentPackingPlant(current).fingerprint)
-              return {
-                changed: false,
-                reason: translate(msg, 'freshAdviceRequired'),
-              };
+              return refuse('freshAdviceRequired');
           }
           const refreshed = current.improvement && linkedMission();
           if (refreshed && refreshed.evidence !== 'current')
-            return {
-              changed: false,
-              reason: translate(msg, 'dispatchEvidenceRequired'),
-            };
+            return refuse('dispatchEvidenceRequired');
           const activationInput = refreshed
             ? { ...current, improvement: { ...current.improvement!, mission: refreshed } }
             : current;
           const result = transitionWorkplace(activationInput, { type: 'activate', args });
           if (result.changed) set({ workplace: result.state, turn: null });
-          return { changed: result.changed, reason: result.reason };
+          return {
+            changed: result.changed,
+            reason: result.reason,
+            ...(result.reasonCopy ? { reasonCopy: result.reasonCopy } : {}),
+          };
         },
         withdraw: (...args) => apply({ type: 'withdraw', args }),
         stop: (...args) => apply({ type: 'stop', args }),
@@ -699,7 +724,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
     {
       name: 'millos-workplace-laboratory',
       version: 2,
-      storage: safeJSONStorage,
+      storage: workplaceStorage,
       partialize: (state) => ({
         participationMode: state.participationMode,
         workplace: saveWorkplace(state.workplace),
@@ -763,7 +788,16 @@ syncHandoffHold(useWorkplaceStore.getState().workplace);
 // It is not an out-of-band replacement, so an open participant turn moves with it.
 useLocaleStore.subscribe((state, previous) => {
   if (state.locale === previous.locale) return;
-  const { workplace, turn } = useWorkplaceStore.getState();
+  const { workplace, turn, completedCampaigns, leftCampaigns } = useWorkplaceStore.getState();
+  // Retained reviews print their member roles too; they follow the switch.
+  // Working if an archived season reads in the language just chosen.
+  const completed = completedCampaigns.map(localizeWorkplaceMembers);
+  const left = leftCampaigns.map(localizeWorkplaceMembers);
+  const reviewsChanged =
+    completed.some((review, i) => review !== completedCampaigns[i]) ||
+    left.some((review, i) => review !== leftCampaigns[i]);
+  if (reviewsChanged)
+    useWorkplaceStore.setState({ completedCampaigns: completed, leftCampaigns: left });
   const localized = localizeWorkplaceMembers(workplace);
   if (localized === workplace) return;
   useWorkplaceStore.setState({

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
-import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { useWorkplaceStore, workplaceReasonText } from '../../../stores/workplaceStore';
 import { isBenchmarkRuntime } from '../../../runtime/runtimeMode';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useUIStore } from '../../../stores/uiStore';
@@ -13,10 +13,14 @@ import {
   fairnessReceipt,
   participationReceipt,
 } from '../../../simulation/workplaceFairness';
-import { MANAGEMENT_APPROACHES } from '../../../simulation/workplaceCampaign';
+import {
+  MANAGEMENT_APPROACHES,
+  pressureObjectionText,
+} from '../../../simulation/workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceTransitionResult } from '../../../types/workplace';
 import { formatFixed, useT } from '../../../i18n';
 import { workplaceParticipationMessages } from './WorkplaceParticipation.messages';
+import { workplaceAutoplayMessages } from '../../../simulation/workplaceAutoplay.messages';
 
 const button =
   'min-h-11 rounded-md border border-cyan-300/25 px-3 py-2 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
@@ -36,6 +40,24 @@ export function WorkplaceParticipation({
   const handover = useRef<HTMLSelectElement>(null);
   const checks = turnChecks(s);
   const completedChecks = checks.filter((q) => current?.answers[q.id] === q.correct).length;
+  // A role's own decision that changes the terms (its work choice, a handoff
+  // proposal, a campaign decision) ends its turn and disables that role's
+  // controls under focus; a browser drops focus to <body>, where Space is the
+  // forklift emergency stop. The handover, the next step, takes it.
+  // Working if Tab and Space continue from the handover after such a decision.
+  const hadTurn = useRef(current !== null);
+  useEffect(() => {
+    const had = hadTurn.current;
+    hadTurn.current = current !== null;
+    if (!had || current !== null) return;
+    const frame = requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected && !active.matches(':disabled'))
+        return;
+      handover.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [current]);
   return (
     <section aria-label={t('regionLabel')} className="space-y-3 border-b border-slate-700 pb-4">
       <details open={store.participationMode === 'separate-turns'}>
@@ -92,7 +114,9 @@ export function WorkplaceParticipation({
                         {q.prompt}
                         <select
                           className={input}
-                          aria-label={t('turnCheckLabel', { id: q.id })}
+                          // The question names the select; the wrapping label
+                          // also holds the answer and its clarification.
+                          aria-label={t('turnCheckLabel', { prompt: q.prompt })}
                           aria-invalid={
                             current.answers[q.id] ? current.answers[q.id] !== q.correct : undefined
                           }
@@ -298,7 +322,7 @@ export function WorkplaceFairness() {
           </p>
           {r.openObjections.map((o, n) => (
             <p key={n} className="text-amber-100">
-              {t('objectionKind', { kind: o.kind })}: {o.statement}
+              {t('objectionKind', { kind: o.kind })}: {pressureObjectionText(o.statement)}
             </p>
           ))}
         </section>
@@ -378,9 +402,17 @@ export function WorkplaceDemonstration({
 /** Idle/skip automation is visible, interruptible and restricted to fictional solo roles. */
 export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile }) {
   const t = useT(workplaceParticipationMessages);
+  const tAuto = useT(workplaceAutoplayMessages);
   const store = useWorkplaceStore();
   const automatic = useWorkplaceAutoplay();
   const running = automatic.running;
+  const pauseRef = useRef<HTMLButtonElement>(null);
+  // The runner's own status is a key, so a language change reaches it.
+  const message = automatic.messageKey
+    ? tAuto(automatic.messageKey)
+    : automatic.reasonCopy
+      ? workplaceReasonText({ reason: automatic.message, reasonCopy: automatic.reasonCopy })
+      : automatic.message;
 
   const eligible =
     store.participationMode === 'solo' &&
@@ -396,9 +428,9 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
             ? t('autoIdle')
             : t('autoManual')}
       </p>
-      {automatic.message && (
+      {message && (
         <p className="text-cyan-100" role="status">
-          {automatic.message}
+          {message}
         </p>
       )}
       <div className="flex flex-wrap gap-2">
@@ -407,11 +439,16 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
           disabled={running}
           onClick={() => {
             automatic.start(profile);
+            // Starting disables this button, and a browser then drops focus to
+            // <body> (Space = forklift emergency stop). Pause is the next step.
+            // Working if Tab and Space continue from the demo controls.
+            if (useWorkplaceAutoplay.getState().running) pauseRef.current?.focus();
           }}
         >
           {t('skipGuide')}
         </button>
         <button
+          ref={pauseRef}
           className={button}
           onClick={() => {
             automatic.pause();
@@ -496,6 +533,9 @@ export function WorkplaceAutoplayStatus() {
   return (
     <aside
       aria-label={t('demoRunningLabel')}
+      // On a phone it takes the top-left corner; src/index.css moves the music
+      // player and the agreement card down below it while it shows.
+      data-season-notice={isMobile ? 'top' : undefined}
       // The bottom-left touch pad owns movement, including the return route.
       // Working if the season notice leaves every D-pad button hit-testable.
       className={
@@ -520,7 +560,7 @@ export function WorkplaceAutoplayStatus() {
         title={t('autonomousSeasonDetail')}
         className={`${button} ${compact ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
         onClick={() => {
-          automatic.pause(true);
+          automatic.pause();
           window.dispatchEvent(
             new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
           );

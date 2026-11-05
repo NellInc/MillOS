@@ -12,7 +12,7 @@ export const workplacePressureChapterMessages = defineMessages({
     objectionStatus: (p: Status) => p.status,
     deliveryStatus: (p: Status) => p.status,
     agreementStatus: (p: Status) => p.status,
-    evidenceStatus: (p: Status) => p.status,
+    evidenceStatus: (p: Status) => (p.status === 'quality-failed' ? 'failed quality' : p.status),
 
     // Next beat (deriveWorkplaceGuidance)
     beatRestate: 'Restate the terms',
@@ -42,6 +42,8 @@ export const workplacePressureChapterMessages = defineMessages({
       'Inspection is running until modeled minute {minute}. Resume the plant clock when ready to deliver the remaining inspection time. Actual batch certification remains separate.',
     nextReviewing:
       'Review paid compensation, delivered recovery and customer delivery separately. This shift cannot resume.',
+    nextResumeAfterReload:
+      'A reload paused this shift before its end. Resume it in Review once everyone consents again.',
     nextRunning:
       'Use the plant clock controls to run or pause real production. An objection during work stops this shift into review.',
     nextRevised:
@@ -165,6 +167,8 @@ export const workplacePressureChapterMessages = defineMessages({
       'A inspeção está em andamento até o minuto modelado {minute}. Retome o relógio da planta quando estiver pronto para cumprir o tempo restante de inspeção. A certificação real do lote continua separada.',
     nextReviewing:
       'Revise separadamente a compensação paga, a recuperação concedida e a entrega ao cliente. Este turno não pode ser retomado.',
+    nextResumeAfterReload:
+      'Uma recarga pausou este turno antes do fim. Retome-o em Revisão quando todos consentirem de novo.',
     nextRunning:
       'Use os controles do relógio da planta para rodar ou pausar a produção real. Uma objeção durante o trabalho interrompe este turno e o leva à revisão.',
     nextRevised:

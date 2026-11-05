@@ -1,10 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { GAS_STATION_SITE, STATION_ROAD_EDGE_SEGMENTS } from '../../constants/siteLayout';
+import {
+  GAS_STATION_SITE,
+  SITE_LAYOUT,
+  STATION_ROAD_EDGE_SEGMENTS,
+} from '../../constants/siteLayout';
 import { EXTERIOR_LAYERS } from '../../constants/renderLayers';
 import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { createStationAccessMarkings, createStationAccessSurface } from './stationAccessGeometry';
+import { approachEdgeLines, APPROACH_EDGE_OFFSET } from './tunnelApproachMarkings';
 
 function withPavement(check: (hit: (x: number, z: number) => boolean) => void) {
   const geometry = createStationAccessSurface();
@@ -79,9 +84,29 @@ describe('station road connection', () => {
       [149, 280],
     ]);
     const source = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
-    expect(source).toContain('STATION_ROAD_EDGE_SEGMENTS.map');
-    expect(source).toContain('position={[7.5, EXTERIOR_LAYERS.groundOverlay, 0]}');
+    expect(source).toMatch(
+      /approachEdgeLines\(\s*SITE_LAYOUT\.roadTunnels\.south,\s*-APPROACH_EDGE_OFFSET,\s*STATION_ROAD_EDGE_SEGMENTS\s*\)/
+    );
+    expect(source).toContain(
+      'approachEdgeLines(SITE_LAYOUT.roadTunnels.south, APPROACH_EDGE_OFFSET, [[110, 280]])'
+    );
     expect(source).toContain('<StationAccess />');
+    // The west line keeps its break across the entrance; the east line has none.
+    const west = approachEdgeLines(
+      SITE_LAYOUT.roadTunnels.south,
+      -APPROACH_EDGE_OFFSET,
+      STATION_ROAD_EDGE_SEGMENTS
+    );
+    const covers = (segments: typeof west, z: number) =>
+      segments.some(
+        ({ start, end }) => z >= Math.min(start[1], end[1]) && z <= Math.max(start[1], end[1])
+      );
+    for (const z of [120, 160, 190]) expect(covers(west, z), `west ${z}`).toBe(true);
+    for (const z of [132, 140, 148]) expect(covers(west, z), `west ${z}`).toBe(false);
+    const east = approachEdgeLines(SITE_LAYOUT.roadTunnels.south, APPROACH_EDGE_OFFSET, [
+      [110, 280],
+    ]);
+    for (let z = 110; z <= 220; z += 2) expect(covers(east, z), `east ${z}`).toBe(true);
   });
 
   it('keeps guidance inside the pavement and bounds the two static meshes', () => {

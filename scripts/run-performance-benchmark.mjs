@@ -25,6 +25,8 @@ const PERF_SYSTEMS = {
   lights: 'disablePunctualLights',
   'lighting-polish': 'disableLightingPolish',
   surfaces: 'disableSurfaceTreatment',
+  caustics: 'disableWaterCaustics',
+  lod: 'disableDistanceLod',
   ao: 'disableAmbientOcclusion',
   bloom: 'disableBloom',
   smaa: 'disableSMAA',
@@ -1097,6 +1099,7 @@ async function main() {
     `${JSON.stringify(buildIdentity, null, 2)}\n`
   );
   const browser = await chromium.launch({
+    channel: 'chrome',
     headless: !options.headed,
     chromiumSandbox: true,
     ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
@@ -1112,7 +1115,7 @@ async function main() {
     ],
     ...(options.browserExecutable
       ? { executablePath: options.browserExecutable }
-      : { channel: options.browserChannel || undefined }),
+      : { channel: options.browserChannel || undefined || 'chrome' }),
   });
 
   const results = [];

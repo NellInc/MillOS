@@ -1,7 +1,29 @@
 /** Browser BYOK transport. Keys remain in this module's memory, never in Zustand persistence. */
 import { spendBudget, type SpendBudget, type TokenRates } from './spendBudget';
-import { formatFixed, translate } from '../i18n';
+import { translate } from '../i18n';
 import { cloudAIClientMessages as messages } from './cloudAIClient.messages';
+import { registerAlertCatalog, type KeyedLine } from '../i18n/alertCopy';
+
+const CLOUD_AI_CATALOG = 'cloudAIClient';
+registerAlertCatalog(CLOUD_AI_CATALOG, messages);
+
+/** An error that carries its key, so a surface that keeps it can word it in the language active now. */
+export class KeyedError extends Error {
+  constructor(
+    message: string,
+    readonly copy: KeyedLine
+  ) {
+    super(message);
+  }
+}
+type CloudMessage = keyof (typeof messages)['en'];
+function keyedError(key: CloudMessage, params?: Record<string, string | number>): KeyedError {
+  return new KeyedError(translate(messages, key, params), {
+    catalog: CLOUD_AI_CATALOG,
+    key,
+    ...(params ? { params } : {}),
+  });
+}
 
 export type CloudBackend =
   | 'haiku'
@@ -102,29 +124,29 @@ function isOpenRouterBackend(backend: CloudBackend): boolean {
 
 function assertPublicProviderBoundary(backend: CloudBackend): void {
   if (!isOpenRouterBackend(backend) && !isLocalCompanionHost()) {
-    throw new Error(translate(messages, 'directKeysLocalOnly'));
+    throw keyedError('directKeysLocalOnly');
   }
 }
 
 function tokenCount(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    throw new Error(translate(messages, 'usageMissing'));
+    throw keyedError('usageMissing');
   }
   return value;
 }
 
 function errorForStatus(status: number): Error {
-  if (status === 401 || status === 403) return new Error(translate(messages, 'keyRejected'));
-  if (status === 402) return new Error(translate(messages, 'creditLimit'));
-  if (status === 429) return new Error(translate(messages, 'rateLimit'));
-  return new Error(translate(messages, 'requestFailed', { status: formatFixed(status, 0) }));
+  if (status === 401 || status === 403) return keyedError('keyRejected');
+  if (status === 402) return keyedError('creditLimit');
+  if (status === 429) return keyedError('rateLimit');
+  return keyedError('requestFailed', { status });
 }
 
 function textFromResponse(backend: CloudBackend, record: Record<string, unknown>): string {
   const wire = CLOUD_MODELS[backend].wire;
   if (wire === 'anthropic') {
     if (record.stop_reason !== 'end_turn' || !Array.isArray(record.content))
-      throw new Error(translate(messages, 'haikuIncomplete'));
+      throw keyedError('haikuIncomplete');
     return record.content
       .filter(
         (block): block is { type: string; text: string } =>
@@ -138,7 +160,7 @@ function textFromResponse(backend: CloudBackend, record: Record<string, unknown>
   }
   if (wire === 'openai') {
     if (record.status !== 'completed' || !Array.isArray(record.output))
-      throw new Error(translate(messages, backend === 'sol' ? 'solIncomplete' : 'lunaIncomplete'));
+      throw keyedError(backend === 'sol' ? 'solIncomplete' : 'lunaIncomplete');
     return record.output
       .filter(
         (item): item is { type: string; content: unknown[] } =>
@@ -163,7 +185,7 @@ function textFromResponse(backend: CloudBackend, record: Record<string, unknown>
     const first = candidates[0] as Record<string, unknown> | undefined;
     const content = first?.content as Record<string, unknown> | undefined;
     if (first?.finishReason !== 'STOP' || !Array.isArray(content?.parts))
-      throw new Error(translate(messages, 'geminiIncomplete'));
+      throw keyedError('geminiIncomplete');
     return content.parts
       .filter(
         (part): part is { text: string } =>
@@ -177,7 +199,7 @@ function textFromResponse(backend: CloudBackend, record: Record<string, unknown>
   }
   const choices = Array.isArray(record.choices) ? record.choices : [];
   const first = choices[0] as Record<string, unknown> | undefined;
-  if (first?.finish_reason !== 'stop') throw new Error(translate(messages, 'openRouterIncomplete'));
+  if (first?.finish_reason !== 'stop') throw keyedError('openRouterIncomplete');
   const message = first.message as Record<string, unknown> | undefined;
   return typeof message?.content === 'string' ? message.content : '';
 }
@@ -197,7 +219,7 @@ export class CloudAIClient {
   setKey(backend: CloudBackend, key: string): void {
     assertPublicProviderBoundary(backend);
     const trimmed = key.trim();
-    if (!trimmed) throw new Error(translate(messages, 'enterKey'));
+    if (!trimmed) throw keyedError('enterKey');
     this.invalidate();
     this.keys[backend] = trimmed;
     if (isOpenRouterBackend(backend)) this.openRouterBillingUnknown = false;
@@ -230,7 +252,7 @@ export class CloudAIClient {
   async generateContent(backend: CloudBackend, prompt: string): Promise<CloudResult> {
     assertPublicProviderBoundary(backend);
     const key = this.keys[backend];
-    if (!key) throw new Error(translate(messages, 'connectKey'));
+    if (!key) throw keyedError('connectKey');
     if (!isOpenRouterBackend(backend)) return this.request(backend, key, prompt, 4096);
 
     // Match CABAL's one-paid-call-at-a-time browser session. The key limit can
@@ -244,11 +266,11 @@ export class CloudAIClient {
     await prior;
     try {
       if (epoch !== this.epoch || this.keys[backend] !== key)
-        throw new Error(translate(messages, 'cancelledAfterChange'));
-      if (this.openRouterBillingUnknown) throw new Error(translate(messages, 'billingUnverified'));
+        throw keyedError('cancelledAfterChange');
+      if (this.openRouterBillingUnknown) throw keyedError('billingUnverified');
       await this.verifyOpenRouterKey(key);
       if (epoch !== this.epoch || this.keys[backend] !== key)
-        throw new Error(translate(messages, 'cancelledAfterChange'));
+        throw keyedError('cancelledAfterChange');
       return await this.request(backend, key, prompt, 4096);
     } finally {
       release();
@@ -256,10 +278,8 @@ export class CloudAIClient {
   }
 
   private async verifyOpenRouterKey(key: string): Promise<void> {
-    if (!key || key.length > 512 || /\s/.test(key))
-      throw new Error(translate(messages, 'invalidOpenRouterKey'));
-    if (this.budget.getSnapshot().capUsd === null)
-      throw new Error(translate(messages, 'capRequired'));
+    if (!key || key.length > 512 || /\s/.test(key)) throw keyedError('invalidOpenRouterKey');
+    if (this.budget.getSnapshot().capUsd === null) throw keyedError('capRequired');
     let response: Response;
     try {
       response = await fetch(OPENROUTER_KEY_URL, {
@@ -271,21 +291,17 @@ export class CloudAIClient {
         redirect: 'error',
       });
     } catch {
-      throw new Error(translate(messages, 'cannotVerifyLimit'));
+      throw keyedError('cannotVerifyLimit');
     }
-    if (!response.ok)
-      throw new Error(
-        translate(messages, 'limitHttpError', { status: formatFixed(response.status, 0) })
-      );
+    if (!response.ok) throw keyedError('limitHttpError', { status: response.status });
     let payload: unknown;
     try {
       payload = await response.json();
     } catch {
-      throw new Error(translate(messages, 'noVerifiableLimit'));
+      throw keyedError('noVerifiableLimit');
     }
     const data = payload && typeof payload === 'object' && 'data' in payload ? payload.data : null;
-    if (!data || typeof data !== 'object')
-      throw new Error(translate(messages, 'noVerifiableLimit'));
+    if (!data || typeof data !== 'object') throw keyedError('noVerifiableLimit');
     const details = data as Record<string, unknown>;
     if (
       typeof details.limit !== 'number' ||
@@ -298,7 +314,7 @@ export class CloudAIClient {
       details.include_byok_in_limit !== true ||
       details.is_management_key === true
     )
-      throw new Error(translate(messages, 'limitedKeyRequired'));
+      throw keyedError('limitedKeyRequired');
   }
 
   private async request(
@@ -307,9 +323,9 @@ export class CloudAIClient {
     prompt: string,
     maxTokens: number
   ): Promise<CloudResult> {
-    if (!key) throw new Error(translate(messages, 'enterKey'));
-    if (!prompt.trim()) throw new Error(translate(messages, 'emptyRequest'));
-    if (prompt.length > MAX_PROMPT_CHARS) throw new Error(translate(messages, 'contextTooLarge'));
+    if (!key) throw keyedError('enterKey');
+    if (!prompt.trim()) throw keyedError('emptyRequest');
+    if (prompt.length > MAX_PROMPT_CHARS) throw keyedError('contextTooLarge');
 
     const model = CLOUD_MODELS[backend];
     const reservation = this.budget.reserve(prompt, maxTokens, model);
@@ -405,8 +421,7 @@ export class CloudAIClient {
         throw errorForStatus(response.status);
       }
       const data: unknown = await response.json();
-      if (!data || typeof data !== 'object')
-        throw new Error(translate(messages, 'invalidResponse'));
+      if (!data || typeof data !== 'object') throw keyedError('invalidResponse');
       const record = data as Record<string, unknown>;
       const usage =
         record.usage && typeof record.usage === 'object'
@@ -445,7 +460,7 @@ export class CloudAIClient {
           usage.cost < 0 ||
           !upstreamValid)
       )
-        throw new Error(translate(messages, 'unverifiableCharge'));
+        throw keyedError('unverifiableCharge');
       const openRouterCost = isOpenRouter
         ? (usage.cost as number) + (typeof upstreamCost === 'number' ? upstreamCost : 0)
         : undefined;
@@ -456,18 +471,17 @@ export class CloudAIClient {
       });
       billingUnverified = false;
       if (epoch !== this.epoch || controller.signal.aborted)
-        throw new Error(translate(messages, 'cancelledAfterChange'));
+        throw keyedError('cancelledAfterChange');
       const text = textFromResponse(backend, record);
-      if (!text.trim()) throw new Error(translate(messages, 'noText'));
+      if (!text.trim()) throw keyedError('noText');
       return { text, inputTokens, outputTokens };
     } catch (error) {
       if (billingUnverified) {
         this.budget.uncertain(reservation);
         if (isOpenRouter) this.openRouterBillingUnknown = true;
       }
-      if (controller.signal.aborted && epoch === this.epoch)
-        throw new Error(translate(messages, 'timedOut'));
-      if (error instanceof TypeError) throw new Error(translate(messages, 'unreachable'));
+      if (controller.signal.aborted && epoch === this.epoch) throw keyedError('timedOut');
+      if (error instanceof TypeError) throw keyedError('unreachable');
       throw error;
     } finally {
       clearTimeout(timeout);

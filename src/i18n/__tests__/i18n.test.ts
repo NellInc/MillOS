@@ -59,6 +59,18 @@ describe('locale detection', () => {
     expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('pt-BR');
     expect(document.documentElement.lang).toBe('pt-BR');
   });
+
+  // ?lang= outranks the saved choice, so a visitor from a shared pt-BR link
+  // who picks English was switched back to Portuguese by the next reload.
+  // Working if an explicit choice drops ?lang= and keeps every other part.
+  it('drops a shared ?lang= once the player chooses, so the choice survives reload', () => {
+    window.history.replaceState({ keep: 1 }, '', '/?quality=low&lang=pt-BR#dock');
+    setLocale('en');
+    expect(window.location.search).toBe('?quality=low');
+    expect(window.location.hash).toBe('#dock');
+    expect(window.history.state).toEqual({ keep: 1 });
+    expect(detectLocale()).toBe('en');
+  });
 });
 
 describe('messages', () => {

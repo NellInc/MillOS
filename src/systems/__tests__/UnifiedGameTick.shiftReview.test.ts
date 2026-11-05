@@ -7,6 +7,7 @@ import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { MAX_GAME_SPEED, STANDARD_GAME_SPEED } from '../../simulation/pace';
 import { useUIStore } from '../../stores/uiStore';
 import { setLocale } from '../../i18n';
+import { keyedText } from '../../i18n/alertCopy';
 
 let tickCount = 0;
 function tickAt(gameSpeed: number, deltaSeconds = 1) {
@@ -111,6 +112,53 @@ describe('a closed shift is announced (row 21)', () => {
       expect(reviewAlerts()[0]?.title).toBe(
         'Turno da tarde encerrado: sem compromissos com clientes, ocorrência ainda aberta'
       );
+    } finally {
+      setLocale('en');
+    }
+  });
+
+  // A programme accepted late in the window, with a serious incident open at
+  // the close: a commitment was open but nothing had fallen due, so the notice
+  // must not claim there were no commitments. Working if it names both.
+  it('names a window with nothing due yet and an open incident for what it was', () => {
+    const ops = useOperationsCampaignStore.getState();
+    ops.initializeCampaign();
+    const [first] = useOperationsCampaignStore.getState().orders;
+    useOperationsCampaignStore.setState({
+      orders: [{ ...first, status: 'active', shippedKg: 0, dueAtMinute: 60 * 24 * 5 }],
+      activeOrderId: first.id,
+    });
+    useOperationsCampaignStore.getState().triggerIncident('bearing_overheat');
+    useGameSimulationStore.getState().setGameTime(13.9);
+    for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
+    const report = useOperationsCampaignStore.getState().reports.at(-1)!;
+    expect(report.grade).toBeNull();
+    expect(report.gradeBasis?.dueInWindow).toBe(0);
+    expect(reviewAlerts()[0]?.title).toBe(
+      'Morning shift closed: nothing due yet, an incident still open'
+    );
+    expect(
+      useAnnouncementsStore
+        .getState()
+        .announcements.some((a) =>
+          a.message.startsWith('Morning shift closed: nothing due yet, an incident still open.')
+        )
+    ).toBe(true);
+  });
+
+  it('the shift-closed PA caption reads in the language active now', () => {
+    useGameSimulationStore.getState().setGameTime(13.9);
+    for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
+    const caption = useAnnouncementsStore
+      .getState()
+      .announcements.find((a) => /^Morning shift closed: /.test(a.message))!;
+    expect(keyedText(caption.copy, caption.message)).toBe(caption.message);
+    setLocale('pt-BR');
+    try {
+      const text = keyedText(caption.copy, caption.message);
+      // The first morning's order is due after 14:00 and nothing has shipped:
+      // nothing fell due, so the caption says so rather than giving a letter.
+      expect(text).toMatch(/^Turno da manhã encerrado: nada venceu ainda\. Revisão em Visão geral/);
     } finally {
       setLocale('en');
     }

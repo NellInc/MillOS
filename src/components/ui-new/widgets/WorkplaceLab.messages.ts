@@ -58,6 +58,14 @@ const PT_DECISION: Record<string, string> = {
   'penalize-refusal': 'penalizar a recusa',
 };
 
+// English reads the id as words, as it does every other logic value here.
+const EN_DECISION: Record<string, string> = {
+  'keep-target': 'keep the target',
+  'skip-inspection': 'skip inspection',
+  'protect-refusal': 'protect refusal',
+  'penalize-refusal': 'penalise refusal',
+};
+
 export const PT_TASK: Record<string, string> = {
   Packing: 'Ensaque',
   'Pallet checks': 'Conferência de paletes',
@@ -90,7 +98,7 @@ export const workplaceLabMessages = defineMessages({
     deliveryStatus: (p: Status) => p.status,
     agreementStatus: (p: Status) => p.status,
     destinationLabel: (p: { destination: string }) => p.destination,
-    decisionLabel: (p: { decision: string }) => p.decision,
+    decisionLabel: (p: { decision: string }) => pick(EN_DECISION, p.decision),
     taskLabel: (p: { task: string }) => p.task,
     practiceLabel: (p: { practice: string }) => p.practice,
 
@@ -104,6 +112,7 @@ export const workplaceLabMessages = defineMessages({
     rehearsalNoAdvance: 'No modeled time could advance.',
     exported: 'Synthetic scenario exported locally. No remote send.',
     freshExercise: 'Review retained. Choose a charter for the fresh exercise.',
+    setupReturned: 'Exercise closed. Choose a mode, seed or season to start next.',
 
     // Header
     labTitle: 'Workplace laboratory',
@@ -152,12 +161,12 @@ export const workplaceLabMessages = defineMessages({
     missionBriefing:
       '{customer} has {kg} kg remaining on the customer commitment. Quality declines extra duty; Packing and Maintenance may volunteer separately. Earn a fresh working agreement.',
     missionPrompt:
-      'Keep the {kg} kg delivery target, or negotiate an {installment} kg installment with {deferred} kg deferred. The full customer commitment remains.',
+      'Keep the {kg} kg delivery target, or negotiate a {installment} kg installment with {deferred} kg deferred. The full customer commitment remains.',
     adviserRolePlay: 'Adviser role checks are authored role-play in this local scenario.',
     shiftThreeNote:
       'The adviser must correct its earlier recommendation and repair the pressure it created. Previous consent authorizes no new burden. Packing can refuse; each author can challenge and resolve their own objection.',
-    negotiateInstallment: 'Negotiate an {kg} kg installment',
-    negotiateInstallmentProtectPay: 'Negotiate an {kg} kg installment and protect pay',
+    negotiateInstallment: 'Negotiate a {kg} kg installment',
+    negotiateInstallmentProtectPay: 'Negotiate a {kg} kg installment and protect pay',
     keepCommitment: 'Keep the {kg} kg commitment',
     recordedDecision: 'Recorded decision: {decision}.',
     pending: 'pending',
@@ -330,6 +339,7 @@ export const workplaceLabMessages = defineMessages({
     startNextGame: 'Start next playable shift at teaching pace (1/2x)',
     startNextWorkshop: 'Start next manual workshop',
     prepareNextPilot: 'Prepare next pilot draft',
+    returnToSetup: 'Return to exercise setup',
     shippedOf: 'Shipped {shipped} of {target} kg.',
     reviewOpens: 'Review opens after the shift finishes.',
     resumeAfterReloadNote:
@@ -439,6 +449,8 @@ export const workplaceLabMessages = defineMessages({
     rehearsalNoAdvance: 'Não foi possível avançar o tempo modelado.',
     exported: 'Cenário sintético exportado localmente. Nada foi enviado.',
     freshExercise: 'Revisão mantida. Escolha um estatuto para o novo exercício.',
+    setupReturned:
+      'Exercício encerrado. Escolha um modo, uma semente ou uma temporada para começar.',
 
     labTitle: 'Laboratório do local de trabalho',
     introHandoff: 'Propostas dos trabalhadores, testes delimitados e avaliação dos cooperados.',
@@ -664,6 +676,7 @@ export const workplaceLabMessages = defineMessages({
     startNextGame: 'Iniciar o próximo turno jogável em ritmo didático (1/2x)',
     startNextWorkshop: 'Iniciar a próxima oficina manual',
     prepareNextPilot: 'Preparar o próximo rascunho do piloto',
+    returnToSetup: 'Voltar à configuração do exercício',
     shippedOf: 'Expedidos {shipped} de {target} kg.',
     reviewOpens: 'A revisão abre quando o turno terminar.',
     resumeAfterReloadNote:

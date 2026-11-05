@@ -15,6 +15,7 @@ import {
   sampleMachineInspectionGrain,
   machineInspectionLampPosition,
 } from './machineInspectionGeometry';
+import { machineInspectionCamera, machineInspectionYaw } from './machineInspectionCamera';
 
 /** Mutated by the incumbent assembly owner before this frame callback. */
 export interface MachineInspectionPose {
@@ -105,66 +106,22 @@ export function MachineInspectionInterior({
     },
     [materials, kernel]
   );
+  // Keyed by where the machine is and how big, never by its object: the host
+  // hands a new one on any status change, and re-flying then pulled a player
+  // who had orbited the cutaway back to the lesson framing.
+  const [px, py, pz] = machine.position;
+  const [sx, sy, sz] = scale;
   useEffect(() => {
-    const targets: THREE.Vector3Tuple[] =
-      kind === 'silo'
-        ? [
-            [0, 8.1, 0],
-            [0, 8.5, 0],
-            [0, 4, 0],
-            [0, 1.4, 0],
-          ]
-        : kind === 'mill'
-          ? [
-              [0, 5.3, 0],
-              [0, 2.6, 0],
-              [0, 2.1, 0],
-              [0, 0.9, 0],
-            ]
-          : kind === 'sifter'
-            ? [
-                [0, 5.7, 0],
-                [0, 3.2, 0],
-                [0, 2.5, 0],
-                [0, 0.7, 0],
-              ]
-            : [
-                [0, 5.5, 0],
-                [0, 3.8, 0],
-                [0, 2.75, 0],
-                [0, 1.6 / scale[1], 1.9 / scale[2]],
-              ];
-    const target = new THREE.Vector3(...targets[stage])
-      .multiply(new THREE.Vector3(...scale))
-      .add(new THREE.Vector3(...machine.position));
-    const size =
-      kind === 'silo'
-        ? Math.max(5.4 * scale[0], (stage === 0 ? 17.5 : 5.5) * scale[1])
-        : kind === 'sifter'
-          ? 3.9
-          : 3;
-    const distance = Math.max(15.5, size * 1.5);
-    const eye = target
-      .clone()
-      .add(
-        new THREE.Vector3(
-          ...(kind === 'mill' && (stage === 1 || stage === 2)
-            ? ([0.6, 1.7, 1] as const)
-            : ([0.19, 0.14, 1] as const))
-        )
-          .normalize()
-          .multiplyScalar(distance)
-      );
-    useCameraStore.getState().focusOn(eye.toArray(), target.toArray());
-    useCameraStore.setState({
-      targetFov: THREE.MathUtils.radToDeg(2 * Math.atan(size / (2 * distance))),
-    });
+    const { eye, target, fov } = machineInspectionCamera(kind, stage, [px, py, pz], [sx, sy, sz]);
+    useCameraStore.getState().focusOn(eye, target);
+    useCameraStore.setState({ targetFov: fov });
     const owned = useCameraStore.getState().targetPosition;
     return () => {
-      const camera = useCameraStore.getState();
-      if (camera.isAnimating && camera.targetPosition === owned) camera.cancelAnimation();
+      // Closing never fights a newer player/preset flight, and hands the
+      // narrow detail lens back to the ordinary one.
+      useCameraStore.getState().releaseFocus(owned);
     };
-  }, [machine, kind, scale, stage]);
+  }, [kind, stage, px, py, pz, sx, sy, sz]);
   useFrame(() => {
     const p = pose.current;
     if (!p || !root.current) return;
@@ -213,6 +170,7 @@ export function MachineInspectionInterior({
       ref={root}
       name={`machine-inspection-${machine.id}`}
       position={machine.position}
+      rotation={[0, machineInspectionYaw(kind), 0]}
       userData={{ noStaticBatch: true, kind }}
       dispose={null}
       onClick={pick}

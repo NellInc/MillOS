@@ -475,6 +475,7 @@ describe('ProductionStore - AI Decision Management', () => {
         {
           id: expect.stringMatching(/^ann-1787227200000-/),
           timestamp: new Date('2026-08-20T12:00:00.000Z'),
+          gameClock: { day: 0, hour: 10 },
           message: 'Test announcement',
           type: 'info',
           priority: 1,

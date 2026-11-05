@@ -1,8 +1,15 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { DistanceLod } from '../performance/DistanceLod';
 
 type Point = readonly [number, number, number];
+/** True only while `FAR_GEOMETRY` is built: cloth rings, pumpkin, tori, cords
+ * and buttons coarsen and cloth patches are not subdivided. Seams, stitches and
+ * twine are 3-7 mm, under a pixel past `SCARECROW_LOD.distance`. */
+let farDetail = false;
+const sides = (near: number, floor = 3) =>
+  farDetail ? Math.max(floor, Math.round(near / 3)) : near;
 type Ring = readonly [number, number, number]; // y, X radius, Z radius
 const C = {
   shirt: '#923b36',
@@ -51,7 +58,8 @@ function join(parts: THREE.BufferGeometry[], name: string) {
 /** Closed stuffed-cloth rings, with separate centre vertices for real end caps.
  * Working if sleeves enclose the timber and no zero-radius strip collapses.
  */
-function stuffed(profile: readonly Ring[], segments = 24) {
+function stuffed(profile: readonly Ring[], nearSegments = 24) {
+  const segments = sides(nearSegments, 7);
   const rings: Ring[] = [],
     p: number[] = [],
     index: number[] = [];
@@ -110,7 +118,7 @@ export function createScarecrowShirtGeometry() {
   );
 }
 export function createScarecrowPumpkinGeometry() {
-  const g = new THREE.SphereGeometry(0.35, 40, 20),
+  const g = new THREE.SphereGeometry(0.35, sides(40, 10), sides(20, 6)),
     p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i),
@@ -135,7 +143,8 @@ function surface(geometry: THREE.BufferGeometry) {
     return hit.point.add(new THREE.Vector3(0, 0, lift));
   };
 }
-function patch(project: ReturnType<typeof surface>, points: readonly Point[], depth = 3) {
+function patch(project: ReturnType<typeof surface>, points: readonly Point[], nearDepth = 3) {
+  const depth = farDetail ? 0 : nearDepth;
   const positions: number[] = [];
   function triangle(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, n: number) {
     if (n) {
@@ -164,7 +173,7 @@ function patch(project: ReturnType<typeof surface>, points: readonly Point[], de
 }
 function cord(a: THREE.Vector3, b: THREE.Vector3, radius: number) {
   const d = b.clone().sub(a),
-    g = new THREE.CylinderGeometry(radius, radius, d.length(), 5);
+    g = new THREE.CylinderGeometry(radius, radius, d.length(), farDetail ? 3 : 5);
   g.applyQuaternion(
     new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())
   );
@@ -219,7 +228,7 @@ export function createScarecrowCraftGeometry() {
     // Rolled cloth cuff and its two turns of twine enclose the crossbar.
     parts.push(
       color(
-        new THREE.TorusGeometry(0.108, 0.014, 6, 20)
+        new THREE.TorusGeometry(0.108, 0.014, sides(6), sides(20))
           .rotateY(Math.PI / 2)
           .translate(side * 0.765, 1.8, 0),
         C.seam
@@ -228,7 +237,7 @@ export function createScarecrowCraftGeometry() {
     for (const x of [0.786, 0.804])
       parts.push(
         color(
-          new THREE.TorusGeometry(0.083, 0.007, 5, 16)
+          new THREE.TorusGeometry(0.083, 0.007, sides(5), sides(16))
             .rotateY(Math.PI / 2)
             .translate(side * x, 1.8, 0),
           C.twine
@@ -260,7 +269,7 @@ export function createScarecrowCraftGeometry() {
     parts.push(color(leg, C.denim));
     parts.push(
       color(
-        new THREE.TorusGeometry(0.077, 0.012, 5, 16)
+        new THREE.TorusGeometry(0.077, 0.012, sides(5), sides(16))
           .rotateX(Math.PI / 2)
           .scale(1, 1, 1.12)
           .translate(side * 0.15, 0.58, 0),
@@ -314,7 +323,10 @@ export function createScarecrowCraftGeometry() {
     }
   }
   parts.push(
-    color(new RoundedBoxGeometry(0.43, 0.16, 0.22, 2, 0.035).translate(0, 1.36, 0), C.denim)
+    color(
+      new RoundedBoxGeometry(0.43, 0.16, 0.22, farDetail ? 1 : 2, 0.035).translate(0, 1.36, 0),
+      C.denim
+    )
   );
   // A real placket, small buttons and two seated collar leaves.
   for (let y = 1.43; y < 2.09; y += 0.035)
@@ -323,7 +335,7 @@ export function createScarecrowCraftGeometry() {
     const p = front(0, y, 0.009);
     parts.push(
       color(
-        new THREE.CylinderGeometry(0.018, 0.018, 0.008, 10)
+        new THREE.CylinderGeometry(0.018, 0.018, 0.008, sides(10))
           .rotateX(Math.PI / 2)
           .translate(...p.toArray()),
         C.button
@@ -343,19 +355,23 @@ export function createScarecrowCraftGeometry() {
     );
   parts.push(
     color(
-      new THREE.TorusGeometry(0.178, 0.052, 8, 24).rotateX(Math.PI / 2).translate(0, 2.23, 0),
+      new THREE.TorusGeometry(0.178, 0.052, sides(8), sides(24))
+        .rotateX(Math.PI / 2)
+        .translate(0, 2.23, 0),
       C.scarf
     )
   );
   parts.push(
     color(
-      new RoundedBoxGeometry(0.09, 0.11, 0.08, 2, 0.025).rotateZ(-0.2).translate(0.15, 2.2, 0.16),
+      new RoundedBoxGeometry(0.09, 0.11, 0.08, farDetail ? 1 : 2, 0.025)
+        .rotateZ(-0.2)
+        .translate(0.15, 2.2, 0.16),
       C.scarf
     )
   );
   parts.push(
     color(
-      new RoundedBoxGeometry(0.075, 0.25, 0.035, 2, 0.012)
+      new RoundedBoxGeometry(0.075, 0.25, 0.035, farDetail ? 1 : 2, 0.012)
         .rotateZ(0.22)
         .translate(0.19, 2.075, 0.178),
       C.scarf
@@ -366,16 +382,36 @@ export function createScarecrowCraftGeometry() {
   return join(parts, 'scarecrow-hand-sewn-craft');
 }
 const GEOMETRY = createScarecrowCraftGeometry();
+/** The same scarecrow coarsened for distance; see `farDetail`. */
+export const SCARECROW_FAR_GEOMETRY = (() => {
+  farDetail = true;
+  try {
+    return createScarecrowCraftGeometry();
+  } finally {
+    farDetail = false;
+  }
+})();
+export const SCARECROW_LOD = { distance: 30, hysteresis: 0.1 } as const;
 const MATERIAL = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93 });
 export function ScarecrowCraft() {
   return (
-    <mesh
-      name="scarecrow-handmade-craft"
-      geometry={GEOMETRY}
-      material={MATERIAL}
-      castShadow
-      receiveShadow
-      dispose={null}
-    />
+    <DistanceLod
+      name="scarecrow-lod"
+      distances={[0, SCARECROW_LOD.distance]}
+      hysteresis={SCARECROW_LOD.hysteresis}
+      userData={{ noStaticBatch: true }}
+    >
+      {[GEOMETRY, SCARECROW_FAR_GEOMETRY].map((geometry, far) => (
+        <mesh
+          key={far}
+          name={far ? 'scarecrow-handmade-craft-far' : 'scarecrow-handmade-craft'}
+          geometry={geometry}
+          material={MATERIAL}
+          castShadow
+          receiveShadow
+          dispose={null}
+        />
+      ))}
+    </DistanceLod>
   );
 }

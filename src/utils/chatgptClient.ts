@@ -1,5 +1,9 @@
 import { translate } from '../i18n';
 import { chatgptClientMessages } from './chatgptClient.messages';
+import { registerAlertCatalog, type KeyedLine } from '../i18n/alertCopy';
+
+const CHATGPT_CLIENT_CATALOG = 'chatgptClient';
+registerAlertCatalog(CHATGPT_CLIENT_CATALOG, chatgptClientMessages);
 
 /** Browser bridge for the optional loopback companion. OAuth tokens never enter this module. */
 export interface ChatGPTAccount {
@@ -28,20 +32,36 @@ const endpoint = '/api/chatgpt';
  * cannot recognise a pt-BR message by its English wording.
  */
 class ChatGPTClientError extends Error {
+  /** The message's key, so a surface that keeps it words it in the language active now. */
+  readonly copy: KeyedLine;
   constructor(
     key: keyof (typeof chatgptClientMessages)['en'],
     readonly disconnects: boolean
   ) {
     super(translate(chatgptClientMessages, key));
+    this.copy = { catalog: CHATGPT_CLIENT_CATALOG, key };
   }
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${endpoint}${path}`, {
-    credentials: 'same-origin',
-    cache: 'no-store',
-    ...init,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${endpoint}${path}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      ...init,
+    });
+  } catch (error) {
+    // The browser's own words ("signal timed out", "Failed to fetch") are
+    // English and carry no key; say what happened in the client's own line.
+    if (
+      error instanceof DOMException &&
+      (error.name === 'TimeoutError' || error.name === 'AbortError')
+    ) {
+      throw new ChatGPTClientError('timedOut', false);
+    }
+    throw new ChatGPTClientError('companionNotRunning', true);
+  }
   if (!response.headers.get('content-type')?.startsWith('application/json')) {
     throw new ChatGPTClientError('companionNotRunning', true);
   }
@@ -56,7 +76,12 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     if (data.error === 'subscription_sharing_usage_unavailable') {
       throw new ChatGPTClientError('usageUnavailable', false);
     }
-    if (data.error) throw new Error(data.error);
+    // The companion's own refusals are English; each reaches the player as a keyed line.
+    if (response.status === 401) throw new ChatGPTClientError('signInRequired', true);
+    if (data.error === 'Select a ChatGPT model first') {
+      throw new ChatGPTClientError('selectModel', true);
+    }
+    if (response.status === 409) throw new ChatGPTClientError('requestConflict', false);
     throw new ChatGPTClientError('requestFailed', false);
   }
   return data as T;

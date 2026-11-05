@@ -13,6 +13,9 @@ import { energyCalculationsMessages as messages } from './energyCalculations.mes
  * Electrical demand by machine type (kW).
  * Running = full operation, Idle = standby demand.
  */
+/** Simulated grid carbon intensity, shared so every panel prints one kg CO2/h. */
+export const SIMULATED_GRID_INTENSITY_KG_PER_KWH = 0.4;
+
 export const MACHINE_ENERGY_CONSUMPTION: Record<MachineType, { running: number; idle: number }> = {
   [MachineType.SILO]: { running: 2, idle: 0.5 },
   [MachineType.ROLLER_MILL]: { running: 45, idle: 2 },
@@ -40,6 +43,9 @@ for (const type of Object.values(MachineType)) {
     get: () => translate(messages, MACHINE_TYPE_LABEL_KEYS[type]),
   });
 }
+
+/** Lowest load of a unit that is working (machineLoad.ts targets 50 + line rate * 30). */
+const WORKING_LOAD_FLOOR = 50;
 
 export interface MachineEnergyBreakdown {
   baseEnergy: number;
@@ -97,18 +103,32 @@ export function getMachineEnergyDetailed(machine: MachineData): MachineEnergyBre
       warningPenalty = 1.1;
       baseEnergy = consumption.running * loadFactor * warningPenalty;
       break;
+    // A breakdown ('critical') stops the unit: productionStore freezes it and
+    // the material flow stops it processing, so it draws standby power like an
+    // idle unit. Billing 80% of running demand let a breakdown barely move the
+    // bill and gave a type row counted idle a running-size figure.
     case 'critical':
-      // Critical - still consuming but erratically
-      baseEnergy = consumption.running * 0.8;
-      break;
     case 'idle':
     default:
       baseEnergy = consumption.idle;
       break;
   }
 
-  // Apply maintenance penalty (only affects running machines)
-  const finalEnergy = machine.status === 'idle' ? baseEnergy : baseEnergy * maintenancePenalty;
+  // Apply maintenance penalty (only affects machines that are running)
+  const onLoadCurve = machine.status === 'running' || machine.status === 'warning';
+  let finalEnergy = onLoadCurve ? baseEnergy * maintenancePenalty : baseEnergy;
+  // A working unit's load is at least 50 (machineLoad.ts: 50 + line rate * 30).
+  // Below that it is easing toward the idle level because it has no feed (or
+  // from idle as it starts), so its demand blends from the working curve to
+  // standby: a unit with nothing to work bills the idle figure, not 70% of
+  // running. The reported factor is the share of running demand it bills.
+  if (onLoadCurve && load < WORKING_LOAD_FLOOR) {
+    const share = load / WORKING_LOAD_FLOOR;
+    finalEnergy = consumption.idle + (finalEnergy - consumption.idle) * share;
+    loadFactor =
+      consumption.idle / consumption.running +
+      (loadFactor - consumption.idle / consumption.running) * share;
+  }
 
   return {
     baseEnergy: consumption.running,
@@ -207,11 +227,13 @@ export function getEmergencyLoad(baseLoad: FacilityBaseLoad): EmergencyLoad {
   const hvac = baseLoad.hvac * 0.5;
   const baseSystems = baseLoad.other + 10; // Extra for emergency systems
 
+  // Unrounded, as every other demand is: rounding the total left the parts the
+  // dashboard lists (10.5 + 10 + 25) short of the 46 kW it billed.
   return {
     lighting,
     hvac,
     baseSystems,
-    total: Math.round(lighting + hvac + baseSystems),
+    total: lighting + hvac + baseSystems,
   };
 }
 

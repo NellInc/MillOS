@@ -25,11 +25,12 @@ export type BenchmarkScene =
   | 'carpark'
   | 'picnic-shelter'
   | 'river'
-  | 'tunnel'
+  | 'railway'
   | 'huts'
   | 'offices'
   | 'canal'
   | 'lake'
+  | 'lakeside'
   | 'busstop'
   | 'road-tunnel'
   | 'castle'
@@ -102,14 +103,18 @@ const BENCHMARK_SCENES: ReadonlySet<string> = new Set<BenchmarkScene>([
   'picnic-shelter',
   'river',
   // Sweep cameras (2026-09-02) for exterior features no benchmark camera had
-  // ever framed: the tunnel portal, the Nissen huts, the office block, the
-  // canal with its boat and lock, the lake with its picnic area, the bus stop,
-  // and the kiosk cafe by the pond. See _contprompts/millos_visual_defect_sweep_2026-08-19.md.
-  'tunnel',
+  // ever framed: the Nissen huts, the office block, the canal with its boat
+  // and lock, the lake with its picnic area, the bus stop, and the kiosk cafe
+  // by the pond. See _contprompts/millos_visual_defect_sweep_2026-08-19.md.
+  // `railway` frames Riverside station, which replaced the tunnel portal here.
+  'railway',
   'huts',
   'offices',
   'canal',
   'lake',
+  // Low over the lake shallows: the only distance at which the bed caustics
+  // resolve (utils/waterCaustics.ts). `water` and `lake` read exactly zero.
+  'lakeside',
   'busstop',
   // The truck road tunnels at each end of the valley, bored into the foothills.
   'road-tunnel',

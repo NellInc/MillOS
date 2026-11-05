@@ -13,10 +13,43 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PlayCircle, PauseCircle, SkipBack, X, Clock, Activity, Brain } from 'lucide-react';
 import { useHistoricalMode } from '../../hooks/useHistoricalMode';
-import { useHistoricalPlaybackStore } from '../../stores/historicalPlaybackStore';
-import { formatFixed, useLocale, useT } from '../../i18n';
+import {
+  plantClockAt,
+  useHistoricalPlaybackStore,
+  type DecisionHistoryEntry,
+} from '../../stores/historicalPlaybackStore';
+import { decisionCardText } from '../../utils/aiEngine';
+import { formatPlantStamp, readPlantClock, type PlantClock } from '../../utils/timeFormatting';
+import { formatFixed, useLocale, useT, type Locale } from '../../i18n';
 import { timelinePlaybackMessages } from './TimelinePlayback.messages';
 import { aiCommandCenterMessages } from '../AICommandCenter.messages';
+
+/** A recorded decision's action in `locale`, from its keyed copy when it has one. */
+const recordedAction = (entry: DecisionHistoryEntry, locale: Locale): string =>
+  decisionCardText(
+    {
+      id: entry.id,
+      timestamp: new Date(entry.timestamp),
+      type: entry.type,
+      action: entry.action,
+      reasoning: '',
+      confidence: 0,
+      impact: '',
+      status: 'completed',
+      priority: entry.priority,
+      copy: entry.copy,
+    },
+    locale
+  ).action;
+
+const plantHours = (clock: PlantClock): number => clock.day * 24 + clock.hour;
+
+/** Plant milliseconds from `from` to `to`, or null when either is unknown or the clock was reset. */
+const plantSpanMs = (from: PlantClock | undefined, to: PlantClock | undefined): number | null => {
+  if (!from || !to) return null;
+  const ms = (plantHours(to) - plantHours(from)) * 3_600_000;
+  return Number.isFinite(ms) && ms >= 0 ? ms : null;
+};
 
 interface TimelinePlaybackProps {
   className?: string;
@@ -30,6 +63,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
     isReplaying,
     playbackTime,
     availableRange,
+    rangeLoaded,
     enterReplay,
     exitReplay,
     scrubTo,
@@ -41,9 +75,26 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
   const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const decisionHistory = useHistoricalPlaybackStore((s) => s.decisionHistory);
 
+  // The close button unmounts this timeline with focus in it. Hand focus back
+  // to whatever opened the replay (Overview's Replay toggle, SCADA's Open
+  // recent replay) instead of <body>, where the next Space is the forklift
+  // emergency stop.
+  const openerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!isReplaying) return;
+    const active = document.activeElement;
+    openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+  }, [isReplaying]);
+  const handleExit = useCallback(() => {
+    const opener = openerRef.current;
+    openerRef.current = null;
+    exitReplay();
+    if (opener?.isConnected) opener.focus();
+  }, [exitReplay]);
+
   // Format timestamp for display
   // English keeps the browser default ([]), so its output is unchanged; pt-BR is 24-hour.
-  const formatTime = (ts: number): string => {
+  const formatWallTime = (ts: number): string => {
     const date = new Date(ts);
     return date.toLocaleTimeString(locale === 'en' ? [] : locale, {
       hour: '2-digit',
@@ -51,6 +102,10 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
       second: '2-digit',
     });
   };
+  // "Day N, HH:MM" on the plant clock, as every other surface stamps the plant's
+  // events; the wall clock only for a moment from before this page load.
+  const formatTime = (ts: number): string =>
+    formatPlantStamp(plantClockAt(ts)) ?? formatWallTime(ts);
 
   const formatDuration = (ms: number): string => {
     const totalSec = Math.floor(ms / 1000);
@@ -114,6 +169,13 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
   // Decisions near current playback time
   const nearbyDecisions = isReplaying && playbackTime ? getDecisionsAt(playbackTime) : [];
 
+  const endsOnPlantClock =
+    !!availableRange &&
+    plantClockAt(availableRange.start) !== undefined &&
+    plantClockAt(availableRange.end) !== undefined;
+  const formatEnd = (ts: number): string =>
+    endsOnPlantClock ? formatTime(ts) : formatWallTime(ts);
+
   // If not replaying and no available range, show minimal enter button
   if (!isReplaying) {
     return (
@@ -145,7 +207,7 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
             <span className="text-sm font-medium text-cyan-300">{t('replayMode')}</span>
           </div>
           <button
-            onClick={exitReplay}
+            onClick={handleExit}
             aria-label={t('exitReplay')}
             className="p-1 hover:bg-slate-700/50 rounded transition-colors"
           >
@@ -155,7 +217,10 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
 
         {/* Empty state: replay entered but no telemetry recorded yet */}
         {!availableRange ? (
-          <div className="text-center py-6 px-2 text-sm text-slate-400">{t('nothingRecorded')}</div>
+          // Blank while the store answers: "nothing recorded" would be false.
+          <div className="text-center py-6 px-2 text-sm text-slate-400">
+            {rangeLoaded ? t('nothingRecorded') : null}
+          </div>
         ) : (
           <>
             {/* Current Time Display */}
@@ -165,7 +230,10 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
               </div>
               {playbackTime && availableRange && (
                 <div className="text-xs text-slate-400">
-                  {formatDuration(Date.now() - playbackTime)}
+                  {formatDuration(
+                    plantSpanMs(plantClockAt(playbackTime), readPlantClock()) ??
+                      Date.now() - playbackTime
+                  )}
                 </div>
               )}
             </div>
@@ -178,6 +246,9 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                   aria-label={t('timeline')}
                   min={availableRange.start}
                   max={availableRange.end}
+                  // Milliseconds: the default step of 1 made each arrow key a
+                  // no-op on a clock read in seconds.
+                  step={1000}
                   value={playbackTime ?? availableRange.end}
                   aria-valuetext={
                     playbackTime ? formatTime(playbackTime) : formatTime(availableRange.end)
@@ -193,8 +264,9 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                 [&::-webkit-slider-thumb]:cursor-pointer"
                 />
                 <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                  <span>{formatTime(availableRange.start)}</span>
-                  <span>{formatTime(availableRange.end)}</span>
+                  {/* Both ends on one clock: plant only when both have a stamp. */}
+                  <span>{formatEnd(availableRange.start)}</span>
+                  <span>{formatEnd(availableRange.end)}</span>
                 </div>
               </div>
             )}
@@ -210,7 +282,19 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                 <SkipBack className="w-5 h-5 text-slate-300" aria-hidden="true" />
               </button>
               <button
-                onClick={() => setIsPlaying(!isPlaying)}
+                onClick={() => {
+                  // At the end, Play would stop on its first step and do
+                  // nothing visible; start the recording over instead.
+                  if (
+                    !isPlaying &&
+                    availableRange &&
+                    playbackTime !== null &&
+                    playbackTime + 1000 * playbackSpeed >= availableRange.end
+                  ) {
+                    scrubTo(availableRange.start);
+                  }
+                  setIsPlaying(!isPlaying);
+                }}
                 aria-label={isPlaying ? t('pausePlayback') : t('playPlayback')}
                 className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
               >
@@ -251,9 +335,10 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
                     >
                       <Activity className="w-3 h-3 text-cyan-400 mt-0.5 flex-shrink-0" />
                       <div className="min-w-0">
-                        <div className="text-slate-200 truncate">{d.action}</div>
+                        <div className="text-slate-200 truncate">{recordedAction(d, locale)}</div>
                         <div className="text-[10px] text-slate-500">
-                          {formatTime(d.timestamp)} · {tAi('decisionType', { value: d.type })}
+                          {formatPlantStamp(d.gameClock) ?? formatTime(d.timestamp)} ·{' '}
+                          {tAi('decisionType', { value: d.type })}
                         </div>
                       </div>
                     </div>
@@ -273,7 +358,12 @@ export const TimelinePlayback: React.FC<TimelinePlaybackProps> = ({ className = 
               {availableRange && (
                 <div className="text-center">
                   <div className="text-lg font-mono text-cyan-400">
-                    {formatSpan(availableRange.end - availableRange.start)}
+                    {formatSpan(
+                      plantSpanMs(
+                        plantClockAt(availableRange.start),
+                        plantClockAt(availableRange.end)
+                      ) ?? availableRange.end - availableRange.start
+                    )}
                   </div>
                   <div className="text-[9px] text-slate-400 uppercase">{t('history')}</div>
                 </div>

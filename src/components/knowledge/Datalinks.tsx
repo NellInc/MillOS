@@ -81,6 +81,14 @@ const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
 
 import { KnowledgeEntryCard } from './KnowledgeEntryCard';
 
+// Case- and accent-insensitive: "manutencao" finds "manutenção". Lower-cased
+// in the interface language, so case folding follows its rules.
+const searchable = (text: string, locale: string): string =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLocaleLowerCase(locale);
+
 // Render a Lucide icon from its identifier
 function KnowledgeIconComponent({ icon, className }: { icon: KnowledgeIcon; className?: string }) {
   const IconComponent = ICON_MAP[icon];
@@ -158,11 +166,11 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
 
       // Search filter
       if (searchQuery.trim()) {
-        const query = searchQuery.toLocaleLowerCase(locale);
+        const query = searchable(searchQuery.trim(), locale);
         return (
-          entry.title.toLocaleLowerCase(locale).includes(query) ||
-          entry.tooltip.toLocaleLowerCase(locale).includes(query) ||
-          entry.brief.toLocaleLowerCase(locale).includes(query)
+          searchable(entry.title, locale).includes(query) ||
+          searchable(entry.tooltip, locale).includes(query) ||
+          searchable(entry.brief, locale).includes(query)
         );
       }
 
@@ -199,10 +207,40 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
   };
 
   const handleEntryClick = (entry: KnowledgeEntry) => {
+    focusAfterSelection.current = { picked: entry.id };
     setSelectedEntry(entry);
     markAsRead(entry.id);
     clearNewBadge(entry.id);
   };
+
+  // Back and a related link each unmount the button pressed. The focus trap
+  // listens on the dialog, so focus left on <body> let Tab walk out of it.
+  // Back lands on the entry in the list; a related link on the new article.
+  // Picking an entry keeps focus in the list unless the list has hidden (a
+  // phone shows the article in its place), when the article takes it.
+  const focusAfterSelection = useRef<
+    { card: true } | { entryId: string } | { picked: string } | null
+  >(null);
+  useEffect(() => {
+    const target = focusAfterSelection.current;
+    focusAfterSelection.current = null;
+    const dialog = dialogRef.current;
+    if (!target || !dialog) return;
+    const backButton = () => dialog.querySelector<HTMLElement>('[data-entry-card-back]');
+    if ('card' in target) {
+      backButton()?.focus();
+      return;
+    }
+    const wanted = 'picked' in target ? target.picked : target.entryId;
+    const entryButton = [...dialog.querySelectorAll<HTMLElement>('[data-entry-id]')].find(
+      (button) => button.dataset.entryId === wanted
+    );
+    if ('picked' in target) {
+      if (!entryButton || entryButton.getClientRects().length === 0) backButton()?.focus();
+      return;
+    }
+    (entryButton ?? searchInputRef.current)?.focus();
+  }, [selectedEntry]);
 
   const categories: KnowledgeCategory[] = ['principles', 'pioneers', 'systems', 'case-studies'];
   const audienceEntryCount = visibleEntries.length;
@@ -379,6 +417,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                               return (
                                 <button
                                   key={entry.id}
+                                  data-entry-id={entry.id}
                                   onClick={() => handleEntryClick(entry)}
                                   aria-current={isSelected ? 'true' : undefined}
                                   className={`w-full flex items-center gap-3 px-6 py-2.5 text-left transition-colors ${
@@ -422,7 +461,12 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                       </p>
                       {searchQuery && (
                         <button
-                          onClick={() => setSearchQuery('')}
+                          onClick={() => {
+                            setSearchQuery('');
+                            // This button unmounts with the message it clears;
+                            // keep focus in the dialog, where typing resumes.
+                            searchInputRef.current?.focus();
+                          }}
                           className="mt-3 px-3 py-1 text-xs rounded-full bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
                         >
                           {t('clearSearch')}
@@ -441,10 +485,14 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                   <KnowledgeEntryCard
                     key={selectedEntry.id}
                     entry={selectedEntry}
-                    onClose={() => setSelectedEntry(null)}
+                    onClose={() => {
+                      focusAfterSelection.current = { entryId: selectedEntry.id };
+                      setSelectedEntry(null);
+                    }}
                     onNavigate={(entryId) => {
                       const entry = KNOWLEDGE_ENTRIES.find((e) => e.id === entryId);
                       if (entry) {
+                        focusAfterSelection.current = { card: true };
                         setAudience(entry.audience ?? 'player');
                         setSelectedEntry(entry);
                         markAsRead(entry.id);

@@ -14,6 +14,8 @@ export const operationsPlayMessages = defineMessages({
     blockOpenIncidents: 'Recover existing incidents before adding another challenge.',
     blockPlanning: 'Wait for the selected route to refresh its inventory and quality readings.',
     blockNoFeedstock: 'Receive the active recipe feedstock before starting.',
+    blockPackedAwaitingTruck:
+      'The active commitment is packed and waits for a truck; start once the next commitment is milling.',
     blockQualityHold: 'Resolve the existing quality hold before starting.',
 
     challengePowerRecovery: 'Recover from a power sag',
@@ -65,6 +67,10 @@ export const operationsPlayMessages = defineMessages({
       'Restore the challenge controller, then dispatch fresh, quality-released goods.',
     instructionQueued:
       'The response is queued. Resume the shift to process it before restoring the controller.',
+    instructionAwaitingIncidents: (p: { titles: string; count: number }) =>
+      p.count === 1
+        ? `Controller restored. The challenge completes only once this serious incident is resolved too: ${p.titles}.`
+        : `Controller restored. The challenge completes only once these serious incidents are resolved too: ${p.titles}.`,
   },
   'pt-BR': {
     blockActiveChallenge: 'Primeiro conclua ou abandone o desafio ativo.',
@@ -72,6 +78,8 @@ export const operationsPlayMessages = defineMessages({
     blockOpenIncidents: 'Recupere as ocorrências existentes antes de adicionar outro desafio.',
     blockPlanning: 'Aguarde a rota selecionada atualizar as leituras de estoque e de qualidade.',
     blockNoFeedstock: 'Receba a matéria-prima da receita ativa antes de começar.',
+    blockPackedAwaitingTruck:
+      'O compromisso ativo já está ensacado e aguarda um caminhão; comece quando o próximo compromisso estiver em moagem.',
     blockQualityHold: 'Resolva a retenção de qualidade existente antes de começar.',
 
     challengePowerRecovery: 'Recuperar-se de uma queda de tensão',
@@ -123,5 +131,9 @@ export const operationsPlayMessages = defineMessages({
       'Restaure o controlador do desafio e depois expeça produtos recém-produzidos e liberados pela qualidade.',
     instructionQueued:
       'A resposta está na fila. Retome o turno para processá-la antes de restaurar o controlador.',
+    instructionAwaitingIncidents: (p: { titles: string; count: number }) =>
+      p.count === 1
+        ? `Controlador restaurado. O desafio só é concluído quando esta ocorrência grave também for resolvida: ${p.titles}.`
+        : `Controlador restaurado. O desafio só é concluído quando estas ocorrências graves também forem resolvidas: ${p.titles}.`,
   },
 });

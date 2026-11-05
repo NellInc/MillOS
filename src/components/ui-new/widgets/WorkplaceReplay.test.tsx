@@ -24,6 +24,9 @@ vi.mock('../../../stores/workplaceReplayStore', () => ({
     { getState: () => replay }
   ),
   exportWorkplaceReplayReport: () => '{"runs":[]}',
+  // A run is live until retained (the real selector's rule).
+  selectReplayRunLive: (state: { activeRunId: string | null; runs: Array<{ id: string }> }) =>
+    state.activeRunId !== null && !state.runs.some((run) => run.id === state.activeRunId),
 }));
 beforeEach(() => {
   replay.checkpoint = null;
@@ -224,7 +227,7 @@ describe('Matched plant replay interface', () => {
     }
 
     expect(screen.getAllByText(/Cumulative objections resolved 1 of 2/)).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Retain actual run review' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Keep actual run review until reload' }));
     expect(screen.getByRole('status')).toHaveTextContent('Complete recovery before review.');
     // Equal elapsed time still hides a different bounded-agreement duration.
     replay.runs = [run, { ...run, id: 'run2', profile: 'cooperative', agreementMinutes: 45 }];

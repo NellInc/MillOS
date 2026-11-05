@@ -634,8 +634,10 @@ const capabilities = [
       },
     },
     result: objectResultSchema,
-    reads: ['campaign.incidents[]', 'campaign.elapsedMinutes'],
-    writes: ['campaign.incidents[].phase', 'campaign.incidents[].acknowledgedAtMinute'],
+    // The target incident only: a new incident raised while the player reads
+    // the preview must not refuse their answer to this one.
+    reads: ['campaign.incidents[target]', 'campaign.elapsedMinutes'],
+    writes: ['campaign.incidents[target].phase', 'campaign.incidents[target].acknowledgedAtMinute'],
     preconditions: [
       'Target incident exists.',
       'Target incident phase is raised.',
@@ -685,10 +687,13 @@ const capabilities = [
       },
     },
     result: objectResultSchema,
-    reads: ['campaign.incidents[]', 'campaign.elapsedMinutes', 'campaign.shiftMetrics'],
+    // Not the whole shiftMetrics: its costs and commitment minutes accrue every tick.
+    // The target incident only, as for acknowledge. The automatic-action tally
+    // is written, never read: any incident mitigated or resolved counts it up.
+    reads: ['campaign.incidents[target]', 'campaign.elapsedMinutes'],
     writes: [
-      'campaign.incidents[].phase',
-      'campaign.incidents[].acknowledgedAtMinute',
+      'campaign.incidents[target].phase',
+      'campaign.incidents[target].acknowledgedAtMinute',
       'campaign.shiftMetrics.automaticActions',
     ],
     preconditions: [

@@ -54,6 +54,7 @@ function evidence(
         qualityFailureKg: 0,
         incidentsResolved: 0,
         automaticActions: 0,
+        commitmentMinutes: 0,
       },
     },
     orders: [],

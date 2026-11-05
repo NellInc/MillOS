@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -32,17 +32,34 @@ export function BuildCacheDiagnostics(): ReactElement {
   // A message key, resolved at render so a language switch also re-words it.
   const [message, setMessage] = useState<BuildCacheStatusKey>('statusReading');
 
-  const refresh = useCallback(async (): Promise<void> => {
+  // The connectivity and service-worker events refresh too. One arriving during
+  // an action set the panel idle: the buttons came back mid-check and the
+  // status said 'current'. Each action takes a run; a refresh that started
+  // under an earlier run updates the values but leaves the action's state.
+  // Working if an event during an action leaves it busy with its own status.
+  const runRef = useRef(0);
+  const busyRef = useRef(true);
+  const refresh = useCallback(async (): Promise<Diagnostics> => {
+    const run = runRef.current;
     const next = await getBuildCacheDiagnostics();
     setDiagnostics(next);
+    if (run !== runRef.current) return next;
+    busyRef.current = false;
     setMessage('statusCurrent');
     setAction('idle');
+    return next;
   }, []);
+  const begin = (next: ActionState, status: BuildCacheStatusKey): void => {
+    runRef.current += 1;
+    busyRef.current = true;
+    setAction(next);
+    setMessage(status);
+  };
 
   useEffect(() => {
     void refresh();
     const handleStatus = (): void => {
-      void refresh();
+      if (!busyRef.current) void refresh();
     };
     const removeConnectivityListener = addConnectivityListener(handleStatus);
     window.addEventListener('millos:service-worker-status', handleStatus);
@@ -53,24 +70,31 @@ export function BuildCacheDiagnostics(): ReactElement {
   }, [refresh]);
 
   const checkForUpdate = async (): Promise<void> => {
-    setAction('checking');
-    setMessage('statusChecking');
+    begin('checking', 'statusChecking');
     const checked = await updateServiceWorker();
-    await refresh();
-    setMessage(checked ? 'statusUpToDate' : 'statusNoWorker');
+    const next = await refresh();
+    // A check that finds a newer build leaves it installing, then waiting:
+    // 'Up to date.' was false for as long as that ran.
+    setMessage(
+      !checked
+        ? 'statusNoWorker'
+        : next.updateWaiting
+          ? 'statusWaiting'
+          : next.installing
+            ? 'statusInstalling'
+            : 'statusUpToDate'
+    );
   };
 
   const clearCache = async (): Promise<void> => {
-    setAction('clearing');
-    setMessage('statusClearing');
+    begin('clearing', 'statusClearing');
     const cleared = await clearServiceWorkerCache();
     await refresh();
     setMessage(cleared ? 'statusCleared' : 'statusClearFailed');
   };
 
   const activateUpdate = async (): Promise<void> => {
-    setAction('activating');
-    setMessage('statusActivating');
+    begin('activating', 'statusActivating');
     const activated = await activateWaitingServiceWorker();
     if (activated) {
       window.location.reload();
@@ -152,8 +176,7 @@ export function BuildCacheDiagnostics(): ReactElement {
             icon={<RefreshCw size={12} aria-hidden="true" />}
             disabled={busy}
             onClick={() => {
-              setAction('refreshing');
-              setMessage('statusRefreshing');
+              begin('refreshing', 'statusRefreshing');
               void refresh();
             }}
           />
@@ -178,7 +201,12 @@ export function BuildCacheDiagnostics(): ReactElement {
         </div>
 
         <p className="min-h-4 text-[9px] leading-4 text-slate-400" role="status" aria-live="polite">
-          {busy ? t(message) : diagnostics?.updateWaiting ? t('statusWaiting') : t(message)}
+          {/* An action's own result (Cache cleared, could not activate) is read
+              as it is; the waiting note stands in only for the plain status.
+              Working if Activate update failing says so with a build waiting. */}
+          {message === 'statusCurrent' && diagnostics?.updateWaiting
+            ? t('statusWaiting')
+            : t(message)}
         </p>
       </div>
     </section>
@@ -245,12 +273,18 @@ function ActionButton({
   disabled: boolean;
   onClick: () => void;
 }): ReactElement {
+  // aria-disabled, not `disabled`: every action marks all four busy, and a
+  // natively disabled button holding focus drops it, so a keyboard player who
+  // pressed one had to Tab back in from the top of Settings.
+  // Working if the pressed button keeps focus and ignores presses while busy.
   return (
     <button
       type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/70 px-2 text-[10px] font-medium text-slate-200 transition-colors hover:border-cyan-500/40 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+      onClick={() => {
+        if (!disabled) onClick();
+      }}
+      aria-disabled={disabled}
+      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/70 px-2 text-[10px] font-medium text-slate-200 transition-colors hover:border-cyan-500/40 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
     >
       {icon}
       {label}

@@ -40,16 +40,111 @@ import {
   type CommunityOperationsSnapshot,
 } from '../simulation/communityLife';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
+import { BUS_TURNAROUND } from '../constants/publicRealmLayout';
 import { useT } from '../i18n';
 import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { communityLifeMessages } from './CommunityLife.messages';
+import { FORKLIFT_CREW_SITES, type ForkliftCrewSite } from '../constants/forkliftCrewLayout';
+import type { Vec3Tuple } from '../constants/siteLayout';
+import {
+  advanceForkliftCrew,
+  initialForkliftCrewState,
+  isOperatorInCab,
+  FORKLIFT_OPERATOR_SCALE,
+  operatorSeatPosition,
+  operatorStandPose,
+  sampleOperatorBoardingWalk,
+  type ForkliftCrewHandover,
+  type ForkliftParkedAt,
+  type ForkliftCrewState,
+} from '../simulation/forkliftCrew';
+import { forkliftCrewLive, isForkliftRunning } from '../stores/forkliftCrewStore';
+import type { TruckPhase } from './truckbay/useTruckPhysics';
+import {
+  publishBusRoadUse,
+  truckHoldsBusApproach,
+  truckHoldsBusDeparture,
+} from '../simulation/vehicles/southRoadTraffic';
+import { useForkliftDriveStore } from '../stores/forkliftDriveStore';
 
 const COLOURS = ['#596e72', '#53637c', '#9a7654', '#6b8568', '#bdad82', '#6b5871'];
 /** Real seconds a safety stop lets bodies blend into the held stance. */
 const SAFETY_SETTLE_SECONDS = 0.4;
 const CYCLIST = COMMUNITY_ROSTER.find((person) => person.role === 'Cyclist')!;
 const COURIER = COMMUNITY_ROSTER.find((person) => person.id === 'village-courier')!;
-const _truckPosition = new THREE.Vector3();
+const CREW_SITE_BY_OPERATOR = new Map(FORKLIFT_CREW_SITES.map((site) => [site.operatorId, site]));
+/** Built once: these are written into the frame loop's userData. */
+const CREW_TASKS = new Map(
+  FORKLIFT_CREW_SITES.map((site) => [
+    site.operatorId,
+    {
+      driving: `Driving ${site.tag}`,
+      boarding: `Climbing into ${site.tag}`,
+      alighting: `Climbing out of ${site.tag}`,
+      waiting: `Waiting for ${site.tag}`,
+    },
+  ])
+);
+
+/**
+ * Where a forklift operator is when they are not simply following their
+ * routine: in the cab (carried there by the forklift, which also writes the
+ * root after it moves, so the body never trails the vehicle by a frame), or
+ * standing beside it at the stand or a handover spot. Returns whether the pose
+ * was replaced. Working if an operator is only ever on foot on their own strip,
+ * at the stand, at a handover spot, or seated in their own forklift's cab.
+ */
+const boardingWalk = { x: 0, z: 0, rotation: 0 };
+function applyForkliftCrewPose(
+  site: ForkliftCrewSite,
+  state: ForkliftCrewState | null,
+  vehicle: { x: number; y: number; z: number; heading: number } | null,
+  pose: ReturnType<typeof createCommunityPose>,
+  cabSeat: NonNullable<ReturnType<typeof createCommunityPose>['seat']>
+): boolean {
+  if (!state || state.phase === 'off') return false;
+  pose.visible = true;
+  if (isOperatorInCab(state) && vehicle) {
+    const tier = useGraphicsStore.getState().graphics.quality === 'low' ? 'compact' : 'authored';
+    operatorSeatPosition(vehicle, tier, pose.position);
+    pose.rotation = vehicle.heading;
+    pose.activity = 'working';
+    pose.task = CREW_TASKS.get(site.operatorId)!.driving;
+    pose.seated = true;
+    cabSeat.amount = 1;
+    cabSeat.support = 1;
+    cabSeat.position = pose.position;
+    cabSeat.rotation = vehicle.heading;
+    pose.seat = cabSeat;
+    return true;
+  }
+  const tasks = CREW_TASKS.get(site.operatorId)!;
+  pose.seated = false;
+  pose.seat = undefined;
+  // Walking back to a forklift that stopped a little way along from them.
+  if (sampleOperatorBoardingWalk(state, boardingWalk)) {
+    pose.position[0] = boardingWalk.x;
+    pose.position[1] = 0;
+    pose.position[2] = boardingWalk.z;
+    pose.rotation = boardingWalk.rotation;
+    pose.activity = 'walking';
+    pose.task = tasks.boarding;
+    return true;
+  }
+  const stand = operatorStandPose(site, state);
+  pose.position[0] = stand.x;
+  pose.position[1] = 0;
+  pose.position[2] = stand.z;
+  pose.rotation = stand.rotation;
+  pose.activity = 'idle';
+  pose.task =
+    state.phase === 'boarding'
+      ? tasks.boarding
+      : state.phase === 'alighting'
+        ? tasks.alighting
+        : tasks.waiting;
+  return true;
+}
 
 /** Convert after the actor's real eased heading, not the route's target yaw.
  * Working if fully supported feet survive the existing incoming half-turn.
@@ -163,8 +258,24 @@ export function CommunityLife() {
         phase: i * 1.731,
       };
       updateSeatCue(motion, pose, pose.rotation);
+      const crewSite = CREW_SITE_BY_OPERATOR.get(person.id);
+      if (crewSite) {
+        const live = forkliftCrewLive(crewSite.forkliftId);
+        live.state ??= initialForkliftCrewState(person, initialHour);
+      }
+      const crewLiveEntry = crewSite ? forkliftCrewLive(crewSite.forkliftId) : null;
       return {
         person,
+        crewSite,
+        cabSeat: { amount: 1, support: 1, position: [0, 0, 0] as Vec3Tuple, rotation: 0 },
+        // Reused every frame. The handover is scratch the forklift rewrites, so
+        // it is copied on the one frame it is kept.
+        crewInputs: {
+          parkedAt: null as ForkliftParkedAt,
+          playerDriving: false,
+          handover: (): ForkliftCrewHandover | null =>
+            crewLiveEntry?.handover ? { ...crewLiveEntry.handover } : null,
+        },
         hour: initialHour,
         pose,
         motion,
@@ -233,6 +344,14 @@ export function CommunityLife() {
             Object.assign(resident.motion, actor.motion);
             Object.assign(resident.response, actor.response);
           });
+          // A crew follows its operator's hour unless a saved crew says otherwise
+          // (the optional 'forklift-crew' participant, restored after this one).
+          for (const resident of residents)
+            if (resident.crewSite)
+              forkliftCrewLive(resident.crewSite.forkliftId).state = initialForkliftCrewState(
+                resident.person,
+                resident.hour
+              );
           Object.assign(bus, saved.bus);
           Object.assign(bicycle, saved.bicycle);
           Object.assign(cart, saved.cart);
@@ -241,11 +360,42 @@ export function CommunityLife() {
     [residents, bus, bicycle, cart]
   );
 
+  // Optional. The personnel restore (always present, and restored first)
+  // re-derives every crew from its operator's restored hour; this then puts
+  // back the saved crew where the save has one.
+  useEffect(
+    () =>
+      registerReplayParticipant('forklift-crew', {
+        capture: () =>
+          Object.fromEntries(
+            FORKLIFT_CREW_SITES.map((site) => [
+              site.forkliftId,
+              forkliftCrewLive(site.forkliftId).state,
+            ])
+          ),
+        restore: (saved: Record<string, ForkliftCrewState | null>) => {
+          for (const resident of residents) {
+            if (!resident.crewSite) continue;
+            const live = forkliftCrewLive(resident.crewSite.forkliftId);
+            live.state =
+              saved?.[resident.crewSite.forkliftId] ??
+              initialForkliftCrewState(resident.person, resident.hour);
+          }
+        },
+      }),
+    [residents]
+  );
+
+  // No mounted bus holds no truck (southRoadTraffic).
+  useEffect(() => () => publishBusRoadUse('none'), []);
+
   useFrame(({ scene, camera }, delta) => {
     if (!enabled) {
       residents.forEach((actor) => {
         actor.motion.enabled = false;
       });
+      // The bus is hidden with the rest, so no truck waits for it.
+      publishBusRoadUse('none');
       return;
     }
     const game = useGameSimulationStore.getState();
@@ -285,21 +435,28 @@ export function CommunityLife() {
       held
     );
     if (reframe) clocks.current.bus = worldHour;
-    let trafficBlocked = false;
+    // The bus gives way to the shipping truck on the road they share, by the
+    // truck's phase (southRoadTraffic). It used to wait only while the truck
+    // stood between z 75 and 260, which let it start its U-turn as a truck
+    // pulled away from the dock below z 75.
     const truck = scene.getObjectByName('shipping-truck');
-    if (truck?.visible) {
-      truck.getWorldPosition(_truckPosition);
-      trafficBlocked = _truckPosition.z > 75 && _truckPosition.z < 260;
-    }
+    const truckPhase = truck?.visible
+      ? (truck.userData.phase as TruckPhase | undefined)
+      : undefined;
+    const trafficBlocked = truckHoldsBusDeparture(truckPhase);
+    const approachBlocked = truckHoldsBusApproach(truckPhase);
     if (!held)
       clocks.current.bus = advanceCommunityBusClock(
         clocks.current.bus,
         reframe ? 0 : moving ? presentedElapsed : 0,
-        trafficBlocked
+        trafficBlocked,
+        approachBlocked
       );
-    if (reframe) clocks.current.bus = advanceCommunityBusClock(worldHour, 0, trafficBlocked);
+    if (reframe)
+      clocks.current.bus = advanceCommunityBusClock(worldHour, 0, trafficBlocked, approachBlocked);
     clocks.current.world = worldHour;
     Object.assign(bus, sampleCommunityBus(clocks.current.bus));
+    publishBusRoadUse(bus.road);
     // Under reduced motion people cut from stop to stop (communityStillHour);
     // the shuttle is a vehicle and keeps driving, like the plant's trucks.
     const shownHour = (person: (typeof COMMUNITY_ROSTER)[number], hour: number) =>
@@ -308,6 +465,7 @@ export function CommunityLife() {
     const drop = sampleCommunityDelivery(shownHour(COURIER, clocks.current.people));
     const workplace = useWorkplaceStore.getState().workplace;
     readCommunityOperations(operations);
+    const frameNow = performance.now();
     for (let i = 0; i < residents.length; i++) {
       const actor = residents[i],
         root = roots.current[i];
@@ -315,24 +473,67 @@ export function CommunityLife() {
       const oldX = actor.pose.position[0],
         oldZ = actor.pose.position[2];
       const agreement = communityAgreementCue(actor.person.id, workplace);
-      actor.hour = advanceCommunityAgreementClock(
-        actor.hour,
-        clocks.current.people - previousPeopleHour,
-        agreement
-      );
+      // With its forklift not running (switched off, unmounted), an operator
+      // simply follows their routine on foot; nothing waits for anything.
+      const crewLive =
+        actor.crewSite &&
+        isForkliftRunning(forkliftCrewLive(actor.crewSite.forkliftId), frameNow, delta * 1000)
+          ? forkliftCrewLive(actor.crewSite.forkliftId)
+          : null;
+      if (actor.crewSite && crewLive) {
+        // An operator's hour holds at both ends of the driving spell until the
+        // forklift is parked for them (forkliftCrew.ts).
+        actor.crewInputs.parkedAt = crewLive.parkedAt;
+        actor.crewInputs.playerDriving =
+          useForkliftDriveStore.getState().drivenId === actor.crewSite.forkliftId;
+        const stepped = advanceForkliftCrew(
+          actor.person,
+          crewLive.state ?? initialForkliftCrewState(actor.person, actor.hour),
+          actor.hour,
+          clocks.current.people - previousPeopleHour,
+          actor.crewInputs,
+          held
+        );
+        actor.hour = stepped.hour;
+        crewLive.state = stepped.state;
+        crewLive.heartbeat = frameNow;
+      } else
+        actor.hour = advanceCommunityAgreementClock(
+          actor.hour,
+          clocks.current.people - previousPeopleHour,
+          agreement
+        );
       sampleCommunityPerson(
         actor.person,
         shownHour(actor.person, actor.person.district === 'bus' ? clocks.current.bus : actor.hour),
         actor.pose
       );
+      const inCab =
+        actor.crewSite && crewLive
+          ? applyForkliftCrewPose(
+              actor.crewSite,
+              crewLive.state,
+              crewLive.vehicle,
+              actor.pose,
+              actor.cabSeat
+            ) && actor.pose.seated
+          : false;
       const { pose, motion } = actor;
       root.position.set(...pose.position);
+      // The authored cab seats its operator a little smaller (forkliftCrew.ts).
+      if (actor.crewSite)
+        root.scale.setScalar(
+          inCab && useGraphicsStore.getState().graphics.quality !== 'low'
+            ? FORKLIFT_OPERATOR_SCALE.authored
+            : 1
+        );
       // Riders and held cart grips share their prop's exact heading. Easing only
       // the body breaks the hand/foot contacts during turns.
       // Working if rider and bicycle transforms agree on every moving frame.
       const coupled =
         actor.person.role === 'Cyclist' ||
-        (actor.person.id === 'village-courier' && !!drop.cartGrip);
+        (actor.person.id === 'village-courier' && !!drop.cartGrip) ||
+        (!!crewLive && crewLive.state?.phase !== 'off');
       root.rotation.y = communityRootYaw(root.rotation.y, pose.rotation, delta, {
         moving,
         cut: reframe || reducedMotion,
@@ -349,8 +550,12 @@ export function CommunityLife() {
       // A faster pace is a time-lapse of the same walk: the gait stays a walk
       // while its cadence follows the ground covered (WorkerModel.workerGaitRates).
       motion.gaitScale = gaitScale;
+      // A body moved by its forklift or placed at a stand is not walking: no
+      // stride from the jump between cab and stand.
+      const crewStill =
+        !!crewLive && crewLive.state?.phase !== 'off' && pose.activity !== 'walking';
       motion.groundSpeed =
-        moving && !jump && !reducedMotion && delta > 0
+        moving && !jump && !reducedMotion && delta > 0 && !inCab && !crewStill
           ? Math.min(
               4 * gaitScale,
               Math.hypot(pose.position[0] - oldX, pose.position[2] - oldZ) / delta
@@ -443,6 +648,8 @@ export function CommunityLife() {
             name={person.id}
             ref={(node) => {
               roots.current[index] = node;
+              const site = CREW_SITE_BY_OPERATOR.get(person.id);
+              if (site) forkliftCrewLive(site.forkliftId).operatorRoot = node;
             }}
             position={pose.position}
             rotation={[0, pose.rotation, 0]}
@@ -465,14 +672,15 @@ export function CommunityLife() {
         <CommunityBus pose={bus} />
         <CommunityBicycle pose={bicycle} />
         <DeliveryHandcart pose={cart} />
-        {/* Turnaround blends at the same datum as the existing approach road. */}
+        {/* Turnaround blends at the same datum as the existing approach road,
+            centred on the U-turn it paves (publicRealmLayout BUS_TURNAROUND). */}
         <mesh
           name="village-shuttle-turnaround"
-          position={[20, EXTERIOR_LAYERS.ground, 118]}
+          position={[BUS_TURNAROUND.centre[0], EXTERIOR_LAYERS.ground, BUS_TURNAROUND.centre[1]]}
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
         >
-          <circleGeometry args={[12, 48]} />
+          <circleGeometry args={[BUS_TURNAROUND.apronRadius, 48]} />
           <meshStandardMaterial
             color="#34393a"
             roughness={0.96}

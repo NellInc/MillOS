@@ -2,6 +2,7 @@
 import { logger } from './logger';
 import { landmarkLocalToWorld, SITE_LAYOUT } from '../constants/siteLayout';
 import { MILLOS_ORIGINAL_SOUNDTRACK, type MusicTrack } from '../audio/millosSoundtrackCatalog';
+import { isPASafetyHeld, useAnnouncementsStore } from '../stores/announcementsStore';
 
 export type AmbientWeather = 'clear' | 'cloudy' | 'rain' | 'storm';
 
@@ -547,7 +548,11 @@ class AudioManager {
   selectMusicTrack(index: number): void {
     if (!Number.isFinite(index)) return;
     const normalizedIndex = Math.max(0, Math.min(this.musicTracks.length - 1, Math.trunc(index)));
-    if (normalizedIndex === this._currentTrackIndex) return;
+    if (normalizedIndex === this._currentTrackIndex) {
+      // Picking the paused song plays it; picking the one playing leaves it be.
+      if (this._musicEnabled && this.musicAudio && !this.musicPlaying) this.startMusic();
+      return;
+    }
     this._currentTrackIndex = normalizedIndex;
     this.loadCurrentMusicTrack(this._musicEnabled);
     this.notifyListeners();
@@ -1017,6 +1022,9 @@ class AudioManager {
     this.updateMusicVolume();
     this.updateMediaSession();
     if (autoplay) {
+      // A song started by the player (a pick, Next, the media keys) ends their
+      // pause, so a returning tab resumes it as startMusic() would.
+      this._userPausedMusic = false;
       this.musicAudio.play().catch((error) => {
         audioLog.warn('Music playback failed (likely autoplay policy)', error);
       });
@@ -1293,6 +1301,20 @@ class AudioManager {
     } catch (e) {
       audioLog.warn('Ambient factory sounds initialization failed', e);
     }
+  }
+
+  // The machinery hum, conveyor noise and grain flow are plant motion, like
+  // the belts, spouts and their own sounds (lineFlow.ts): silent while the line
+  // is not moving (clock held, a drill or stop, a 0% line rate). The
+  // ventilation runs regardless. PAAnnouncementSystem reports the line.
+  private plantMoving = true;
+
+  setPlantMotion(moving: boolean): void {
+    if (moving === this.plantMoving) return;
+    this.plantMoving = moving;
+    this.updateAmbientSpatialVolumes();
+    // A compressor run in progress stops with the line; its cycle carries on.
+    if (!moving) this.stopCompressorSound();
   }
 
   stopAmbientSounds() {
@@ -1985,18 +2007,20 @@ class AudioManager {
 
     // Combined factor
     const combinedFactor = interiorFalloff * wallAttenuation;
+    // Production beds follow the line; ventilation does not.
+    const productionFactor = this.plantMoving ? combinedFactor : 0;
 
     const currentTime = this.audioContext.currentTime;
     const rampTime = 0.4; // Slightly longer ramp for smoother transitions
 
     // Apply to each ambient sound layer
     if (this.ambientNodes.machineryHum?.gain) {
-      const targetVolume = this.AMBIENT_BASE_VOLUMES.machineryHum * combinedFactor;
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.machineryHum * productionFactor;
       this.ambientNodes.machineryHum.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
     }
 
     if (this.ambientNodes.conveyorNoise?.gain) {
-      const targetVolume = this.AMBIENT_BASE_VOLUMES.conveyorNoise * combinedFactor;
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.conveyorNoise * productionFactor;
       this.ambientNodes.conveyorNoise.gain.gain.setTargetAtTime(
         targetVolume,
         currentTime,
@@ -2010,7 +2034,7 @@ class AudioManager {
     }
 
     if (this.ambientNodes.grainFlow?.gain) {
-      const targetVolume = this.AMBIENT_BASE_VOLUMES.grainFlow * combinedFactor;
+      const targetVolume = this.AMBIENT_BASE_VOLUMES.grainFlow * productionFactor;
       this.ambientNodes.grainFlow.gain.gain.setTargetAtTime(targetVolume, currentTime, rampTime);
     }
   }
@@ -2063,7 +2087,8 @@ class AudioManager {
    * distant fleet faintly present (1/15 at 150 m for forklifts, before walls)
    * while a nearby one dominates. Indoor engines heard from outside still take
    * the full wall occlusion, as the factory hum does. Before any position is
-   * registered this is the base level.
+   * registered it is silent: engines start from an effect, before the frame
+   * loop places them, and the first placement ramps them in.
    */
   private calculateVehicleEngineVolume(
     sourceId: string,
@@ -2071,7 +2096,7 @@ class AudioManager {
     refDistance: number
   ): number {
     const sourcePos = this.soundPositions.get(sourceId);
-    if (!sourcePos) return baseVolume;
+    if (!sourcePos) return 0;
 
     const dx = sourcePos.x - this.cameraPosition.x;
     const dy = sourcePos.y - this.cameraPosition.y;
@@ -2257,7 +2282,9 @@ class AudioManager {
       filter.frequency.setValueAtTime(350, ctx.currentTime);
       filter.Q.setValueAtTime(2, ctx.currentTime);
 
-      gain.gain.setValueAtTime(0.015, ctx.currentTime);
+      // Silent until its position is known, then ramped to the spatial level:
+      // a dozen belts restarting together out of earshot must not hiss.
+      gain.gain.setValueAtTime(0, ctx.currentTime);
 
       source.connect(filter);
       filter.connect(gain);
@@ -2267,6 +2294,7 @@ class AudioManager {
 
       this.conveyorNodes.set(conveyorId, { source, gain });
       this.registerSoundPosition(conveyorId, x, y, z);
+      this.updateConveyorSpatialVolume(conveyorId);
     } catch (e) {
       audioLog.warn('Conveyor sound start failed', { conveyorId }, e);
     }
@@ -3101,10 +3129,24 @@ class AudioManager {
     const playRandomAnnouncement = () => {
       if (!this.paSystemActive) return;
 
-      // Skip playback while muted or hidden, but keep scheduling so a later
-      // unmute or visibility change resumes the bells.
-      if (this._isTabVisible && this.getEffectiveVolume() > 0) {
-        // Automated cycle bells and signal tones communicate plant state without voices.
+      // Skip playback while muted, hidden or with the PA set to Off, but keep
+      // scheduling so a later unmute, visibility or mode change resumes the
+      // bells. They are routine PA traffic, so Off quiets them too, and so does
+      // a drill, stop, crisis or standing critical alert (the PA's safety
+      // hold): a "cycle complete" bell over a sounding alarm says the plant is
+      // running. A paused plant (plantPaused) is not cycling either, nor is a
+      // line standing at 0% (plantMoving, as the clanks and the hum read it).
+      const pa = useAnnouncementsStore.getState();
+      if (
+        this._isTabVisible &&
+        this.plantMoving &&
+        this.getEffectiveVolume() > 0 &&
+        pa.mode !== 'off' &&
+        !isPASafetyHeld(pa.context) &&
+        !pa.context.plantPaused
+      ) {
+        // Cycle bells and signal tones between lines; spoken lines are the PA
+        // voice's (src/audio/paVoice.ts), driven by the caption queue.
         const announcementType = Math.random();
         if (announcementType < 0.5) {
           this.playCycleBell();
@@ -3199,6 +3241,90 @@ class AudioManager {
     }
   }
 
+  private paVoiceSource: AudioBufferSourceNode | null = null;
+  private paVoiceBus: GainNode | null = null;
+
+  /**
+   * Speech for the PA (src/audio/paVoice.ts): band-limited like the tannoy and
+   * sent lightly into its echo, under masterGain so mute and volume apply.
+   * One line at a time: a new line stops the one before. Returns null when
+   * nothing can sound (muted, or no context before the first gesture).
+   */
+  playPAVoice(
+    samples: Float32Array,
+    sampleRate: number
+  ): { seconds: number; ended: Promise<void>; stop: () => void } | null {
+    if (this.getEffectiveVolume() === 0 || samples.length === 0) return null;
+    const ctx = this.getContext();
+    const masterGain = this.getMasterGain();
+    const paReverb = this.getPAReverbChain();
+    if (!ctx || !masterGain || !paReverb) return null;
+    this.ensureRunning();
+    this.stopPAVoice();
+
+    try {
+      if (!this.paVoiceBus) {
+        const highpass = ctx.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 280;
+        const lowpass = ctx.createBiquadFilter();
+        lowpass.type = 'lowpass';
+        lowpass.frequency.value = 3800;
+        const presence = ctx.createBiquadFilter();
+        presence.type = 'peaking';
+        presence.frequency.value = 2400;
+        presence.gain.value = 3;
+        const bus = ctx.createGain();
+        bus.gain.value = 0.8;
+        const send = ctx.createGain();
+        send.gain.value = 0.2;
+        bus.connect(highpass);
+        highpass.connect(lowpass);
+        lowpass.connect(presence);
+        presence.connect(masterGain);
+        presence.connect(send);
+        send.connect(paReverb.inputGain);
+        this.paVoiceBus = bus;
+      }
+
+      const buffer = ctx.createBuffer(1, samples.length, sampleRate);
+      buffer.copyToChannel(samples as Float32Array<ArrayBuffer>, 0);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.paVoiceBus);
+      const ended = new Promise<void>((resolve) => {
+        source.onended = () => {
+          if (this.paVoiceSource === source) this.paVoiceSource = null;
+          source.disconnect();
+          resolve();
+        };
+      });
+      source.start();
+      this.paVoiceSource = source;
+      return {
+        seconds: buffer.duration,
+        ended,
+        stop: () => {
+          if (this.paVoiceSource === source) this.stopPAVoice();
+        },
+      };
+    } catch (e) {
+      audioLog.warn('PA voice playback failed', e);
+      return null;
+    }
+  }
+
+  stopPAVoice(): void {
+    const source = this.paVoiceSource;
+    this.paVoiceSource = null;
+    if (!source) return;
+    try {
+      source.stop();
+    } catch {
+      // Already stopped: onended has run or is about to.
+    }
+  }
+
   // === INDUSTRIAL AMBIENT SOUNDS ===
 
   // Compressor cycling state
@@ -3222,9 +3348,10 @@ class AudioManager {
       // Random off duration (15-45 seconds)
       const offDuration = 15000 + Math.random() * 30000;
 
-      // Muting or hiding a tab skips this audible cycle. Keep the scheduler
-      // alive so a later unmute or visibility change can recover naturally.
-      if (this.getEffectiveVolume() > 0 && this._isTabVisible) {
+      // Muting, hiding a tab or a standing line (plant air, like the clanks
+      // and the hum) skips this audible cycle. Keep the scheduler alive so a
+      // later unmute, visibility change or restart can recover naturally.
+      if (this.getEffectiveVolume() > 0 && this._isTabVisible && this.plantMoving) {
         this.startCompressorSound();
 
         this.compressorOnTimeout = setTimeout(() => {
@@ -3421,9 +3548,9 @@ class AudioManager {
     const playRandomClank = () => {
       if (!this.metalClankActive) return;
 
-      // Skip playback while muted or hidden, but keep scheduling so a later
-      // unmute or visibility change resumes the clanks.
-      if (this._isTabVisible && this.getEffectiveVolume() > 0) {
+      // Skip playback while muted, hidden or while the line stands (floor
+      // activity, like the hum), but keep scheduling so the clanks resume.
+      if (this._isTabVisible && this.plantMoving && this.getEffectiveVolume() > 0) {
         const clankType = Math.random();
         if (clankType < 0.3) {
           this.playMetalClankHeavy();
@@ -3951,7 +4078,8 @@ class AudioManager {
       filter.frequency.setValueAtTime(1500, ctx.currentTime);
       filter.Q.setValueAtTime(1, ctx.currentTime);
 
-      gain.gain.setValueAtTime(0.02, ctx.currentTime);
+      // Silent until its position is known; see startConveyorSound.
+      gain.gain.setValueAtTime(0, ctx.currentTime);
 
       source.connect(filter);
       filter.connect(gain);
@@ -3960,6 +4088,7 @@ class AudioManager {
       this.startLoopAtRandomOffset(source);
       this.spoutingNodes.set(spoutId, { source, gain });
       this.registerSoundPosition(spoutId, x, y, z);
+      this.updateSpoutingSpatialVolume(spoutId);
     } catch (e) {
       audioLog.warn('Spouting sound start failed', { spoutId }, e);
     }
@@ -4169,6 +4298,7 @@ class AudioManager {
     this.stopOutdoorAmbient();
     this.stopNightAmbient();
     this.stopPASystem();
+    this.stopPAVoice();
     this.stopRain();
     this.stopEmergencyStopAlarm();
     this.stopCompressorCycling();
