@@ -327,14 +327,14 @@
       "sha256": "225b6809469b20cd71b6e12579afe637e070ccd9ebb2f088f3c83bdc64fe3f1b",
       "blenderPreparation": {
         "file": "assets/source/models/village/forge-crafted.glb",
-        "sha256": "baedd8e3884f95fa4a5ffb1ff692b5e4fc09c55c38bed84ef731c30d14ff292e",
+        "sha256": "ad614906efb185f4bde2068a676621e51b16db80538cfc40ce49e38e1a67ceab",
         "script": "scripts/blender/rebuild_village_architecture.py",
         "method": "Completely rebuilt from planar architectural solids, closed layered roofs, recessed framed glazing, measured timber joinery and grounded thresholds. No provider vertices retained. Original silhouette, palette and occupied envelope guide the authored design; the school turf disc is removed."
       },
       "runtimeDerivative": {
         "file": "public/models/village/forge.glb",
-        "sha256": "bbd60b7c1917e9f1bed0d3da6db2d99151bc8a5688b5b66bfa02959eda28a9a4",
-        "bytes": 399652
+        "sha256": "94b0371cb98a6504afe81889b65955c7675969515d0c027e2137dfadac606f3a",
+        "bytes": 225936
       },
       "normalization": {
         "sizedBy": "longest axis",
