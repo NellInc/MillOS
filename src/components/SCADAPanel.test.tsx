@@ -275,6 +275,17 @@ describe('SCADAPanel', () => {
       campaign.resetCampaign();
       useOperationsCampaignStore.getState().triggerIncident('power_sag');
       setLocale('pt-BR');
+      // The QC record goes in first: a QC change re-derives the campaign's
+      // stage from the live plant (operationsCampaignStore), which would
+      // replace the quality_hold set below.
+      useQCLabStore.setState((state) => ({
+        qcLab: {
+          ...state.qcLab,
+          dispositionHistory: [
+            { id: 'qd-0003', action: 'hold', referenceId: 'batch-0042' } as never,
+          ],
+        },
+      }));
       useOperationsCampaignStore.setState((state) => ({
         execution: {
           ...state.execution,
@@ -297,14 +308,6 @@ describe('SCADAPanel', () => {
       useBreakdownStore.setState({
         workOrders: [{ id: 'wo-0007', phase: 'awaiting_parts' } as never],
       });
-      useQCLabStore.setState((state) => ({
-        qcLab: {
-          ...state.qcLab,
-          dispositionHistory: [
-            { id: 'qd-0003', action: 'hold', referenceId: 'batch-0042' } as never,
-          ],
-        },
-      }));
 
       const { container } = render(<SCADAPanel isOpen onClose={vi.fn()} />);
       const text = container.textContent ?? '';
