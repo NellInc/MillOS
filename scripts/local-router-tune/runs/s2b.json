@@ -1,0 +1,117 @@
+{
+ "run": "s2b",
+ "hparams": {
+  "rank": 16,
+  "alpha": 32,
+  "dropout": 0.05,
+  "lr": 0.0001,
+  "epochs": 2,
+  "batch": 16,
+  "warmup": 0.05,
+  "smoothing": 0.02,
+  "seed": 20261102,
+  "retention_weight": 0.0,
+  "retention_batch": 4,
+  "retention_holdout": 80,
+  "gen_temperature": 0.7,
+  "gen_top_p": 0.9,
+  "gen_max_new_tokens": 640
+ },
+ "base": "Qwen/Qwen3.5-2B@15852e8c16360a2fea060d615a32b45270f8a8fc",
+ "paddingCheck": null,
+ "retentionAnswers": {
+  "generated": 560,
+  "parsedKept": 0
+ },
+ "strategyBefore": null,
+ "routingBefore": {
+  "cases": "57/72",
+  "heldout": "39/69",
+  "production": "16/16",
+  "test2": "60/100"
+ },
+ "history": [
+  {
+   "step": 50,
+   "route": 0.403,
+   "retention": 0.0
+  },
+  {
+   "step": 100,
+   "route": 0.3095,
+   "retention": 0.0
+  },
+  {
+   "step": 150,
+   "route": 0.2401,
+   "retention": 0.0
+  },
+  {
+   "step": 200,
+   "route": 0.2507,
+   "retention": 0.0
+  },
+  {
+   "step": 250,
+   "route": 0.345,
+   "retention": 0.0
+  },
+  {
+   "step": 300,
+   "route": 0.465,
+   "retention": 0.0
+  },
+  {
+   "step": 350,
+   "route": 0.1518,
+   "retention": 0.0
+  },
+  {
+   "step": 400,
+   "route": 0.1376,
+   "retention": 0.0
+  },
+  {
+   "step": 450,
+   "route": 0.2265,
+   "retention": 0.0
+  },
+  {
+   "step": 500,
+   "route": 0.1754,
+   "retention": 0.0
+  },
+  {
+   "step": 550,
+   "route": 0.3503,
+   "retention": 0.0
+  },
+  {
+   "step": 600,
+   "route": 0.257,
+   "retention": 0.0
+  },
+  {
+   "step": 650,
+   "route": 0.1579,
+   "retention": 0.0
+  },
+  {
+   "step": 700,
+   "route": 0.1709,
+   "retention": 0.0
+  }
+ ],
+ "routingAfter": {
+  "cases": "70/72",
+  "heldout": "68/69",
+  "production": "16/16",
+  "test2": "98/100"
+ },
+ "strategyAfter": null,
+ "strategySamples": [],
+ "merge": {
+  "loraModules": 150
+ },
+ "minutes": 7.4
+}

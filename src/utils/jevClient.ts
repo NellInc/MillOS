@@ -1,6 +1,7 @@
 /** Read-only, explicitly requested incident classification. No stores or commands. */
 import { formatFixed, translate } from '../i18n';
-import { CLOUD_MODELS, isLocalCompanionHost } from './cloudAIClient';
+import { CLOUD_MODELS, isLocalCompanionHost, KeyedError } from './cloudAIClient';
+import { registerAlertCatalog } from '../i18n/alertCopy';
 import { spendBudget, type BilledUsage, type TokenRates } from './spendBudget';
 import { jevClientMessages as messages } from './jevClient.messages';
 import { logger } from './logger';
@@ -86,6 +87,28 @@ export const LOCAL_QUEUE_TOKENS: Partial<
     'No current incident': { id: 2665, token: 'No' },
     'Insufficient evidence': { id: 15020, token: 'Ins' },
   },
+  // The Qwen3.5 routing tunes (4B, 2B, 0.8B) share the 4B build's tokenizer.json.
+  'Qwen3.5-4B-millos-routing-q4f16_1-MLC': {
+    'Equipment maintenance': { id: 56315, token: 'Equipment' },
+    'Product quality': { id: 4662, token: 'Product' },
+    'Logistics coordination': { id: 2132, token: 'Log' },
+    'No current incident': { id: 2665, token: 'No' },
+    'Insufficient evidence': { id: 15020, token: 'Ins' },
+  },
+  'Qwen3.5-2B-millos-routing-q4f16_1-MLC': {
+    'Equipment maintenance': { id: 56315, token: 'Equipment' },
+    'Product quality': { id: 4662, token: 'Product' },
+    'Logistics coordination': { id: 2132, token: 'Log' },
+    'No current incident': { id: 2665, token: 'No' },
+    'Insufficient evidence': { id: 15020, token: 'Ins' },
+  },
+  'Qwen3.5-0.8B-millos-routing-q4f16_1-MLC': {
+    'Equipment maintenance': { id: 56315, token: 'Equipment' },
+    'Product quality': { id: 4662, token: 'Product' },
+    'Logistics coordination': { id: 2132, token: 'Log' },
+    'No current incident': { id: 2665, token: 'No' },
+    'Insufficient evidence': { id: 15020, token: 'Ins' },
+  },
   'Qwen3-4B-q4f16_1-MLC': {
     'Equipment maintenance': { id: 58276, token: 'Equipment' },
     'Product quality': { id: 4816, token: 'Product' },
@@ -131,6 +154,17 @@ export function advisoryProviders(localReady = false): AdvisoryProvider[] {
 // Each provider's errors name that provider; Jev's keep their original keys.
 const SUFFIX = { jev: '', openai: 'OpenAI', haiku: 'Anthropic', local: 'Local' } as const;
 type MessageKey = keyof (typeof messages)['en'];
+
+/** Advisory errors carry their key, so a surface that keeps one can word it in the language active now. */
+export const JEV_CLIENT_CATALOG = 'jevClient';
+registerAlertCatalog(JEV_CLIENT_CATALOG, messages);
+function keyedError(key: MessageKey, params?: Record<string, string | number>): KeyedError {
+  return new KeyedError(translate(messages, key, params), {
+    catalog: JEV_CLIENT_CATALOG,
+    key,
+    ...(params ? { params } : {}),
+  });
+}
 function providerKey(provider: AdvisoryProvider, base: string): MessageKey {
   return `${base}${SUFFIX[provider]}` as MessageKey;
 }
@@ -149,7 +183,7 @@ function parseAdvice(value: unknown): JevAdvice {
     !/^typesafe\/jev-1\.14(?:-\d{8})?$/.test(body.model) ||
     answer.type !== 'choice'
   ) {
-    throw new Error(translate(messages, 'invalidAdvisory'));
+    throw keyedError('invalidAdvisory');
   }
   return adviceFrom(answer.choice, record(answer.probabilities), 'invalidAdvisory');
 }
@@ -165,7 +199,7 @@ function parseOpenAIAdvice(value: unknown): JevAdvice {
     answer.type !== 'choice' ||
     listed.length !== JEV_QUEUES.length
   ) {
-    throw new Error(translate(messages, 'invalidAdvisoryOpenAI'));
+    throw keyedError('invalidAdvisoryOpenAI');
   }
   const probabilities = Object.fromEntries(
     listed.map((entry) => [String(record(entry).value), record(entry).probability])
@@ -197,7 +231,7 @@ function parseHaikuAdvice(value: unknown): JevAdvice {
     body.stop_reason !== 'end_turn' ||
     !JEV_QUEUES.some((option) => option === queue)
   ) {
-    throw new Error(translate(messages, 'invalidAdvisoryAnthropic'));
+    throw keyedError('invalidAdvisoryAnthropic');
   }
   return { queue: queue as JevAdvice['queue'], receivedAt: Date.now() };
 }
@@ -213,7 +247,7 @@ function adviceFrom(
     Object.keys(probabilities).length !== JEV_QUEUES.length ||
     !values.every((p) => typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 1)
   ) {
-    throw new Error(translate(messages, invalid));
+    throw keyedError(invalid);
   }
   const scores = values as number[];
   const queue = choice as JevAdvice['queue'];
@@ -222,7 +256,7 @@ function adviceFrom(
     Math.abs(scores.reduce((sum, p) => sum + p, 0) - 1) > 0.025000001 ||
     (probabilities[queue] as number) < Math.max(...scores)
   ) {
-    throw new Error(translate(messages, invalid));
+    throw keyedError(invalid);
   }
   return { queue, receivedAt: Date.now() };
 }
@@ -329,43 +363,49 @@ function requestBody(provider: AdvisoryProvider, text: string): Record<string, u
  */
 async function requestLocalAdvice(text: string, signal: AbortSignal): Promise<JevAdvice> {
   if (!text.trim() || text.length > JEV_MAX_TEXT_LENGTH) {
-    throw new Error(
-      translate(messages, 'textLength', { max: formatFixed(JEV_MAX_TEXT_LENGTH, 0) })
-    );
+    throw keyedError('textLength', { max: formatFixed(JEV_MAX_TEXT_LENGTH, 0) });
   }
-  if (signal.aborted) throw new Error(translate(messages, 'cancelled'));
+  if (signal.aborted) throw keyedError('cancelled');
   const tokens = LOCAL_QUEUE_TOKENS[webgpuClient.getModelId()];
   if (!tokens || !webgpuClient.isConnected()) {
-    throw new Error(translate(messages, 'unavailableLocal'));
+    throw keyedError('unavailableLocal');
   }
-  const scores = await webgpuClient.scoreNextToken({
-    system: LOCAL_SYSTEM,
-    user: text.trim(),
-    tokenIds: JEV_QUEUES.map((queue) => tokens[queue].id),
-    signal,
-  });
-  if (signal.aborted) throw new Error(translate(messages, 'cancelledOrTimedOut'));
   const queueTokens = new Set(JEV_QUEUES.map((queue) => tokens[queue].token));
   const valid = (p: unknown): p is number =>
     typeof p === 'number' && Number.isFinite(p) && p >= 0 && p <= 1;
-  // The scores (token pieces and numbers, never the note) are logged when
-  // unusable, so a rare bad set can be read afterwards.
-  const invalid = () => {
-    logger.warn('[Advisory] Unusable on-device scores:', JSON.stringify(scores));
-    return new Error(translate(messages, 'invalidAdvisoryLocal'));
+  const score = async (): Promise<number[] | 'short'> => {
+    const scores = await webgpuClient.scoreNextToken({
+      system: LOCAL_SYSTEM,
+      user: text.trim(),
+      tokenIds: JEV_QUEUES.map((queue) => tokens[queue].id),
+      signal,
+    });
+    if (signal.aborted) throw keyedError('cancelledOrTimedOut');
+    // The scores (token pieces and numbers, never the note) are logged when
+    // unusable, so a rare bad set can be read afterwards.
+    const unusable = () =>
+      logger.warn('[Advisory] Unusable on-device scores:', JSON.stringify(scores));
+    if (
+      !scores ||
+      !scores.every((entry) => valid(entry.probability)) ||
+      scores.some((entry) => !queueTokens.has(entry.token) && entry.probability > 0)
+    ) {
+      unusable();
+      throw keyedError('invalidAdvisoryLocal');
+    }
+    const probability = new Map(scores.map((entry) => [entry.token, entry.probability]));
+    const values = JEV_QUEUES.map((queue) => probability.get(tokens[queue].token) ?? 0);
+    if (values.reduce((sum, p) => sum + p, 0) >= 0.99) return values;
+    unusable();
+    return 'short';
   };
-  if (
-    !scores ||
-    !scores.every((score) => valid(score.probability)) ||
-    scores.some((score) => !queueTokens.has(score.token) && score.probability > 0)
-  ) {
-    throw invalid();
-  }
-  const probability = new Map(scores.map((score) => [score.token, score.probability]));
-  const values = JEV_QUEUES.map((queue) => probability.get(tokens[queue].token) ?? 0);
-  if (values.reduce((sum, p) => sum + p, 0) < 0.99) {
-    throw invalid();
-  }
+  // A five that sum short with nothing outside them is web-llm noise, not a held
+  // bias failing: in Chrome on 2026-11-02 the same note summed to 1.0 on one
+  // run and 0.53 on the next, top queue unchanged, in 9 of 257 cases. One more
+  // scoring clears it; a second short set is refused as before.
+  let values = await score();
+  if (values === 'short') values = await score();
+  if (values === 'short') throw keyedError('invalidAdvisoryLocal');
   return { queue: JEV_QUEUES[values.indexOf(Math.max(...values))], receivedAt: Date.now() };
 }
 
@@ -384,16 +424,14 @@ export async function requestJevAdvice({
   provider?: AdvisoryProvider;
 }): Promise<JevAdvice> {
   if (provider === 'local') return requestLocalAdvice(text, signal);
-  const key = (base: string) => translate(messages, providerKey(provider, base));
-  if (!consent) throw new Error(translate(messages, 'consentRequired'));
-  if (provider !== 'jev' && !isLocalCompanionHost()) throw new Error(key('localOnly'));
-  if (!isAdvisoryKeyValid(provider, apiKey)) throw new Error(key('invalidKey'));
+  const key = (base: string) => providerKey(provider, base);
+  if (!consent) throw keyedError('consentRequired');
+  if (provider !== 'jev' && !isLocalCompanionHost()) throw keyedError(key('localOnly'));
+  if (!isAdvisoryKeyValid(provider, apiKey)) throw keyedError(key('invalidKey'));
   if (!text.trim() || text.length > JEV_MAX_TEXT_LENGTH) {
-    throw new Error(
-      translate(messages, 'textLength', { max: formatFixed(JEV_MAX_TEXT_LENGTH, 0) })
-    );
+    throw keyedError('textLength', { max: formatFixed(JEV_MAX_TEXT_LENGTH, 0) });
   }
-  if (signal.aborted) throw new Error(translate(messages, 'cancelled'));
+  if (signal.aborted) throw keyedError('cancelled');
   const requestJson = JSON.stringify(requestBody(provider, text.trim()));
   const billing = ADVISORY_BILLING[provider];
   // Throws SpendCapError, whose message says no paid request was sent, at the cap.
@@ -434,12 +472,17 @@ export async function requestJevAdvice({
         }
       );
     } catch {
-      throw new Error(key('unreachable'));
+      // Our own abort (cancel or the timeout) is not a network failure.
+      throw keyedError(controller.signal.aborted ? 'cancelledOrTimedOut' : key('unreachable'));
     }
     if (!response.ok) {
-      // A refused request generated nothing to bill.
-      spendBudget.reject(reservation);
-      billed = true;
+      // A refused request generated nothing to bill. A server error may follow
+      // a billed generation, so it stays uncertain (the finally block), as in
+      // cloudAIClient.
+      if ([400, 401, 402, 403, 404, 422, 429].includes(response.status)) {
+        spendBudget.reject(reservation);
+        billed = true;
+      }
       // Never display a provider error body: it may echo submitted text or credentials.
       const message =
         response.status === 401 || response.status === 403
@@ -449,7 +492,7 @@ export async function requestJevAdvice({
             : response.status === 429
               ? key('rateLimited')
               : key('unavailable');
-      throw new Error(message);
+      throw keyedError(message);
     }
     let body: unknown;
     try {
@@ -457,7 +500,7 @@ export async function requestJevAdvice({
       if (raw.length > 65_536) throw new Error();
       body = JSON.parse(raw);
     } catch {
-      throw new Error(key('invalidAdvisory'));
+      throw keyedError(key('invalidAdvisory'));
     }
     // An answer is charged as reported even if it turns out unusable.
     const usage = billedUsage(provider, body);
@@ -465,7 +508,7 @@ export async function requestJevAdvice({
       spendBudget.settle(reservation, usage);
       billed = true;
     }
-    if (controller.signal.aborted) throw new Error(translate(messages, 'cancelledOrTimedOut'));
+    if (controller.signal.aborted) throw keyedError('cancelledOrTimedOut');
     return provider === 'haiku'
       ? parseHaikuAdvice(body)
       : provider === 'openai'

@@ -1,0 +1,163 @@
+{
+ "run": "r3",
+ "hparams": {
+  "rank": 16,
+  "alpha": 32,
+  "dropout": 0.05,
+  "lr": 0.0001,
+  "epochs": 2,
+  "batch": 16,
+  "warmup": 0.05,
+  "smoothing": 0.02,
+  "seed": 20261102,
+  "retention_weight": 3.0,
+  "retention_batch": 4,
+  "retention_holdout": 80,
+  "gen_temperature": 0.7,
+  "gen_top_p": 0.9,
+  "gen_max_new_tokens": 640
+ },
+ "base": "Qwen/Qwen3.5-4B@851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+ "paddingCheck": {
+  "identical": 2,
+  "of": 4
+ },
+ "retentionAnswers": {
+  "generated": 560,
+  "parsedKept": 482
+ },
+ "strategyBefore": {
+  "parsed": 72,
+  "n": 80,
+  "hits": 53,
+  "faulted": 59,
+  "invalidIds": 0
+ },
+ "routingBefore": {
+  "cases": "70/72",
+  "heldout": "55/69",
+  "production": "16/16",
+  "test2": "77/100"
+ },
+ "history": [
+  {
+   "step": 50,
+   "route": 0.2279,
+   "retention": 0.00667
+  },
+  {
+   "step": 100,
+   "route": 0.2763,
+   "retention": 0.00406
+  },
+  {
+   "step": 150,
+   "route": 0.2157,
+   "retention": 0.00386
+  },
+  {
+   "step": 200,
+   "route": 0.2437,
+   "retention": 0.00337
+  },
+  {
+   "step": 250,
+   "route": 0.3396,
+   "retention": 0.00373
+  },
+  {
+   "step": 300,
+   "route": 0.2668,
+   "retention": 0.00315
+  },
+  {
+   "step": 350,
+   "route": 0.1452,
+   "retention": 0.0024
+  },
+  {
+   "step": 400,
+   "route": 0.2034,
+   "retention": 0.00464
+  },
+  {
+   "step": 450,
+   "route": 0.1526,
+   "retention": 0.00162
+  },
+  {
+   "step": 500,
+   "route": 0.2688,
+   "retention": 0.0014
+  },
+  {
+   "step": 550,
+   "route": 0.2839,
+   "retention": 0.00136
+  },
+  {
+   "step": 600,
+   "route": 0.1997,
+   "retention": 0.00104
+  },
+  {
+   "step": 650,
+   "route": 0.2301,
+   "retention": 0.00153
+  },
+  {
+   "step": 700,
+   "route": 0.1809,
+   "retention": 0.00134
+  }
+ ],
+ "routingAfter": {
+  "cases": "72/72",
+  "heldout": "69/69",
+  "production": "16/16",
+  "test2": "99/100"
+ },
+ "strategyAfter": {
+  "parsed": 71,
+  "n": 80,
+  "hits": 49,
+  "faulted": 59,
+  "invalidIds": 0
+ },
+ "strategySamples": [
+  {
+   "want": null,
+   "base": "{\"priorities\": [\"Cool RM-104 to prevent thermal runaway and grain degradation.\", \"Reduce vibration on rm-102 and sifter-c to mitigate high wear risks.\", \"Balance silo loads to optimize throughput and prevent bottlenecks.\"], \"reasoning\": \"RM-104 is overheating at 50\u00b0C, posing a quality and safety risk, while high vibration on rm-102 and sifter-c indicates imminent mechanical failure. Balancing silo",
+   "tuned": "{\"priorities\": [\"Reduce RM-104 vibration immediately to prevent structural failure\", \"Balance silo loads to stabilize downstream material flow\", \"Initiate pre-maintenance cooling for RM-101 and RM-102\"], \"reasoning\": \"RM-104 exhibits critical vibration levels exceeding safe thresholds while RM-101 and RM-102 show elevated temperatures requiring cooling intervention. Addressing these safety risks n"
+  },
+  {
+   "want": "packer-0",
+   "base": "{\"priorities\": [\"Initiate immediate safety interlock on packer-0 due to critical status and high vibration\", \"Stabilize material flow by prioritizing silo-3 and sifter-a to feed packer-1\", \"Schedule urgent maintenance on packer-0 and prepare spare parts\"], \"reasoning\": \"Packer-0 is in a critical state with dangerously high vibration and wear, posing an immediate safety risk and production bottlene",
+   "tuned": "{\"priorities\": [\"Initiate immediate safety interlock on packer-0 due to critical status and extreme vibration\", \"Stabilize material flow by prioritizing silo-3 and sifter-a to feed packer-1 and packer-2\", \"Schedule urgent maintenance for packer-0 and monitor high-wear sifter-b and rm-103\"], \"reasoning\": \"Packer-0 is in a critical state with dangerously high vibration and near-total wear, posing an"
+  },
+  {
+   "want": "unit-01",
+   "base": "{\"priorities\": [\"Shutdown unit-01 immediately due to critical status and extreme vibration\", \"Isolate unit-10 and unit-09 to prevent thermal runaway from rain-induced cooling failure\", \"Verify safety interlocks on all grain handling lines before resuming flow\"], \"reasoning\": \"Unit-01 is in a critical state with dangerously high vibration and wear, posing an immediate safety risk, while units 10 an",
+   "tuned": "{\"priorities\": [\"Shutdown unit-01 immediately due to critical status and extreme vibration\", \"Implement rain-induced flow stabilization across all grain handling units\", \"Schedule wear inspection for unit-03, unit-02, and unit-05 exceeding 50% wear\"], \"reasoning\": \"Unit-01 is in a critical state with dangerously high vibration and wear, posing an immediate safety risk that requires immediate isola"
+  },
+  {
+   "want": null,
+   "base": "{\"priorities\": [\"Prevent overheating in RM-103/104 via safety interlocks\", \"Reduce vibration risks on sifter-c and packer-2\", \"Balance silo loads to ensure stable material flow\"], \"reasoning\": \"High temperatures and vibration levels in processing rooms and packers indicate imminent thermal stress and mechanical failure risks that must be addressed before quality or throughput is compromised.\", \"in",
+   "tuned": "{\"priorities\": [\"Prevent overheating in RM-103/104 via safety interlock activation\", \"Stabilize throughput by rebalancing silo loads to prevent blockage\", \"Initiate predictive maintenance on packer-2 and rm-104 wear items\"], \"reasoning\": \"High vibration and temperature readings in RM-103 and RM-104 pose immediate thermal and mechanical risks that require interlock engagement, while uneven silo loa"
+  },
+  {
+   "want": "unit-14",
+   "base": "{\"priorities\": [\"Isolate unit-14 and initiate emergency cooling to prevent thermal runaway\", \"Activate storm-resistant autonomous logistics to secure material flow\", \"Deploy predictive maintenance team for unit-14 wear assessment\"], \"reasoning\": \"Unit-14's warning status with high vibration and elevated temperature poses an immediate safety risk that must be addressed before production efficiency ",
+   "tuned": "{\"priorities\": [\"Isolate unit-14 and initiate emergency cooling to prevent thermal runaway\", \"Activate storm-resistant autonomous logistics to secure material flow\", \"Deploy predictive maintenance team for unit-14 wear assessment\"], \"reasoning\": \"Unit-14's high temperature and vibration indicate imminent failure under storm conditions, risking safety interlocks and disrupting the 119 throughput ra"
+  },
+  {
+   "want": "rm-102",
+   "base": "{\"priorities\": [\"Immediate shutdown of rm-102 to prevent thermal runaway and vibration damage\", \"Stabilize material flow into rm-102 while ensuring safety interlocks engage\", \"Monitor energy consumption and temperature spikes across grain handling units\"], \"reasoning\": \"rm-102 shows critical warning status with extreme temperature (64\u00b0C) and high vibration (7.6), indicating imminent failure risk t",
+   "tuned": "{\"priorities\": [\"Immediate shutdown of rm-102 to prevent thermal runaway and vibration damage\", \"Stabilize material flow into rm-102 while ensuring safety interlocks engage\", \"Monitor energy consumption and temperature spikes across grain handling units\"], \"reasoning\": \"rm-102 shows critical warning status with extreme temperature (64\u00b0C) and high vibration (7.6), indicating imminent mechanical fai"
+  }
+ ],
+ "merge": {
+  "loraModules": 200
+ },
+ "minutes": 65.7
+}

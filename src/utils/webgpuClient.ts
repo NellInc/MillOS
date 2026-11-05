@@ -34,6 +34,11 @@ import type {
 import { logger } from './logger';
 import { formatFixed, translate } from '../i18n';
 import { webgpuClientMessages as messages } from './webgpuClient.messages';
+import { registerAlertCatalog, type KeyedLine } from '../i18n/alertCopy';
+
+/** Stored advisories carry this catalogue's key, so they reword on a language switch. */
+export const WEBGPU_CLIENT_CATALOG = 'webgpuClient';
+registerAlertCatalog(WEBGPU_CLIENT_CATALOG, messages);
 
 // ============================================================================
 // CONFIGURATION
@@ -61,6 +66,18 @@ interface WebGPUModelProfile {
    * pinned commit cannot change, so the weight shards it lists cannot either.
    */
   pin?: { modelCommit: string; integrity: ModelIntegrity };
+  /**
+   * A MillOS build that web-llm does not list: it borrows `from`'s prebuilt
+   * record (model library, overrides) and loads its own weights from the
+   * Hugging Face repo `repo`. Only valid where the weights share `from`'s
+   * architecture, quantization and tokenizer, so `from`'s library runs them.
+   */
+  derived?: { from: string; repo: string };
+  /**
+   * The build the fast lane loads for routing (scoreNextToken). Absent, the lane
+   * is a second copy of this build.
+   */
+  routingLane?: string;
 }
 
 /**
@@ -99,6 +116,12 @@ export const WEBGPU_MODEL_PROFILES = {
       conv_config: { stop_token_ids: [248046, 248044] },
     },
     rawTemplate: QWEN_RAW_TEMPLATE,
+    // Routing goes to the tuned 0.8B build when the fast lane is on; strategy
+    // stays here. In Chrome it routes 251/257 (Brazilian Portuguese 29/30)
+    // against this build's 215/257, for a 0.45 GB second download instead of
+    // the 4B tune's 2.4 GB (253/257). It writes nothing a player reads. See
+    // D-017, D-019, D-021 and D-022.
+    routingLane: 'Qwen3.5-0.8B-millos-routing-q4f16_1-MLC',
     pin: {
       modelCommit: '44b42469f9e192814bfd90440e3b377d89ba7a13',
       integrity: {
@@ -121,6 +144,87 @@ export const WEBGPU_MODEL_PROFILES = {
         config: 'sha256-lyasfbzZBHX4BFYEvghi7xtIN+QyxQBNoguKbjSDMNo=',
         model_lib: 'sha256-Z4+VN8c4gRPigUHveo5BbMYA5yp88up6rA4EVlnT7L0=',
         tokenizer: { 'tokenizer.json': 'sha256-rrEzB6cazY/oGGHZStVKtonfdzMYgJ7tPL55S0SS2uQ=' },
+      },
+    },
+  },
+  // Qwen3.5-4B LoRA-tuned for the five-way incident routing, with its strategy
+  // answers held to the base model's (v2, scripts/local-router-tune/train_v2_modal.py),
+  // merged and converted to q4f16_1. Its config and
+  // tokenizer are the mlc-ai build's files unchanged, so the hashes and the model
+  // library are that build's; only the weight shards differ.
+  'Qwen3.5-4B-millos-routing-q4f16_1-MLC': {
+    label: 'Qwen3.5-4B MillOS routing',
+    downloadGb: 2.4,
+    vramGb: 3.9,
+    contextWindow: 4096,
+    chatOptions: {
+      context_window_size: 4096,
+      conv_config: { stop_token_ids: [248046, 248044] },
+    },
+    rawTemplate: QWEN_RAW_TEMPLATE,
+    derived: {
+      from: 'Qwen3.5-4B-q4f16_1-MLC',
+      repo: 'NellWatson/Qwen3.5-4B-millos-routing-q4f16_1-MLC',
+    },
+    pin: {
+      modelCommit: '5015631b3f482e959d670980e28aa39f3e28254d',
+      integrity: {
+        config: 'sha256-uU1Tv95bSW2NliOb9GhOJLU5QgnlrvkSeGbvpFQ5VlE=',
+        model_lib: 'sha256-VSFSvXb9VDLGuIdQqUisRNA4o8Vwvmqg8OdEBnqeKiU=',
+        tokenizer: { 'tokenizer.json': 'sha256-X55NSQGpK5l+RjwfRgVQiLbMpcphplItG59kxLuBy0I=' },
+      },
+    },
+  },
+  // Qwen3.5-2B MillOS routing: Qwen3.5 routing-only tune at a smaller size (scripts/local-router-tune,
+  // train_v2_modal.py with no retention): it never writes strategy, so it only
+  // has to route. Config and tokenizer are the mlc-ai build's files unchanged.
+  'Qwen3.5-2B-millos-routing-q4f16_1-MLC': {
+    label: 'Qwen3.5-2B MillOS routing',
+    downloadGb: 1.1,
+    vramGb: 2.2,
+    contextWindow: 4096,
+    chatOptions: {
+      context_window_size: 4096,
+      conv_config: { stop_token_ids: [248046, 248044] },
+    },
+    rawTemplate: QWEN_RAW_TEMPLATE,
+    derived: {
+      from: 'Qwen3.5-2B-q4f16_1-MLC',
+      repo: 'NellWatson/Qwen3.5-2B-millos-routing-q4f16_1-MLC',
+    },
+    pin: {
+      modelCommit: '75f9e49f7033a29f82f3ee9d5e36c9e600cbc903',
+      integrity: {
+        config: 'sha256-Q1d7bemkxizw/pxe5XvFLrsvxIfGSiG/eNYkMRhrSwE=',
+        model_lib: 'sha256-ScxKlmgOptrRc/SK2Q4hmsX1n3tLq2GsACnJQ4VyCiw=',
+        tokenizer: { 'tokenizer.json': 'sha256-X55NSQGpK5l+RjwfRgVQiLbMpcphplItG59kxLuBy0I=' },
+      },
+    },
+  },
+  // Qwen3.5-0.8B MillOS routing: Qwen3.5 routing-only tune at a smaller size (scripts/local-router-tune,
+  // train_v2_modal.py with no retention): it never writes strategy, so it only
+  // has to route. Config and tokenizer are the mlc-ai build's files unchanged.
+  // The pin is the Portuguese expansion (branch s08b-pt, also on main; D-022).
+  'Qwen3.5-0.8B-millos-routing-q4f16_1-MLC': {
+    label: 'Qwen3.5-0.8B MillOS routing',
+    downloadGb: 0.45,
+    vramGb: 1.6,
+    contextWindow: 4096,
+    chatOptions: {
+      context_window_size: 4096,
+      conv_config: { stop_token_ids: [248046, 248044] },
+    },
+    rawTemplate: QWEN_RAW_TEMPLATE,
+    derived: {
+      from: 'Qwen3.5-0.8B-q4f16_1-MLC',
+      repo: 'NellWatson/Qwen3.5-0.8B-millos-routing-q4f16_1-MLC',
+    },
+    pin: {
+      modelCommit: '914fde01b818abc7f502c97d41cd4b4fd02dedda',
+      integrity: {
+        config: 'sha256-Hqk8K4s5ajdUUW0MS29LaIHCkwyizGyyzwDlEea+hqk=',
+        model_lib: 'sha256-Ajwk2FN0biRZncmddknjVphv0+HEduaiuO969MnwVuA=',
+        tokenizer: { 'tokenizer.json': 'sha256-X55NSQGpK5l+RjwfRgVQiLbMpcphplItG59kxLuBy0I=' },
       },
     },
   },
@@ -164,8 +268,33 @@ export function pinnedModelRecord(record: ModelRecord): ModelRecord {
 }
 
 /**
- * web-llm's prebuilt list with `modelId` pinned, plus the fast lane's copy of
- * it when `laneId` is given (the same files, so the cache serves both).
+ * The record web-llm would load for `modelId`: its own prebuilt entry, or for a
+ * derived MillOS build, the base model's entry with this build's id and weights.
+ */
+export function modelRecordFor(prebuilt: AppConfig, modelId: string): ModelRecord | undefined {
+  const listed = prebuilt.model_list.find((entry) => entry.model_id === modelId);
+  if (listed) return listed;
+  const profile: WebGPUModelProfile | undefined = WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId];
+  const derived = profile?.derived;
+  const base = derived && prebuilt.model_list.find((entry) => entry.model_id === derived.from);
+  return base
+    ? { ...base, model_id: modelId, model: `https://huggingface.co/${derived.repo}` }
+    : undefined;
+}
+
+/** `list` with `record` replaced by `pinned`, or `pinned` appended if `record` was not in it. */
+function withPinned(list: ModelRecord[], record: ModelRecord, pinned: ModelRecord): ModelRecord[] {
+  return list.includes(record)
+    ? list.map((entry) => (entry === record ? pinned : entry))
+    : [...list, pinned];
+}
+
+/**
+ * web-llm's prebuilt list with `modelId` pinned (appended, for a derived
+ * build), plus the fast lane when `laneId` is given: that build's own pinned
+ * record when it is a profile web-llm can load (a `routingLane`), otherwise a
+ * copy of the main record under the lane's id (the same files, so the cache
+ * serves both).
  */
 export function pinnedAppConfig(
   prebuilt: AppConfig,
@@ -173,16 +302,17 @@ export function pinnedAppConfig(
   laneId: string | null = null,
   cacheBackend: ModelCacheBackend = 'cache'
 ): AppConfig {
-  const record = prebuilt.model_list.find((entry) => entry.model_id === modelId);
+  const record = modelRecordFor(prebuilt, modelId);
   if (!record) return prebuilt;
   const pinned = pinnedModelRecord(record);
+  let modelList = withPinned(prebuilt.model_list, record, pinned);
+  const laneRecord = laneId && laneId !== modelId ? modelRecordFor(prebuilt, laneId) : undefined;
+  if (laneRecord) modelList = withPinned(modelList, laneRecord, pinnedModelRecord(laneRecord));
+  else if (laneId) modelList = [...modelList, { ...pinned, model_id: laneId }];
   return {
     ...prebuilt,
     ...(cacheBackend === 'cache' ? {} : { cacheBackend }),
-    model_list: [
-      ...prebuilt.model_list.map((entry) => (entry === record ? pinned : entry)),
-      ...(laneId ? [{ ...pinned, model_id: laneId }] : []),
-    ],
+    model_list: modelList,
   };
 }
 
@@ -201,16 +331,32 @@ export const DEFAULT_WEBGPU_MODEL_SIZE = {
 };
 
 /**
- * The fast lane: a second copy of the same build under its own model_id, so
- * routing runs beside a strategic generation instead of queueing behind it.
- * web-llm keeps one lock per loaded model, and both copies share the one
- * download. Measured in Chrome on Qwen3.5-4B, 2026-10-25: a routing call
- * arriving 3 s into a strategic answer took 2.8-3.4 s with the fast lane and
- * 27.9 s without; the strategic answer was not measurably slower (36.5 s,
- * against 37.4 s alone). Cost: one more copy of the weights in GPU memory.
+ * The fast lane: a second model beside the main one, so routing runs beside a
+ * strategic generation instead of queueing behind it (web-llm keeps one lock
+ * per loaded model). Measured in Chrome on Qwen3.5-4B, 2026-10-25: a routing
+ * call arriving 3 s into a strategic answer took 2.8-3.4 s with the fast lane
+ * and 27.9 s without; the strategic answer was not measurably slower (36.5 s,
+ * against 37.4 s alone). Cost: one more model in GPU memory.
+ *
+ * Where the profile names a `routingLane`, the lane is that build (one more
+ * download); otherwise it is a second copy of the same build under its own id,
+ * sharing the one download.
  */
 export function fastLaneModelId(modelId: string): string {
-  return `${modelId}-fast-lane`;
+  const profile: WebGPUModelProfile | undefined = WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId];
+  return profile?.routingLane ?? `${modelId}-fast-lane`;
+}
+
+/** What the fast lane adds to the download for `modelId`: nothing for a second copy. */
+export function fastLaneDownloadGb(modelId: string): number {
+  const lane = fastLaneModelId(modelId);
+  return WEBGPU_MODEL_PROFILES[lane as WebGPUModelId]?.downloadGb ?? 0;
+}
+
+/** What the fast lane adds to GPU memory for `modelId`: its own build's, or a second copy's. */
+export function fastLaneVramGb(modelId: string): number {
+  const lane = WEBGPU_MODEL_PROFILES[fastLaneModelId(modelId) as WebGPUModelId];
+  return (lane ?? WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId])?.vramGb ?? 0;
 }
 
 /**
@@ -281,6 +427,8 @@ export interface WebGPUAdapterReport {
   noNavigatorGpu?: boolean;
   /** Advisory message when the adapter's limits suggest OOM risk for a 4B model. */
   warning?: string;
+  /** The advisory's key, for a surface that keeps it past a language switch. */
+  warningCopy?: KeyedLine;
   /** Best-effort adapter description for display. */
   adapterLabel?: string;
 }
@@ -357,16 +505,19 @@ export async function checkWebGPUAdapter(): Promise<WebGPUAdapterReport> {
     }
 
     let warning: string | undefined;
+    let warningCopy: KeyedLine | undefined;
     if (maxBufferSize > 0 && maxBufferSize < ADVISORY_MIN_MAX_BUFFER_SIZE) {
-      warning = translate(messages, 'smallMemory', {
-        buffer: formatFixed(maxBufferSize / 1_048_576, 0),
-        storage: formatFixed(maxStorage / 1_048_576, 0),
+      const params = {
+        buffer: maxBufferSize / 1_048_576,
+        storage: maxStorage / 1_048_576,
         model: DEFAULT_WEBGPU_MODEL_LABEL,
-        vram: formatFixed(DEFAULT_WEBGPU_MODEL_SIZE.vramGb, 1),
-      });
+        vram: DEFAULT_WEBGPU_MODEL_SIZE.vramGb,
+      };
+      warning = translate(messages, 'smallMemory', params);
+      warningCopy = { catalog: WEBGPU_CLIENT_CATALOG, key: 'smallMemory', params };
     }
 
-    return { supported: true, warning, adapterLabel };
+    return { supported: true, warning, warningCopy, adapterLabel };
   } catch (error) {
     logger.warn('[WebGPU] Adapter probe failed:', error);
     return {
@@ -565,11 +716,10 @@ class WebGPUClient {
 
       // web-llm merges these over the build's config and the record's overrides.
       const chatOptions = WEBGPU_MODEL_PROFILES[modelId as WebGPUModelId]?.chatOptions;
-      const record = prebuiltAppConfig.model_list.find((entry) => entry.model_id === modelId);
+      const record = modelRecordFor(prebuiltAppConfig, modelId);
       const laneId = fastLane && record ? fastLaneModelId(modelId) : null;
-      // The pinned record, and the fast lane as the same record under a second
-      // id: same weights URL, so the browser cache serves it without a second
-      // download.
+      // The pinned record and the fast lane: the profile's routing build, or
+      // the same record under a second id (same weights URL, one download).
       const appConfig = pinnedAppConfig(prebuiltAppConfig, modelId, laneId, cacheBackend);
       const engineConfig = {
         appConfig,
@@ -582,7 +732,8 @@ class WebGPUClient {
       const enginePromise = laneId
         ? CreateWebWorkerMLCEngine(worker, [modelId, laneId], engineConfig, [
             chatOptions ?? {},
-            chatOptions ?? {},
+            // A routing-lane build carries its own options; a copy shares the main ones.
+            WEBGPU_MODEL_PROFILES[laneId as WebGPUModelId]?.chatOptions ?? chatOptions ?? {},
           ])
         : CreateWebWorkerMLCEngine(worker, modelId, engineConfig, chatOptions);
       // Swallow a late rejection if we cancel mid-handshake (the worker dies, so
@@ -1033,7 +1184,10 @@ class WebGPUClient {
       ...CACHE_BACKENDS.map((backend) =>
         pinnedAppConfig(prebuiltAppConfig, modelId, null, backend)
       ),
-      ...CACHE_BACKENDS.map((backend) => ({ ...prebuiltAppConfig, cacheBackend: backend })),
+      // The unpinned copy, in either store, exists only for a model web-llm itself lists.
+      ...(prebuiltAppConfig.model_list.some((entry) => entry.model_id === modelId)
+        ? CACHE_BACKENDS.map((backend) => ({ ...prebuiltAppConfig, cacheBackend: backend }))
+        : []),
     ];
     // One store's failure must not stop the other store or URL version.
     const failures: unknown[] = [];

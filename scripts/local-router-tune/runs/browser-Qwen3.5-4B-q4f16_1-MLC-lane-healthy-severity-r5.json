@@ -1,0 +1,807 @@
+{
+ "model": "Qwen3.5-4B-q4f16_1-MLC",
+ "fastLane": true,
+ "fetchedRepos": [],
+ "at": "2026-11-04T23:25:23.274Z",
+ "loadSeconds": 51.737,
+ "load": [
+  848.52197265625,
+  794.04638671875,
+  597.60009765625
+ ],
+ "summary": {
+  "strategyByArm": {
+   "base": {
+    "hits": 12,
+    "parsed": 14,
+    "n": 14,
+    "twoAnomalies": {
+     "hits": 4,
+     "parsed": 6,
+     "n": 6
+    },
+    "other": {
+     "hits": 8,
+     "parsed": 8,
+     "n": 8
+    },
+    "medianSeconds": 39.9,
+    "lineAsAssigned": true
+   },
+   "severity": {
+    "hits": 13,
+    "parsed": 14,
+    "n": 14,
+    "twoAnomalies": {
+     "hits": 6,
+     "parsed": 6,
+     "n": 6
+    },
+    "other": {
+     "hits": 7,
+     "parsed": 8,
+     "n": 8
+    },
+    "medianSeconds": 39.9,
+    "lineAsAssigned": true
+   }
+  },
+  "strategy": {
+   "hits": 25,
+   "parsed": 28,
+   "n": 28,
+   "medianSeconds": 39.9
+  }
+ },
+ "routing": {},
+ "strategic": [
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 35.7,
+   "answer": {
+    "priorities": [
+     "Isolate rm-102 and initiate safety interlock lockout",
+     "Dispatch autonomous forklift to clear rm-102 blockage",
+     "Verify material flow stability across all silos"
+    ],
+    "reasoning": "rm-102 is in a warning state with high vibration and elevated temperature, posing an immediate safety risk that must be addressed before resuming production.",
+    "insight": "The plant is idling at 100% efficiency but zero throughput, indicating a complete logistical blockage at rm-102.",
+    "focusMachine": "rm-102",
+    "actionPlan": [
+     "Lockout rm-102 and notify maintenance team immediately",
+     "Deploy autonomous forklift to remove obstructed material",
+     "Clear the blockage and perform a quick thermal check on rm-102"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 34.5,
+   "answer": {
+    "priorities": [
+     "Disable sifter-a to prevent overheating",
+     "Verify upstream silos for feed",
+     "Reset sifter-a to 'running'"
+    ],
+    "reasoning": "Sifter-a is operating in a warning state with high temperature and vibration despite zero load, indicating an imminent failure risk that must be addressed before resuming production. The zero throughput and active status of all silos suggest the system is idle, likely awaiting the sifter reset.",
+    "insight": "The sifter's elevated temperature (40.14°C) and vibration (3.98) relative to others suggest a thermal or mechanical fault unrelated to current load.",
+    "focusMachine": "sifter-a",
+    "actionPlan": [
+     "Immediately stop sifter-a via safety interlock",
+     "Inspect sifter-a for thermal overload or mechanical binding",
+     "Reset sifter-a status and monitor temperature for stabilization"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 39.9,
+   "answer": {
+    "priorities": [
+     "Address packer-0 warning immediately",
+     "Prevent thermal overload on packer-0",
+     "Maintain stable material flow"
+    ],
+    "reasoning": "Packer-0 shows a warning status with elevated temperature (40.1°C) and vibration (3.98), indicating imminent failure risk despite zero throughput. Immediate isolation is required to prevent catastrophic shutdown and ensure safety interlocks engage.",
+    "insight": "The temperature spike suggests motor overheating or bearing wear, correlating with high wear (93%) and elevated vibration, which may be a precursor to a total packer failure.",
+    "tradeoff": "Downtime to service packer-0 halts current production efficiency, but the risk of unplanned shutdown is significantly higher.",
+    "focusMachine": "packer-0",
+    "actionPlan": [
+     "Immediately isolate packer-0 and stop the line",
+     "Cool packer-0 and inspect bearings for wear",
+     "Replace packer-0 with spares and resume production"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 37.3,
+   "answer": {
+    "priorities": [
+     "Immediate shutdown of rm-101 due to high temperature and vibration",
+     "Verify silo inventory to enable startup",
+     "Reset rm-101 interlocks after inspection"
+    ],
+    "reasoning": "Silo throughput is zero despite all silos being full and ready; rm-101 shows critical thermal and vibration anomalies requiring immediate isolation to prevent safety incidents or equipment failure.",
+    "insight": "The system is in a 'ready but blocked' state where safety anomalies on rm-101 are preventing the startup sequence.",
+    "focusMachine": "rm-101",
+    "actionPlan": [
+     "Emergency stop rm-101 and log anomaly data",
+     "Inspect rm-101 temperature sensors and vibration actuators",
+     "Schedule maintenance window to reset or repair rm-101"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 39.1,
+   "answer": {
+    "priorities": [
+     "Activate safety interlocks for rm-103",
+     "Trigger emergency cooling for rm-103",
+     "Reset packer-1 to safe state"
+    ],
+    "reasoning": "rm-103 and packer-1 show critical warning statuses with high temperatures and wear, requiring immediate safety activation and cooling before they can resume operation. Clear weather and afternoon timing allow for rapid intervention without weather delays.",
+    "insight": "rm-103's 93% wear and 40°C temperature indicate imminent failure, while packer-1's 78% wear suggests future risk.",
+    "tradeoff": "Immediate cooling and reset will halt production throughput but prevent catastrophic failure and downtime.",
+    "focusMachine": "rm-103",
+    "actionPlan": [
+     "Trigger emergency cooling for rm-103",
+     "Reset packer-1 to safe state",
+     "Prepare safety interlocks for rm-103"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": false,
+   "focus": "rm-104",
+   "seconds": 44.1,
+   "answer": {
+    "priorities": [
+     "Immediate safety interlock on rm-104 (warning status)",
+     "Immediate safety interlock on sifter-c (warning status)",
+     "Prepare emergency load-out to prevent silo overflow"
+    ],
+    "reasoning": "Two critical equipment units are in warning status despite zero load, indicating imminent failure or unsafe conditions that must be addressed before production can resume. Clear weather and afternoon timing allow for immediate manual intervention or automated shutdown protocols without weather-related delays.",
+    "insight": "Zero throughput with 100% efficiency suggests the plant is idle due to the warning states, not operational constraints.",
+    "tradeoff": "Shutting down two machines to ensure safety may temporarily reduce potential throughput if the plant were already producing, but the risk of catastrophic failure outweighs any production loss.",
+    "focusMachine": "rm-104",
+    "actionPlan": [
+     "Trigger immediate safety interlock on rm-104 and sifter-c to isolate them from the system.",
+     "Dispatch maintenance teams to inspect rm-104 and sifter-c for overheating or mechanical faults.",
+     "Initiate emergency load-out procedures to clear any residual material and prevent overflow."
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 43,
+   "answer": {
+    "priorities": [
+     "Stop rm-101 immediately (warning status, high temp)",
+     "Stop sifter-b for inspection (warning status)",
+     "Reset production throughput to 0"
+    ],
+    "reasoning": "The mill is at 0 throughput despite 100% efficiency, indicating a halt caused by critical equipment warnings. The high temperatures and elevated vibration on rm-101 and sifter-b pose immediate safety and quality risks.",
+    "insight": "Both warning equipment are currently at 0 load, confirming the production stop is waiting for a manual or automated intervention.",
+    "tradeoff": "Prioritizing safety stops on rm-101 and sifter-b delays the resumption of production, but operating them in a warning state risks catastrophic failure and production loss.",
+    "focusMachine": "rm-101",
+    "actionPlan": [
+     "Execute emergency stop on rm-101 and sifter-b via control panel",
+     "Schedule immediate maintenance for rm-101 and sifter-b during the next shift",
+     "Verify repair completion and reset all equipment status before resuming production"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "packer-2",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-2",
+   "seconds": 41.6,
+   "answer": {
+    "priorities": [
+     "Reset rm-102 warning status",
+     "Reset packer-2 warning status",
+     "Enable bulk load for silo-0"
+    ],
+    "reasoning": "Plant throughput is at zero despite full uptime and efficiency, indicating a blockage or empty buffer state rather than equipment failure. Two critical units (rm-102, packer-2) are in warning states with high wear and temperature, requiring immediate attention before resuming operations.",
+    "insight": "The zero throughput with full capacity suggests the digital twin is stuck in a safety interlock or empty buffer state, not a mechanical breakdown.",
+    "tradeoff": "Prioritizing immediate reset of warning units may temporarily delay production ramp-up to ensure long-term safety and prevent catastrophic failure.",
+    "focusMachine": "packer-2",
+    "actionPlan": [
+     "Stop packer-2 and rm-102 immediately",
+     "Run diagnostic on packer-2 vibration and temperature",
+     "Reset packer-2 and rm-102 to running status"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 42.8,
+   "answer": {
+    "priorities": [
+     "Stop sifter-a immediately due to high vibration and wear",
+     "Stop packer-0 for urgent maintenance",
+     "Verify interlocks on all grain handling equipment"
+    ],
+    "reasoning": "Safety interlocks are compromised by elevated vibration and wear on critical sifting and packing machinery, creating an immediate risk of mechanical failure or hazardous grain dust accumulation. Proactive maintenance must halt production to prevent catastrophic equipment damage before the afternoon shift concludes.",
+    "insight": "The simultaneous warning status of sifter-a and packer-0 suggests a systemic logistics or material flow issue rather than isolated component failures.",
+    "tradeoff": "Ceasing production to address these warnings prioritizes safety and equipment longevity over maintaining 100% efficiency, requiring a temporary throughput reduction.",
+    "focusMachine": "sifter-a",
+    "actionPlan": [
+     "Immediately issue emergency stop commands for sifter-a and packer-0",
+     "Dispatch maintenance crews to inspect and repair affected equipment",
+     "Verify and clear any grain accumulation causing the high vibration in sifter-a"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "rm-104",
+   "parsed": true,
+   "hit": false,
+   "focus": "silo-2",
+   "seconds": 44.1,
+   "answer": {
+    "priorities": [
+     "Isolate and cool silo-2 to prevent structural failure",
+     "Isolate and cool rm-104 to prevent thermal runaway",
+     "Initiate emergency shutdown of all equipment"
+    ],
+    "reasoning": "Both silo-2 and rm-104 are in warning status with elevated temperatures and vibrations, indicating imminent safety hazards despite zero load. Immediate isolation is required to prevent catastrophic failure before normal operations can resume.",
+    "insight": "The simultaneous warning states on two distinct equipment types suggest a systemic environmental issue, likely the afternoon heat spike, rather than localized equipment faults.",
+    "tradeoff": "Prioritizing immediate cooling and shutdown sacrifices the ability to generate throughput data in the afternoon, but this is necessary to prevent permanent equipment damage and safety incidents.",
+    "focusMachine": "silo-2",
+    "actionPlan": [
+     "Trigger emergency cooling protocols for silo-2 and rm-104",
+     "Disable all equipment and initiate safety lockout procedures",
+     "Schedule full diagnostic scans for silo-2 and rm-104 upon system recovery"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 35.9,
+   "answer": {
+    "priorities": [
+     "immediate shutdown of unit-07",
+     "initiate emergency cooling protocol",
+     "verify safety interlocks"
+    ],
+    "reasoning": "Unit-07 is running at critical temperature and vibration levels with high wear, indicating imminent failure risk despite clear weather.",
+    "insight": "The warning status on unit-07 suggests a localized overheating event that must be isolated before it affects the stable operation of the remaining units.",
+    "tradeoff": "Stopping unit-07 temporarily halts 12.5% of total capacity, but prioritizing safety and preventing catastrophic failure outweighs the short-term throughput loss.",
+    "focusMachine": "unit-07",
+    "actionPlan": [
+     "Execute emergency shutdown of unit-07 immediately",
+     "Deploy cooling fans and monitor temperature reduction",
+     "Schedule planned maintenance for unit-07 during next shift"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 41.2,
+   "answer": {
+    "priorities": [
+     "STOP unit-01 immediately to prevent failure",
+     "Verify grain flow stability",
+     "Schedule preventive maintenance for unit-01"
+    ],
+    "reasoning": "Unit-01 is in warning status with high vibration and temperature, posing an imminent safety risk despite zero load. Immediate isolation is required to prevent catastrophic failure before the next production cycle.",
+    "insight": "The consistent wear level across all units suggests a systemic issue or recent installation, while unit-01's high wear (93%) indicates it is likely the oldest or most stressed component in the line.",
+    "tradeoff": "Stopping unit-01 temporarily halts throughput but prevents long-term downtime and safety hazards.",
+    "focusMachine": "unit-01",
+    "actionPlan": [
+     "Isolate unit-01 from the production line immediately",
+     "Run diagnostic tests on unit-01 to identify root cause",
+     "Schedule maintenance window for unit-01 to begin during next shift"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 37.2,
+   "answer": {
+    "priorities": [
+     "Initialize silo filling sequence",
+     "Reset sifter-b to prevent thermal degradation",
+     "Prepare logistics for bulk intake"
+    ],
+    "reasoning": "Production efficiency is at 100% but throughput is zero, indicating a critical initiation block; sifter-b shows elevated vibration and temperature despite running status, requiring immediate reset to prevent failure and ensure quality.",
+    "insight": "Silo readiness and sifter reset are the primary prerequisites to unlock the mill's full capacity.",
+    "tradeoff": "Prioritizing sifter reset temporarily halts all active processes to ensure safety and quality before resuming production.",
+    "focusMachine": "sifter-b",
+    "actionPlan": [
+     "Trigger immediate emergency stop and reset on sifter-b",
+     "Verify thermal and vibration parameters return to baseline",
+     "Configure automated logistics for initial bulk intake"
+    ]
+   }
+  },
+  {
+   "arm": "base",
+   "lineIn": false,
+   "overridden": [],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 39,
+   "answer": {
+    "priorities": [
+     "Enable grain flow to silos 0-4",
+     "Activate packers 0-2",
+     "Schedule predictive maintenance on rm-101"
+    ],
+    "reasoning": "All silos are empty (load=0) while rm-101 shows high wear (93) and elevated temperature, indicating a need to prioritize filling silos and addressing the aging receiver before it fails.",
+    "insight": "The receiver rm-101 is nearing end-of-life and requires immediate attention despite current operational status.",
+    "tradeoff": "Prioritizing rm-101 maintenance may temporarily reduce throughput until the receiver is repaired or replaced.",
+    "focusMachine": "rm-101",
+    "actionPlan": [
+     "Dispatch technician to inspect rm-101 immediately",
+     "Increase load on silos to optimize batch flow",
+     "Order replacement receiver for rm-101"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": false,
+   "focus": "rm-101",
+   "seconds": 37.7,
+   "answer": {
+    "priorities": [
+     "Isolate rm-101 to prevent thermal runaway",
+     "Reset rm-101 and restart safe cycle",
+     "Verify thermal interlock on rm-101"
+    ],
+    "reasoning": "rm-101 is the only machine in warning with critical wear (93) and elevated temperature (40.1C), requiring immediate isolation despite normal night conditions. Prioritizing safety interlocks prevents escalation while allowing other equipment to continue stable operation.",
+    "insight": "High wear on rm-101 suggests premature degradation or recent overload, necessitating a full reset before reuse.",
+    "focusMachine": "rm-101",
+    "actionPlan": [
+     "Stop rm-101 and trigger emergency thermal interlock",
+     "Cool rm-101 to ambient temperature and log thermal history",
+     "Schedule rm-101 for immediate maintenance inspection"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 29.9,
+   "answer": {
+    "priorities": [
+     "STOP sifter-a to prevent overheating",
+     "Verify material flow to silos",
+     "Schedule urgent maintenance for sifter-a"
+    ],
+    "reasoning": "Sifter-a is in warning with high temperature and vibration, posing an immediate safety risk. Prioritize stopping it to prevent damage while preparing to resume flow.",
+    "insight": "Sifter-a's elevated temperature and vibration indicate imminent failure despite low load.",
+    "focusMachine": "sifter-a",
+    "actionPlan": [
+     "Initiate emergency stop on sifter-a",
+     "Schedule sifter-a for immediate maintenance",
+     "Prepare alternative sifter for night shift"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 41.6,
+   "answer": {
+    "priorities": [
+     "Stop packer-0 immediately due to warning status",
+     "Reset packer-0 temperature and vibration to safe levels",
+     "Verify stable material flow across all silos"
+    ],
+    "reasoning": "Packer-0 is the only unit in warning status with significantly elevated temperature and vibration compared to running units, requiring immediate isolation. With no active production, the priority is to clear the safety alert before resuming night logistics cycles.",
+    "insight": "Elevated packer-0 metrics suggest potential thermal runaway or bearing failure despite zero load, indicating a latent fault that could escalate during operation.",
+    "tradeoff": "Stopping packer-0 halts immediate production capacity but prevents catastrophic failure and protects downstream logistics.",
+    "focusMachine": "packer-0",
+    "actionPlan": [
+     "Emergency stop packer-0 and log current telemetry",
+     "Dispatch maintenance team to inspect packer-0 bearings and heating elements",
+     "Clear silos and update autonomous logistics for packer-0 offline status"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 41.9,
+   "answer": {
+    "priorities": [
+     "Stop rm-101 immediately due to high vibration and wear",
+     "Verify safety interlocks on rm-101 before resuming production",
+     "Schedule forced shutdown of rm-101 for maintenance"
+    ],
+    "reasoning": "rm-101 is in a warning state with critically high vibration (3.98) and wear (93), making it the highest priority for safety and equipment integrity. All other machines are running normally with no issues.",
+    "insight": "The clear weather and night shift allow time for immediate shutdown and maintenance without disrupting daylight operations.",
+    "tradeoff": "Stopping rm-101 temporarily reduces overall production throughput, but prevents catastrophic failure and ensures long-term uptime.",
+    "focusMachine": "rm-101",
+    "actionPlan": [
+     "Trigger emergency stop on rm-101 immediately",
+     "Dispatch maintenance crew to inspect rm-101",
+     "Schedule full maintenance window for rm-101"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 36.5,
+   "answer": {
+    "priorities": [
+     "Stop rm-103 immediately due to critical warning",
+     "Maintain stable material flow across silos",
+     "Prepare packer-1 for scheduled maintenance"
+    ],
+    "reasoning": "rm-103 is in warning status with high wear (93) and elevated vibration, requiring immediate shutdown to prevent failure. Pack-er-1 is also in warning with high wear (78) and needs immediate attention.",
+    "insight": "Autonomous logistics must prioritize safety interlocks over throughput during night shifts when equipment health is degraded.",
+    "focusMachine": "rm-103",
+    "actionPlan": [
+     "Trigger emergency stop on rm-103 immediately",
+     "Schedule maintenance for packer-1 within 24 hours",
+     "Prepare spare parts and technician for packer-1"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 42.5,
+   "answer": {
+    "priorities": [
+     "Stop sifter-c immediately due to high wear and vibration",
+     "Investigate thermal anomalies on rm-104 and sifter-c",
+     "Pause autonomous logistics to prevent grain damage"
+    ],
+    "reasoning": "Sifter-c shows critical wear (93) and highest vibration (3.98), making it the priority for shutdown despite normal temperature. Rm-104 also requires attention due to elevated wear (78) and temperature.",
+    "insight": "High wear on sifter-c indicates imminent mechanical failure requiring immediate isolation to prevent production stoppage.",
+    "tradeoff": "Halting sifter-c and rm-104 reduces immediate throughput but prevents catastrophic downtime and quality loss from grain contamination.",
+    "focusMachine": "sifter-c",
+    "actionPlan": [
+     "Immediately power down sifter-c and rm-104",
+     "Schedule preventive maintenance for sifter-c within 24 hours",
+     "Clear silo buffers to ensure no grain loss during shutdown"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 39.5,
+   "answer": {
+    "priorities": [
+     "Safely halt rm-101 and sifter-b",
+     "Initiate emergency cooling protocols",
+     "Pause all production immediately"
+    ],
+    "reasoning": "Two machines are in warning state; rm-101 has the highest wear (93) and vibration (3.98), making it the priority for immediate shutdown to prevent catastrophic failure.",
+    "insight": "The night shift is clear, but the elevated wear and vibration on rm-101 indicate imminent mechanical breakdown requiring immediate isolation.",
+    "focusMachine": "rm-101",
+    "actionPlan": [
+     "Immediately issue emergency stop to rm-101",
+     "Activate forced cooling on rm-101 and sifter-b",
+     "Reset alarms and schedule preventive maintenance"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "packer-2",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-2",
+   "seconds": 44.6,
+   "answer": {
+    "priorities": [
+     "Stop packer-2 immediately",
+     "Isolate rm-102 from production",
+     "Verify temperature spikes"
+    ],
+    "reasoning": "Packer-2 exhibits the worst telemetry readings with high wear (93) and elevated vibration (3.98) compared to all other equipment, necessitating immediate isolation. The clear weather and night period suggest the issue is internal, not environmental.",
+    "insight": "The correlation between high wear and elevated temperature in packer-2 indicates a developing mechanical fault rather than simple overheating.",
+    "tradeoff": "Isolating packer-2 causes an immediate 100% throughput loss, which must be weighed against the risk of catastrophic failure or safety interlock violation.",
+    "focusMachine": "packer-2",
+    "actionPlan": [
+     "Trigger emergency stop on packer-2",
+     "Schedule diagnostic maintenance for packer-2",
+     "Prepare spare packer unit for deployment"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 39.9,
+   "answer": {
+    "priorities": [
+     "Stop sifter-a and packer-0 immediately",
+     "Initiate emergency cooling for sifter-a",
+     "Schedule urgent maintenance for packer-0"
+    ],
+    "reasoning": "Sifter-a and packer-0 are in warning states with high wear and vibration, posing immediate safety risks during night production. Prioritize stopping these machines to prevent equipment failure and ensure plant safety.",
+    "insight": "High wear on sifter-a indicates premature degradation requiring immediate intervention.",
+    "tradeoff": "Stopping production temporarily to address safety risks is necessary to prevent catastrophic equipment failure.",
+    "focusMachine": "sifter-a",
+    "actionPlan": [
+     "Issue emergency stop command for sifter-a",
+     "Activate cooling system for sifter-a",
+     "Schedule maintenance for packer-0"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "two-anomalies",
+   "want": "rm-104",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-104",
+   "seconds": 39.6,
+   "answer": {
+    "priorities": [
+     "Investigate high wear and vibration on rm-104 immediately",
+     "Verify thermal sensors and interlocks on rm-104",
+     "Pause production on rm-104 to prevent catastrophic failure"
+    ],
+    "reasoning": "rm-104 exhibits the highest wear (93) and vibration (3.98) among all equipment, indicating imminent failure despite clear weather and night shift conditions.",
+    "insight": "The combination of high wear and elevated vibration on rm-104 suggests a mechanical degradation that requires immediate isolation before it escalates to a safety interlock trip.",
+    "focusMachine": "rm-104",
+    "actionPlan": [
+     "Stop rm-104 and trigger emergency safety protocol",
+     "Dispatch maintenance team to inspect bearings and transmission",
+     "Conduct full diagnostic sweep of rm-104 and adjacent silos"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 36.9,
+   "answer": {
+    "priorities": [
+     "isolate unit-07 immediately",
+     "activate emergency cooling",
+     "enable full safety interlock"
+    ],
+    "reasoning": "Unit-07 is in a warning state with critical wear (93) and elevated temperature/vibration, requiring immediate isolation before damage escalation. All other units are running normally with zero load, so the focus must remain on the single anomalous unit.",
+    "insight": "The night period and clear weather suggest the anomaly is internal to unit-07 rather than an environmental factor.",
+    "focusMachine": "unit-07",
+    "actionPlan": [
+     "stop unit-07 and open emergency cooling",
+     "log wear data and schedule unit-07 for immediate repair",
+     "verify system-wide sensor calibration for future detection"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 44.2,
+   "answer": {
+    "priorities": [
+     "Stop unit-01 immediately to prevent thermal runaway",
+     "Verify material flow stability after unit-01 shutdown",
+     "Schedule unit-01 maintenance within 24 hours"
+    ],
+    "reasoning": "Unit-01 shows critical warning status with high vibration and elevated temperature, requiring immediate isolation before safety risks escalate. No other units exceed normal thresholds, so focus remains on the single anomalous unit.",
+    "insight": "Night operation allows safe isolation of unit-01 without disrupting production throughput.",
+    "tradeoff": "Temporary halt of unit-01 requires reassigning load to remaining units to maintain overall plant efficiency.",
+    "focusMachine": "unit-01",
+    "actionPlan": [
+     "Initiate emergency stop sequence on unit-01",
+     "Isolate unit-01 from the power grid",
+     "Schedule maintenance window for unit-01"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 46.1,
+   "answer": {
+    "priorities": [
+     "Stop sifter-b immediately due to high wear and vibration",
+     "Verify sifter-b thermal sensors and load data",
+     "Isolate sifter-b for urgent maintenance inspection"
+    ],
+    "reasoning": "Sifter-b exhibits the highest wear (93) and vibration (3.98) among all running equipment, indicating imminent failure risk despite normal temperature. Immediate isolation is required to prevent catastrophic breakdown during the night shift.",
+    "insight": "Sifter-b is the only unit with abnormal telemetry metrics, suggesting a localized mechanical or sensor fault rather than a plant-wide issue.",
+    "focusMachine": "sifter-b",
+    "actionPlan": [
+     "Trigger emergency stop on sifter-b and log current state",
+     "Dispatch maintenance crew to inspect motor and sensor assemblies",
+     "Prepare replacement parts and schedule shift handover"
+    ]
+   }
+  },
+  {
+   "arm": "severity",
+   "lineIn": true,
+   "overridden": [],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 38.1,
+   "answer": {
+    "priorities": [
+     "Shutdown rm-101 immediately due to critical wear",
+     "Verify thermal safety of rm-101 before shutdown",
+     "Prepare production resumption for next cycle"
+    ],
+    "reasoning": "rm-101 exhibits the worst wear level (93) and elevated vibration compared to other equipment, requiring immediate isolation despite normal operating status.",
+    "insight": "The plant is in a safe but idle state with no active production, and rm-101 is the only equipment showing signs of significant degradation.",
+    "focusMachine": "rm-101",
+    "actionPlan": [
+     "Execute emergency shutdown sequence for rm-101",
+     "Inspect rm-101 mechanical integrity post-shutdown",
+     "Schedule rm-101 for overhaul and component replacement"
+    ]
+   }
+  }
+ ],
+ "console": [
+  "23:06:44 [INFO] [WebGPU] Model Qwen3.5-4B-q4f16_1-MLC loaded successfully (worker, with fast lane)"
+ ]
+}

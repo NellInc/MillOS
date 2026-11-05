@@ -60,6 +60,8 @@ The active backend is configured in `src/stores/aiConfigStore.ts`:
 
 Gemini uses `src/utils/geminiClient.ts`. The on-device backend uses `src/utils/webgpuClient.ts` and stays out of the eager bundle until selected.
 
+With the fast lane on, on-device incident routing runs on a Qwen3.5-0.8B build tuned for it (`scripts/local-router-tune/`, D-017, D-021) while strategy stays on the official Qwen3.5-4B build.
+
 ### Decision record
 
 `AIDecision` records action, reasoning, confidence, impact, target, lifecycle, response, outcome, and provenance. `productionStore.ts` enriches decisions that arrive without full provenance by attaching observed facts, trigger, constraints, and source metadata.

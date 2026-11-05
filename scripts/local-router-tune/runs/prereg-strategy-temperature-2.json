@@ -1,0 +1,17 @@
+{
+ "run": "strategy-temperature-2",
+ "writtenAt": "2026-11-04, after run 1 (0.3 50/50, 0.7 48/50, rule not met) and before run 2",
+ "approvedBy": "Nell: 'Proceed according to your best judgment please, and ask the advisor also' (2026-11-04)",
+ "design": "Same as prereg-strategy-temperature.json (4B with the 0.8B lane as shipped, 10 healthy-base cases, 5 repeats per arm in one page load, arms alternating), with the arm order flipped (0.3 first) and the parsed JSON of every answer stored.",
+ "pooled": "run 1 + run 2: 100 answers per arm",
+ "rule": {
+  "adopt0.3if": [
+   "hits(0.3) - hits(0.7) >= 4 across both runs",
+   "parsed(0.3) >= parsed(0.7) across both runs",
+   "median seconds(0.3) <= 1.2 x median seconds(0.7) in run 2",
+   "not formulaic: in run 2, the share of an arm's priorities (lowercased, whitespace-collapsed) that also appear verbatim in an answer to a different case is no more than 0.10 above 0.7's share",
+   "a side-by-side read of 12 run-2 answers per arm finds no case where 0.3 drops the case-specific evidence that 0.7 states"
+  ],
+  "otherwise": "keep 0.7 (D-024 stands)"
+ }
+}

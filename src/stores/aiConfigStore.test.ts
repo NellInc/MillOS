@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useAIConfigStore } from './aiConfigStore';
-import { webgpuClient, WebGPUClient } from '../utils/webgpuClient';
+import { webgpuClient, WebGPUClient, WEBGPU_MODEL_PROFILES } from '../utils/webgpuClient';
 
 describe('AI preferences migration', () => {
   it('defaults new visitors to Haiku 5.5, the recommended model', () => {
@@ -96,8 +96,12 @@ describe('local model cache', () => {
     const deleted = vi.spyOn(WebGPUClient, 'deleteModelCache').mockResolvedValue();
     try {
       await useAIConfigStore.getState().deleteWebGPUCache();
+      // Every shipped profile, the routing tunes included.
       expect(deleted.mock.calls.map(([id]) => id).sort()).toEqual(
-        ['Qwen3-4B-q4f16_1-MLC', 'Qwen3.5-4B-q4f16_1-MLC'].sort()
+        Object.keys(WEBGPU_MODEL_PROFILES).sort()
+      );
+      expect(Object.keys(WEBGPU_MODEL_PROFILES)).toEqual(
+        expect.arrayContaining(['Qwen3-4B-q4f16_1-MLC', 'Qwen3.5-4B-q4f16_1-MLC'])
       );
       expect(useAIConfigStore.getState().webgpuModelReady).toBe(false);
     } finally {
@@ -160,6 +164,39 @@ describe('a lost WebGPU device', () => {
         webgpuError: null,
         webgpuStatus: 'idle',
       });
+    }
+  });
+});
+
+// F34: after a dispatched call fails with unknown billing, only the uncertain
+// charge exists; the AI panel's badge read '$0.00 est.' while the settings
+// modal showed the pending amount.
+describe('the session cost readout', () => {
+  it('counts in-flight and uncertain charges in the estimate', () => {
+    const original = useAIConfigStore.getState().costTracking;
+    try {
+      useAIConfigStore.setState({
+        costTracking: {
+          ...original,
+          requestCount: 0,
+          sessionCost: 0,
+          reservedCost: 0.002,
+          uncertainCost: 0.01,
+        },
+      });
+      expect(useAIConfigStore.getState().getFormattedCost()).toBe('$0.01');
+      useAIConfigStore.setState({
+        costTracking: {
+          ...original,
+          requestCount: 2,
+          sessionCost: 0.5,
+          reservedCost: 0,
+          uncertainCost: 0.25,
+        },
+      });
+      expect(useAIConfigStore.getState().getFormattedCost()).toBe('$0.75');
+    } finally {
+      useAIConfigStore.setState({ costTracking: original });
     }
   });
 });

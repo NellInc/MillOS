@@ -1,0 +1,33 @@
+{
+ "run": "severity-line",
+ "writtenAt": "2026-11-04, before any measurement",
+ "approvedBy": "Nell: '1 please.' (2026-11-04)",
+ "question": "Does one added line in the strategic prompt make the local 4B pick the more severe of two machines in warning, without hurting the other cases or the text?",
+ "line": "When more than one machine is in warning, focus on the one with the worst readings: highest wear, then vibration, then temperature.",
+ "where": "Inserted by the eval after the 'Prioritize safety interlocks...' line of aiEngine.strategicPrompt, for the local backend only. App code is not changed during the test; the cloud backends receive strategicPrompt too and are not measured here.",
+ "design": {
+  "config": "Qwen3.5-4B-q4f16_1-MLC with the fast lane (Qwen3.5-0.8B routing at 914fde01), temperature 0.7, as shipped",
+  "cases": "the 10 --healthy-base strategic cases plus 4 more two-anomaly cases (pairs written now, before measuring: rm-101 worse than sifter-b, packer-2 worse than rm-102, sifter-a worse than packer-0, rm-104 worse than silo-2)",
+  "arms": [
+   "base",
+   "severity"
+  ],
+  "repeats": "5 per arm in one page load, arms alternating per repeat, every parsed answer stored",
+  "verified": "every severity-arm prompt is checked to contain the line, every base-arm prompt to lack it"
+ },
+ "rule": {
+  "adoptIf": [
+   "two-anomaly hits(severity) - hits(base) >= 5, out of 30 per arm",
+   "other cases: hits(severity) >= hits(base) - 1, out of 40 per arm",
+   "parsed(severity) >= parsed(base) - 1, out of 70 per arm",
+   "median seconds(severity) <= 1.2 x median seconds(base)",
+   "formulaic share (temperature_read.py) of severity no more than 0.05 above base"
+  ],
+  "ifPass": "add the line to strategicPrompt for the local backend only (D-025); cloud prompts unchanged until measured",
+  "otherwise": "no change"
+ },
+ "deviation": {
+  "at": "2026-11-04 21:25, before any result was seen",
+  "what": "The single 5-repeat page load crashed after about 80 minutes ('Target page, context or browser has been closed', machine load 122-175, no results written). It is rerun as 5 page loads of 1 repeat each, both arms in every load, arm order alternating between loads (base first in loads 1, 3, 5). Pooled across loads; the rule is unchanged."
+ }
+}
