@@ -717,7 +717,7 @@ const unchangedSourceHashes = {
   'public/models/world/hedge-unit.glb':
     '808a45bf2a900a731887ef2605cec8a8de691b6c15e8440a3f82d64b0d8cf81b',
   'public/models/world/park-bench.glb':
-    'a44763b704605b3c7b0c5389557cb50274a9a23b1eaa2200bf6899ecf2b20bf1',
+    'ac5f84601b036ad719f8c0797c5e1a6ca8512f664b48ddb6b42cdb0a8d72d0a0',
   'public/models/world/info-sign.glb':
     'fca53f890aaf168c2e931b368a3cdb4a0e492449d7ee7eaa3674d833a607fb99',
 };
