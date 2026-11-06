@@ -5,7 +5,7 @@
  * Can link to knowledge entries and be dismissed
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, X } from 'lucide-react';
 import {
@@ -16,6 +16,7 @@ import {
 import { useKnowledgeStore } from '../../stores/knowledgeStore';
 import { useT } from '../../i18n';
 import { aiNarrationMessages } from './AINarration.messages';
+import { focusDockItem } from '../ui-new/dock/focusDockItem';
 
 interface AINarrationProps {
   narration: NarrationEntry;
@@ -39,8 +40,29 @@ export function AINarration({ narration, onDismiss }: AINarrationProps) {
     }
   }, [narration.id, narration.unlocksEntry, markShown, unlockEntry]);
 
+  // "Continue reading" removes itself; carry focus to where the reading resumes
+  // rather than letting it fall to <body>.
+  const revealedRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (isExpanded) revealedRef.current?.focus();
+  }, [isExpanded]);
+
+  // The card waits behind safety states, so a critical alert, a drill or an
+  // opened sidebar unmounts it mid-read. Focus inside it would fall to <body>,
+  // where Space stops every forklift; the dock takes it, as on dismissal. A
+  // layout cleanup runs while the card is still in the document, and before
+  // any panel that opens focuses itself.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    return () => {
+      if (card?.contains(document.activeElement)) focusDockItem('overview');
+    };
+  }, []);
+
   return (
     <motion.div
+      ref={cardRef}
       initial={{ opacity: 0, y: 20, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -20, scale: 0.98 }}
@@ -70,6 +92,8 @@ export function AINarration({ narration, onDismiss }: AINarrationProps) {
           {(isExpanded ? paragraphs : previewParagraphs).map((para, index) => (
             <motion.p
               key={index}
+              ref={index === 2 ? revealedRef : undefined}
+              tabIndex={index === 2 ? -1 : undefined}
               initial={index >= 2 ? { opacity: 0, y: 10 } : false}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index >= 2 ? (index - 2) * 0.1 : 0 }}

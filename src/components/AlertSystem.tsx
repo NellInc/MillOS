@@ -7,6 +7,10 @@ import type { AlertData } from '../types';
 import { translate } from '../i18n';
 import { alertSystemMessages } from './AlertSystem.messages';
 import { LiveRegionPortal } from './ui/LiveRegionPortal';
+import { registerAlertCatalog } from '../i18n/alertCopy';
+
+const ALERT_SYSTEM_CATALOG = 'alertSystem';
+registerAlertCatalog(ALERT_SYSTEM_CATALOG, alertSystemMessages);
 
 type PlainMessageKey = Exclude<keyof typeof alertSystemMessages.en, 'typedLiveRegion'>;
 const m = (key: PlainMessageKey): string => translate(alertSystemMessages, key);
@@ -45,6 +49,11 @@ const NEAR_MISS_MESSAGE_KEYS = [
  */
 // Re-reading marker for the polite live region; a constant, not a literal.
 const NBSP = String.fromCharCode(0xa0);
+// A live region whose text does not change is not read again, so a notice
+// worded like the last alternates a trailing no-break space.
+// Working if two identical notices (shift closes, near misses) are each read once.
+const reread = (text: string) => (previous: string) =>
+  previous.trimEnd() !== text ? text : previous.endsWith(NBSP) ? text : `${text}${NBSP}`;
 
 export const AlertSystem: React.FC = () => {
   const [liveRegionMessage, setLiveRegionMessage] = useState('');
@@ -64,9 +73,9 @@ export const AlertSystem: React.FC = () => {
       useSafetyStore.getState().forkliftEmergencyStop ||
       useGameSimulationStore.getState().emergencyActive;
     if (safetyMetrics.safetyStops > prevSafetyStopsRef.current && !deliberateHold) {
-      const message = m(
-        NEAR_MISS_MESSAGE_KEYS[Math.floor(Math.random() * NEAR_MISS_MESSAGE_KEYS.length)]
-      );
+      const messageKey =
+        NEAR_MISS_MESSAGE_KEYS[Math.floor(Math.random() * NEAR_MISS_MESSAGE_KEYS.length)];
+      const message = m(messageKey);
       const newAlert: AlertData = {
         id: `safety-${Date.now()}`,
         type: 'safety',
@@ -74,6 +83,8 @@ export const AlertSystem: React.FC = () => {
         message,
         timestamp: new Date(),
         acknowledged: false,
+        // Keyed, so the bell (which a reload restores) follows the language.
+        copy: { catalog: ALERT_SYSTEM_CATALOG, title: 'nearMissTitle', message: messageKey },
       };
 
       // Play distinct safety alert sound
@@ -81,10 +92,12 @@ export const AlertSystem: React.FC = () => {
 
       // Announce to screen readers
       setLiveRegionMessage(
-        translate(alertSystemMessages, 'safetyLiveRegion', {
-          title: newAlert.title,
-          message: newAlert.message,
-        })
+        reread(
+          translate(alertSystemMessages, 'safetyLiveRegion', {
+            title: newAlert.title,
+            message: newAlert.message,
+          })
+        )
       );
 
       // Push to uiStore for StatusHUD display
@@ -101,10 +114,15 @@ export const AlertSystem: React.FC = () => {
   // silent. Working if a breakdown, a wear warning and a quality hold reach a
   // screen reader with game audio muted, and a closed shift with the PA off.
   useEffect(() => {
-    let seen = new Set(useUIStore.getState().alerts.map((alert) => alert.id));
+    // Keyed by id and raise time: an alert filed again under its id (a quality
+    // hold on the same load, a condition back after returning to normal) is
+    // raised afresh, while acknowledging one keeps its time and stays silent.
+    // Working if a second hold on one load is read, and Acknowledge is not.
+    const raised = (alert: AlertData) => `${alert.id}@${new Date(alert.timestamp).getTime()}`;
+    let seen = new Set(useUIStore.getState().alerts.map(raised));
     return useUIStore.subscribe(({ alerts }) => {
-      const fresh = alerts.filter((alert) => !seen.has(alert.id) && alert.announce);
-      seen = new Set(alerts.map((alert) => alert.id));
+      const fresh = alerts.filter((alert) => !seen.has(raised(alert)) && alert.announce);
+      seen = new Set(alerts.map(raised));
       if (fresh.length === 0) return;
       // The bell lists newest first; read them in the order they were filed.
       const read = (level: 'polite' | 'assertive') =>
@@ -118,11 +136,6 @@ export const AlertSystem: React.FC = () => {
             })
           )
           .join(' ');
-      // A live region whose text does not change is not read again, so a
-      // notice worded like the last alternates a trailing no-break space.
-      // Working if two identical shift-close notices are each read once.
-      const reread = (text: string) => (previous: string) =>
-        previous.trimEnd() !== text ? text : previous.endsWith(NBSP) ? text : `${text}${NBSP}`;
       const assertive = read('assertive');
       const polite = read('polite');
       if (assertive) setLiveRegionMessage(reread(assertive));

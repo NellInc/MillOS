@@ -1,6 +1,8 @@
 import type { ShiftCampaignMetrics } from '../stores/operationsCampaignStore';
 import { createTranslator, formatFixed, formatGrouped, type Locale } from '../i18n';
 import { shiftReviewMessages } from './shiftReview.messages';
+import { operationsCampaignMessages } from '../stores/operationsCampaignStore.messages';
+import { incidentDescription, incidentTitle } from '../stores/incidentText';
 
 /**
  * How a closed shift window is graded, from evidence the campaign already
@@ -33,6 +35,8 @@ export interface ShiftOpenIncident {
   /** The incident's description, which names where it is. */
   detail: string;
   phase: 'raised' | 'acknowledged' | 'mitigated';
+  /** Its kind, so a review reads its title and place in the reader's language (absent before). */
+  kind?: string;
 }
 
 /** The evidence a grade is computed from, stored with the report. */
@@ -44,6 +48,18 @@ export interface ShiftGradeBasis {
   margin: number;
   /** Material or deadline risks still open when the window closed. */
   risks: string[];
+  /**
+   * The catalogue key of each risk's label, by index, so a review read after a
+   * language switch words it again (shiftRiskLabels). Absent before; those
+   * reports keep the text they saved.
+   */
+  riskLabelKeys?: (string | null)[];
+  /**
+   * What each risk is about, by index: an overdue order's customer, a proper
+   * name read the same in every language. Null for a risk about no one order.
+   * Absent before; two overdue orders saved without it read as one counted line.
+   */
+  riskSubjects?: (string | null)[];
   /** Unresolved high or critical incidents at close, by title. */
   unsafeTitles: string[];
   /**
@@ -57,6 +73,11 @@ export interface ShiftGradeBasis {
   /** The kilogram bars in force for this window. */
   kgForA: number;
   kgForB: number;
+  /**
+   * Commitments that fell due by the window's close (open, or completed in
+   * it). Absent on reports saved before it; those are graded as before.
+   */
+  dueInWindow?: number;
 }
 
 export function shiftMargin(metrics: ShiftCampaignMetrics): number {
@@ -90,7 +111,10 @@ export function shiftGradeBasis(
   risks: string[],
   unsafeTitles: string[],
   lateDeliveries = 0,
-  openIncidents?: ShiftOpenIncident[]
+  openIncidents?: ShiftOpenIncident[],
+  riskLabelKeys?: (string | null)[],
+  dueInWindow?: number,
+  riskSubjects?: (string | null)[]
 ): ShiftGradeBasis {
   const commitmentMinutes = Math.max(0, metrics.commitmentMinutes ?? 0);
   const hours = commitmentMinutes / 60;
@@ -99,18 +123,85 @@ export function shiftGradeBasis(
     dispatchedKg: metrics.dispatchedKg,
     margin: shiftMargin(metrics),
     risks: [...risks],
+    ...(riskLabelKeys ? { riskLabelKeys: [...riskLabelKeys] } : {}),
+    ...(riskSubjects ? { riskSubjects: [...riskSubjects] } : {}),
     unsafeTitles: [...unsafeTitles],
     ...(openIncidents ? { openIncidents: openIncidents.map((incident) => ({ ...incident })) } : {}),
     qualityFailureKg: metrics.qualityFailureKg ?? 0,
     lateDeliveries: Math.max(0, lateDeliveries),
     kgForA: Math.ceil(GRADE_A_KG_PER_COMMITMENT_HOUR * hours),
     kgForB: Math.ceil(GRADE_B_KG_PER_COMMITMENT_HOUR * hours),
+    ...(dueInWindow !== undefined ? { dueInWindow: Math.max(0, dueInWindow) } : {}),
   };
+}
+
+type CampaignEn = typeof operationsCampaignMessages.en;
+type CampaignLabelKey = {
+  [K in keyof CampaignEn]: CampaignEn[K] extends string ? K : never;
+}[keyof CampaignEn] &
+  string;
+const isCampaignLabelKey = (key: unknown): key is CampaignLabelKey =>
+  typeof key === 'string' &&
+  Object.prototype.hasOwnProperty.call(operationsCampaignMessages.en, key) &&
+  typeof operationsCampaignMessages.en[key as keyof CampaignEn] === 'string';
+
+/*
+ * A report is saved in the language active when its window closed. Its risks
+ * and open incidents are worded again here, in the reader's language; a risk
+ * or incident saved without its key or kind keeps the text it saved.
+ * Working if a report closed in English reads wholly in pt-BR after a switch.
+ *
+ * Each overdue order is named once, by its customer; the same label carried
+ * more than once with nothing to tell them apart (a report saved before the
+ * names) reads once with its count. The grade still counts every risk.
+ * Working if two overdue orders read "Commitment overdue (Riverside ...);
+ * Commitment overdue (Community ...)", or "Commitment overdue (2)".
+ */
+export function shiftRiskLabels(basis: ShiftGradeBasis, locale: Locale): string[] {
+  const t = createTranslator(operationsCampaignMessages, locale);
+  const labels = basis.risks.map((label, index) => {
+    const key = basis.riskLabelKeys?.[index];
+    const subject = basis.riskSubjects?.[index];
+    if (!isCampaignLabelKey(key)) return label;
+    return subject ? t('riskNamed', { label: t(key), subject }) : t(key);
+  });
+  const counts = new Map<string, number>();
+  for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1);
+  const review = createTranslator(shiftReviewMessages, locale);
+  return [...counts].map(([label, count]) =>
+    count > 1 ? review('riskRepeated', { label, countText: formatFixed(count, 0, locale) }) : label
+  );
+}
+
+function unsafeTitles(basis: ShiftGradeBasis, locale: Locale): string[] {
+  return basis.unsafeTitles.map((title, index) => {
+    const kind = basis.openIncidents?.[index]?.kind;
+    return kind ? incidentTitle({ kind, title }, locale) : title;
+  });
 }
 
 /** True when no customer asked the plant for anything during the window. */
 export function hasNoCommitment(basis: ShiftGradeBasis): boolean {
   return basis.commitmentMinutes <= 0 && basis.dispatchedKg <= 0;
+}
+
+/**
+ * A commitment was open, but none fell due by the close and nothing shipped or
+ * failed QC: the first truck leaves well after a programme is accepted, so a
+ * window like that has nothing to grade yet. A serious incident left open does
+ * not make it gradable (it would grade F for shipping nothing, under a reason
+ * saying the incident caps the grade at D); its review names the incident, as
+ * a window with no commitment does.
+ * Working if such a window with an open incident reads "not graded" and names it.
+ */
+export function nothingDueYet(basis: ShiftGradeBasis): boolean {
+  return (
+    basis.dueInWindow === 0 &&
+    basis.commitmentMinutes > 0 &&
+    basis.dispatchedKg <= 0 &&
+    (basis.qualityFailureKg ?? 0) <= 0 &&
+    (basis.lateDeliveries ?? 0) === 0
+  );
 }
 
 /** Carried risks plus late deliveries: an A allows none, a B one, a C two. */
@@ -140,7 +231,7 @@ function uncappedGrade(basis: ShiftGradeBasis): ShiftGrade {
 
 /** Null means no customer commitments: nothing to grade, so no letter. */
 export function gradeShift(basis: ShiftGradeBasis): ShiftGrade | null {
-  if (hasNoCommitment(basis)) return null;
+  if (hasNoCommitment(basis) || nothingDueYet(basis)) return null;
   let grade = uncappedGrade(basis);
   if (basis.qualityFailureKg > 0) grade = 'F';
   if (basis.unsafeTitles.length && (grade === 'A' || grade === 'B' || grade === 'C')) grade = 'D';
@@ -157,13 +248,22 @@ export function shiftGradeReasons(basis: ShiftGradeBasis, locale: Locale): strin
   // Nothing to grade is not a clean shift when a serious incident was left
   // open: each is named, with where it is and how far it was handled.
   // Working if an ungraded window with an open incident lists it.
-  if (hasNoCommitment(basis))
-    return [
-      t('noCommitment'),
-      ...(basis.openIncidents
-        ? basis.openIncidents.map((incident) => t('openIncidentReason', { ...incident }))
-        : basis.unsafeTitles.map((title) => t('openIncidentTitleReason', { title }))),
-    ];
+  const openIncidentReasons = () =>
+    basis.openIncidents
+      ? basis.openIncidents.map((incident) =>
+          t('openIncidentReason', {
+            phase: incident.phase,
+            title: incident.kind
+              ? incidentTitle({ kind: incident.kind, title: incident.title }, locale)
+              : incident.title,
+            detail: incident.kind
+              ? incidentDescription({ kind: incident.kind, description: incident.detail }, locale)
+              : incident.detail,
+          })
+        )
+      : basis.unsafeTitles.map((title) => t('openIncidentTitleReason', { title }));
+  if (nothingDueYet(basis)) return [t('nothingDue'), ...openIncidentReasons()];
+  if (hasNoCommitment(basis)) return [t('noCommitment'), ...openIncidentReasons()];
   const reasons = [
     t('dispatchReason', {
       kg: formatGrouped(Math.round(basis.dispatchedKg), undefined, locale),
@@ -181,7 +281,7 @@ export function shiftGradeReasons(basis: ShiftGradeBasis, locale: Locale): strin
       })
     );
   if (basis.unsafeTitles.length)
-    reasons.push(t('unsafeReason', { titles: basis.unsafeTitles.join(', ') }));
+    reasons.push(t('unsafeReason', { titles: unsafeTitles(basis, locale).join(', ') }));
   return reasons;
 }
 
@@ -243,14 +343,29 @@ export function shiftHeadline(
   locale: Locale
 ): string {
   const t = createTranslator(shiftReviewMessages, locale);
+  const severalIncidents = basis.unsafeTitles.length > 1;
+  if (grade === null && nothingDueYet(basis))
+    return basis.unsafeTitles.length
+      ? t(severalIncidents ? 'nothingDueIncidents' : 'nothingDueIncident')
+      : t('nothingDue');
   if (grade === null)
-    return basis.unsafeTitles.length ? t('noCommitmentIncident') : t('noCommitment');
+    return basis.unsafeTitles.length
+      ? t(severalIncidents ? 'noCommitmentIncidents' : 'noCommitmentIncident')
+      : t('noCommitment');
   if (grade === 'A' || grade === 'B')
     return t('headlineGood', { kg: kgText(basis.dispatchedKg, locale) });
   const gap = shiftGradeGap(basis, grade);
+  const cause = gap?.binding ?? 'risks';
   return t('headlineHeldBack', {
     kg: kgText(basis.dispatchedKg, locale),
-    cause: gap?.binding ?? 'risks',
+    // "a late delivery" names one; two or more read as late deliveries, and
+    // likewise for unresolved incidents.
+    cause:
+      cause === 'late' && basis.lateDeliveries > 1
+        ? 'lateMany'
+        : cause === 'unsafe' && severalIncidents
+          ? 'unsafeMany'
+          : cause,
   });
 }
 
@@ -270,12 +385,13 @@ export function describeShiftGap(
     case 'quality':
       return t('gapQuality', { next });
     case 'unsafe':
-      return t('gapUnsafe', { next, titles: basis.unsafeTitles.join(', ') });
+      return t('gapUnsafe', { next, titles: unsafeTitles(basis, locale).join(', ') });
     case 'late':
     case 'risks': {
       // Both causes consume the SAME allowance used by failsFor. A late load
       // is still counted after it left, even when an open material risk is
       // the binding cause. Working if mixed reviews name that combined total.
+      // failsFor returns 'late' or 'risks' only for an A, B or C target.
       const allowed = ISSUES_ALLOWED[gap.next as 'A' | 'B' | 'C'];
       const late = basis.lateDeliveries ?? 0;
       if (basis.risks.length && late)
@@ -287,7 +403,7 @@ export function describeShiftGap(
           riskText: formatFixed(basis.risks.length, 0, locale),
           late,
           lateText: formatFixed(late, 0, locale),
-          labels: basis.risks.join('; '),
+          labels: shiftRiskLabels(basis, locale).join('; '),
         });
       if (gap.binding === 'late')
         return t('gapLate', {
@@ -303,7 +419,7 @@ export function describeShiftGap(
         allowedText: formatFixed(allowed, 0, locale),
         count: basis.risks.length,
         countText: formatFixed(basis.risks.length, 0, locale),
-        labels: basis.risks.join('; '),
+        labels: shiftRiskLabels(basis, locale).join('; '),
       });
     }
     case 'margin':
@@ -327,22 +443,30 @@ export function describeShiftTryNext(
   locale: Locale
 ): string | null {
   const t = createTranslator(shiftReviewMessages, locale);
+  // "as soon as it is raised" names one; several are each raised and resolved.
+  const tryUnsafe = () =>
+    t('tryUnsafe', {
+      titles: unsafeTitles(basis, locale).join(', '),
+      count: basis.unsafeTitles.length,
+    });
   // A grade's immediate cap can be quality or routine risks while a serious
   // incident is also open. Advice follows the operational priority, without
   // changing that grade. Working if incident handling precedes throughput/QC.
-  if (basis.unsafeTitles.length) return t('tryUnsafe', { titles: basis.unsafeTitles.join(', ') });
-  if (grade === null) return t('tryNoCommitment');
+  if (basis.unsafeTitles.length) return tryUnsafe();
+  if (grade === null) return t(nothingDueYet(basis) ? 'tryNothingDue' : 'tryNoCommitment');
   const gap = shiftGradeGap(basis, grade);
   if (!gap) return null;
   switch (gap.binding) {
     case 'quality':
       return t('tryQuality');
     case 'unsafe':
-      return t('tryUnsafe', { titles: basis.unsafeTitles.join(', ') });
+      return tryUnsafe();
     case 'late':
       return t('tryLate');
     case 'risks':
-      return basis.risks.length ? t('tryRisk', { risk: basis.risks[0] }) : t('tryLate');
+      return basis.risks.length
+        ? t('tryRisk', { risk: shiftRiskLabels(basis, locale)[0] })
+        : t('tryLate');
     case 'margin':
       return t('tryMargin');
     case 'kg':
@@ -358,6 +482,12 @@ export function describeOrderOutcome(
   locale: Locale
 ): string {
   const t = createTranslator(shiftReviewMessages, locale);
+  // Whole minutes, rounded up as the shift card's deadline above this report
+  // rounds them (deriveDeliveryDeadline), so a part minute counts: "0m late"
+  // contradicts the grade, which counts any delivery past its due time as late.
+  // Working if "due in" and "overdue" name the card's minutes.
+  const duration = (minutes: number) =>
+    formatShiftDuration(Math.max(1, Math.ceil(minutes)), locale);
   const kg = {
     customer: outcome.customer,
     shipped: kgText(outcome.shippedKg, locale),
@@ -369,16 +499,16 @@ export function describeOrderOutcome(
         ? t('outcomeOnTime', kg)
         : t('outcomeLate', {
             ...kg,
-            duration: formatShiftDuration(outcome.completedAtMinute - outcome.dueAtMinute, locale),
+            duration: duration(outcome.completedAtMinute - outcome.dueAtMinute),
           })
       : endedAtMinute > outcome.dueAtMinute
         ? t('outcomeOverdue', {
             ...kg,
-            duration: formatShiftDuration(endedAtMinute - outcome.dueAtMinute, locale),
+            duration: duration(endedAtMinute - outcome.dueAtMinute),
           })
         : t('outcomeOpen', {
             ...kg,
-            duration: formatShiftDuration(outcome.dueAtMinute - endedAtMinute, locale),
+            duration: duration(outcome.dueAtMinute - endedAtMinute),
           });
   return outcome.qualityFailureKg > 0
     ? `${line} ${t('outcomeQualityFailure', { kg: kgText(outcome.qualityFailureKg, locale) })}`

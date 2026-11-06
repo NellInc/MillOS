@@ -1,0 +1,35 @@
+{
+ "frozenAt": "2026-11-02T21:03:22+00:00",
+ "promptSha": "25ce66a67e234037",
+ "files": {
+  "cases.json": {
+   "sha256": "71cac9f6945511ec87dae7f6cb5a4960d385601613442896e0606a9d4d7c0379",
+   "n": 72
+  },
+  "heldout.json": {
+   "sha256": "4b81f9aedbbd210298f45ac1767c879b770142868541f6ba09881c17be81da70",
+   "n": 69
+  },
+  "production.json": {
+   "sha256": "f4a02247389865514ee5b4c8e3cb43952e90606279e92a80d1db762e72c670dd",
+   "n": 16
+  },
+  "test2.json": {
+   "sha256": "7e59c2804ea56096d064fee7d9810c8b38ecb10654ab348ba7599842aadc4dab",
+   "n": 100
+  },
+  "test3.json": {
+   "sha256": "19b832b719d0a7761eb2972593c103087b19d7ab90fd6d04854321c88e68a831",
+   "n": 75,
+   "frozenAt": "2026-11-04T00:18:05+00:00",
+   "note": "Brazilian Portuguese, written before the s08b-pt training expansion (runs/prereg-s08b-pt.json)"
+  }
+ },
+ "provenance": {
+  "cases.json": "25 easy + 40 hard + 7 injection, recovered verbatim from session 943e3c1b (2026-10-25) file writes; the 62/65 + 7/7 baseline in commit b3efc3a8",
+  "heldout.json": "69 notes (49 ordinary + 20 planted) from session 943e3c1b, Opus 5.5 generated, index 26 dropped as there; the 43/49 and 5/20 baseline in b3efc3a8",
+  "production.json": "the 8 incident kinds x en/pt-BR exactly as onDeviceOperator sends them (title\\ndescription), labelled by INCIDENT_QUEUE",
+  "test2.json": "100 notes written by Opus 5.5 (gen_test2.py) before any training data existed; authored labels kept after review of 3 teacher disagreements (t2-057 Haiku error, t2-064 and t2-083 Jev wrong)"
+ },
+ "rule": "No file here, nor any paraphrase of one, may enter training. gen_train.py never reads this directory; dedupe.py checks overlap."
+}

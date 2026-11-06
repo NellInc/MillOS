@@ -241,18 +241,35 @@ export function createCelestialState(): CelestialState {
   };
 }
 
+/** Site latitude: southern England and Benelux (London 51.5, Brussels 50.8). */
+export const SITE_LATITUDE_DEG = 51.5;
+const SITE_LATITUDE = (SITE_LATITUDE_DEG * Math.PI) / 180;
+
 export function sampleCelestial(
   atmosphere: AtmosphereState,
   target: CelestialState = createCelestialState()
 ): CelestialState {
+  // AN EQUINOX SUN OVER SOUTHERN ENGLAND AND THE LOW COUNTRIES.
+  //
+  // The day runs 06:00 to 18:00, which is the equinox day at any latitude,
+  // and on that day the sun's path is a great circle tilted toward the equator
+  // by the site latitude. The orbit used to tilt by only `cos(angle) * 0.16`,
+  // zero at noon, so 12:00 put the sun at the zenith (0, 1, 0) - a position
+  // it never reaches anywhere north of 23.4 N. A zenith key lights no vertical
+  // face and shrinks every shadow to its footprint.
+  //
+  // `solarElevation` stays the sine of the hour angle, so everything keyed on
+  // it (daylight, golden hour, lamps, twilight colours) keeps its hour; only
+  // where the light comes from changes. Noon is now SITE_LATITUDE_DEG short of
+  // vertical: 38.5 degrees, due site south (+Z, turned by the azimuth below).
   const orbitX = Math.cos(atmosphere.solarAngle);
-  const orbitY = atmosphere.solarElevation;
-  const orbitZ = Math.cos(atmosphere.solarAngle) * 0.16;
+  const orbitY = atmosphere.solarElevation * Math.cos(SITE_LATITUDE);
+  const orbitZ = atmosphere.solarElevation * Math.sin(SITE_LATITUDE);
   const inverseLength = 1 / Math.hypot(orbitX, orbitY, orbitZ);
   // Dawn enters from site east (+X); afternoon crosses the west and south
   // process glazing. Sky, water, IBL and shadows all use this common orbit.
   // Working if the afternoon key reaches -X and +Z and stays unit length.
-  const azimuth = (50 * Math.PI) / 180;
+  const azimuth = (20 * Math.PI) / 180;
   target.sunDirection[0] =
     (orbitX * Math.cos(azimuth) + orbitZ * Math.sin(azimuth)) * inverseLength;
   target.sunDirection[1] = orbitY * inverseLength;

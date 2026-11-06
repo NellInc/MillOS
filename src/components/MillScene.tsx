@@ -24,6 +24,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { StaticMeshBatch } from './performance/StaticMeshBatch';
 import { PunctualLightIsolation } from './performance/PunctualLightIsolation';
 import { SurfaceTreatmentIsolation } from './performance/SurfaceTreatmentIsolation';
+import { DistanceLodIsolation } from './performance/DistanceLod';
 import { applyBatchWorldSurface } from '../utils/worldSurface';
 import {
   DISTANT_FACTORY_INTERIOR_LOD,
@@ -821,6 +822,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
           load rather than across two builds. */}
       <PunctualLightIsolation />
       <SurfaceTreatmentIsolation />
+      <DistanceLodIsolation />
 
       {/* Camera bounds remain useful to controls and UI, but never gate scene existence. */}
       <CameraBoundsTracker />

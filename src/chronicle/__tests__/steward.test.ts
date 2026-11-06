@@ -24,7 +24,8 @@ import {
   type ChronicleState,
   type ShiftCloseEvidence,
 } from '../engine';
-import { EPILOGUE_SECTIONS, epilogue } from '../epilogue';
+import { EPILOGUE_SECTIONS, epilogue, GOVERNANCE_EPILOGUE_SECTIONS } from '../epilogue';
+import { GOVERNANCE_MARKS } from '../governance';
 import { EVENT_DECK } from '../eventDeck';
 import { HISTORY_NOTES } from '../history';
 import {
@@ -71,6 +72,7 @@ function evidence(overrides: Partial<ShiftCloseEvidence> = {}): ShiftCloseEviden
         qualityFailureKg: 0,
         incidentsResolved: 0,
         automaticActions: 0,
+        commitmentMinutes: 0,
       },
     },
     orders: [],
@@ -166,11 +168,13 @@ function conditions(event: ChronicleEventDefinition): ChronicleCondition[] {
 describe('the record has no dead marks', () => {
   const set = new Set<string>([
     ...ENGINE_MARKS,
+    // Part three's marks are the engine's too (governance.test.ts reaches their slides).
+    ...GOVERNANCE_MARKS,
     ...EVENT_DECK.flatMap((event) => effectsOf(event).flatMap((effect) => effect.marks ?? [])),
   ]);
   const read = new Set<string>([
     ...EVENT_DECK.flatMap((event) => conditions(event).flatMap(conditionMarks)),
-    ...EPILOGUE_SECTIONS.flatMap((section) =>
+    ...[...EPILOGUE_SECTIONS, ...GOVERNANCE_EPILOGUE_SECTIONS].flatMap((section) =>
       section.slides.flatMap((slide) => conditionMarks(slide.when))
     ),
     // The long night and standing forecast relief read marks from the registry.

@@ -59,6 +59,12 @@ import {
   stepTruckController,
   type TruckControllerState,
 } from './truckbay/truckController';
+import { manualForkliftInTruckPath } from '../simulation/vehicles/forkliftManualWorld';
+import {
+  busHoldsTruckArrival,
+  busHoldsTruckDeparture,
+  currentBusRoadUse,
+} from '../simulation/vehicles/southRoadTraffic';
 import { advanceTruckClock, TRUCK_CONTROLLER_STEP_SECONDS } from './truckbay/truckClock';
 import {
   vehicleTelemetryRegistry,
@@ -3271,13 +3277,38 @@ export const TruckBay: React.FC = () => {
         controllerRef.current.motion.speed
       );
       let departedThisFrame = false;
+      // A forklift a player drives, or one returning to its lane, can stand
+      // where no autopilot forklift ever does: on the apron, across this
+      // truck's path. The truck stops short of it rather than drive through.
+      // Never while docked: a standing truck threatens nothing, and holding
+      // would freeze its service. Checked every controller step: at a fast
+      // pace one frame runs several, and a once-a-frame check let it close in.
+      let forkliftInPath = false;
+      // The shipping truck shares the south road with the village bus, both
+      // keeping right (southRoadTraffic). It waits in the tunnel to come down
+      // while the bus is coming down or turning round, and at the dock to pull
+      // out while the bus is turning round or driving back up; the arrival
+      // stays ready in the schedule until it can come. Never mid-route.
+      const busOnRoad = dock === 'shipping' ? currentBusRoadUse() : 'none';
+      const arrivalReady = scheduleBefore.arrivalReady && !busHoldsTruckArrival(busOnRoad);
+      let waitingForBus = false;
 
       for (let step = 0; allowAdvance && step < clock.steps; step++) {
         previousController = controller;
+        const holdForForklift =
+          controller.active &&
+          controller.phase !== 'docked' &&
+          manualForkliftInTruckPath(controller);
+        forkliftInPath ||= holdForForklift;
+        const holdForBus =
+          controller.active &&
+          controller.phase === 'preparing_to_leave' &&
+          busHoldsTruckDeparture(busOnRoad);
+        waitingForBus ||= holdForBus;
         const result = stepTruckController(controller, {
           deltaSeconds: TRUCK_CONTROLLER_STEP_SECONDS,
-          arrivalReady: scheduleBefore.arrivalReady,
-          safetyHold: safetyHoldActive,
+          arrivalReady,
+          safetyHold: safetyHoldActive || holdForForklift || holdForBus,
           // The doors stay open while the dock's forklift is in its lane.
           serviceComplete:
             (dock === 'receiving' || shippingServiceComplete) && !dockForkliftInLane(dock),
@@ -3305,7 +3336,11 @@ export const TruckBay: React.FC = () => {
           : Math.min(1, accumulatorRef.current / TRUCK_CONTROLLER_STEP_SECONDS)
       );
       // A paused clock freezes the picture; only a real hold applies the brakes.
-      const truckState = getTruckControllerPose(displayController, safetyHoldActive, !allowAdvance);
+      const truckState = getTruckControllerPose(
+        displayController,
+        safetyHoldActive || forkliftInPath || waitingForBus,
+        !allowAdvance
+      );
       if (!allowAdvance) truckState.speed = 0;
       truckStateRef.current = truckState;
       wheelRotationRef.current = displayController.wheelTravel / TRUCK_WHEEL_RADIUS;
@@ -3431,8 +3466,8 @@ export const TruckBay: React.FC = () => {
       if (allowAdvance && truckState.phase !== phaseRef.current) {
         if (audioReady) {
           if (truckState.phase === 'docked') {
+            // playTruckArrival schedules its own air brake after the horn.
             audioManager.playTruckArrival();
-            audioManager.playAirBrake?.();
             audioManager.updateTruckEngine(vehicleId, false);
           } else if (truckState.phase === 'preparing_to_leave') {
             audioManager.playTruckHorn?.(vehicleId, false);
@@ -4241,8 +4276,11 @@ export const TruckBay: React.FC = () => {
             {/* Fuel island */}
             <FuelIsland position={[25, 0, -35]} rotation={-Math.PI / 2} />
 
-            {/* Tire inspection area */}
-            <TireInspectionArea position={[-25, 0, -35]} rotation={-Math.PI / 2} />
+            {/* Tire inspection area, world (-27.5, -85). Its road-side posts are
+                at x -24, 0.1 m off the inbound truck's lane, which keeps right at
+                x -22.5; at -25 they stood in it once the trucks stopped driving
+                the x -20 centre line (truckController footprint test). */}
+            <TireInspectionArea position={[-27.5, 0, -35]} rotation={-Math.PI / 2} />
 
             {/* Yard jockey patrolling. World (35, -92): the shipping jockey's
                 place turned half a revolution, pulled 2 m clear of the fuel

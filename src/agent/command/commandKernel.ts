@@ -68,8 +68,16 @@ const MAX_RECEIPTS = 500;
 const MAX_CONSUMED_KEYS = 5000;
 // Free-running clock fields. They change on every tick, so hashing them into
 // the observed revision would make every preview stale before it could be
-// committed; they never gate whether a command is safe to run.
-const VOLATILE_FIELDS = new Set(['gameTime', 'gameDay', 'elapsedMinutes', 'simulationTime']);
+// committed; they never gate whether a command is safe to run. The shift's
+// automatic-action tally is the same kind of field: every incident the
+// controller mitigates or resolves counts it up, and mitigate declares it.
+const VOLATILE_FIELDS = new Set([
+  'gameTime',
+  'gameDay',
+  'elapsedMinutes',
+  'simulationTime',
+  'automaticActions',
+]);
 
 export function createAgentCommandKernel(dependencies: KernelDependencies) {
   const now = dependencies.now ?? (() => new Date());
@@ -100,7 +108,7 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
       targetUri: request.targetUri,
       parameters: { ...(request.parameters ?? {}) },
       reason: request.reason.trim(),
-      observedRevision: observedRevisionFor(capability, capture),
+      observedRevision: observedRevisionFor(capability, capture, request.targetUri),
       mode: capture.mode,
       requestedAt: now().toISOString(),
     } satisfies AgentCommandEnvelope);
@@ -141,7 +149,7 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
         parameters,
         // Never leaves this function; a chosen option is drafted with the chooser's reason.
         reason: 'legal option probe',
-        observedRevision: observedRevisionFor(capability, capture),
+        observedRevision: observedRevisionFor(capability, capture, request.targetUri),
         mode: capture.mode,
         requestedAt: now().toISOString(),
       });
@@ -698,7 +706,7 @@ function validateCommand(
     problems.push(
       blocking('MODE_MISMATCH', 'Command mode does not match the current runtime mode.')
     );
-  const currentRevision = observedRevisionFor(capability, capture);
+  const currentRevision = observedRevisionFor(capability, capture, command.targetUri);
   if (command.observedRevision !== currentRevision)
     problems.push(
       blocking(
@@ -750,27 +758,94 @@ function validateCommand(
  */
 function observedRevisionFor(
   capability: AgentCapabilityDescriptor,
-  capture: AgentDomainCapture
+  capture: AgentDomainCapture,
+  targetUri?: string
 ): string {
   const domain = capture.domains[capability.ownerDomainId];
   if (!domain || typeof domain !== 'object' || Array.isArray(domain)) return revisionFor(domain);
   const prefix = `${capability.ownerDomainId}.`;
+  const record = domain as Record<string, AgentJsonValue>;
   // Reads and writes both count: a field the command changes must be current
   // too, and the declared reads lists have not been audited against handlers.
-  const readKeys = new Set(
-    [...capability.reads, ...capability.writes]
-      .filter((path) => path.startsWith(prefix))
-      .map((path) => path.slice(prefix.length).split('.')[0].replace(/\[\]$/, ''))
-      .filter((key) => key.length > 0 && !VOLATILE_FIELDS.has(key))
-  );
-  const record = domain as Record<string, AgentJsonValue>;
-  const keys =
-    readKeys.size > 0
-      ? [...readKeys].filter((key) => key in record)
-      : Object.keys(record).filter((key) => !VOLATILE_FIELDS.has(key));
+  // Each path is hashed to the depth it is declared at: activate-order declares
+  // execution.orderId, not the whole execution record, whose running kg the
+  // central tick moves every half second (a preview went stale before a person
+  // could commit it).
+  const paths = [
+    ...new Set(
+      [...capability.reads, ...capability.writes]
+        .filter((path) => path.startsWith(prefix))
+        .map((path) => path.slice(prefix.length))
+        .filter((path) => {
+          const segments = path
+            .split('.')
+            .map((segment) => segment.replace(/\[(?:target)?\]$/, ''));
+          return (
+            segments[0].length > 0 &&
+            segments[0] in record &&
+            !segments.some((segment) => VOLATILE_FIELDS.has(segment))
+          );
+        })
+    ),
+  ];
   const scoped: Record<string, AgentJsonValue> = {};
-  for (const key of keys.sort()) scoped[key] = record[key];
+  if (paths.length > 0) {
+    const targetId = targetLocalId(targetUri);
+    for (const path of paths.sort()) scoped[path] = valueAtPath(record, path.split('.'), targetId);
+  } else {
+    for (const key of Object.keys(record)
+      .filter((candidate) => !VOLATILE_FIELDS.has(candidate))
+      .sort())
+      scoped[key] = record[key];
+  }
   return revisionFor(scoped);
+}
+
+/** The command target's local id, which a `list[target]` path selects by. */
+function targetLocalId(targetUri: string | undefined): string | null {
+  if (!targetUri) return null;
+  try {
+    return parseSemanticUri(targetUri).localId;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The value a declared path names: `a.b`, `list[]` (the whole list),
+ * `list[].field`, or `list[target]` (only the element whose id is the command
+ * target's, so a response to one card is not made stale by a new card).
+ */
+function valueAtPath(
+  value: AgentJsonValue | undefined,
+  segments: string[],
+  targetId: string | null = null
+): AgentJsonValue {
+  if (segments.length === 0) return value ?? null;
+  const [segment, ...rest] = segments;
+  const targeted = segment.endsWith('[target]');
+  const many = targeted || segment.endsWith('[]');
+  const container =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, AgentJsonValue>)
+      : {};
+  const key = targeted
+    ? segment.slice(0, -'[target]'.length)
+    : many
+      ? segment.slice(0, -2)
+      : segment;
+  let next = container[key];
+  if (targeted && Array.isArray(next))
+    next = next.filter(
+      (item) =>
+        !!item &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        (item as Record<string, AgentJsonValue>).id === targetId
+    );
+  if (many && Array.isArray(next) && rest.length > 0)
+    return next.map((item) => valueAtPath(item, rest, targetId));
+  return valueAtPath(next, rest, targetId);
 }
 
 function validateCommit(

@@ -25,15 +25,25 @@ interface ConservationParams {
 
 export const workplaceReplayMessages = defineMessages({
   en: {
-    // Logic values shown as labels. English returns the value itself.
+    // Logic values shown as labels. English returns the value itself, except
+    // the approach, whose id is not a word: it reads by the setup form's title.
     sectionLabel: (p: { section: string }) => p.section,
-    profileLabel: (p: { profile: string }) => p.profile,
+    profileLabel: (p: { profile: string }) =>
+      pick(
+        {
+          'toe-dip': 'Coordinator-led',
+          team: 'Team agreement',
+          cooperative: 'Member governance',
+        },
+        p.profile
+      ),
     autonomyLabel: (p: Value) => p.value,
     governanceLabel: (p: Value) => p.value,
     aiAuthorityLabel: (p: Value) => p.value,
 
     // Feedback
-    recordedLocally: 'Replay state recorded locally.',
+    recordedLocally: 'Replay state kept until the page reloads.',
+    forgotten: 'Replay checkpoint and reports forgotten.',
     noChange: 'No change.',
     reportDownloaded: 'Redacted run report downloaded locally. Plant checkpoint stays in memory.',
 
@@ -45,15 +55,16 @@ export const workplaceReplayMessages = defineMessages({
     capturePaused: 'Capture paused plant',
     startGuided: 'Start guided plant replay',
     captureRequires:
-      'Capture requires a paused, safe local plant and an idle or untouched minute-zero discussion. External SCADA control, safety holds and owed recovery block rewind. Checkpoints disappear on reload and cannot be exported.',
+      'Capture requires a paused, safe local plant and an idle or untouched minute-zero discussion. External SCADA control, safety holds and owed recovery block rewind. Checkpoints and run reviews last until the page reloads; checkpoints cannot be exported.',
     checkpointLine:
-      'Checkpoint: {customer}, {remaining} kg remaining; source stock {source} kg. Day {day}, hour {hour}; seed {seed}. Faults: {faults}.',
+      'Checkpoint: {customer}, {remaining} kg remaining; source stock {source} kg. {stamp}; seed {seed}. Faults: {faults}.',
     none: 'none',
+    faultLine: '{machine}: {type}',
     replayCharter: 'Replay {profile} charter',
-    retainReview: 'Retain actual run review',
+    retainReview: 'Keep actual run review until reload',
     forget: 'Forget replay checkpoint and reports',
     replayNote:
-      'Replays remain paused for agreement and pause automatically at review. After an early stop, explicitly resume the plant clock to deliver owed recovery before retaining the review. An eligible review is retained before a new charter rewinds. Consent, votes and understanding never carry over.',
+      'Replays remain paused for agreement and pause automatically at review. After an early stop, explicitly resume the plant clock to deliver owed recovery before retaining the review. Before a new charter rewinds, an eligible review is kept until the page reloads. Consent, votes and understanding never carry over.',
     noCheckpoint: 'No checkpoint yet. Capture a paused plant to compare actual runs.',
     unequalHorizons:
       'Unequal horizons: elapsed time, agreement time or shifts differ. Dispatch totals alone cannot establish a better charter.',
@@ -153,7 +164,8 @@ export const workplaceReplayMessages = defineMessages({
     aiAuthorityLabel: (p: Value) =>
       pick({ advice: 'somente recomendação', bounded: 'execução delimitada' }, p.value),
 
-    recordedLocally: 'Estado da reprodução registrado localmente.',
+    recordedLocally: 'Estado da reprodução mantido até a página ser recarregada.',
+    forgotten: 'Ponto de controle e relatórios da reprodução descartados.',
     noChange: 'Nenhuma alteração.',
     reportDownloaded:
       'Relatório da execução com dados ocultados baixado localmente. O ponto de controle da planta continua na memória.',
@@ -165,15 +177,16 @@ export const workplaceReplayMessages = defineMessages({
     capturePaused: 'Capturar a planta pausada',
     startGuided: 'Iniciar a reprodução guiada da planta',
     captureRequires:
-      'A captura exige uma planta local pausada e segura e uma discussão ociosa ou ainda intocada no minuto zero. Controle SCADA externo, retenções de segurança e recuperação devida bloqueiam a volta no tempo. Os pontos de controle somem ao recarregar e não podem ser exportados.',
+      'A captura exige uma planta local pausada e segura e uma discussão ociosa ou ainda intocada no minuto zero. Controle SCADA externo, retenções de segurança e recuperação devida bloqueiam a volta no tempo. Pontos de controle e revisões de execução duram até a página ser recarregada; pontos de controle não podem ser exportados.',
     checkpointLine:
-      'Ponto de controle: {customer}, {remaining} kg pendentes; estoque de origem {source} kg. Dia {day}, hora {hour}; semente {seed}. Falhas: {faults}.',
+      'Ponto de controle: {customer}, {remaining} kg pendentes; estoque de origem {source} kg. {stamp}; semente {seed}. Falhas: {faults}.',
     none: 'nenhuma',
+    faultLine: '{machine}: {type}',
     replayCharter: 'Reproduzir estatuto: {profile}',
-    retainReview: 'Guardar a revisão da execução real',
+    retainReview: 'Manter a revisão da execução real até recarregar',
     forget: 'Descartar o ponto de controle e os relatórios da reprodução',
     replayNote:
-      'As reproduções ficam pausadas para o acordo e pausam automaticamente na revisão. Depois de uma parada antecipada, retome explicitamente o relógio da planta para conceder a recuperação devida antes de guardar a revisão. Uma revisão elegível é guardada antes que um novo estatuto volte no tempo. Consentimento, votos e entendimento nunca são transferidos.',
+      'As reproduções ficam pausadas para o acordo e pausam automaticamente na revisão. Depois de uma parada antecipada, retome explicitamente o relógio da planta para conceder a recuperação devida antes de guardar a revisão. Antes que um novo estatuto volte no tempo, uma revisão elegível é mantida até a página ser recarregada. Consentimento, votos e entendimento nunca são transferidos.',
     noCheckpoint:
       'Nenhum ponto de controle ainda. Capture uma planta pausada para comparar execuções reais.',
     unequalHorizons:

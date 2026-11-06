@@ -2,14 +2,67 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { AlertData } from '../types';
-import { sanitizeUIState } from './persistenceMigrations';
+import { sanitizeUIState, type PersistedUIState } from './persistenceMigrations';
+import { readPlantClock, type PlantClock } from '../utils/timeFormatting';
+
+/**
+ * An alert as the bell keeps it: stamped with the plant clock when it is filed
+ * (or raised again), which is the time the notifications list shows.
+ */
+export type UIAlert = AlertData & { gameClock?: PlantClock };
+
+/**
+ * The alert with the plant clock now. Where the clock cannot be read, any older
+ * stamp is cleared so the list falls back to the alert's own wall time.
+ */
+const stampPlantClock = (alert: UIAlert): UIAlert => {
+  const gameClock = readPlantClock();
+  if (gameClock) return { ...alert, gameClock };
+  return alert.gameClock ? { ...alert, gameClock: undefined } : alert;
+};
+
+/**
+ * A saved millos-ui record as the store restores it. legendPosition and
+ * panelMinimized are no longer saved (nothing reads either), so an older
+ * record's values are ignored here, as showAIPanel's are.
+ */
+function restorableUIState(persisted: unknown): PersistedUIState {
+  const state = sanitizeUIState(persisted);
+  delete state.legendPosition;
+  delete state.panelMinimized;
+  return state;
+}
 
 /** A critical alert whose condition still stands and is not yet acknowledged. */
+/** The persisted UI preferences record (Reset Simulation carries its scale across). */
+export const UI_STORAGE_KEY = 'millos-ui';
+export const UI_STORAGE_VERSION = 2;
+
 export const isStandingCriticalAlert = (alert: AlertData): boolean =>
   alert.type === 'critical' && !alert.acknowledged && !alert.returnedToNormal;
 
 interface AlertIndices {
   alertsByPriority: Map<'info' | 'warning' | 'critical', AlertData[]>;
+}
+
+const MAX_ALERTS = 10;
+
+/**
+ * Newest first, at most MAX_ALERTS. Over the cap the oldest notice that is not
+ * a standing critical makes way: a plain slice dropped an unacknowledged
+ * breakdown under ten routine notices, which also released the quiet hold it
+ * keeps on the music, PA flavour and AI reflection.
+ * Working if a breakdown stays in the bell until acknowledged or back to normal.
+ */
+function capAlerts(alerts: UIAlert[]): UIAlert[] {
+  const kept = [...alerts];
+  while (kept.length > MAX_ALERTS) {
+    let routine = kept.length - 1;
+    while (routine >= 0 && isStandingCriticalAlert(kept[routine])) routine -= 1;
+    // Eleven standing criticals: the oldest goes, as before.
+    kept.splice(routine === -1 ? kept.length - 1 : routine, 1);
+  }
+  return kept;
 }
 
 function rebuildAlertIndex(alerts: AlertData[]): Map<'info' | 'warning' | 'critical', AlertData[]> {
@@ -40,12 +93,17 @@ interface UIStore {
 
   // Alerts
   _alertIndices: AlertIndices;
-  alerts: AlertData[];
+  alerts: UIAlert[];
   addAlert: (alert: AlertData) => void;
   dismissAlert: (alertId: string) => void;
   acknowledgeAlert: (alertId: string) => void;
   /** Mark (or clear) an alert's condition as returned to normal, keeping it listed. */
-  setAlertReturnedToNormal: (alertId: string, returned: boolean, message?: string) => void;
+  setAlertReturnedToNormal: (
+    alertId: string,
+    returned: boolean,
+    message?: string,
+    copy?: AlertData['copy']
+  ) => void;
   removeAlert: (alertId: string) => void;
   getAlertsByPriority: (priority: 'info' | 'warning' | 'critical') => AlertData[];
 
@@ -154,7 +212,13 @@ export const useUIStore = create<UIStore>()(
       alerts: [],
       addAlert: (alert) =>
         set((state) => {
-          const updatedAlerts = [alert, ...state.alerts].slice(0, 10);
+          // One entry per id: the bell's rows, Acknowledge and Dismiss are all
+          // keyed by it. An id raised again (a truck hold whose reason changed)
+          // replaces its entry at the top instead of listing it twice.
+          const updatedAlerts = capAlerts([
+            stampPlantClock(alert),
+            ...state.alerts.filter((existing) => existing.id !== alert.id),
+          ]);
           return {
             alerts: updatedAlerts,
             _alertIndices: {
@@ -184,20 +248,30 @@ export const useUIStore = create<UIStore>()(
             },
           };
         }),
-      setAlertReturnedToNormal: (alertId, returned, message) =>
+      setAlertReturnedToNormal: (alertId, returned, message, copy) =>
         set((state) => {
           if (!state.alerts.some((a) => a.id === alertId && !!a.returnedToNormal !== returned))
             return {};
-          const updatedAlerts = state.alerts.map((a) =>
-            a.id === alertId
-              ? {
-                  ...a,
-                  returnedToNormal: returned,
-                  ...(message !== undefined ? { message } : {}),
-                  ...(returned ? {} : { acknowledged: false, timestamp: new Date() }),
-                }
-              : a
-          );
+          // A condition that comes back is raised again, at the plant time now,
+          // and listed first as any newly raised alert is: left in place, a
+          // row that had sunk to the bottom was the next one capAlerts dropped.
+          const updated = state.alerts.map((a) => {
+            if (a.id !== alertId) return a;
+            const next = {
+              ...a,
+              returnedToNormal: returned,
+              ...(message !== undefined ? { message } : {}),
+              ...(copy !== undefined ? { copy } : {}),
+              ...(returned ? {} : { acknowledged: false, timestamp: new Date() }),
+            };
+            return returned ? next : stampPlantClock(next);
+          });
+          const updatedAlerts = returned
+            ? updated
+            : [
+                ...updated.filter((a) => a.id === alertId),
+                ...updated.filter((a) => a.id !== alertId),
+              ];
           return {
             alerts: updatedAlerts,
             _alertIndices: {
@@ -299,13 +373,13 @@ export const useUIStore = create<UIStore>()(
       setBlueprintTransition: (value: number) => set({ blueprintTransition: value }),
     }),
     {
-      name: 'millos-ui',
+      name: UI_STORAGE_KEY,
       storage: safeJSONStorage,
-      version: 2,
+      version: UI_STORAGE_VERSION,
       migrate: (persisted, version) => {
         // First-person and blueprint are view modes, not preferences: the
         // sanitiser drops them, so a reload always opens on the overview.
-        const state = sanitizeUIState(persisted);
+        const state = restorableUIState(persisted);
         // v1 persisted showZones while it defaulted to true; drop it so existing
         // users pick up the off-by-default overlays.
         if (version < 2) delete state.showZones;
@@ -313,7 +387,7 @@ export const useUIStore = create<UIStore>()(
       },
       merge: (persisted, current) => ({
         ...current,
-        ...sanitizeUIState(persisted),
+        ...restorableUIState(persisted),
       }),
       partialize: (state) => ({
         hasSeenIntro: state.hasSeenIntro,
@@ -321,11 +395,12 @@ export const useUIStore = create<UIStore>()(
         journeyOrderId: state.journeyOrderId,
         inspectedMachineIds: state.inspectedMachineIds,
         showZones: state.showZones,
-        showAIPanel: state.showAIPanel,
-        panelMinimized: state.panelMinimized,
-        theme: state.theme,
+        // showAIPanel is not saved: App owns the AI panel's open state and
+        // opens every load closed, so a saved flag would restore nothing.
+        // panelMinimized and legendPosition are not saved: nothing reads them.
+        // theme is not saved: nothing offers a theme choice, so a saved light
+        // theme could never be undone. Every load opens dark.
         uiScale: state.uiScale,
-        legendPosition: state.legendPosition,
         showMiniMap: state.showMiniMap,
         showFPSCounter: state.showFPSCounter,
       }),
@@ -336,11 +411,6 @@ export const useUIStore = create<UIStore>()(
             state.rehydrationError = true;
           }
           return;
-        }
-
-        // Validate theme
-        if (state && state.theme && state.theme !== 'dark' && state.theme !== 'light') {
-          state.theme = 'dark' as const;
         }
       },
     }

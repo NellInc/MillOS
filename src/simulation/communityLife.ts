@@ -11,7 +11,10 @@ import {
   COMMUNITY_OPENING_HOURS,
   getCommunityHours,
 } from '../constants/communityLayout';
-import type { Vec3Tuple } from '../constants/siteLayout';
+import { SOUTH_ROAD_LANES, type Vec3Tuple } from '../constants/siteLayout';
+import { BUS_STOP, BUS_TURNAROUND } from '../constants/publicRealmLayout';
+import type { BusRoadUse } from './vehicles/southRoadTraffic';
+import { FORKLIFT_CREW_SITES } from '../constants/forkliftCrewLayout';
 import type { WorkplaceState } from '../types/workplace';
 import { improvementArrangement } from './workplaceImprovement';
 import { translate } from '../i18n';
@@ -544,6 +547,21 @@ const millLoop = (
     via([work[0], 0, aisle]),
   ]);
 
+/** A forklift operator's day: the driving spell at the crew point (stops[0], the
+ * stand beside the cab, where the forklift collects them), then a walk to their
+ * own bench and back. While the spell runs they are in the cab, not at the
+ * stand: CommunityLife seats them there, and their personal hour holds at both
+ * ends of the spell until the forklift is parked at the crew point
+ * (forkliftCrew.ts). Their strip is used by no one else, because a held hour
+ * puts them out of step with everyone, so only distance keeps them apart.
+ */
+export const FORKLIFT_OPERATOR_REST_HOURS = 0.6;
+const forkliftOperatorRoutine = (site: (typeof FORKLIFT_CREW_SITES)[number]): CommunityStop[] =>
+  fitPeriod([
+    stop(site.stand, site.standRotation, 0, `Driving ${site.tag}`),
+    rest(site.bench, site.benchRotation, FORKLIFT_OPERATOR_REST_HOURS),
+  ]);
+
 /** Closed, authored pedestrian circuits stay on the mill side of conveyors.
  * Working if sampled segments clear machine/belt footprints and vehicle lanes.
  *
@@ -711,6 +729,16 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
   { id: 'village-cyclist', role: 'Cyclist', district: 'village', phase: 0, stops: [] },
   { id: 'bus-arriving', role: 'Passenger', district: 'bus', phase: 0, stops: [] },
   { id: 'bus-departing', role: 'Passenger', district: 'bus', phase: 0.4, stops: [] },
+  // Last: personnel saves restore residents by index, so new people go at the end.
+  ...FORKLIFT_CREW_SITES.map(
+    (site): CommunityPerson => ({
+      id: site.operatorId,
+      role: 'Operator',
+      district: 'mill',
+      phase: site.phase,
+      stops: forkliftOperatorRoutine(site),
+    })
+  ),
 ];
 
 export const communityHour = (hour: number): number =>
@@ -739,12 +767,43 @@ export function createCommunityPose(): CommunityPose {
 
 const BUS_DOORS_OPEN = 1.1;
 const BUS_DOORS_CLOSE = 1.9;
+/** Out of service hours there is no bus on the road; see `visible` below. */
+const busInService = (h: number) => h >= 6 && h < 22;
 /** 115 m out of the tunnel, braking evenly from about 12 m/s to the stop. */
 const BUS_APPROACH_HOURS = standardSeconds(19);
 const BUS_APPROACH_START = BUS_DOORS_OPEN - BUS_APPROACH_HOURS;
-const BUS_TURN_LEGS = [Math.hypot(4, 22), 7 * PI, Math.hypot(4, 22)] as const;
+/**
+ * The bus keeps right: down the middle of the southbound lane, then it eases
+ * across to the kerb (BUS_STOP) on a 30 m smooth step whose steepest heading
+ * is 9 degrees, and runs its last 8 m (its own length) in straight. Angled in
+ * any later, its front corner swung within 0.87 m of the shelter roof. It
+ * stops square to the kerb with the lane behind it clear for a truck.
+ */
+const BUS_LANE_X = SOUTH_ROAD_LANES.southbound;
+const BUS_PULL_IN_METRES = 30;
+const BUS_PULL_IN_END_Z = BUS_STOP.z + 8;
+const BUS_PULL_IN_SHIFT = BUS_STOP.x - BUS_LANE_X;
+/** Out of the stop to the turn's east tangent, half round it, back to the lane. */
+const BUS_TURN_EAST = BUS_TURNAROUND.centre[0] + BUS_TURNAROUND.radius;
+const BUS_TURN_WEST = BUS_TURNAROUND.centre[0] - BUS_TURNAROUND.radius;
+const BUS_TURN_Z = BUS_TURNAROUND.centre[1];
+const [BUS_REJOIN_X, BUS_REJOIN_Z] = BUS_TURNAROUND.rejoin;
+/**
+ * Out of the stop the bus draws straight ahead until its tail is 1.3 m past
+ * the shelter (z 137.8), then eases left onto the turn's east tangent on a
+ * smooth step, square to the kerb at one end and to the turn at the other.
+ * Angled from the kerb at once, as it was from the old in-lane stop, its tail
+ * swung out within 0.87 m of the shelter roof. The leg is laid out along z.
+ */
+const BUS_PULL_OUT_Z = BUS_STOP.z - 7.5;
+const BUS_PULL_OUT_SHIFT = BUS_TURN_EAST - BUS_STOP.x;
+const BUS_TURN_LEGS = [
+  BUS_STOP.z - BUS_TURN_Z,
+  BUS_TURNAROUND.radius * PI,
+  Math.hypot(BUS_REJOIN_X - BUS_TURN_WEST, BUS_REJOIN_Z - BUS_TURN_Z),
+] as const;
 const BUS_TURN_METRES = BUS_TURN_LEGS[0] + BUS_TURN_LEGS[1] + BUS_TURN_LEGS[2];
-const BUS_DEPARTURE_METRES = BUS_TURN_METRES + 115;
+const BUS_DEPARTURE_METRES = BUS_TURN_METRES + (255 - BUS_REJOIN_Z);
 /** Turnaround and return, accelerating evenly from the stop into the tunnel. */
 const BUS_DEPARTURE_HOURS = standardSeconds(40);
 const BUS_DEPARTURE_END = BUS_DOORS_CLOSE + BUS_DEPARTURE_HOURS;
@@ -759,49 +818,73 @@ const BUS_TURN_END =
 export function sampleCommunityBus(hour: number) {
   const h = communityHour(hour),
     phase = (((h - 6) % 4) + 4) % 4;
-  let x = 23,
+  let x = BUS_LANE_X,
     z = 255,
     rotation = PI;
   if (phase < BUS_APPROACH_START) z = 255;
   else if (phase < BUS_DOORS_OPEN) {
     const u = (phase - BUS_APPROACH_START) / BUS_APPROACH_HOURS;
-    z = 255 - 115 * (1 - (1 - u) * (1 - u));
-  } else if (phase < BUS_DOORS_CLOSE) z = 140;
-  else {
+    z = 255 - (255 - BUS_STOP.z) * (1 - (1 - u) * (1 - u));
+    const t = Math.min(
+      1,
+      Math.max(0, (BUS_PULL_IN_END_Z + BUS_PULL_IN_METRES - z) / BUS_PULL_IN_METRES)
+    );
+    x = BUS_LANE_X + BUS_PULL_IN_SHIFT * t * t * (3 - 2 * t);
+    // Heading -z with dx/d(-z) the step's slope; turning toward +x is a turn right.
+    rotation = PI - Math.atan((BUS_PULL_IN_SHIFT * 6 * t * (1 - t)) / BUS_PULL_IN_METRES);
+  } else if (phase < BUS_DOORS_CLOSE) {
+    x = BUS_STOP.x;
+    z = BUS_STOP.z;
+  } else {
     const u = Math.min(1, (phase - BUS_DOORS_CLOSE) / BUS_DEPARTURE_HOURS);
     let s = BUS_DEPARTURE_METRES * u * u;
     if (s < BUS_TURN_LEGS[0]) {
-      const t = s / BUS_TURN_LEGS[0];
-      x = 23 + 4 * t;
-      z = 140 - 22 * t;
-      rotation = Math.atan2(4, -22);
+      z = BUS_STOP.z - s;
+      const span = BUS_PULL_OUT_Z - BUS_TURN_Z;
+      const t = Math.min(1, Math.max(0, (BUS_PULL_OUT_Z - z) / span));
+      x = BUS_STOP.x + BUS_PULL_OUT_SHIFT * t * t * (3 - 2 * t);
+      // Heading -z; drifting toward -x turns it past PI (a turn left).
+      rotation = PI - Math.atan((BUS_PULL_OUT_SHIFT * 6 * t * (1 - t)) / span);
     } else if ((s -= BUS_TURN_LEGS[0]) < BUS_TURN_LEGS[1]) {
       const angle = -PI * (s / BUS_TURN_LEGS[1]);
-      x = 20 + 7 * Math.cos(angle);
-      z = 118 + 7 * Math.sin(angle);
+      x = BUS_TURNAROUND.centre[0] + BUS_TURNAROUND.radius * Math.cos(angle);
+      z = BUS_TURN_Z + BUS_TURNAROUND.radius * Math.sin(angle);
       rotation = PI - angle;
     } else if ((s -= BUS_TURN_LEGS[1]) < BUS_TURN_LEGS[2]) {
       const t = s / BUS_TURN_LEGS[2];
-      x = 13 + 4 * t;
-      z = 118 + 22 * t;
-      rotation = Math.atan2(4, 22);
+      x = BUS_TURN_WEST + (BUS_REJOIN_X - BUS_TURN_WEST) * t;
+      z = BUS_TURN_Z + (BUS_REJOIN_Z - BUS_TURN_Z) * t;
+      rotation = Math.atan2(BUS_REJOIN_X - BUS_TURN_WEST, BUS_REJOIN_Z - BUS_TURN_Z);
     } else {
-      x = 17;
-      z = 140 + Math.min(115, s - BUS_TURN_LEGS[2]);
+      x = BUS_REJOIN_X;
+      z = BUS_REJOIN_Z + Math.min(255 - BUS_REJOIN_Z, s - BUS_TURN_LEGS[2]);
       rotation = 0;
     }
   }
+  const visible = busInService(h) && phase >= BUS_APPROACH_START && phase < BUS_DEPARTURE_END;
+  const road: BusRoadUse = !visible
+    ? 'none'
+    : phase < BUS_DOORS_OPEN
+      ? 'southbound'
+      : phase < BUS_DOORS_CLOSE
+        ? 'kerb'
+        : phase < BUS_TURN_END
+          ? 'turning'
+          : 'northbound';
   return {
     x,
     z,
     rotation,
     phase,
     doorsOpen: phase >= BUS_DOORS_OPEN && phase < BUS_DOORS_CLOSE,
-    serviceOpen: h >= 6 && h < 22,
-    visible: h >= 6 && h < 22 && phase >= BUS_APPROACH_START && phase < BUS_DEPARTURE_END,
+    serviceOpen: busInService(h),
+    visible,
+    /** Which part of the south road it is using, for the trucks (southRoadTraffic). */
+    road,
   };
 }
-const PASSENGER_DOOR: Vec3Tuple = [24.1, 0.36, 137.6];
+/** The front doorway (COMMUNITY_BUS_LAYOUT.doorway, 1.1 m to its right, 2.4 m ahead) at the stop. */
+const PASSENGER_DOOR: Vec3Tuple = [BUS_STOP.x + 1.1, 0.36, BUS_STOP.z - 2.4];
 /** Root height of a commuter seated on the shelter bench. */
 const BENCH_ROOT_Y = A.busSeat.seatHeight! - 0.46;
 const PLATFORM_Y = 0.11;
@@ -1427,21 +1510,38 @@ export function sampleCommunityDelivery(hour: number) {
   };
 }
 
-/** Wait at the shelter until a truck has cleared the turnaround approach. The
- * passenger schedule uses this same delayed clock, so a held bus never leaves
- * its boarding pedestrians behind. An already-started turn is never rewound.
+/** Just short of the approach: still in the tunnel, out of sight. */
+const BUS_APPROACH_HOLD = BUS_APPROACH_START - 1e-6;
+
+/** Wait at the shelter, doors open, while a truck is coming down the road or
+ * leaving by it (`trafficBlocked`, southRoadTraffic's truckHoldsBusDeparture):
+ * the U-turn crosses both lanes and the way back out is the northbound lane.
+ * Wait in the tunnel, out of sight, while a truck is coming down the
+ * southbound lane (`approachBlocked`, truckHoldsBusApproach), which the bus
+ * would otherwise drive into from behind. The passenger schedule uses this
+ * same delayed clock, so a held bus never leaves its boarding pedestrians
+ * behind. An already-started turn or approach is never rewound.
  */
 export function advanceCommunityBusClock(
   hour: number,
   elapsed: number,
-  trafficBlocked: boolean
+  trafficBlocked: boolean,
+  approachBlocked = false
 ): number {
   const safeElapsed = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
   const next = hour + safeElapsed;
-  const phase = sampleCommunityBus(next).phase;
+  const { phase, serviceOpen } = sampleCommunityBus(next);
   const previousPhase = sampleCommunityBus(hour).phase;
   if (trafficBlocked && previousPhase <= 1.860001 && phase >= 1.86 && phase < BUS_TURN_END)
     return next - phase + 1.86;
+  if (
+    approachBlocked &&
+    serviceOpen &&
+    previousPhase < BUS_APPROACH_START &&
+    phase >= BUS_APPROACH_HOLD &&
+    phase < BUS_DOORS_OPEN
+  )
+    return next - phase + BUS_APPROACH_HOLD;
   return next;
 }
 

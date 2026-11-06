@@ -1,0 +1,267 @@
+{
+ "model": "Qwen3.5-4B-millos-routing-q4f16_1-MLC",
+ "at": "2026-11-02T23:18:26.071Z",
+ "loadSeconds": 31.407,
+ "load": [
+  173.98583984375,
+  172.76416015625,
+  159.98291015625
+ ],
+ "summary": {
+  "strategy": {
+   "hits": 27,
+   "parsed": 28,
+   "n": 30,
+   "medianSeconds": 28.2
+  }
+ },
+ "routing": {},
+ "strategic": [
+  {
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 34.6
+  },
+  {
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 22.3
+  },
+  {
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 29
+  },
+  {
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 28.2
+  },
+  {
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 29.7
+  },
+  {
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 38.6
+  },
+  {
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 21.9
+  },
+  {
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 27.4
+  },
+  {
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 23.3
+  },
+  {
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 32.8
+  },
+  {
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 26.5
+  },
+  {
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 26.2
+  },
+  {
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": false,
+   "hit": false,
+   "focus": null,
+   "seconds": 120,
+   "raw": "(null)"
+  },
+  {
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 27.8
+  },
+  {
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 33.5
+  },
+  {
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": false,
+   "focus": "c-sifter-c",
+   "seconds": 28.2
+  },
+  {
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": false,
+   "hit": false,
+   "focus": null,
+   "seconds": 32.4,
+   "raw": "{\"priorities\": [\"Stop unit-07 due to high wear and vibration\", \"Maintain stable grain flow to prevent clogging\", \"Schedule unit-07 overhaul for next shift\"], \"reasoning\": \"Unit-07 shows critical wear (93%) and elevated vibration, posing a safety risk despite normal load. The rest of the system is st"
+  },
+  {
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 28
+  },
+  {
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 30.3
+  },
+  {
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 27.6
+  },
+  {
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 30.4
+  },
+  {
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 30.7
+  },
+  {
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 33.2
+  },
+  {
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 24.1
+  },
+  {
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 27.9
+  },
+  {
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 29.8
+  },
+  {
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 32.4
+  },
+  {
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 27.3
+  },
+  {
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 24.6
+  },
+  {
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 26.4
+  }
+ ],
+ "console": [
+  "23:02:30 [INFO] [WebGPU] Model Qwen3.5-4B-millos-routing-q4f16_1-MLC loaded successfully (worker)",
+  "23:10:11 [WARN] [WebGPU] Generation exceeded 120s; interrupted."
+ ]
+}

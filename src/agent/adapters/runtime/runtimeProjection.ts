@@ -5,8 +5,9 @@ import type {
   AgentStructuredProblem,
 } from '../../contracts/queryContracts';
 import type { AgentDomainId, AgentRuntimeMode } from '../../contracts/systemManifest';
-import { useBreakdownStore } from '../../../stores/breakdownStore';
-import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import { predictionMinutesLeft, useBreakdownStore } from '../../../stores/breakdownStore';
+import { readPlantClock } from '../../../utils/timeFormatting';
+import { selectChosenPace, useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useHistoricalPlaybackStore } from '../../../stores/historicalPlaybackStore';
 import { useIncidentReplayStore } from '../../../stores/incidentReplayStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
@@ -83,6 +84,8 @@ export function captureMillOSAgentState(now = new Date()): AgentDomainCapture {
       gameDay: finite(simulation.gameDay),
       gameTime: finite(simulation.gameTime),
       gameSpeed: finite(simulation.gameSpeed),
+      // The pace the player's controls show: the handoff's resume pace while it holds the clock.
+      chosenPace: finite(selectChosenPace(simulation)),
       weather: simulation.weather,
       currentShift: simulation.currentShift,
       emergencyActive: simulation.emergencyActive,
@@ -205,6 +208,9 @@ export function captureMillOSAgentState(now = new Date()): AgentDomainCapture {
       predictiveAlerts: maintenance.predictiveAlerts.map((item) => ({
         ...item,
         basedOnMetrics: { ...item.basedOnMetrics },
+        // The window as the panel counts it down; predictedTimeToFailure is
+        // the window at raise (or at a wound-back clock's rebase).
+        minutesLeft: finite(predictionMinutesLeft(item, readPlantClock())),
       })),
       partsInventory: { ...maintenance.partsInventory },
       maintenanceSchedule: maintenance.maintenanceSchedule.map((item) => ({

@@ -29,6 +29,8 @@ export const millOSMusicPlayerMessages = defineMessages({
     playOrder: 'Play order',
     shuffle: 'Shuffle',
     originalSoundtrackSongs: 'Original soundtrack songs',
+    hideSong: 'Hide {name}',
+    showSong: 'Show {name}',
   },
   'pt-BR': {
     musicPlayer: 'Player de música',
@@ -56,5 +58,7 @@ export const millOSMusicPlayerMessages = defineMessages({
     playOrder: 'Ordem de reprodução',
     shuffle: 'Aleatório',
     originalSoundtrackSongs: 'Músicas da trilha sonora original',
+    hideSong: 'Ocultar {name}',
+    showSong: 'Mostrar {name}',
   },
 });

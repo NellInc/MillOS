@@ -22,7 +22,7 @@ export const safetyConfigPanelMessages = defineMessages({
     speedZoneLabel: 'Speed Zone:',
     speedZoneHelp: 'Speed % in slow zones',
     enforcementNote:
-      'Detection, spacing and look-ahead drive the forklift controller live. Speed zone rate is a planning value and is not enforced yet.',
+      'Detection, spacing and look-ahead drive the forklift controller live. Inside a speed zone, every forklift, on its route or driven, runs at no more than the speed zone rate.',
   },
   'pt-BR': {
     title: 'Configuração de segurança',
@@ -45,6 +45,6 @@ export const safetyConfigPanelMessages = defineMessages({
     speedZoneLabel: 'Zona de velocidade:',
     speedZoneHelp: '% da velocidade nas zonas lentas',
     enforcementNote:
-      'Detecção, distância e antecipação comandam o controlador das empilhadeiras em tempo real. A taxa da zona de velocidade é um valor de planejamento e ainda não é aplicada.',
+      'Detecção, distância e antecipação comandam o controlador das empilhadeiras em tempo real. Dentro de uma zona de velocidade, toda empilhadeira, em sua rota ou conduzida, anda no máximo na taxa da zona de velocidade.',
   },
 });

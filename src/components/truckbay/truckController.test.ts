@@ -8,6 +8,8 @@ import {
   interpolateTruckControllerState,
   stepTruckController,
   type TruckControllerState,
+  truckPhaseDirection,
+  truckWorldFrame,
 } from './truckController';
 import type { TruckAnimState } from './useTruckPhysics';
 
@@ -182,8 +184,8 @@ const RECEIVING_YARD_SOLIDS: readonly Rect[] = [
   // FuelIsland at (25, -85), turned -pi/2: pad and the 6 x 10 m canopy.
   { id: 'fuel-island', minX: 20, maxX: 30, minZ: -88, maxZ: -82 },
   { id: 'receiving-access-node', minX: -18.2, maxX: -17.9, minZ: -102.7, maxZ: -101.3 },
-  // TireInspectionArea at (-25, -85), turned -pi/2: its road-side posts and rail at x -21.5.
-  { id: 'tire-inspection-posts', minX: -21.54, maxX: -21.46, minZ: -87.24, maxZ: -82.76 },
+  // TireInspectionArea at (-27.5, -85), turned -pi/2: its road-side posts and rail at x -24.
+  { id: 'tire-inspection-posts', minX: -24.04, maxX: -23.96, minZ: -87.24, maxZ: -82.76 },
 ];
 const stagingRect = (dock: 'shipping' | 'receiving'): Rect => ({
   id: `${dock}-staging`,
@@ -289,6 +291,41 @@ describe('articulated truck yard motion', () => {
       for (const { pose } of simulateVisit(dock))
         footprintHits(pose, solids).forEach((id) => hits.add(id));
       expect([...hits]).toEqual([]);
+    }
+  );
+
+  it.each(['shipping', 'receiving'] as const)(
+    'keeps the %s tractor and trailer right of the centre line on the road, in and out',
+    (dock) => {
+      // Shipping frame: the road runs north of the yard (z 110) on x 12-28,
+      // its centre line at x 20; receiving is that turned half a revolution.
+      // Heading -z the right-hand side is +x, so a truck coming in keeps east
+      // of the line and one going out keeps west of it.
+      const turn = dock === 'shipping' ? 1 : -1;
+      const inbound = new Set(['entering', 'slowing']);
+      const outbound = new Set(['turning_out', 'accelerating', 'leaving']);
+      const wrong = new Set<string>();
+      let checked = 0;
+      for (const { pose } of simulateVisit(dock))
+        for (const [box, yaw] of [
+          [TRACTOR_BOX, pose.rotation],
+          [TRAILER_BOX, pose.rotation + pose.articulation],
+        ] as const)
+          for (const along of [box.centreZ - box.halfLength, box.centreZ + box.halfLength])
+            for (const across of [-box.halfWidth, box.halfWidth]) {
+              const x = turn * (pose.x + Math.sin(yaw) * along + Math.cos(yaw) * across);
+              const z = turn * (pose.z + Math.cos(yaw) * along - Math.sin(yaw) * across);
+              if (z <= 110 || x <= 12 || x >= 28) continue;
+              checked += 1;
+              const right = inbound.has(pose.phase)
+                ? x > 20
+                : outbound.has(pose.phase)
+                  ? x < 20
+                  : false;
+              if (!right) wrong.add(pose.phase);
+            }
+      expect(checked).toBeGreaterThan(1000);
+      expect([...wrong]).toEqual([]);
     }
   );
 
@@ -569,5 +606,43 @@ describe('schedule-owned articulated truck controller', () => {
     const previous = createTruckController('shipping', false);
     const current = createTruckController('shipping', true);
     expect(interpolateTruckControllerState(previous, current, 0.25)).toBe(current);
+  });
+});
+
+describe('truck world frame', () => {
+  it('turns the receiving truck half a revolution, as it is drawn, trailer included', () => {
+    for (const dock of ['shipping', 'receiving'] as const) {
+      // Mid-turn into the yard, where the trailer is articulated.
+      let state = createTruckController(dock, true);
+      for (let i = 0; i < 60 * 40 && state.phase !== 'straightening'; i += 1)
+        state = stepTruckController(state, {
+          deltaSeconds: 1 / 60,
+          arrivalReady: false,
+          safetyHold: false,
+          serviceComplete: false,
+          speedMultiplier: 1,
+        }).state;
+      const pose = getTruckControllerPose(state);
+      const world = truckWorldFrame(state, { x: 0, z: 0, tractorYaw: 0, trailerYaw: 0 });
+      expect(Math.abs(pose.articulation), dock).toBeGreaterThan(0.01);
+      expect(world.x, dock).toBeCloseTo(pose.x, 9);
+      expect(world.z, dock).toBeCloseTo(pose.z, 9);
+      expect(Math.cos(world.tractorYaw - pose.rotation), dock).toBeCloseTo(1, 9);
+      expect(Math.cos(world.trailerYaw - (pose.rotation + pose.articulation)), dock).toBeCloseTo(
+        1,
+        9
+      );
+    }
+  });
+});
+
+describe('truck phase direction', () => {
+  it('names the way each phase moves, a standing phase the move after it, and docked none', () => {
+    expect(truckPhaseDirection('entering')).toBe(1);
+    expect(truckPhaseDirection('backing')).toBe(-1);
+    expect(truckPhaseDirection('final_adjustment')).toBe(-1);
+    expect(truckPhaseDirection('stopping_to_back')).toBe(-1);
+    expect(truckPhaseDirection('preparing_to_leave')).toBe(1);
+    expect(truckPhaseDirection('docked')).toBe(0);
   });
 });

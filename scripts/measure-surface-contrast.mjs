@@ -92,6 +92,12 @@
  *                       Every scene must read exactly 0 and INERT; anything
  *                       else is noise the instrument would credit to a real
  *                       treatment.
+ *   --camera=x,y,z,tx,ty,tz  Re-pose the scene's camera through the runtime hook
+ *                       before the settle, for a close look the scene set lacks.
+ *   --toggle-key=<flag> The perfDebug flag both arms differ by. Default
+ *                       disableSurfaceTreatment; disableWaterCaustics isolates
+ *                       the bed caustics (scenes lakeside and river; the far
+ *                       water and lake cameras read 0 by design).
  *
  * Serving and readiness follow run-performance-benchmark.mjs, which is the
  * harness that has kept working: the preview gets the build's own VERSION and
@@ -163,6 +169,16 @@ function parseCrop(value) {
   return { left, top, width, height };
 }
 
+/** `x,y,z,tx,ty,tz`: a pose set through the runtime hook after the scene loads. */
+function parseCamera(value) {
+  if (!value) return null;
+  const numbers = value.split(',').map(Number);
+  if (numbers.length !== 6 || numbers.some((n) => !Number.isFinite(n))) {
+    throw new Error(`--camera= expects six numbers x,y,z,tx,ty,tz; got "${value}"`);
+  }
+  return { position: numbers.slice(0, 3), target: numbers.slice(3) };
+}
+
 const options = {
   label: arg('label', ''),
   scenes: arg('scenes', '') ? arg('scenes', '').split(',') : DEFAULT_SCENES,
@@ -173,6 +189,9 @@ const options = {
   crop: parseCrop(arg('crop', '')),
   toggle: !flag('no-toggle'),
   control: flag('control'),
+  // The perfDebug flag the paired control pulls. Each is one shared uniform.
+  toggleKey: arg('toggle-key', 'disableSurfaceTreatment'),
+  camera: parseCamera(arg('camera', '')),
 };
 
 if (!options.label) {
@@ -366,11 +385,18 @@ async function main() {
             );
           }
         }
+        if (options.camera) {
+          await page.evaluate(
+            ({ position, target }) => window.__MILLOS_RUNTIME__.setCameraPose(position, target),
+            options.camera
+          );
+        }
         // Lazily mounted branches land seconds after the reveal; the settle
         // keeps the first shot clear of them.
         if (options.control) {
-          await page.evaluate(() =>
-            window.__MILLOS_RUNTIME__?.setPerfDebug({ disableSurfaceTreatment: true })
+          await page.evaluate(
+            (key) => window.__MILLOS_RUNTIME__?.setPerfDebug({ [key]: true }),
+            options.toggleKey
           );
         }
         await page.waitForTimeout(options.settle * 1000);
@@ -397,8 +423,9 @@ async function main() {
         );
         if (!supported) throw new Error('runtime hook has no setPerfDebug');
 
-        await page.evaluate(() =>
-          window.__MILLOS_RUNTIME__.setPerfDebug({ disableSurfaceTreatment: true })
+        await page.evaluate(
+          (key) => window.__MILLOS_RUNTIME__.setPerfDebug({ [key]: true }),
+          options.toggleKey
         );
         // The uniform is shared and needs no recompile, but the store write has
         // to commit and its effect run before the held frame is redrawn.
@@ -415,9 +442,8 @@ async function main() {
         await page.screenshot({ path: offLatePath, timeout: 30000 });
         // In --control the "on" arm stays off, so every shot is the same arm.
         await page.evaluate(
-          (disabled) =>
-            window.__MILLOS_RUNTIME__.setPerfDebug({ disableSurfaceTreatment: disabled }),
-          options.control
+          ({ key, disabled }) => window.__MILLOS_RUNTIME__.setPerfDebug({ [key]: disabled }),
+          { key: options.toggleKey, disabled: options.control }
         );
         // The last shot closes the ABBA bracket at the same spacing, so the
         // self-motion it measures is the motion the on-off pair also contains.

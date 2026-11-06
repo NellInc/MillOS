@@ -5,7 +5,14 @@ import { deriveOperationsPlay } from './operationsPlay';
 describe('live operations read model', () => {
   beforeEach(() => useOperationsCampaignStore.getState().resetCampaign());
   it('explains empty feed and disables unavailable challenges', () => {
-    const model = deriveOperationsPlay(useOperationsCampaignStore.getState());
+    const state = useOperationsCampaignStore.getState();
+    // Before the first tick the route is unread (stage 'planning'); the silos
+    // start stocked, so only a tick's empty reading may say it is empty.
+    expect(deriveOperationsPlay(state).nextAction.kind).not.toBe('receiving');
+    const model = deriveOperationsPlay({
+      ...state,
+      execution: { ...state.execution, stage: 'milling', sourceInventoryKg: 0 },
+    });
     expect(model.nextAction.kind).toBe('receiving');
     expect(model.nextAction.consequence).toContain('wheat grain');
     expect(model.challenges.every((challenge) => !challenge.available)).toBe(true);

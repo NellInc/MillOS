@@ -2,13 +2,110 @@ import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import * as THREE from 'three';
 import {
+  LOCK_GATE_BALANCE_BEAMS,
   LOCK_GATE_JOINERY,
   LOCK_GATE_LAMPS,
   LOCK_GATE_LIGHT,
   LOCK_LAMP_HOUSING,
 } from './AuthoredPropTrim';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { NodeIO } from '@gltf-transform/core';
+import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
+import { MeshoptDecoder } from 'meshoptimizer';
 import { LOCK_GATE_MATERIAL } from './lockGateSurface';
+
+// The delivered lock GLB in lock-local metres: its node transform, then the
+// `LockGate` mount offset in FactoryExterior.tsx.
+async function deliveredLockGate() {
+  const require = createRequire(import.meta.url);
+  const decoder = await require('draco3dgltf').createDecoderModule({
+    wasmBinary: readFileSync(require.resolve('draco3dgltf/draco_decoder_gltf.wasm')),
+  });
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+    'draco3d.decoder': decoder,
+    'meshopt.decoder': MeshoptDecoder,
+  });
+  const doc = await io.readBinary(
+    new Uint8Array(readFileSync('public/models/world/lock-gate-structure.glb'))
+  );
+  const node = doc
+    .getRoot()
+    .listNodes()
+    .find((n) => n.getMesh())!;
+  const primitive = node.getMesh()!.listPrimitives()[0];
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(new Float32Array(primitive.getAttribute('POSITION')!.getArray()!), 3)
+  );
+  geometry.setIndex(Array.from(primitive.getIndices()!.getArray()!));
+  // 3c070f32 re-centred the rebuilt GLB and moved the mount from z -1.748748 to 0.
+  expect(readFileSync('src/components/FactoryExterior.tsx', 'utf8')).toContain(
+    '<group position={[0, -0.75, 0]}>\n        <GeneratedModel asset="lockGateStructure"'
+  );
+  const matrix = new THREE.Matrix4()
+    .makeTranslation(0, -0.75, 0)
+    .multiply(new THREE.Matrix4().fromArray(node.getWorldMatrix()));
+  return { geometry, matrix };
+}
+
+const downHit = (geometry: THREE.BufferGeometry, matrix: THREE.Matrix4, x: number, z: number) => {
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  mesh.applyMatrix4(matrix);
+  mesh.updateMatrixWorld(true);
+  return new THREE.Raycaster(
+    new THREE.Vector3(x, 6, z),
+    new THREE.Vector3(0, -1, 0)
+  ).intersectObject(mesh)[0];
+};
+
+it('delivers the lock GLB without the centreline beam that hung over open water', async () => {
+  // The beam ran from the gate (z 0) to z -4 on the lock centreline. The
+  // rebuilt GLB (scripts/refine-lock-gate-body.mjs) carries none of it, so no
+  // runtime trim is applied: nothing at all stands over the water there.
+  const { geometry, matrix } = await deliveredLockGate();
+  for (const z of [-0.6, -2, -3.6]) expect(downHit(geometry, matrix, 0, z)).toBeUndefined();
+  // Deck, both leaves and both uprights are delivered intact.
+  for (const x of [-5.3, -2.5, 0.3, 2.5, 5.3])
+    expect(downHit(geometry, matrix, x, 0)?.point.y).toBeGreaterThan(1.5);
+  geometry.dispose();
+});
+
+it('gives each leaf a balance beam over the lockside, clear of the uprights', () => {
+  const geometry = LOCK_GATE_BALANCE_BEAMS;
+  geometry.computeBoundingBox();
+  for (const name of ['position', 'normal', 'uv', 'color'])
+    expect(Array.from(geometry.getAttribute(name).array).every(Number.isFinite)).toBe(true);
+  const box = geometry.boundingBox!;
+  // Seated on the leaves' top rail (y 1.735), behind the gate (downstream).
+  expect(box.min.y).toBeCloseTo(1.735, 3);
+  expect(box.max.z).toBeLessThan(0.1);
+  const position = geometry.getAttribute('position');
+  for (let i = 0; i < position.count; i++) {
+    const x = Math.abs(position.getX(i));
+    const z = position.getZ(i);
+    // Never inside an upright (x 5.05..5.55, z -0.25..0.25).
+    expect(x > 5.05 && x < 5.55 && z > -0.25 && z < 0.25).toBe(false);
+  }
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  mesh.updateMatrixWorld(true);
+  for (const side of [-1, 1]) {
+    // Both tails stand over the lock wall (inner face at x +-5.5), not the water.
+    const tail = new THREE.Raycaster(
+      new THREE.Vector3(side * 6.2, 5, -3.4),
+      new THREE.Vector3(0, -1, 0)
+    ).intersectObject(mesh)[0];
+    expect(tail?.point.y).toBeCloseTo(1.96, 2);
+  }
+  // Nothing over the centre of the lock.
+  expect(
+    new THREE.Raycaster(new THREE.Vector3(0, 5, -2), new THREE.Vector3(0, -1, 0)).intersectObject(
+      mesh
+    )
+  ).toHaveLength(0);
+  mesh.material.dispose();
+});
 
 it('resolves vertical oak grain, a damp waterline and a separate iron atlas tile', () => {
   const { map, bumpMap } = LOCK_GATE_MATERIAL;

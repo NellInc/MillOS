@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameInterface } from '../GameInterface';
+import { SettingsPanel } from '../panels/SettingsPanel';
 import { MachineType, type MachineData } from '../../../types';
 import { useUIStore } from '../../../stores/uiStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -14,13 +15,14 @@ import { useProductionStore } from '../../../stores/productionStore';
 
 const runtime = vi.hoisted(() => ({
   compact: false,
+  touch: false,
   narrate: null as ((narration: NarrationEntry) => void) | null,
   closeSidebar: () => {},
   setPreset: vi.fn(),
   cancelAnimation: vi.fn(),
 }));
 vi.mock('../../../hooks/useMobileDetection', () => ({
-  useMobileDetection: () => ({ isCompactLayout: runtime.compact }),
+  useMobileDetection: () => ({ isCompactLayout: runtime.compact, isTouchDevice: runtime.touch }),
 }));
 vi.mock('../../CameraController', () => ({ useCameraStore: { getState: () => runtime } }));
 vi.mock('../dock/Dock', async (importOriginal) => {
@@ -47,9 +49,19 @@ vi.mock('../dock/Dock', async (importOriginal) => {
   };
 });
 vi.mock('../sidebar/ContextSidebar', () => ({
-  ContextSidebar: ({ onClose }: { onClose: () => void }) => {
+  ContextSidebar: ({
+    onClose,
+    selectedMachine,
+    isVisible,
+  }: {
+    onClose: () => void;
+    selectedMachine: { id: string } | null;
+    isVisible: boolean;
+  }) => {
     runtime.closeSidebar = onClose;
-    return null;
+    return selectedMachine && isVisible ? (
+      <div data-testid="machine-inspector-host" data-machine={selectedMachine.id} />
+    ) : null;
   },
 }));
 vi.mock('../hud/StatusHUD', () => ({ StatusHUD: () => null }));
@@ -114,7 +126,12 @@ describe('first-use journey wiring', () => {
     };
     const { rerender } = render(<GameInterface {...props} />);
     act(() => window.dispatchEvent(new Event('millos:open-layout-planner')));
-    const planner = await screen.findByRole('dialog', { name: 'Logistics planning' });
+    // The planner is lazy; under a loaded machine its chunk takes over 1 s.
+    const planner = await screen.findByRole(
+      'dialog',
+      { name: 'Logistics planning' },
+      { timeout: 15000 }
+    );
     fireEvent.change(screen.getByLabelText('shipping staging X (m)'), { target: { value: '18' } });
     runtime.compact = true;
     rerender(<GameInterface {...props} />);
@@ -213,7 +230,16 @@ describe('first-use journey wiring', () => {
         fpsMode: reason === 'fps',
         alerts:
           reason === 'critical'
-            ? [{ id: 'critical', type: 'critical', message: 'Stop', timestamp: Date.now() }]
+            ? [
+                {
+                  id: 'critical',
+                  type: 'critical',
+                  title: 'Stop',
+                  message: 'Stop',
+                  timestamp: new Date(),
+                  acknowledged: false,
+                },
+              ]
             : [],
       });
       if (reason === 'mobile') {
@@ -236,14 +262,67 @@ describe('first-use journey wiring', () => {
     act(() =>
       runtime.narrate?.({
         id: 'quiet',
+        trigger: 'first-play',
         content: 'Queued reflection',
-        category: 'observation',
-      } as NarrationEntry)
+      })
     );
     expect(
       screen.getByRole('complementary', { name: 'Working agreement companion' })
     ).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'AI reflection' })).not.toBeInTheDocument();
+  });
+
+  // A keyboardless tablet (touch, no hover pointer, too large for the phone
+  // layout) was told on the tour's last step to 'Press ? for controls'.
+  // Under 768 px the Inspector's only host (the sidebar) was not mounted and
+  // the phone sheet has no machine page: a click on a machine played the
+  // panel sound and showed nothing. Working if the compact layout shows it.
+  it('shows the machine inspector for a machine picked in the compact layout', () => {
+    runtime.compact = true;
+    useUIStore.setState({ hasSeenIntro: true });
+    const machine = {
+      id: 'mill-0',
+      name: 'R.M. 101',
+      type: MachineType.ROLLER_MILL,
+    } as MachineData;
+    render(
+      <GameInterface
+        productionSpeed={1}
+        setProductionSpeed={vi.fn()}
+        showZones={false}
+        setShowZones={vi.fn()}
+        selectedMachine={machine}
+        onCloseSelection={vi.fn()}
+      />
+    );
+    act(() => vi.advanceTimersByTime(50));
+    expect(screen.getByTestId('machine-inspector-host')).toHaveAttribute('data-machine', 'mill-0');
+  });
+
+  it('does not tell a keyboardless tablet to press a key', () => {
+    runtime.touch = true;
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: query === '(hover: none)',
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    try {
+      renderInterface();
+      act(() => vi.advanceTimersByTime(700));
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+      expect(screen.getByRole('heading', { name: "Protect the day's flour" })).toBeVisible();
+      expect(screen.queryByText(/Press \? for controls/)).not.toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+      runtime.touch = false;
+    }
   });
 
   it('leaves the music player fully usable through the tour and starts a real delivery guide when it finishes', () => {
@@ -271,6 +350,19 @@ describe('first-use journey wiring', () => {
     expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'false');
     // Silos, Milling, Packing: the grain's order, and no flight through a silo.
     expect(runtime.setPreset.mock.calls.map(([preset]) => preset)).toEqual([1, 2, 4]);
+  });
+
+  // Walk mode (forced on at launch on a landscape phone) unmounts the camera
+  // controller, so a tour preset set under it moved nothing and flew the camera
+  // later, when the player left walk mode. Working if each tour step shows its
+  // area, as the number keys do by leaving walk mode first.
+  it('leaves walk mode so the tour camera steps show their area', () => {
+    useUIStore.getState().setFpsMode(true);
+    renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    expect(screen.getByRole('heading', { name: 'Follow the grain' })).toBeVisible();
+    expect(useUIStore.getState().fpsMode).toBe(false);
+    expect(runtime.setPreset).toHaveBeenLastCalledWith(1);
   });
 
   it('holds the introductory clock and starts the default guided delivery at standard pace', () => {
@@ -309,6 +401,21 @@ describe('first-use journey wiring', () => {
     fireEvent.click(screen.getByRole('button', { name: control }));
     expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     expect(useUIStore.getState().journeyVisible).toBe(journey);
+  });
+
+  // After the first programme the oldest kept order is a fulfilled one; the
+  // replayed tour seeded the guide with it and ended on a receipt from shifts
+  // ago. Working if a finished tour seeds only an order still open.
+  it('does not seed the guided delivery with a fulfilled order', () => {
+    useOperationsCampaignStore.setState((state) => ({
+      activeOrderId: null,
+      orders: state.orders.map((order) => ({ ...order, status: 'fulfilled' as const })),
+    }));
+    renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    fireEvent.click(screen.getByRole('button', { name: 'Skip tour' }));
+    expect(useUIStore.getState().journeyVisible).toBe(true);
+    expect(useUIStore.getState().journeyOrderId).toBeNull();
   });
 
   it.each(['Skip tour', 'Close getting started for this session'])(
@@ -575,6 +682,52 @@ describe('first-use journey wiring', () => {
     expect(useUIStore.getState().hasSeenIntro).toBe(false);
     expect(runtime.cancelAnimation).toHaveBeenCalledOnce();
     expect(screen.getByTestId('game-interface')).toHaveAttribute('data-sidebar-visible', 'false');
+  });
+
+  // The first-play welcome queued behind the tour was replaced by a later
+  // trigger (opening the library) and never shown this session. Working if the
+  // queued reflection is the one that shows once the way is clear.
+  // The card's X unmounted the card with focus inside it, dropping focus to
+  // <body>, where the next Space stops every forklift. The card has no opener,
+  // so the dock's Overview button takes it. Working if focus lands there.
+  // Closing the tour with X leaves hasSeenIntro false, so Settings' Replay set
+  // it false again: no change, no notification, and the tour never returned
+  // that session. Working if Replay brings the tour back after an X close.
+  it('replays getting started from Settings after the tour was closed with X', () => {
+    renderInterface();
+    act(() => vi.advanceTimersByTime(700));
+    fireEvent.click(screen.getByRole('button', { name: 'Close getting started for this session' }));
+    expect(screen.queryByRole('region', { name: /Getting started/ })).not.toBeInTheDocument();
+    render(<SettingsPanel productionSpeed={1} setProductionSpeed={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Replay getting started' }));
+    act(() => vi.advanceTimersByTime(800));
+    expect(screen.getByRole('region', { name: /Getting started/ })).toBeInTheDocument();
+  });
+
+  it('hands focus to the dock when the reflection card is dismissed', () => {
+    useUIStore.setState({ hasSeenIntro: true });
+    renderInterface();
+    act(() => {
+      runtime.narrate?.({ id: 'dismiss-focus', trigger: 'first-play', content: 'Dismiss me.' });
+    });
+    const dismiss = screen.getByRole('button', { name: 'Dismiss reflection' });
+    dismiss.focus();
+    fireEvent.click(dismiss);
+    expect(screen.queryByText('Dismiss me.')).not.toBeInTheDocument();
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Overview' }));
+  });
+
+  it('keeps the first queued reflection when a later one arrives', () => {
+    renderInterface();
+    act(() => {
+      vi.advanceTimersByTime(700);
+      runtime.narrate?.({ id: 'first', trigger: 'first-play', content: 'Welcome reflection.' });
+      runtime.narrate?.({ id: 'later', trigger: 'library-opened', content: 'Later reflection.' });
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Close getting started for this session' }));
+    expect(screen.getByText('Welcome reflection.')).toBeVisible();
+    expect(screen.queryByText('Later reflection.')).not.toBeInTheDocument();
   });
 
   it('queues reflection behind delivery guidance and the Overview sidebar without dismissing it', () => {

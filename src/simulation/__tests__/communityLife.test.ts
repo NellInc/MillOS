@@ -37,6 +37,7 @@ import {
 } from '../communityLife';
 import { STANDARD_GAME_SPEED } from '../pace';
 import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
+import { BUS_STOP } from '../../constants/publicRealmLayout';
 import { createWorkplace, transitionWorkplace } from '../bilateralWorkplace';
 import {
   createMachineObstacles,
@@ -359,7 +360,8 @@ describe('inhabited world routines', () => {
   it('ties passengers to open bus doors and a stopped bus', () => {
     for (let h = 6; h < 22; h += 0.001) {
       const bus = sampleCommunityBus(h);
-      if (bus.doorsOpen) expect([bus.x, bus.z, bus.rotation]).toEqual([23, 140, Math.PI]);
+      if (bus.doorsOpen)
+        expect([bus.x, bus.z, bus.rotation]).toEqual([BUS_STOP.x, BUS_STOP.z, Math.PI]);
       for (const p of COMMUNITY_ROSTER.filter((p) => p.district === 'bus')) {
         const person = sampleCommunityPerson(p, h);
         // Stepping up from the bench to the kerb is not boarding; crossing to the bus is.
@@ -373,7 +375,8 @@ describe('inhabited world routines', () => {
     'seats both commuters with ramps and only shows or hides them at the open bus door',
     SWEEP,
     () => {
-      const door = [24.1, 0.36, 137.6];
+      // The front doorway, 1.1 m to the bus's right and 2.4 m ahead, at the stop.
+      const door = [BUS_STOP.x + 1.1, 0.36, BUS_STOP.z - 2.4];
       const step = 0.0002;
       const amount = (pose: CommunityPose) => (pose.seat ? pose.seat.amount : pose.seated ? 1 : 0);
       const seen = new Set<string>();
@@ -608,7 +611,7 @@ describe('inhabited world routines', () => {
         if (shown.activity === 'walking') {
           const [x, , z] = shown.position;
           const origins = [
-            [24.1, 137.6],
+            [BUS_STOP.x + 1.1, BUS_STOP.z - 2.4],
             ...(person.day ? [[person.day.door[0], person.day.door[2]]] : []),
           ];
           expect(

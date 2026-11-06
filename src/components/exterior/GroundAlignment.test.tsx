@@ -20,6 +20,7 @@ import {
   Vector3,
 } from 'three';
 import {
+  CANAL_WEST_PATH,
   createGroundPathGeometry,
   RIVER_FOOTBRIDGE_APPROACH,
   EAST_POND_APPROACH,
@@ -27,6 +28,11 @@ import {
   HedgeRow,
   LAKE_APPROACH_PATH,
   setFenceRailInstances,
+  FROG_FOOT_DROP,
+  fencePostFractions,
+  LILY_PAD_TOP,
+  frogHop,
+  pondLilyPads,
 } from '../FactoryExterior';
 import {
   SITE_LAYOUT,
@@ -40,10 +46,14 @@ import { readFileSync } from 'node:fs';
 import {
   CAFE_COURT,
   CAFE_COURT_LANTERN,
+  FRONT_POND_APPROACH,
   WORLD_REALM_PATHS,
+  WORLD_REALM_PATCHES,
   inRealmPatch,
   inRealmPath,
 } from '../../constants/publicRealmLayout';
+import { WATER_PROFILES } from '../../utils/waterAppearance';
+import { buildPerimeterKerbRuns } from './perimeterKerbLayout';
 import { hedgeCrownTransforms } from './HedgeFoliage';
 import { SERVICE_ENTRANCE_LIGHTS, serviceEntranceSource } from './ServiceEntranceLighting';
 import {
@@ -130,7 +140,7 @@ it('meets the rear bridge landing edge without layering the path underneath it',
   for (const landing of RIVER_FOOTBRIDGE_LANDINGS)
     expect(Math.min(path.start[2], path.end[2])).toBeGreaterThanOrEqual(landing.maxZ);
   expect(readFileSync('src/components/FactoryExterior.tsx', 'utf8')).toContain(
-    '<GravelPath {...RIVER_FOOTBRIDGE_APPROACH} type="paved" />'
+    '<GravelPath {...RIVER_FOOTBRIDGE_APPROACH} type="walkway" />'
   );
 });
 
@@ -152,9 +162,60 @@ it.each([64, 128])('grounds the court lantern off the routes on the %i grid', (s
   expect(sampleTerrainGroundHeight(x, z, segments)).toBe(0);
   // The generated pole's footprint fits in the 0.8 m border clearance.
   expect(inRealmPatch(x, z, CAFE_COURT, 0.3)).toBe(false);
-  for (const path of [...WORLD_REALM_PATHS, { start: [-100, 95], end: [-125, 105], width: 2 }])
+  const approach = FRONT_POND_APPROACH.map(({ start, end, width }) => ({
+    start: [start[0], start[2]] as [number, number],
+    end: [end[0], end[2]] as [number, number],
+    width,
+  }));
+  for (const path of [...WORLD_REALM_PATHS, ...approach])
     expect(inRealmPath(x, z, path, 0.3)).toBe(false);
   expect(Math.hypot(x - CAFE_COURT.x, z - CAFE_COURT.z)).toBeLessThan(5.5);
+});
+
+it('meets the canal west walk with paving across its whole width', () => {
+  const { end, width } = CANAL_WEST_PATH;
+  // Just inside the gravel's end, at both edges and the centre.
+  for (const x of [end[0] - width / 2, end[0], end[0] + width / 2])
+    expect(
+      WORLD_REALM_PATHS.some((path) => inRealmPath(x, end[2] - 0.1, path)),
+      `${x}`
+    ).toBe(true);
+});
+
+it('runs the pond approach from the main path to the court and on to the pond kerb', () => {
+  const [south, west, ring] = FRONT_POND_APPROACH;
+  // The ring path's north end (radius 14, 1.8 wide about the pond) reaches the
+  // main path: the spur runs from the path edge to the ring's outer edge,
+  // within 8 cm across its whole width, lying over the ring rather than past
+  // its end at x -125.
+  expect(ring.start[2]).toBe(86.5);
+  for (const x of [ring.start[0] - ring.width / 2, ring.start[0] + ring.width / 2]) {
+    expect(x).toBeLessThanOrEqual(-125);
+    expect(Math.abs(ring.end[2] - (105 - Math.sqrt(14.9 ** 2 - (x + 125) ** 2)))).toBeLessThan(
+      0.08
+    );
+  }
+  // Starts on the main path's south edge (z 85 +- 1.5), within its x span.
+  expect(south.start[2]).toBe(86.5);
+  expect(south.start[0]).toBeGreaterThan(-128.75);
+  expect(south.start[0]).toBeLessThan(-95);
+  // Meets the court link that runs from z 98.2 into the court.
+  const link = WORLD_REALM_PATHS.find((p) => p.start[0] === -108)!;
+  expect([south.end[0], south.end[2]]).toEqual(link.start);
+  // Leaves the court square from its west edge and ends under the kerb.
+  expect(west.start[0]).toBeCloseTo(CAFE_COURT.x - CAFE_COURT.halfX, 6);
+  expect(west.start[2]).toBe(CAFE_COURT.z);
+  const [px, , pz] = SITE_LAYOUT.exteriorFeatures.ponds[0].position;
+  expect(Math.hypot(west.end[0] - px, west.end[2] - pz)).toBeCloseTo(10, 6);
+  // Neither leg crosses the kiosk (octagon ~2.7 m about (-108, 105)).
+  for (const { start, end, width } of FRONT_POND_APPROACH)
+    expect(
+      inRealmPath(-108, 105, {
+        start: [start[0], start[2]],
+        end: [end[0], end[2]],
+        width: width + 2 * 2.7,
+      })
+    ).toBe(false);
 });
 
 it('reuses the existing shared lantern, lens and pool without another real light', () => {
@@ -256,6 +317,74 @@ it('follows the current east pond to a dry arrival clear of the office footprint
     'end={EAST_POND_APPROACH}'
   );
   g.dispose();
+});
+
+it('walks from the east office doors onto the pond path, clear of the yard kerb', () => {
+  // The doors (x 99-101 under the canopy) opened onto grass at the yard's
+  // south-east kerb corner. A forecourt patch takes the doorstep; a walk runs
+  // from its east side onto the start of the gravel path to the pond.
+  const forecourt = WORLD_REALM_PATCHES.find((p) => inRealmPatch(100, -93, p));
+  expect(forecourt).toBeDefined();
+  expect(forecourt!.z + forecourt!.halfZ).toBeLessThan(-90.56); // kerb's south end
+  const walk = WORLD_REALM_PATHS.find((p) => inRealmPath(103.2, -88, p));
+  expect(walk).toBeDefined();
+  expect(walk!.start[0] - walk!.width / 2).toBeGreaterThan(100.56); // kerb upstand
+  expect(inRealmPatch(walk!.start[0], walk!.start[1], forecourt!)).toBe(true);
+  // Its far end overlaps the gravel path's first metre toward the pond.
+  const [ex, , ez] = EAST_POND_APPROACH;
+  const t = (walk!.end[1] - -85) / (ez - -85);
+  const gravelX = 100 + (ex - 100) * t;
+  expect(Math.abs(walk!.end[0] - gravelX)).toBeLessThan(walk!.width / 2 + 0.9);
+  // Running beside the yard's east kerb, it must not read as a crossing: the
+  // corner keeps its kerb from the south edge up to the pond path's gap.
+  const east = buildPerimeterKerbRuns().filter((run) => run.side === 'east');
+  expect(east.some((run) => run.from <= -90 && run.to >= -88)).toBe(true);
+});
+
+it('places exactly one perimeter fence post at each corner', () => {
+  // Front/back and side sections each placed a post where they met, two
+  // identical posts in one spot at every corner.
+  const source = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+  const sections = [
+    ...source.matchAll(
+      /<FenceSection start=\{\[([^\]]+)\]\} end=\{\[([^\]]+)\]\}((?: shared(?:Start|End))*) \/>/g
+    ),
+  ].map(([, a, b, flags]) => ({
+    start: a.split(',').map(Number),
+    end: b.split(',').map(Number),
+    shared: { start: flags.includes('sharedStart'), end: flags.includes('sharedEnd') },
+  }));
+  expect(sections.length).toBe(7);
+  const posts = sections.flatMap(({ start, end, shared }) => {
+    const length = Math.hypot(end[0] - start[0], end[2] - start[2]);
+    return fencePostFractions(length, 8, shared).map((t) =>
+      [start[0] + (end[0] - start[0]) * t, start[2] + (end[2] - start[2]) * t]
+        .map((v) => v.toFixed(2))
+        .join(',')
+    );
+  });
+  expect(posts.length - new Set(posts).size).toBe(0);
+  for (const corner of ['-95.00,85.00', '95.00,85.00', '-95.00,-85.00', '95.00,-85.00'])
+    expect(posts.filter((p) => p === corner)).toHaveLength(1);
+});
+
+it('floats every lily pad flat on the pond and seats its frog on it', () => {
+  // Spun on Y, three's XYZ order tilted every pad ~30 degrees out of the water,
+  // and the frog's hop re-added its seat height, holding it 0.21 m up.
+  for (const radius of SITE_LAYOUT.exteriorFeatures.ponds.map((p) => p.radius))
+    for (const pad of pondLilyPads(radius)) {
+      // A circle's face normal is +Z before its rotation.
+      const normal = new Vector3(0, 0, 1).applyEuler(new Euler(...pad.rotation));
+      expect(Math.abs(normal.y)).toBeCloseTo(1, 6);
+      expect(pad.frogY - FROG_FOOT_DROP).toBeCloseTo(LILY_PAD_TOP, 6);
+      expect(Math.hypot(pad.x, pad.z) + 0.5).toBeLessThan(radius - 0.5); // inside the water disc
+    }
+  // Above the pond's highest crest: its swell times the strongest wind (1.45).
+  expect(LILY_PAD_TOP - 0.005).toBeGreaterThan(0.15 + WATER_PROFILES.pond.waveHeight * 1.45);
+  // A sitting frog adds nothing to its seat; a hop rises and returns.
+  expect(frogHop(1)).toEqual({ lift: 0, lean: 0 });
+  expect(frogHop(0.1875).lift).toBeCloseTo(0.3, 6); // mid-hop
+  expect(frogHop(0.375).lift).toBeCloseTo(0, 6);
 });
 
 it('retains pond kerb depth before late-order terrain can erase the stone ring', () => {

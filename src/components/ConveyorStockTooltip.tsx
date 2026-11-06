@@ -24,7 +24,7 @@ export function ConveyorStockTooltip() {
     })
   );
   return (
-    <div className="pointer-events-none min-w-[160px] rounded-lg border border-slate-700 bg-slate-900/95 px-3 py-2 shadow-xl backdrop-blur">
+    <div className="pointer-events-none min-w-[160px] millos-glass millos-glass-thick rounded-lg px-3 py-2">
       <div className="text-xs font-mono font-bold text-white">{t('releasedStock')}</div>
       <div className="mt-1 text-[10px] text-slate-400">
         <div className="flex justify-between gap-3">

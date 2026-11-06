@@ -1,0 +1,18 @@
+{
+ "run": "severity-line-haiku",
+ "writtenAt": "2026-11-05, before any Haiku call",
+ "approvedBy": "Nell: '2,3, then 1 please.' (2026-11-05), option 3: test the severity line on the cloud models",
+ "question": "Does the D-028 severity line help Claude Haiku 5.5, MillOS's default cloud model, on the same strategy cases, without hurting anything else?",
+ "design": {
+  "prompts": "the exact strategicPrompt texts of the local test's 14 cases (10 healthy-base cases plus the 4 extra two-anomaly pairs), dumped once from the app with and without the line by browser_eval.mjs --prompts-only",
+  "request": "the app's own Haiku request (cloudAIClient.ts): claude-haiku-5-5, max_tokens 4096, thinking adaptive, effort high, the prompt as one user message",
+  "repeats": "5 per arm, 70 calls per arm, arms interleaved call by call",
+  "parse": "the same {...}-extracting parser as the eval and aiEngine"
+ },
+ "rule": {
+  "adoptIf": "the same five conditions as prereg-severity-line.json (two-anomaly gain >= 5 of 30; other cases lose <= 1 of 40; parsed lose <= 1 of 70; median seconds <= 1.2x; formulaic share <= +0.05)",
+  "note": "if base already scores >= 26/30 on two-anomaly cases, a gain of 5 is impossible and the line is not needed on Haiku",
+  "ifPass": "add the line for the Haiku backends (haiku, openrouter-haiku); other cloud models stay without it until measured",
+  "otherwise": "no change: the line stays local-only"
+ }
+}

@@ -31,11 +31,12 @@ import {
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
-import { cloudAIClient, type CloudResult } from '../cloudAIClient';
+import { cloudAIClient, KeyedError, type CloudResult } from '../cloudAIClient';
 import { SpendCapError } from '../spendBudget';
 import { webgpuClient } from '../webgpuClient';
 import { MachineType, AIDecision } from '../../types';
 import { setLocale } from '../../i18n';
+import { keyedText } from '../../i18n/alertCopy';
 
 // Mock the store
 vi.mock('../../stores/productionStore', () => ({
@@ -291,6 +292,58 @@ describe('aiEngine - Core Functions', () => {
       expect(decision?.type).toBe('safety');
     });
 
+    // F28: an unattended heuristic engine filed a card every 6 s with no
+    // duplicate check, so the 50-card queue filled with identical pending cards
+    // and every later admission (alert reactions, strategic plans) was refused.
+    it('files no second card while one for the same machine and type is still pending', () => {
+      const store = vi.mocked(useProductionStore.getState)();
+      const pending = {
+        id: 'plant-optimization-1',
+        type: 'optimization',
+        status: 'pending',
+        machineId: 'RM-101',
+      } as AIDecision;
+      vi.mocked(useProductionStore.getState).mockReturnValue({
+        ...store,
+        aiDecisions: [pending],
+      } as any);
+      expect(generateContextAwareDecision()).toBeNull();
+      expect(store.addAIDecision).not.toHaveBeenCalled();
+
+      // Once the player disposes of it, the engine may file a fresh one.
+      vi.mocked(useProductionStore.getState).mockReturnValue({
+        ...store,
+        aiDecisions: [{ ...pending, status: 'superseded' }],
+      } as any);
+      expect(generateContextAwareDecision()).toMatchObject({
+        type: 'optimization',
+        machineId: 'RM-101',
+      });
+      expect(store.addAIDecision).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves queue room for alert reactions and strategic plans while cards wait unattended', () => {
+      const store = vi.mocked(useProductionStore.getState)();
+      // Forty unresolved cards about other equipment: the 15-machine plant can
+      // reach that many distinct machine-and-type pairs over a long session.
+      const waiting = Array.from(
+        { length: 40 },
+        (_, index) =>
+          ({
+            id: `plant-maintenance-${index}`,
+            type: 'maintenance',
+            status: 'pending',
+            machineId: `OTHER-${index}`,
+          }) as AIDecision
+      );
+      vi.mocked(useProductionStore.getState).mockReturnValue({
+        ...store,
+        aiDecisions: waiting,
+      } as any);
+      expect(generateContextAwareDecision()).toBeNull();
+      expect(store.addAIDecision).not.toHaveBeenCalled();
+    });
+
     it('should add decision to store when generated', () => {
       const mockAddDecision = vi.fn(() => true);
       vi.mocked(useProductionStore.getState).mockReturnValue({
@@ -394,26 +447,38 @@ describe('aiEngine - Core Functions', () => {
       expect(statsAfter.totalDecisions).toBe(statsBefore.totalDecisions);
     });
 
-    it('should identify failed outcomes correctly', () => {
-      const decision: AIDecision = {
-        id: 'ai-test-004',
-        timestamp: new Date(),
-        type: 'coordination',
-        action: 'Assign autonomous service route',
-        reasoning: 'Equipment service route needed',
-        confidence: 80,
-        impact: 'Faster response',
-        status: 'completed',
-        outcome: 'Failed to complete task because the route was unavailable',
-        priority: 'medium',
-      };
+    // A rejection is judged by its disposition, not by its wording: the outcome
+    // is stored in the language active when it was filed, and the English word
+    // test scored "Rejeitada pela camada de controle" as a success. Working if
+    // the same card counts the same in either language.
+    it('judges a rejected card a failure in either language, and an accepted one a success', () => {
+      const card = (id: string, outcome: string, disposition: 'accepted' | 'rejected') =>
+        ({
+          id,
+          timestamp: new Date(),
+          type: 'coordination',
+          action: 'Assign autonomous service route',
+          reasoning: 'Equipment service route needed',
+          confidence: 80,
+          impact: 'Faster response',
+          status: 'completed',
+          outcome,
+          response: { disposition, recordedAt: 0 },
+          priority: 'medium',
+        }) as AIDecision;
 
-      const statsBefore = getImpactStats();
-      trackDecisionOutcome(decision);
-      const statsAfter = getImpactStats();
+      const before = getImpactStats();
+      trackDecisionOutcome(card('ai-test-004-en', 'Rejected by control layer', 'rejected'));
+      trackDecisionOutcome(card('ai-test-004-pt', 'Rejeitada pela camada de controle', 'rejected'));
+      const afterRejections = getImpactStats();
+      expect(afterRejections.totalDecisions).toBe(before.totalDecisions + 2);
+      expect(afterRejections.successfulDecisions).toBe(before.successfulDecisions);
 
-      expect(statsAfter.totalDecisions).toBe(statsBefore.totalDecisions + 1);
-      expect(statsAfter.successfulDecisions).toBe(statsBefore.successfulDecisions);
+      // An accepted card whose stored wording mentions a failure still succeeded.
+      trackDecisionOutcome(
+        card('ai-test-004-ok', 'Completed; the failed sensor reading was not escalated', 'accepted')
+      );
+      expect(getImpactStats().successfulDecisions).toBe(afterRejections.successfulDecisions + 1);
     });
   });
 
@@ -635,7 +700,7 @@ describe('aiEngine - Core Functions', () => {
       useAIConfigStore.setState((state) => ({
         aiMode: 'hybrid',
         llmBackend: 'haiku',
-        connectedProviders: { haiku: true, luna: false },
+        connectedProviders: { ...state.connectedProviders, haiku: true, luna: false },
         strategic: {
           ...state.strategic,
           legacyPriorities: [],
@@ -648,7 +713,7 @@ describe('aiEngine - Core Functions', () => {
       vi.restoreAllMocks();
       useAIConfigStore.setState((state) => ({
         aiMode: 'heuristic',
-        connectedProviders: { haiku: false, luna: false },
+        connectedProviders: { ...state.connectedProviders, haiku: false, luna: false },
         strategic: { ...state.strategic, legacyPriorities: [], isThinking: false },
       }));
     });
@@ -789,6 +854,71 @@ describe('aiEngine - Core Functions', () => {
       expect(useAIConfigStore.getState().aiMode).toBe('heuristic');
       expect(isTacticalLayerActive()).toBe(true);
       expect(useAIConfigStore.getState().connectionError).toMatch(/cap reached/);
+    });
+
+    // The AI settings show this refusal as connectionError; stored as English
+    // text, it stayed English after a switch to Portuguese.
+    it('files the cap refusal with its key, so it reads in the language active now', async () => {
+      configureStrategicLayer();
+      useAIConfigStore.setState({ aiMode: 'gemini' });
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'generateContent').mockRejectedValue(
+        new SpendCapError('Session cost cap reached. No paid request was sent.')
+      );
+      await generateStrategicDecision();
+      const { connectionError, connectionErrorCopy } = useAIConfigStore.getState();
+      setLocale('pt-BR');
+      try {
+        expect(keyedText(connectionErrorCopy ?? undefined, connectionError ?? '')).toMatch(
+          /teto de custo da sessão/
+        );
+      } finally {
+        setLocale('en');
+        useAIConfigStore.setState({ connectionError: null, connectionErrorCopy: null });
+      }
+    });
+
+    // A timed-out OpenRouter call leaves its billing unknown, and the client
+    // then refuses every later call until a limited key is reconnected. The
+    // strategic layer only logged the refusal: the badge kept reading Hybrid,
+    // no plan ever came again, and nothing told the player to reconnect.
+    // Working if a refusal that only a reconnect clears is shown in AI settings
+    // and the free rules layer takes over, as for the spend cap.
+    it('stands down and says so when the key can no longer be used', async () => {
+      configureStrategicLayer();
+      useAIConfigStore.setState({ aiMode: 'gemini' });
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'generateContent').mockRejectedValue(
+        new KeyedError('OpenRouter billing is unverified.', {
+          catalog: 'cloudAIClient',
+          key: 'billingUnverified',
+        })
+      );
+      await expect(generateStrategicDecision()).resolves.toBeNull();
+      expect(useAIConfigStore.getState().aiMode).toBe('heuristic');
+      expect(isTacticalLayerActive()).toBe(true);
+      const { connectionError, connectionErrorCopy } = useAIConfigStore.getState();
+      setLocale('pt-BR');
+      try {
+        expect(keyedText(connectionErrorCopy ?? undefined, connectionError ?? '')).toMatch(
+          /OpenRouter/
+        );
+        expect(connectionErrorCopy?.key).toBe('billingUnverified');
+      } finally {
+        setLocale('en');
+        useAIConfigStore.setState({ connectionError: null, connectionErrorCopy: null });
+      }
+    });
+
+    it('keeps the mode through a passing hiccup (rate limit, timeout)', async () => {
+      configureStrategicLayer();
+      vi.spyOn(cloudAIClient, 'hasKey').mockReturnValue(true);
+      vi.spyOn(cloudAIClient, 'generateContent').mockRejectedValue(
+        new KeyedError('Rate limited.', { catalog: 'cloudAIClient', key: 'rateLimit' })
+      );
+      await expect(generateStrategicDecision()).resolves.toBeNull();
+      expect(useAIConfigStore.getState().aiMode).toBe('hybrid');
+      expect(useAIConfigStore.getState().connectionError).toBeNull();
     });
 
     it('names people only from a live shift, and only as team totals', async () => {
@@ -1076,6 +1206,34 @@ describe('aiEngine - Core Functions', () => {
       expect(production.addAIDecision).not.toHaveBeenCalled();
 
       // The cadence picks up again once the plant has run for a full interval.
+      vi.advanceTimersByTime(6_000);
+      expect(production.addAIDecision).toHaveBeenCalled();
+    });
+
+    // Pass 7: a hidden browser tab stops the frame loop, and with it the
+    // plant, but the engine's interval kept running: cards about a frozen
+    // plant and a paid strategic request every minute on the player's key.
+    // Working if a hidden tab holds the engine as a held clock does.
+    it('files nothing and spends nothing while the browser tab is hidden', () => {
+      const production = vi.mocked(useProductionStore.getState)();
+      const game = {
+        currentShift: 'morning',
+        weather: 'clear',
+        emergencyDrillMode: false,
+        gameSpeed: 1,
+        isTabVisible: false,
+      };
+      vi.mocked(useGameSimulationStore.getState).mockImplementation(() => game as any);
+      const cleanup = initializeAIEngine();
+      cleanups.push(cleanup);
+      singletonCleanups.push(cleanup);
+
+      vi.advanceTimersByTime(60_000);
+      expect(production.addAIDecision).not.toHaveBeenCalled();
+
+      game.isTabVisible = true;
+      vi.advanceTimersByTime(2_000);
+      expect(production.addAIDecision).not.toHaveBeenCalled();
       vi.advanceTimersByTime(6_000);
       expect(production.addAIDecision).toHaveBeenCalled();
     });

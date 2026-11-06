@@ -85,7 +85,7 @@ it('wraps both Tab directions through the visible disclosure, ignoring its colla
     { width: 100, height: 24 },
   ] as unknown as DOMRectList);
   render(<MobilePanel isVisible content="management" onClose={vi.fn()} />);
-  const dialog = screen.getByRole('dialog', { name: 'Bilateral Autonomy mobile panel' });
+  screen.getByRole('dialog', { name: 'Bilateral Autonomy mobile panel' });
   const close = screen.getByRole('button', { name: 'Close panel' });
   const summary = screen.getByText('AI: why this response?', { selector: 'summary' });
   const details = summary.closest('details')!;

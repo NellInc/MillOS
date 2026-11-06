@@ -59,6 +59,28 @@ import {
   type TerrainBounds,
 } from './terrainTypes';
 import { POLYGON_OFFSET } from '../../constants/renderLayers';
+import { createWaterCausticUniforms, injectWaterCaustics } from '../../utils/waterCaustics';
+import { WATER_PROFILES } from '../../utils/waterAppearance';
+import { MILLOS_RIVER_CONFIG } from './splatMapGenerator';
+
+/**
+ * The river has no bed mesh: its bed is this terrain, cut below the -2 m
+ * surface. The term is limited to the meandering channel (centreline as
+ * `getRiverCenterZ`, half-width plus the bank run-out) so terrain below that
+ * datum anywhere else stays dry.
+ */
+const riverHalfLength = MILLOS_RIVER_CONFIG.length / 2;
+const RIVER_BED_CAUSTICS = {
+  waterLevel: MILLOS_RIVER_CONFIG.waterLevel,
+  speed: WATER_PROFILES.river.speed,
+  worldVarying: 'vWorldPosition',
+  region: `abs(causticWorld.x - ${MILLOS_RIVER_CONFIG.position[0].toFixed(1)}) < ${riverHalfLength.toFixed(1)}
+    && abs(causticWorld.z - ${MILLOS_RIVER_CONFIG.position[1].toFixed(1)}
+      - sin((causticWorld.x - ${(MILLOS_RIVER_CONFIG.position[0] - riverHalfLength).toFixed(1)})
+        / ${MILLOS_RIVER_CONFIG.length.toFixed(1)} * ${(Math.PI * 2.5).toFixed(6)})
+        * ${MILLOS_RIVER_CONFIG.meander.toFixed(1)}) < ${(MILLOS_RIVER_CONFIG.width / 2 + MILLOS_RIVER_CONFIG.bankWidth).toFixed(1)}`,
+} as const;
+const RIVER_BED_CAUSTIC_UNIFORMS = createWaterCausticUniforms(RIVER_BED_CAUSTICS);
 
 interface TerrainMaterialProps {
   /** The splat map texture (RGBA = grass/asphalt/road/dirt weights) */
@@ -788,7 +810,8 @@ export function TerrainMaterial(props: TerrainMaterialProps) {
     // v13: wet-ground response. v12: continuous grass UV warp and matching relief Jacobian. three uses this key
     // INSTEAD of hashing the injected source, so it has to be bumped whenever
     // that source changes or a warm program cache could serve the old one.
-    mat.customProgramCacheKey = () => `terrain_v14_${hasDisplacementKey}`;
+    // v15: river-bed caustics after the light loop (utils/waterCaustics.ts).
+    mat.customProgramCacheKey = () => `terrain_v15_${hasDisplacementKey}`;
 
     // Inject custom shader code
     mat.onBeforeCompile = (shader) => {
@@ -796,6 +819,7 @@ export function TerrainMaterial(props: TerrainMaterialProps) {
       // uniform without triggering a shader recompile.
       Object.assign(shader.uniforms, uniformsRef.current!);
       injectTerrainShader(shader);
+      injectWaterCaustics(shader, RIVER_BED_CAUSTICS, RIVER_BED_CAUSTIC_UNIFORMS);
     };
 
     // Force shader recompilation when uniforms change

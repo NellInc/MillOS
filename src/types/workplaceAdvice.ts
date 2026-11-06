@@ -7,7 +7,11 @@ export interface PackingContext {
   missionMaterialSessionId: string | null;
   productionSpeed: number;
   campaignMultiplier: number;
-  /** Explicit intended resume speed, never the paused zero speed. */
+  /**
+   * Pace at capture; a held clock (as every handoff deliberation is) records
+   * standard pace, 30. Part of the capture fingerprint, so it is not the resume
+   * pace chosen afterwards. It does not change the modeled plant span.
+   */
   gameSpeed: number;
   qualityRelease: boolean | null;
   dispatchLoad: DispatchLoadSnapshot | null;

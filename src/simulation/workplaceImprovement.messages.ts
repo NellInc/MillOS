@@ -6,6 +6,8 @@ const evidenceLabels: Record<string, string> = {
   'quality-failed': 'reprovada no controle de qualidade',
   missing: 'ausente',
 };
+// English reads the other evidence states as words already.
+const enEvidence = (id: string) => (id === 'quality-failed' ? 'failed quality' : id);
 
 export const workplaceImprovementMessages = defineMessages({
   en: {
@@ -55,6 +57,8 @@ export const workplaceImprovementMessages = defineMessages({
       'Confirm each role’s understanding and current policy ballot in Fresh role decisions here in Handoff.',
     nextWatch: 'Watch the packing floor. Any role may stop the arrangement immediately.',
     nextHearComparison: 'Hear the adviser compare its forecast with actual dispatch.',
+    nextResume:
+      'A reload interrupted this deliberation before anything was funded. Resume it; no handoff shift is used up.',
     nextVerdicts: 'Each member records adopt, amend or stop, then finalise the review.',
     nextOpenShift: 'Open the next shift with carried cash and a fresh agreement.',
     nextCloseExperiment: 'Close the handoff experiment.',
@@ -65,7 +69,7 @@ export const workplaceImprovementMessages = defineMessages({
     evidenceAvailable: 'The selected arrangement stayed available until this shift ended.',
     evidenceDispatch: 'Qualifying dispatch this shift: {kg} kg. {receipts}',
     evidenceReceipts: (p: { credited: string; owed: string; evidence: string }) =>
-      `Customer receipts: ${p.credited} kg credited; ${p.owed} kg still owed. Source evidence: ${p.evidence}.`,
+      `Customer receipts: ${p.credited} kg credited; ${p.owed} kg still owed. Source evidence: ${enEvidence(p.evidence)}.`,
     evidenceTeachingCounter: 'This teaching counter is separate from customer shipment receipts.',
     evidenceWorkshop:
       'Workshop records no plant shipment. Its teaching output cannot establish customer delivery.',
@@ -141,6 +145,8 @@ export const workplaceImprovementMessages = defineMessages({
     nextWatch:
       'Acompanhe o setor de ensaque. Qualquer função pode interromper o arranjo imediatamente.',
     nextHearComparison: 'Ouça o conselheiro comparar a previsão dele com a expedição real.',
+    nextResume:
+      'Uma recarga interrompeu esta deliberação antes de qualquer financiamento. Retome-a; nenhum turno de passagem é gasto.',
     nextVerdicts:
       'Cada cooperado registra adotar, ajustar ou interromper e, depois, finaliza a revisão.',
     nextOpenShift: 'Abra o próximo turno com o caixa acumulado e um novo acordo.',

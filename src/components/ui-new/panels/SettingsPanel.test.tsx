@@ -46,7 +46,7 @@ describe('SettingsPanel simulation resets', () => {
     renderPanel();
     fireEvent.click(screen.getByRole('button', { name: 'Reset Simulation' }));
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent(/sound and language settings are kept/i);
+    expect(dialog).toHaveTextContent(/sound, language and interface scale settings are kept/i);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset Everything' }));
     expect(localStorage.getItem(AUDIO_SETTINGS_KEY)).toContain('"muted":true');
     expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('pt-BR');

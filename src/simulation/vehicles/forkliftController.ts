@@ -21,7 +21,9 @@ export type ForkliftStopReason =
   | 'vehicle-yield'
   | 'crossing-reservation'
   | 'logistics-interlock'
-  | 'load-operation';
+  | 'load-operation'
+  // Parked for its operator (crew change or break). SCADA already codes it 9.
+  | 'scheduled';
 
 /** Fleet priority can release a peer wait, never a safety or physical barrier hold.
  * A static obstruction on the route is 'route-blocked' (a near miss); another
@@ -44,7 +46,12 @@ export function resolveForkliftStopReason({
   logisticsInterlock: boolean;
   pathClear: boolean;
   obstaclePathClear: boolean;
-  nearby: readonly { id: string; isStopped?: boolean; kind?: 'forklift' | 'truck' }[];
+  nearby: readonly {
+    id: string;
+    isStopped?: boolean;
+    kind?: 'forklift' | 'truck';
+    manual?: boolean;
+  }[];
 }): ForkliftStopReason {
   if (emergencyStopped) return 'emergency-stop';
   if (!crossingClear) return 'crossing-reservation';
@@ -52,7 +59,9 @@ export function resolveForkliftStopReason({
   if (!obstaclePathClear) return 'route-blocked';
   const canReleasePeerWait =
     nearby.length > 0 &&
-    nearby.every((peer) => peer.kind !== 'truck' && peer.isStopped && id < peer.id);
+    // A truck, or a forklift under manual control (it will not move aside on
+    // fleet priority), is never released past.
+    nearby.every((peer) => peer.kind !== 'truck' && !peer.manual && peer.isStopped && id < peer.id);
   if (!pathClear && !canReleasePeerWait) return 'vehicle-queue';
   if (nearby.some((peer) => !peer.isStopped || id > peer.id)) return 'vehicle-yield';
   return 'none';
@@ -145,7 +154,7 @@ export const FORKLIFT_MAXIMUM_STEERING_RATE = 1.4;
 const FORKLIFT_MAXIMUM_SUBSTEP_SECONDS = 1 / 60;
 const FORKLIFT_MAXIMUM_REQUEST_SECONDS = 0.25;
 
-const UNLOADED_LIMITS: LongitudinalMotionLimits = {
+export const UNLOADED_LIMITS: LongitudinalMotionLimits = {
   maximumForwardSpeed: 3.5,
   maximumReverseSpeed: 1.2,
   maximumAcceleration: 1.2,
@@ -153,7 +162,7 @@ const UNLOADED_LIMITS: LongitudinalMotionLimits = {
   maximumJerk: 2.4,
 };
 
-const LOADED_LIMITS: LongitudinalMotionLimits = {
+export const LOADED_LIMITS: LongitudinalMotionLimits = {
   maximumForwardSpeed: 1.8,
   maximumReverseSpeed: 0.8,
   maximumAcceleration: 0.8,
@@ -574,11 +583,16 @@ const stepForkliftMotionOnce = (
     forkliftRouteHeading(plan, routeDistance)
   );
   const maximumYawChange = FORKLIFT_MAXIMUM_YAW_RATE * request.deltaSeconds;
-  const heading = request.holdHeading
-    ? state.heading
-    : normalizeVehicleAngle(
-        state.heading + Math.max(-maximumYawChange, Math.min(maximumYawChange, headingError))
-      );
+  // An emergency stop halts a standing pivot too: a vehicle that is not
+  // rolling keeps its heading until the stop clears. One still braking to a
+  // standstill follows the lane it is rolling along.
+  const emergencyStanding = request.stopReason === 'emergency-stop' && travelledDistance <= 1e-9;
+  const heading =
+    request.holdHeading || emergencyStanding
+      ? state.heading
+      : normalizeVehicleAngle(
+          state.heading + Math.max(-maximumYawChange, Math.min(maximumYawChange, headingError))
+        );
 
   return {
     routeDistance,

@@ -88,10 +88,16 @@ export function forbiddenPersonnelRuntime(content) {
 export function validateCommunitySource({ policy, scene, community, sceneLayers = '' }) {
   const failures = [];
   if (!/personnelModels\s*:\s*true/.test(policy)) failures.push('personnelModels must be enabled');
-  for (const flag of ['vehicleOperators', 'remoteAvatars', 'humanVoiceAudio']) {
-    if (!new RegExp(`${flag}\\s*:\\s*false`).test(policy))
-      failures.push(`${flag} must remain disabled`);
-  }
+  // Forklifts are crewed by roster operators (2026-10-31). The retired seated
+  // operator components stay banned below; this flag records the decision.
+  if (!/vehicleOperators\s*:\s*true/.test(policy))
+    failures.push('vehicleOperators must be enabled for crewed forklifts');
+  // The PA speaks with an on-device synthetic voice (2026-11-04, D-025). Host
+  // speech synthesis and the retired worker and radio voices stay banned below.
+  if (!/humanVoiceAudio\s*:\s*true/.test(policy))
+    failures.push('humanVoiceAudio must be enabled for the on-device PA voice');
+  if (!/remoteAvatars\s*:\s*false/.test(policy))
+    failures.push('remoteAvatars must remain disabled');
   for (const flag of ['workforceUI', 'syntheticWorkplaceOnly']) {
     if (!new RegExp(`${flag}\\s*:\\s*true`).test(policy))
       failures.push(`${flag} must be enabled for the local synthetic workplace laboratory`);
@@ -204,7 +210,7 @@ export async function validateCommunityBuild(root = process.cwd()) {
     throw new Error(
       `Inhabited-world delivery contract failed:\n${[...new Set(failures)].join('\n')}`
     );
-  return `Inhabited-world contract passed: approved CC0 personnel and community groups ship; autonomous vehicles, no portraits, remote avatars or human voices. Checked ${files.length} delivery and ${sourceFiles.length} source files.`;
+  return `Inhabited-world contract passed: approved CC0 personnel and community groups ship; crewed forklifts and autonomous trucks, an on-device PA voice, no portraits, remote avatars, host speech or worker voices. Checked ${files.length} delivery and ${sourceFiles.length} source files.`;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

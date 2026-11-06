@@ -38,6 +38,36 @@ function save(file, value) {
   }
   renameSync(temp, file);
 }
+function checkPng(bytes) {
+  if (
+    bytes.length > 20 * 1024 * 1024 ||
+    bytes.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a'
+  )
+    throw new Error('Invalid or oversized PNG');
+}
+export const VIEW_ORDER = ['front', 'left', 'back', 'right'];
+/** A multiview job sends 2-4 reviewed views of one object, front required.
+ * The front view doubles as `reference`, so the ledger record keeps its shape.
+ * Working if a missing front, a single view, an unknown view or a changed view
+ * file blocks before any network call. */
+function validateViews(job, dir) {
+  const views = job.views;
+  if (!views || typeof views !== 'object') throw new Error('Multiview job needs views');
+  const names = Object.keys(views);
+  if (names.some((name) => !VIEW_ORDER.includes(name))) throw new Error('Unknown view');
+  if (!views.front) throw new Error('Multiview requires a front view');
+  if (names.length < 2) throw new Error('Multiview needs at least two views');
+  if (job.reference !== views.front.file || job.referenceSha256 !== views.front.sha256)
+    throw new Error('Multiview reference must be the front view');
+  for (const name of names) {
+    const { file, sha256 } = views[name] ?? {};
+    if (typeof file !== 'string' || path.basename(file) !== file || !file.endsWith('.png'))
+      throw new Error('View must be a local PNG basename');
+    const bytes = readFileSync(path.join(dir, file));
+    if (sha(bytes) !== sha256) throw new Error(`Unreviewed or changed view: ${job.id}/${name}`);
+    checkPng(bytes);
+  }
+}
 export function validatePlan(plan, root, dir) {
   if (plan.approvedCapCredits !== CAP || !plan.jobs?.length)
     throw new Error('Missing approved 5000-credit scope');
@@ -51,8 +81,9 @@ export function validatePlan(plan, root, dir) {
     if (!/^[a-z0-9-]+$/.test(job.id) || ids.has(job.id))
       throw new Error('Invalid or duplicate job ID');
     ids.add(job.id);
-    if (job.operation && !['texture', 'generation'].includes(job.operation))
+    if (job.operation && !['texture', 'generation', 'multiview'].includes(job.operation))
       throw new Error('Unknown operation');
+    if (job.operation === 'multiview') validateViews(job, dir);
     if (job.operation === 'texture') {
       if (path.basename(job.modelFile) !== job.modelFile || !job.modelFile.endsWith('.glb'))
         throw new Error('Texture input must be local GLB basename');
@@ -66,6 +97,9 @@ export function validatePlan(plan, root, dir) {
       if (typeof job.texturePrompt !== 'string' || !job.texturePrompt.trim())
         throw new Error('Missing texture guidance');
     }
+    // Multiview uses the image-to-model price. [Unverified] Tripo publishes no
+    // multiview credit cost (docs checked 2026-11-02). The 60-credit reserve and
+    // the reconciliation flag on observed debit are what bound a mispriced task.
     if (
       job.expectedCredits !==
         (job.operation === 'texture' ? 10 : job.smartLowPoly === true ? 40 : 30) ||
@@ -80,11 +114,7 @@ export function validatePlan(plan, root, dir) {
     const bytes = readFileSync(path.join(dir, job.reference));
     if (!job.reviewed || sha(bytes) !== job.referenceSha256)
       throw new Error(`Unreviewed or changed reference: ${job.id}`);
-    if (
-      bytes.length > 20 * 1024 * 1024 ||
-      bytes.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a'
-    )
-      throw new Error('Invalid or oversized PNG');
+    checkPng(bytes);
   }
 }
 export function makeApi(key, fetcher = fetch) {
@@ -212,6 +242,28 @@ export async function runQueue({ plan, dir, root, mode = 'preflight', id, api })
       throw new Error('Model upload returned no token');
     inputToken = modelUpload.file_token;
   }
+  // Uploads are free; every view is uploaded before the durable intent is written.
+  const viewTokens = {};
+  if (job.operation === 'multiview') {
+    for (const name of VIEW_ORDER) {
+      const view = job.views[name];
+      if (!view) continue;
+      if (name === 'front') {
+        viewTokens.front = upload.file_token;
+        continue;
+      }
+      const viewForm = new FormData();
+      viewForm.set(
+        'file',
+        new Blob([readFileSync(path.join(dir, view.file))], { type: 'image/png' }),
+        view.file
+      );
+      const viewUpload = await api('/files', { method: 'POST', body: viewForm });
+      if (typeof viewUpload.file_token !== 'string' || !viewUpload.file_token)
+        throw new Error('View upload returned no token');
+      viewTokens[name] = viewUpload.file_token;
+    }
+  }
   const record = {
     status: 'submitting',
     operation: job.operation ?? 'generation',
@@ -222,6 +274,14 @@ export async function runQueue({ plan, dir, root, mode = 'preflight', id, api })
     fileToken: inputToken,
     referenceToken: upload.file_token,
     modelSha256: job.modelSha256,
+    ...(job.operation === 'multiview'
+      ? {
+          viewTokens,
+          viewSha256: Object.fromEntries(
+            Object.entries(job.views).map(([name, view]) => [name, view.sha256])
+          ),
+        }
+      : {}),
     model: job.operation === 'texture' ? 'v3.0-20250812' : MODEL,
     startedAt: new Date().toISOString(),
   };
@@ -229,7 +289,11 @@ export async function runQueue({ plan, dir, root, mode = 'preflight', id, api })
   // Durable intent BEFORE the paid POST. Any interrupted/uncertain POST stays blocked.
   save(ledgerFile, ledger);
   const result = await api(
-    job.operation === 'texture' ? '/models/texture' : '/generation/image-to-model',
+    job.operation === 'texture'
+      ? '/models/texture'
+      : job.operation === 'multiview'
+        ? '/generation/multiview-to-model'
+        : '/generation/image-to-model',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -247,14 +311,17 @@ export async function runQueue({ plan, dir, root, mode = 'preflight', id, api })
               bake: false,
             }
           : {
-              input: upload.file_token,
+              // View-key form; the server orders it front, left, back, right.
+              // The multiview route documents no image autofix, so none is sent.
+              ...(job.operation === 'multiview'
+                ? { inputs: Object.entries(viewTokens).map(([name, token]) => ({ [name]: token })) }
+                : { input: upload.file_token, enable_image_autofix: false }),
               model: MODEL,
               face_limit: job.faceLimit,
               texture: true,
               pbr: true,
               texture_quality: 'standard',
               geometry_quality: 'standard',
-              enable_image_autofix: false,
               texture_alignment: 'original_image',
               auto_size: false,
               quad: false,

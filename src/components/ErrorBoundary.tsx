@@ -1,4 +1,4 @@
-import { Component, ErrorInfo, ReactNode } from 'react';
+import { Component, ErrorInfo, ReactNode, useRef } from 'react';
 import { AlertTriangle, RotateCcw, X } from 'lucide-react';
 import { LazyRecoveryContext } from '../utils/recoverableLazy';
 import { useT } from '../i18n';
@@ -111,6 +111,9 @@ class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+const FOCUSABLE_IN_REGION =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 interface RecoverableFeatureBoundaryProps {
   children: ReactNode;
   featureName: string;
@@ -127,49 +130,67 @@ export const RecoverableFeatureBoundary = ({
   resetKeys = [],
 }: RecoverableFeatureBoundaryProps) => {
   const t = useT(errorBoundaryMessages);
+  // Retry replaces the card and its button, so focus that pressed it fell to
+  // <body> (where Space stops every forklift). A frame later it goes to the
+  // first control in the region: the recovered feature's, or the new Retry.
+  // Working if Retry keeps keyboard focus inside the feature's place.
+  const regionRef = useRef<HTMLDivElement>(null);
+  const retryKeepingFocus = (reset: () => void) => {
+    reset();
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      regionRef.current?.querySelector<HTMLElement>(FOCUSABLE_IN_REGION)?.focus();
+    });
+  };
   return (
-    <ErrorBoundary
-      resetKeys={resetKeys}
-      fallbackRender={({ error, resetErrorBoundary }) => (
-        <div
-          role="alert"
-          aria-label={t('featureUnavailableLabel', { featureName })}
-          className={`${fallbackClassName} rounded-lg border border-amber-500/50 bg-amber-950/70 p-4 text-amber-50`}
-        >
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" aria-hidden="true" />
-            <div className="min-w-0 flex-1">
-              <p className="font-semibold">{t('featureUnavailable', { featureName })}</p>
-              <p className="mt-1 break-words text-xs text-amber-100/80">
-                {error?.message || t('featureLoadFailed')}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={resetErrorBoundary}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-400"
-                >
-                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                  {t('retryFeature')}
-                </button>
-                {onDismiss && (
+    <div className="contents" ref={regionRef}>
+      <ErrorBoundary
+        resetKeys={resetKeys}
+        fallbackRender={({ error, resetErrorBoundary }) => (
+          <div
+            role="alert"
+            aria-label={t('featureUnavailableLabel', { featureName })}
+            className={`${fallbackClassName} rounded-lg border border-amber-500/50 bg-amber-950/70 p-4 text-amber-50`}
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle
+                className="mt-0.5 h-5 w-5 shrink-0 text-amber-400"
+                aria-hidden="true"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{t('featureUnavailable', { featureName })}</p>
+                <p className="mt-1 break-words text-xs text-amber-100/80">
+                  {error?.message || t('featureLoadFailed')}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={onDismiss}
-                    className="inline-flex min-h-11 items-center gap-2 rounded-md border border-amber-400/50 px-3 py-2 text-sm font-semibold hover:bg-amber-500/10"
+                    onClick={() => retryKeepingFocus(resetErrorBoundary)}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-md bg-amber-500 px-3 py-2 text-sm font-semibold text-amber-950 hover:bg-amber-400"
                   >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                    {t('closePanel')}
+                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                    {t('retryFeature')}
                   </button>
-                )}
+                  {onDismiss && (
+                    <button
+                      type="button"
+                      onClick={onDismiss}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-md border border-amber-400/50 px-3 py-2 text-sm font-semibold hover:bg-amber-500/10"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                      {t('closePanel')}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    >
-      <div className="contents">{children}</div>
-    </ErrorBoundary>
+        )}
+      >
+        <div className="contents">{children}</div>
+      </ErrorBoundary>
+    </div>
   );
 };
 

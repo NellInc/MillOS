@@ -48,6 +48,18 @@ export interface PerfDebugSettings {
    * `scripts/measure-surface-contrast.mjs`.
    */
   disableSurfaceTreatment: boolean;
+  /**
+   * Switch off the submerged-bed caustics in `utils/waterCaustics`. A/B
+   * instrument only, the same kind as `disableSurfaceTreatment`: one shared
+   * uniform, no recompile. Pull it with `measure:surfaces --toggle-key=`.
+   */
+  disableWaterCaustics: boolean;
+  /**
+   * Force every distance LOD (`performance/DistanceLod`) to its nearest level.
+   * A/B instrument only, never a quality setting: the paired control for what
+   * the far levels save and whether they show.
+   */
+  disableDistanceLod: boolean;
   /** Same-page optical cost controls, never lower a preset to obtain a pass. */
   disableAmbientOcclusion: boolean;
   disableBloom: boolean;
@@ -205,6 +217,8 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableLightingPolish: false,
   disableInteriorLightBanks: false,
   disableSurfaceTreatment: false,
+  disableWaterCaustics: false,
+  disableDistanceLod: false,
   disableAmbientOcclusion: false,
   disableBloom: false,
   disableSMAA: false,

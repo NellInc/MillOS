@@ -10,7 +10,7 @@ import { positionRegistry, EntityPosition } from '../utils/positionRegistry';
 import { audioManager } from '../utils/audioManager';
 import { useAudioInitialized } from '../hooks/useAudioState';
 import { useForkliftMetricsSampler } from './useForkliftMetricsSampler';
-import { useSafetyStore } from '../stores/safetyStore';
+import { speedZoneLimit, useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
@@ -26,7 +26,7 @@ import {
 } from './models/forkliftBeacon';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { ForkliftData } from '../types';
-import { POLYGON_OFFSET } from '../constants/renderLayers';
+import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 import { createLinearDataTexture } from '../utils/textureGenerator';
 import { SITE_LAYOUT } from '../constants/siteLayout';
 import { useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
@@ -35,8 +35,12 @@ import {
   reconcileLogisticsMotion,
   registerLogisticsVehicle,
 } from '../simulation/logisticsRuntime';
+import {
+  planForkliftRouteChange,
+  type ForkliftManualMode,
+} from '../simulation/forkliftRouteChange';
 import { planningRouteActions, protectedEgressApproaches } from '../simulation/layoutPlanning';
-import { FORKLIFT_PALLET_CLEARANCE } from '../constants/dockLoading';
+import { FORKLIFT_PALLET_CLEARANCE, forkliftInDockLane } from '../constants/dockLoading';
 import { plantTimeScale } from '../simulation/pace';
 import {
   canPerformForkliftLogisticsAction,
@@ -63,7 +67,108 @@ import {
   type ForkliftRoutePlan,
   type ForkliftStopReason,
 } from '../simulation/vehicles/forkliftController';
-import { sampleArcLengthPath } from '../simulation/vehicles/vehicleKinematics';
+import {
+  sampleArcLengthPath,
+  shortestVehicleAngle,
+} from '../simulation/vehicles/vehicleKinematics';
+import {
+  createManualForkliftState,
+  FORKLIFT_SEAT_EYE,
+  MANUAL_FORK_MAXIMUM_METRES,
+  createLaneReturnState,
+  findLaneRejoinTarget,
+  stepLaneReturn,
+  type LaneReturnState,
+  stepManualForklift,
+  type ManualDriveInput,
+  type ManualFootprintBlocked,
+  type ManualForkliftState,
+} from '../simulation/vehicles/forkliftManualDrive';
+import {
+  createManualWorldBlocked,
+  dockPlatformDetour,
+  manualStaticBlocked,
+  type ManualWorldFrame,
+} from '../simulation/vehicles/forkliftManualWorld';
+import { forkliftCrewSite, type ForkliftCrewSite } from '../constants/forkliftCrewLayout';
+import {
+  forkliftCrewDuty,
+  isOperatorInCab,
+  FORKLIFT_OPERATOR_SCALE,
+  operatorSeatPosition,
+  dockSpurTwinDistance,
+  nearestSpurTurnAhead,
+  type ForkliftCrewDuty,
+  type ForkliftCrewStation,
+} from '../simulation/forkliftCrew';
+import { forkliftCrewLive, isForkliftCrewActive } from '../stores/forkliftCrewStore';
+import { useUIStore } from '../stores/uiStore';
+import {
+  FORKLIFT_FLEET_TAGS,
+  forkliftBoardable,
+  manualForkliftInput,
+  useForkliftDriveStore,
+} from '../stores/forkliftDriveStore';
+import { sampleWalkingGroundHeight } from '../utils/castleNavigation';
+import { getTerrainGridSegments } from './terrain/terrainTypes';
+
+/**
+ * Manual control of one forklift. 'driven': the player is in the seat.
+ * 'lane': the player has left and it returns to its lane (stepLaneReturn),
+ * parking and retrying when blocked; the player can always board it again.
+ */
+type ManualMode = ForkliftManualMode;
+/** Metres of route travel over which the rejoin offset fades to nothing. */
+const REJOIN_BLEND_METRES = 2;
+/**
+ * Plant seconds over which it fades even standing still: a forklift handed
+ * back at its station waits there, and stood drawn up to 1.5 m off its lane
+ * for an operator's whole break.
+ */
+const REJOIN_BLEND_SECONDS = 3;
+/** Heading error within which a forklift standing at its station is lined up with its lane. */
+const STATION_ALIGNED_RADIANS = 0.05;
+const alignedWithLane = (
+  plan: ForkliftRoutePlan,
+  motion: { readonly heading: number; readonly routeDistance: number }
+): boolean =>
+  Math.abs(
+    shortestVehicleAngle(motion.heading, forkliftRouteHeading(plan, motion.routeDistance))
+  ) <= STATION_ALIGNED_RADIANS;
+const ZERO_INPUT: ManualDriveInput = { throttle: 0, steer: 0, lift: 0 };
+/** Placeholder until the first manual frame sets the forklift's own test. */
+const NEVER_BLOCKED: ManualFootprintBlocked = () => false;
+
+/** Crew point route distance per plan: a layout change makes a new plan. */
+const crewDistanceByPlan = new WeakMap<ForkliftRoutePlan, number>();
+const crewRouteDistance = (plan: ForkliftRoutePlan, site: ForkliftCrewSite): number => {
+  let distance = crewDistanceByPlan.get(plan);
+  if (distance === undefined) {
+    distance = findLaneRejoinTarget(plan, {
+      x: site.crewPoint[0],
+      z: site.crewPoint[2],
+      heading: site.crewHeading,
+    }).distance;
+    crewDistanceByPlan.set(plan, distance);
+  }
+  return distance;
+};
+/** Unmanned, a forklift moves at walking pace (m/s). */
+const UNMANNED_SPEED = 1.2;
+/** Within this much route distance past its crew point, it is at the crew point. */
+const STATION_OVERSHOOT_METRES = 0.3;
+/**
+ * Within this much past a handover spot it is close enough: the forklift coasts
+ * on after a player takes it, and the operator walks to where it stopped rather
+ * than have it lap the route back to them.
+ */
+const HANDOVER_REACH_METRES = 6;
+/** Driver's side handover: this far left of the origin (the stand offset). */
+const HANDOVER_SIDE_METRES = 1.15;
+/** Driver's (left) side first, then the right. */
+const HANDOVER_SIDES = [1, -1] as const;
+const NO_HANDOVER_SIDES = [] as const;
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
 /**
  * The direction a forklift publishes for traffic checks: where the route goes
@@ -94,6 +199,19 @@ const markerHoldLegs = (plan: ForkliftRoutePlan): number[] => {
   );
   holdLegsByPlan.set(plan, legs);
   return legs;
+};
+
+/** Per marker, the twin of its hold point on the leg back, or null (dockSpurTwinDistance). */
+const spurTwinsByPlan = new WeakMap<ForkliftRoutePlan, (number | null)[]>();
+const markerSpurTwins = (plan: ForkliftRoutePlan): (number | null)[] => {
+  const cached = spurTwinsByPlan.get(plan);
+  if (cached) return cached;
+  const legs = markerHoldLegs(plan);
+  const twins = plan.markers.map((marker, index) =>
+    dockSpurTwinDistance(plan, marker.distance, legs[index] ?? 0)
+  );
+  spurTwinsByPlan.set(plan, twins);
+  return twins;
 };
 
 /** Distance along the route to approach or leave a raised work surface with forks at its height. */
@@ -579,8 +697,8 @@ const FORKLIFT_DISPLAY_LABELS: Record<
   string,
   { tag: string; role: 'roleShipping' | 'roleReceiving' }
 > = {
-  'forklift-1': { tag: 'FLT01', role: 'roleShipping' },
-  'forklift-2': { tag: 'FLT02', role: 'roleReceiving' },
+  'forklift-1': { tag: FORKLIFT_FLEET_TAGS['forklift-1'], role: 'roleShipping' },
+  'forklift-2': { tag: FORKLIFT_FLEET_TAGS['forklift-2'], role: 'roleReceiving' },
 };
 
 // Path colors for each forklift
@@ -730,6 +848,62 @@ const CrossingZoneMarkers: React.FC = () => {
   );
 };
 
+/**
+ * The speed zones the Safety panel edits, as translucent floor discs with an
+ * edge ring, drawn with the crossings while the speed-zone view is on. A zone
+ * with a non-finite field is skipped, as speedZoneLimit skips it.
+ */
+const SPEED_ZONE_FLOOR_ROTATION: [number, number, number] = [-Math.PI / 2, 0, 0];
+const SpeedZoneOverlays: React.FC = () => {
+  const zones = useSafetyStore((state) => state.speedZones);
+  return (
+    <group>
+      {(Array.isArray(zones) ? zones : []).map((zone, index) => {
+        if (!zone || typeof zone !== 'object') return null;
+        if (!Number.isFinite(zone.x) || !Number.isFinite(zone.z) || !Number.isFinite(zone.radius))
+          return null;
+        const radius = Math.max(0.5, zone.radius);
+        return (
+          <group key={zone.id ?? index}>
+            <mesh
+              position={[zone.x, FLOOR_LAYERS.grid, zone.z]}
+              rotation={SPEED_ZONE_FLOOR_ROTATION}
+              renderOrder={RENDER_ORDER.floorMarkings}
+            >
+              <circleGeometry args={[radius, 48]} />
+              <meshBasicMaterial
+                color="#38bdf8"
+                transparent
+                opacity={0.16}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={POLYGON_OFFSET.standard.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.standard.units}
+              />
+            </mesh>
+            <mesh
+              position={[zone.x, FLOOR_LAYERS.grid, zone.z]}
+              rotation={SPEED_ZONE_FLOOR_ROTATION}
+              renderOrder={RENDER_ORDER.floorText}
+            >
+              <ringGeometry args={[Math.max(0.1, radius - 0.15), radius, 48]} />
+              <meshBasicMaterial
+                color="#38bdf8"
+                transparent
+                opacity={0.55}
+                depthWrite={false}
+                polygonOffset
+                polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+                polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+              />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+};
+
 // ForkliftData is now imported from types.ts - use the canonical definition
 // Re-export for backwards compatibility
 export type { ForkliftData } from '../types';
@@ -787,6 +961,7 @@ export const ForkliftSystem: React.FC<ForkliftSystemProps> = ({
       {showSpeedZones && (
         <>
           <CrossingZoneMarkers />
+          <SpeedZoneOverlays />
           {forklifts.map((f, i) => (
             <ForkliftPath
               key={`path-${f.id}`}
@@ -869,10 +1044,49 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const innerSteeringAngleRef = useRef(0);
   const outerSteeringAngleRef = useRef(0);
   const mastTiltRef = useRef(resolveForkliftMastTilt('traveling', data.cargo === 'pallet'));
+  const manualModeRef = useRef<ManualMode>('none');
+  // Its operator (forkliftCrew.ts): when active, it works only while they are
+  // seated, and otherwise waits for them at its crew point or handover spot.
+  const crewSite = forkliftCrewSite(data.id);
+  const crewLive = forkliftCrewLive(data.id);
+  const operatorSeatRef = useRef<[number, number, number]>([0, 0, 0]);
+  const manualStateRef = useRef<ManualForkliftState | null>(null);
+  const laneReturnRef = useRef<LaneReturnState>(createLaneReturnState());
+  const manualHeadingRef = useRef(0);
+  const routeYRef = useRef(0);
+  const rejoinBlendRef = useRef<{
+    x: number;
+    z: number;
+    startTravel: number;
+    seconds: number;
+  } | null>(null);
+  const manualFrameRef = useRef<ManualWorldFrame>({ originGround: 0, segments: 0 });
+  const spurTurnScratch = useRef({ stopDistance: 0, turnTo: 0 });
+  // The manual step's options, filled each frame rather than built.
+  const manualOptionsRef = useRef({
+    lane: {
+      loaded: false,
+      deltaSeconds: 0,
+      blocked: NEVER_BLOCKED,
+      halted: false,
+      detour: dockPlatformDetour,
+    },
+    drive: { loaded: false, deltaSeconds: 0, blocked: NEVER_BLOCKED, maximumSpeed: Infinity },
+  });
+  // Rewritten every frame (forkliftCrewDuty): no allocation per frame.
+  const crewDutyScratch = useRef({
+    duty: { works: false, station: null as ForkliftCrewStation | null, walkingPace: false },
+    station: { kind: 'crew', routeDistance: 0 } as ForkliftCrewStation,
+  });
+  const manualBlocked = useMemo(
+    () => createManualWorldBlocked(data.id, manualFrameRef.current),
+    [data.id]
+  );
   const HYSTERESIS_TIME = 0.15; // 150ms before state can change
   const CROSSING_WAIT_TIME = 1.0; // Wait 1.0s before entering crossing zone
   const CROSSING_APPROACH_DISTANCE = 3; // Distance to start slowing for crossing
-  const FORK_LIFT_HEIGHT = 0.72; // Pallet clearance lift; loaded travel settles to 0.32 m
+  // Pallet clearance lift (shared with the driver's lever); loaded travel settles to 0.32 m.
+  const FORK_LIFT_HEIGHT = MANUAL_FORK_MAXIMUM_METRES;
   const recordSafetyStop = useSafetyStore((state) => state.recordSafetyStop);
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
@@ -977,6 +1191,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   useEffect(() => {
     if (ref.current && !initializedRef.current) {
       ref.current.position.set(...data.position);
+      // The autopilot never writes height: this is its height for good.
+      routeYRef.current = data.position[1];
       initializedRef.current = true;
     }
   }, [data.position]);
@@ -986,6 +1202,10 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     return () => {
       positionRegistry.unregister(data.id);
       vehicleTelemetryRegistry.unregister(data.id);
+      forkliftBoardable.delete(data.id);
+      // A forklift that unmounts under its driver puts the player back on foot.
+      if (useForkliftDriveStore.getState().drivenId === data.id)
+        useForkliftDriveStore.getState().exit();
       crossingReservations.forEach((owner, crossingId) => {
         if (owner === data.id) crossingReservations.delete(crossingId);
       });
@@ -1019,6 +1239,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     telemetry.steeringRadians = motion.steeringAngle;
     telemetry.phase = loadPhaseRef.current;
     telemetry.stopReason = paused ? 'simulation-paused' : motion.stopReason;
+    telemetry.cargo = hasCargoRef.current ? 'pallet' : 'empty';
     vehicleTelemetryRegistry.publish(telemetry);
   };
 
@@ -1029,17 +1250,21 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       registerLogisticsVehicle(dock, {
         prepare: (points) => {
           const next = drivenLogisticsRoute(dock, points).plan;
-          const motion = reconcileLogisticsMotion(
-            routePlanRef.current,
-            next,
-            motionStateRef.current,
-            actionMarkerIndexRef.current
+          const change = planForkliftRouteChange(manualModeRef.current, () =>
+            reconcileLogisticsMotion(
+              routePlanRef.current,
+              next,
+              motionStateRef.current,
+              actionMarkerIndexRef.current
+            )
           );
-          if (!motion)
+          if (change.kind === 'refuse')
             return translate(forkliftSystemMessages, 'routeCornerAmbiguous', { id: data.id });
           return () => {
             routePlanRef.current = next;
-            motionStateRef.current = motion;
+            if (change.motion) motionStateRef.current = change.motion;
+            // A lane return in progress was steering for the old route.
+            else laneReturnRef.current = createLaneReturnState();
             frameCountRef.current = 0;
           };
         },
@@ -1082,6 +1307,13 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             : null,
         }),
         restore: (snapshot) => {
+          // The snapshot holds no manual state: a restore puts the vehicle back
+          // on autopilot at the captured route distance and the player on foot.
+          if (useForkliftDriveStore.getState().drivenId === data.id)
+            useForkliftDriveStore.getState().exit();
+          manualModeRef.current = 'none';
+          manualStateRef.current = null;
+          rejoinBlendRef.current = null;
           motionStateRef.current = snapshot.motionStateRef;
           actionMarkerIndexRef.current = snapshot.actionMarkerIndexRef;
           // Not in the snapshot: re-earned on the restored leg.
@@ -1124,6 +1356,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           if (ref.current) {
             if (snapshot.transform) {
               ref.current.position.fromArray(snapshot.transform.position);
+              // Captured while driven, the height is the ground the player had
+              // reached, which the autopilot (it never writes height) would keep.
+              ref.current.position.y = routeYRef.current;
               ref.current.rotation.set(
                 ...(snapshot.transform.rotation as [number, number, number])
               );
@@ -1193,6 +1428,189 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     }
 
     const framePaused = isForkliftSimulationPaused(useGameSimulationStore.getState().gameSpeed);
+
+    // Manual control. Boardable only between load operations, so the player
+    // never interrupts a lift half-way.
+    const drivenHere = useForkliftDriveStore.getState().drivenId === data.id;
+    if (drivenHere && manualModeRef.current !== 'driven') {
+      manualStateRef.current = createManualForkliftState({
+        x: vehicle.position.x,
+        z: vehicle.position.z,
+        heading: vehicle.rotation.y,
+        speed: motionBefore.speed,
+        steeringAngle: motionBefore.steeringAngle,
+        innerSteeringAngle: motionBefore.innerSteeringAngle,
+        outerSteeringAngle: motionBefore.outerSteeringAngle,
+        wheelTravel: motionBefore.wheelTravel,
+        forkHeight: forkHeightRef.current,
+      });
+      manualModeRef.current = 'driven';
+      manualHeadingRef.current = vehicle.rotation.y;
+      rejoinBlendRef.current = null;
+      actionCommittedRef.current = false;
+      crossingReservations.forEach((owner, crossingId) => {
+        if (owner === data.id) crossingReservations.delete(crossingId);
+      });
+    } else if (!drivenHere && manualModeRef.current === 'driven') {
+      manualModeRef.current = 'lane';
+      laneReturnRef.current = createLaneReturnState();
+    }
+
+    const manualState = manualStateRef.current;
+    // Parked for its operator is only ever true on an autopilot frame below.
+    crewLive.parkedAt = null;
+    if (manualModeRef.current !== 'none' && manualState) {
+      const held = framePaused || isWorkplaceReplayRestoring();
+      const emergency = forkliftEmergencyStop || emergencyDrillMode;
+      const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
+      const frame = manualFrameRef.current;
+      frame.segments = segments;
+      frame.originGround = sampleWalkingGroundHeight(manualState.x, manualState.z, segments);
+      const mode = manualModeRef.current;
+
+      let next = manualState;
+      if (mode === 'lane' && !held) {
+        const laneOptions = manualOptionsRef.current.lane;
+        laneOptions.loaded = hasCargoRef.current;
+        laneOptions.deltaSeconds = simulationDelta;
+        laneOptions.halted = emergency;
+        laneOptions.blocked = manualBlocked;
+        const step = stepLaneReturn(routePlan, manualState, laneReturnRef.current, laneOptions);
+        laneReturnRef.current = step.laneReturn;
+        if (step.rejoinDistance !== null) {
+          // Hand back to the autopilot at the rejoin distance. It keeps the
+          // body's heading and pivots standing if that is still off, and the
+          // drawn position eases onto the lane over the first metres.
+          const sample = sampleArcLengthPath(routePlan.path, step.rejoinDistance);
+          const motion = createInitialForkliftMotion(routePlan, [sample.x, 0, sample.z]);
+          motionStateRef.current = {
+            ...motion,
+            routeDistance: step.rejoinDistance,
+            x: sample.x,
+            z: sample.z,
+            heading: manualState.heading,
+            wheelTravel: manualState.wheelTravel,
+          };
+          // Towed (put back, not driven back): no slide across what it could not pass.
+          rejoinBlendRef.current = step.towed
+            ? null
+            : {
+                x: manualState.x - sample.x,
+                z: manualState.z - sample.z,
+                startTravel: manualState.wheelTravel,
+                seconds: 0,
+              };
+          forkHeightRef.current = manualState.forkHeight;
+          vehicle.position.y = routeYRef.current;
+          manualModeRef.current = 'none';
+          manualStateRef.current = null;
+          actionCommittedRef.current = false;
+          frameCountRef.current = 0;
+          publishMotionTelemetry();
+          return;
+        }
+        next = step.vehicle;
+      } else if (mode === 'driven' && !held) {
+        // The driver drives in real seconds, whatever the plant pace.
+        const driveOptions = manualOptionsRef.current.drive;
+        driveOptions.loaded = hasCargoRef.current;
+        driveOptions.deltaSeconds = wallDelta;
+        driveOptions.blocked = manualBlocked;
+        // A speed zone caps the driver as it caps the autopilot: the same
+        // ceiling on the same nominal speed, never zero (speedZoneLimit).
+        const zoneRules = useSafetyStore.getState();
+        driveOptions.maximumSpeed = speedZoneLimit(
+          manualState.x,
+          manualState.z,
+          zoneRules.speedZones,
+          zoneRules.safetyConfig.speedZoneSlowdown,
+          data.speed
+        );
+        next = stepManualForklift(
+          manualState,
+          emergency ? ZERO_INPUT : manualForkliftInput,
+          driveOptions
+        );
+      }
+
+      // Not counted toward the layout's vehicle metres: a player's drive, and
+      // the way back from wherever they left it, say nothing about the layout.
+      if (!held) manualStateRef.current = next;
+
+      const poseResponse = 1 - Math.exp(-7 * wallDelta);
+      vehicle.position.set(next.x, sampleWalkingGroundHeight(next.x, next.z, segments), next.z);
+      vehicle.rotation.y = next.heading;
+      vehicle.rotation.z += (0 - vehicle.rotation.z) * poseResponse;
+      vehicle.rotation.x +=
+        (THREE.MathUtils.clamp(-next.acceleration * 0.008, -0.025, 0.025) - vehicle.rotation.x) *
+        poseResponse;
+      steeringAngleRef.current = next.steeringAngle;
+      innerSteeringAngleRef.current = next.innerSteeringAngle;
+      outerSteeringAngleRef.current = next.outerSteeringAngle;
+      currentSpeedRef.current = next.speed;
+      forkHeightRef.current = next.forkHeight;
+      loadPhaseRef.current = hasCargoRef.current ? 'carrying' : 'idle';
+      stopReasonRef.current = emergency ? 'emergency-stop' : 'none';
+      motionStateRef.current = {
+        ...motionStateRef.current,
+        x: next.x,
+        z: next.z,
+        heading: next.heading,
+        speed: held ? 0 : next.speed,
+        acceleration: held ? 0 : next.acceleration,
+        steeringAngle: next.steeringAngle,
+        innerSteeringAngle: next.innerSteeringAngle,
+        outerSteeringAngle: next.outerSteeringAngle,
+        wheelTravel: next.wheelTravel,
+        stopReason: stopReasonRef.current,
+      };
+      vehicle.userData.manualControl =
+        manualModeRef.current === 'lane' ? laneReturnRef.current.mode : manualModeRef.current;
+      // The beacon and engine follow manual state too: the autopilot's
+      // hysteresis, which owns isStopped otherwise, does not run here.
+      const manualStopped =
+        held ||
+        emergency ||
+        (manualModeRef.current === 'lane' && laneReturnRef.current.mode === 'parked');
+      if (stoppedMirrorRef.current !== manualStopped) {
+        stoppedMirrorRef.current = manualStopped;
+        setIsStopped(manualStopped);
+      }
+      positionRegistry.register(
+        data.id,
+        next.x,
+        next.z,
+        Math.sin(next.heading),
+        Math.cos(next.heading),
+        held || Math.abs(next.speed) <= 0.01,
+        vehicle.position.y,
+        'forklift',
+        true
+      );
+      publishMotionTelemetry(held);
+
+      if (manualModeRef.current === 'driven') {
+        // The seat carries the camera, and the view turns with the truck.
+        const camera = state.camera;
+        const sin = Math.sin(next.heading);
+        const cos = Math.cos(next.heading);
+        const [seatX, seatY, seatZ] = FORKLIFT_SEAT_EYE;
+        camera.position.set(
+          next.x + cos * seatX + sin * seatZ,
+          vehicle.position.y + seatY,
+          next.z - sin * seatX + cos * seatZ
+        );
+        camera.rotateOnWorldAxis(
+          WORLD_UP,
+          shortestVehicleAngle(manualHeadingRef.current, next.heading)
+        );
+        manualHeadingRef.current = next.heading;
+        if (labelGroup) labelGroup.visible = false;
+      }
+      return;
+    }
+    vehicle.userData.manualControl = 'none';
+
     if (framePaused || isWorkplaceReplayRestoring()) {
       const [dirX, dirZ] = routeDirection(routePlan, motionBefore.routeDistance);
       dirNormalizedRef.current.set(dirX, 0, dirZ);
@@ -1294,12 +1712,41 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       setIsInCrossing(inCrossing);
     }
 
+    // The crew's duty: work the route, or stand at a station on the lane.
+    const crewDuty: ForkliftCrewDuty | null =
+      crewSite && crewLive.state && isForkliftCrewActive(crewLive, performance.now(), delta * 1000)
+        ? forkliftCrewDuty(
+            crewLive.state,
+            crewRouteDistance(routePlan, crewSite),
+            crewDutyScratch.current.duty,
+            crewDutyScratch.current.station
+          )
+        : null;
+    const crewStation = crewDuty?.station ?? null;
+    // Wrapped: a handover recorded before a layout edit can exceed the new length.
+    const routeLength = routePlan.path.totalLength;
+    const stationDistance = crewStation
+      ? ((crewStation.routeDistance % routeLength) + routeLength) % routeLength
+      : 0;
+    const stationAhead = crewStation
+      ? distanceAheadOnClosedPath(routePlan.path, motionBefore.routeDistance, stationDistance)
+      : null;
+    const stationBehind = crewStation
+      ? distanceAheadOnClosedPath(routePlan.path, stationDistance, motionBefore.routeDistance)
+      : null;
+    const stationReach =
+      crewStation?.kind === 'handover' ? HANDOVER_REACH_METRES : STATION_OVERSHOOT_METRES;
+    const atStation =
+      stationAhead !== null &&
+      (stationAhead <= 0.06 || (stationBehind ?? Infinity) <= stationReach);
+    const stationStop = stationAhead === null ? null : atStation ? 0 : stationAhead;
+
     const marker = routePlan.markers[actionMarkerIndexRef.current];
     const markerAction =
       marker?.action.type === 'pickup' || marker?.action.type === 'dropoff'
         ? marker.action.type
         : null;
-    const markerRelevant =
+    const cargoRelevant =
       markerAction === 'pickup'
         ? !hasCargoRef.current
         : markerAction === 'dropoff'
@@ -1308,6 +1755,19 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     const distanceToMarker = marker
       ? distanceAheadOnClosedPath(routePlan.path, motionBefore.routeDistance, marker.distance)
       : Infinity;
+    // At the end of a spell the operator drops a task that is not permitted and
+    // lies before the crew point, rather than sit waiting for it in a held hour.
+    const lastTaskBlocked =
+      crewLive.state?.phase === 'wants-off' &&
+      crewDuty !== null &&
+      cargoRelevant &&
+      markerAction !== null &&
+      stationAhead !== null &&
+      distanceToMarker < stationAhead &&
+      !(canPerformWaypointAction(markerAction) || actionCommittedRef.current);
+    // Unmanned (or dropping its last task) it works nothing: no pickup, no dropoff.
+    const crewWorks = (crewDuty?.works ?? true) && !lastTaskBlocked;
+    const markerRelevant = crewWorks && cargoRelevant;
 
     // An e-stop or drill freezes a lift/place cycle where it is, as well as travel.
     const emergencyStopped = forkliftEmergencyStop || emergencyDrillMode;
@@ -1419,6 +1879,19 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       marker && markerRelevant && markerAction
         ? resolveForkliftActionStop({ distanceToMarker, holdLeg, permitted: actionPermitted })
         : null;
+    // Not working, it never goes up a dock spur: it turns at the hold point.
+    // Every spur ahead counts, not only the next marker's: an unloaded forklift
+    // bound for a pickup passes the dropoff spur first.
+    const spurTurn = crewWorks
+      ? null
+      : nearestSpurTurnAhead(
+          routePlan,
+          motionBefore.routeDistance,
+          markerHoldLegs(routePlan),
+          markerSpurTwins(routePlan),
+          stationAhead,
+          spurTurnScratch.current
+        );
     const logisticsInterlock = !emergencyStopped && (actionStop?.interlocked ?? false);
     if (marker && markerRelevant && distanceToMarker <= 0.06 && markerAction && !emergencyStopped) {
       if (actionPermitted) {
@@ -1445,7 +1918,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       }
     }
 
-    const stopReason = resolveForkliftStopReason({
+    const resolvedStopReason = resolveForkliftStopReason({
       id: data.id,
       emergencyStopped,
       crossingClear,
@@ -1454,6 +1927,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       obstaclePathClear,
       nearby: forkliftsNearby,
     });
+    // Standing at its station for its operator is a scheduled stop.
+    const stopReason: ForkliftStopReason =
+      resolvedStopReason === 'none' && atStation ? 'scheduled' : resolvedStopReason;
 
     const requestedStopped = stopReason !== 'none';
     if (requestedStopped !== isStopped) {
@@ -1473,7 +1949,10 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           audioManager.playHorn(data.id);
         }
         if (stopReason === 'route-blocked') {
-          recordSafetyStop();
+          recordSafetyStop({
+            location: { x: vehicle.position.x, z: vehicle.position.z },
+            forkliftId: data.id,
+          });
           useSafetyStore
             .getState()
             .recordIncidentLocation(vehicle.position.x, vehicle.position.z, 'stop');
@@ -1485,21 +1964,69 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
     let targetSpeed = data.speed * vehicleSpeedMultiplier;
     targetSpeed = Math.min(targetSpeed, crossingSpeedLimit);
-    if (actionStop && actionStop.stopDistance < 5) {
-      const brakingSpeed = Math.sqrt(Math.max(0, 2 * 1.5 * (actionStop.stopDistance - 0.03)));
+    // Speed zones (Safety panel) cap it at the zone rate of its speed: a
+    // ceiling, never zero (speedZoneLimit), read, not subscribed.
+    const zoneRules = useSafetyStore.getState();
+    targetSpeed = Math.min(
+      targetSpeed,
+      speedZoneLimit(
+        motionBefore.x,
+        motionBefore.z,
+        zoneRules.speedZones,
+        zoneRules.safetyConfig.speedZoneSlowdown,
+        data.speed
+      )
+    );
+    if (crewDuty?.walkingPace) targetSpeed = Math.min(targetSpeed, UNMANNED_SPEED);
+    const travelLimit = Math.min(
+      actionStop?.stopDistance ?? Infinity,
+      spurTurn?.stopDistance ?? Infinity,
+      stationStop ?? Infinity
+    );
+    if (travelLimit < 5) {
+      const brakingSpeed = Math.sqrt(Math.max(0, 2 * 1.5 * (travelLimit - 0.03)));
       targetSpeed = Math.min(targetSpeed, brakingSpeed);
     }
 
-    const nextMotion = stepForkliftMotion(motionBefore, routePlan, {
+    let nextMotion = stepForkliftMotion(motionBefore, routePlan, {
       targetSpeed,
       stopReason,
       loaded: hasCargoRef.current,
       deltaSeconds: simulationDelta,
-      maximumTravelDistance: actionStop?.stopDistance,
+      maximumTravelDistance: Number.isFinite(travelLimit) ? travelLimit : undefined,
       // Held short of a pickup or dropoff it has not worked: keep facing along
-      // the lane, or the bay or trailer at the marker itself.
-      holdHeading: logisticsInterlock,
+      // the lane, or the bay or trailer at the marker itself. Standing for its
+      // operator, it keeps the heading they will climb in beside, once it has
+      // turned onto it: one handed back across its lane stood crosswise there.
+      holdHeading: logisticsInterlock || (atStation && alignedWithLane(routePlan, motionBefore)),
     });
+    crewLive.parkedAt =
+      crewStation && atStation && nextMotion.speed <= 0.01 && alignedWithLane(routePlan, nextMotion)
+        ? crewStation.kind
+        : null;
+    if (
+      spurTurn &&
+      nextMotion.speed <= 0.01 &&
+      distanceAheadOnClosedPath(
+        routePlan.path,
+        nextMotion.routeDistance,
+        (motionBefore.routeDistance + spurTurn.stopDistance) % routePlan.path.totalLength
+      ) <= 0.06 &&
+      stopReason === 'none'
+    ) {
+      // Standing at the hold point: onto the leg back. Keeping its heading, it
+      // pivots standing next frame (stepForkliftMotion), and the drawn position
+      // eases across the few centimetres between the twins.
+      const twin = sampleArcLengthPath(routePlan.path, spurTurn.turnTo);
+      // From where it is drawn, which may still carry a lane-rejoin offset.
+      rejoinBlendRef.current = {
+        x: vehicle.position.x - twin.x,
+        z: vehicle.position.z - twin.z,
+        startTravel: nextMotion.wheelTravel,
+        seconds: 0,
+      };
+      nextMotion = { ...nextMotion, routeDistance: spurTurn.turnTo, x: twin.x, z: twin.z };
+    }
     useLogisticsLayoutStore
       .getState()
       .recordVehicle(dock, Math.max(0, nextMotion.wheelTravel - motionBefore.wheelTravel));
@@ -1517,8 +2044,23 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     const lateralAcceleration = nextSample.curvature * nextMotion.speed * nextMotion.speed;
     const targetRoll = THREE.MathUtils.clamp(-lateralAcceleration * 0.012, -0.045, 0.045);
     const targetPitch = THREE.MathUtils.clamp(-nextMotion.acceleration * 0.008, -0.025, 0.025);
-    vehicle.position.x = nextMotion.x;
-    vehicle.position.z = nextMotion.z;
+    // After a lane rejoin the drawn position eases from where the driver left
+    // it onto the route over the first metres of travel.
+    const blend = rejoinBlendRef.current;
+    if (blend) blend.seconds += simulationDelta;
+    const blendFade = blend
+      ? Math.max(
+          0,
+          1 -
+            Math.max(
+              (nextMotion.wheelTravel - blend.startTravel) / REJOIN_BLEND_METRES,
+              blend.seconds / REJOIN_BLEND_SECONDS
+            )
+        )
+      : 0;
+    if (blend && blendFade <= 0) rejoinBlendRef.current = null;
+    vehicle.position.x = nextMotion.x + (blend ? blend.x * blendFade : 0);
+    vehicle.position.z = nextMotion.z + (blend ? blend.z * blendFade : 0);
     vehicle.rotation.y = nextMotion.heading;
     vehicle.rotation.z += (targetRoll - vehicle.rotation.z) * poseResponse;
     vehicle.rotation.x += (targetPitch - vehicle.rotation.x) * poseResponse;
@@ -1541,6 +2083,91 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       vehicle.position.y
     );
     publishMotionTelemetry();
+  });
+
+  // After the forklift has moved this frame: publish its pose and the spot its
+  // operator would step down at, and carry a seated operator with it, so the
+  // body never trails the cab (CommunityLife places people before vehicles move).
+  useFrame((_, delta) => {
+    const vehicle = ref.current;
+    if (!vehicle) return;
+    if (!crewSite) {
+      forkliftBoardable.set(data.id, operationRef.current === 'traveling');
+      return;
+    }
+    const pose = crewLive.vehicle ?? (crewLive.vehicle = { x: 0, y: 0, z: 0, heading: 0 });
+    pose.x = vehicle.position.x;
+    pose.y = vehicle.position.y;
+    pose.z = vehicle.position.z;
+    pose.heading = vehicle.rotation.y;
+    const sin = Math.sin(pose.heading);
+    const cos = Math.cos(pose.heading);
+    // Where its operator would step down: the driver's side, else the other
+    // side, but never into a solid, the water or a dock door lane (where a
+    // trailer reverses). With neither safe there is no handover, and a crewed
+    // forklift cannot be boarded there (forkliftBoardable below). Only a player
+    // on foot can displace an operator, so it is sought in first person, and
+    // while one is displaced: they walk to wherever it stops for them, even
+    // after the player has left first person.
+    const seeking = useUIStore.getState().fpsMode || crewLive.state?.phase === 'displaced';
+    const segments = seeking ? getTerrainGridSegments(graphicsQuality) : 0;
+    const ground = seeking ? sampleWalkingGroundHeight(pose.x, pose.z, segments) : 0;
+    let handoverSide = 0;
+    for (const side of seeking ? HANDOVER_SIDES : NO_HANDOVER_SIDES) {
+      const x = pose.x + side * cos * HANDOVER_SIDE_METRES;
+      const z = pose.z - side * sin * HANDOVER_SIDE_METRES;
+      if (!forkliftInDockLane(x, z) && !manualStaticBlocked(x, z, 0.3, ground, segments)) {
+        handoverSide = side;
+        break;
+      }
+    }
+    // A displaced operator keeps the last safe spot: the forklift drives up to
+    // theirs, so a stop a little past it with neither side safe still gets the
+    // nearest spot to walk to, not the one they started from metres back.
+    if (handoverSide === 0) {
+      if (crewLive.state?.phase !== 'displaced') crewLive.handover = null;
+    } else {
+      const handover =
+        crewLive.handover ?? (crewLive.handover = { x: 0, z: 0, rotation: 0, routeDistance: 0 });
+      // Mutable scratch: the crew copies it on the frame it is used.
+      handover.x = pose.x + handoverSide * cos * HANDOVER_SIDE_METRES;
+      handover.z = pose.z - handoverSide * sin * HANDOVER_SIDE_METRES;
+      handover.rotation = Math.atan2(-handoverSide * cos, handoverSide * sin);
+      handover.routeDistance = motionStateRef.current.routeDistance;
+    }
+    // Boardable only between load operations and climbs, and only where a
+    // seated operator has a safe spot to step down to (written just above), and
+    // never with them held in a safety stop: the forklift's own, a drill, or a
+    // site emergency, which CommunityLife holds every resident for.
+    const crewActive = isForkliftCrewActive(crewLive, performance.now(), delta * 1000);
+    const crewPhase = crewActive ? crewLive.state?.phase : undefined;
+    const operatorSeated = crewPhase === 'aboard' || crewPhase === 'wants-off';
+    forkliftBoardable.set(
+      data.id,
+      operationRef.current === 'traveling' &&
+        crewPhase !== 'boarding' &&
+        crewPhase !== 'alighting' &&
+        !(
+          operatorSeated &&
+          (crewLive.handover === null ||
+            forkliftEmergencyStop ||
+            emergencyDrillMode ||
+            useGameSimulationStore.getState().emergencyActive)
+        )
+    );
+    crewLive.vehicleHeartbeat = performance.now();
+    const root = crewLive.operatorRoot;
+    const crew = crewLive.state;
+    if (root && crew && isOperatorInCab(crew) && crewActive) {
+      operatorSeatPosition(
+        pose,
+        authoredVehicleVisual ? 'authored' : 'compact',
+        operatorSeatRef.current
+      );
+      root.position.set(...operatorSeatRef.current);
+      root.rotation.y = pose.heading;
+      root.scale.setScalar(FORKLIFT_OPERATOR_SCALE[authoredVehicleVisual ? 'authored' : 'compact']);
+    }
   });
 
   // Handle click on forklift

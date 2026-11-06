@@ -81,7 +81,11 @@ function stopPreview() {
 async function main() {
   captureLock = await acquireCaptureLock(`material-audit:${options.scene}`, { root: ROOT });
   const baseUrl = await startPreview();
-  const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+  const browser = await chromium.launch({
+    chromiumSandbox: true,
+    headless: true,
+    channel: 'chrome',
+  });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     await page.goto(

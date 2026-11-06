@@ -1,4 +1,5 @@
 import { defineMessages } from '../i18n';
+import { keyedText, registerAlertCatalog } from '../i18n/alertCopy';
 
 // Record codes (plan, arrangement, challenge, verdict, decision and destination
 // ids) stay verbatim in both languages where a detail is prefixed "<id>: ".
@@ -23,6 +24,19 @@ const PT_DESTINATION: Record<string, string> = {
   community: 'destinar à comunidade',
 };
 const pt = (map: Record<string, string>, id: string) => map[id] ?? id;
+
+/** Readiness reasons are keyed lines in this catalogue (keyedText). */
+export const WORKPLACE_ENGINE_CATALOG = 'workplaceEngine';
+// An activation refused on readiness keeps its reasons as space-separated keys
+// and joins them in the language active now. One unknown key resolves empty, so
+// the line keeps the text it was produced with.
+const readinessRefused = (p: { reasons: string }) => {
+  const lines = String(p?.reasons ?? '')
+    .split(' ')
+    .filter(Boolean)
+    .map((key) => keyedText({ catalog: WORKPLACE_ENGINE_CATALOG, key }, ''));
+  return lines.length > 0 && lines.every(Boolean) ? lines.join(' ') : '';
+};
 
 export const bilateralWorkplaceMessages = defineMessages({
   en: {
@@ -74,6 +88,11 @@ export const bilateralWorkplaceMessages = defineMessages({
     roleCoordinator: 'Coordinator',
     boundaryCoordinator: 'Coordination grants no power to waive another member’s boundary.',
     preferenceCoordinator: 'I prefer the stable sequence and decline optional cover.',
+    // Who acted, in event receipts
+    actorAdviser: 'Adviser',
+    actorSystem: 'System',
+    actorTeam: 'Team',
+    actorMembers: 'Members',
 
     // Readiness
     readyPilot: 'Pilot preparation has no live authority or simulation activation.',
@@ -104,9 +123,11 @@ export const bilateralWorkplaceMessages = defineMessages({
       'At least one eligible member must separately consent to this bounded cover.',
     readyFunds:
       'Funds cannot cover all reserved wages, improvement costs and optional compensation.',
+    readinessRefused,
 
     // Alternatives
     altEnableBudget: 'Enable the shared budget practice first.',
+    altEnablePractices: (p: { practices: string; count: number }) => `Enable ${p.practices} first.`,
     altUnfunded: 'Current cash cannot fund wages and these terms.',
 
     // Pilot export
@@ -209,6 +230,8 @@ export const bilateralWorkplaceMessages = defineMessages({
     evImprovementStopped:
       'Arrangement stopped immediately. Steady pacing continues only under the current agreement; earned pay and incurred spending remain.',
     rejAckReview: 'Review a settled trial before recording forecast correction.',
+    rejAckReviewResume:
+      'A reload interrupted this deliberation before anything was funded or worked. Resume it instead of reviewing it.',
     evReviewAbstained:
       'I abstained: {reason} Qualifying shift receipts: {shipped} kg. Unknown evidence supplies no prediction.',
     evReviewBound:
@@ -237,6 +260,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Review this shift, deliver owed recovery and resolve objections before the next of three shifts.',
     rejLeaveCampaign:
       'Leave a season from a stopped or reviewed shift with nothing owed: no running shift, owed recovery, open objection, reserve or active cover. Its final review is archived instead.',
+    rejEndExercise:
+      'Return to setup from the current review of a standalone exercise, with no owed recovery. A season is left or archived instead.',
     evShiftOpened:
       'Previous burden, pay, rest and closing cash retained. Private explanations and past consent are not reused.',
     rejAnswerCheck: 'Choose a known answer for a current role or adviser understanding check.',
@@ -298,7 +323,7 @@ export const bilateralWorkplaceMessages = defineMessages({
     evShiftResumed:
       'Shift resumed at minute {minute} after a reload; it continues once everyone consents again.',
     rejResumeShift:
-      'Only a campaign shift that a reload stopped before its end can resume; other endings stand.',
+      'Only a shift that a reload stopped before its end, or a handoff deliberation it interrupted before funding, can resume; other endings stand.',
     rejCoverConsent:
       'Record distinct cover consent only after understanding the current cover plan.',
     rejNotQualified: 'This role is not qualified for cover.',
@@ -361,6 +386,23 @@ export const bilateralWorkplaceMessages = defineMessages({
     rejNoSurplus: 'No positive operating surplus; starting capital cannot be shared as profit.',
     evSurplusDecided:
       '{destination}: {amount} illustrative credits; equal shares if distributed to members.',
+    // Display labels for the record ids that open a receipt (displayEventDetail).
+    recordDecisionKeepTarget: 'Keep the target',
+    recordDecisionRenegotiate: 'Renegotiate',
+    recordDecisionInspect: 'Inspect',
+    recordDecisionSkipInspection: 'Skip inspection',
+    recordDecisionProtectRefusal: 'Protect refusal',
+    recordDecisionPenalizeRefusal: 'Penalise refusal',
+    recordVerdictAdopt: 'Adopt',
+    recordVerdictAmend: 'Amend',
+    recordVerdictStop: 'Stop',
+    recordChallengeForecast: 'Forecast',
+    recordChallengeCost: 'Cost',
+    recordChallengeQualification: 'Qualification',
+    recordDestinationMembers: 'Distribute to members',
+    recordDestinationReserve: 'Keep in reserve',
+    recordDestinationCommunity: 'Give to the community',
+    recordEpisodeOrdinary: 'Ordinary handoff',
     rejUnknownAction: 'Unknown workplace action.',
     reasonReloaded:
       'Reloaded a settled synthetic snapshot. Consent and future authority remain revoked.',
@@ -420,6 +462,10 @@ export const bilateralWorkplaceMessages = defineMessages({
     roleCoordinator: 'Coordenação',
     boundaryCoordinator: 'A coordenação não dá poder para dispensar o limite de outro cooperado.',
     preferenceCoordinator: 'Prefiro a sequência estável e recuso a cobertura opcional.',
+    actorAdviser: 'Conselheiro',
+    actorSystem: 'Sistema',
+    actorTeam: 'Equipe',
+    actorMembers: 'Cooperados',
 
     readyPilot: 'A preparação do piloto não tem autoridade real nem ativação da simulação.',
     readyAdviceOnly:
@@ -451,8 +497,13 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Pelo menos um cooperado elegível precisa consentir separadamente com esta cobertura limitada.',
     readyFunds:
       'Os fundos não cobrem toda a remuneração reservada, os custos de melhoria e a compensação opcional.',
+    readinessRefused,
 
     altEnableBudget: 'Ative primeiro a prática de orçamento compartilhado.',
+    altEnablePractices: (p: { practices: string; count: number }) =>
+      p.count === 1
+        ? `Ative primeiro a prática ${p.practices}.`
+        : `Ative primeiro as práticas ${p.practices}.`,
     altUnfunded: 'O caixa atual não cobre a remuneração e estes termos.',
 
     exScope:
@@ -560,6 +611,8 @@ export const bilateralWorkplaceMessages = defineMessages({
     evImprovementStopped:
       'Arranjo interrompido imediatamente. O ritmo estável continua apenas sob o acordo atual; a remuneração adquirida e os gastos incorridos permanecem.',
     rejAckReview: 'Revise um teste encerrado antes de registrar a correção da previsão.',
+    rejAckReviewResume:
+      'Uma recarga interrompeu esta deliberação antes que algo fosse financiado ou trabalhado. Retome-a em vez de revisá-la.',
     evReviewAbstained:
       'Eu me abstive: {reason} Comprovantes qualificados do turno: {shipped} kg. Evidência desconhecida não fornece previsão.',
     evReviewBound:
@@ -588,6 +641,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Revise este turno, entregue a recuperação devida e resolva as objeções antes do próximo dos três turnos.',
     rejLeaveCampaign:
       'Saia de uma temporada a partir de um turno parado ou revisado, sem nada devido: nenhum turno em andamento, recuperação devida, objeção aberta, reserva ou cobertura ativa. A revisão final é arquivada em vez disso.',
+    rejEndExercise:
+      'Volte à configuração a partir da revisão atual de um exercício avulso, sem recuperação devida. Uma temporada é deixada ou arquivada em vez disso.',
     evShiftOpened:
       'Carga, remuneração, descanso e caixa de fechamento anteriores mantidos. Explicações privadas e consentimentos passados não são reutilizados.',
     rejAnswerCheck:
@@ -654,7 +709,7 @@ export const bilateralWorkplaceMessages = defineMessages({
     evShiftResumed:
       'Turno retomado no minuto {minute} após uma recarga; continua quando todos consentirem de novo.',
     rejResumeShift:
-      'Só um turno da temporada interrompido por uma recarga antes do fim pode ser retomado; os outros encerramentos permanecem.',
+      'Só um turno interrompido por uma recarga antes do fim, ou uma deliberação de passagem de turno que ela interrompeu antes do financiamento, pode ser retomado; os outros encerramentos permanecem.',
     rejCoverConsent:
       'Registre um consentimento de cobertura distinto só depois de entender o plano de cobertura atual.',
     rejNotQualified: 'Esta função não é qualificada para cobertura.',
@@ -725,6 +780,22 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Não há sobras operacionais positivas; o capital inicial não pode ser repartido como lucro.',
     evSurplusDecided:
       '{destination}: {amount} créditos ilustrativos; partes iguais se distribuídas aos cooperados.',
+    recordDecisionKeepTarget: 'Manter a meta',
+    recordDecisionRenegotiate: 'Renegociar',
+    recordDecisionInspect: 'Inspecionar',
+    recordDecisionSkipInspection: 'Pular a inspeção',
+    recordDecisionProtectRefusal: 'Proteger a recusa',
+    recordDecisionPenalizeRefusal: 'Penalizar a recusa',
+    recordVerdictAdopt: 'Adotar',
+    recordVerdictAmend: 'Ajustar',
+    recordVerdictStop: 'Interromper',
+    recordChallengeForecast: 'Previsão',
+    recordChallengeCost: 'Custo',
+    recordChallengeQualification: 'Qualificação',
+    recordDestinationMembers: 'Distribuir aos cooperados',
+    recordDestinationReserve: 'Reter na reserva',
+    recordDestinationCommunity: 'Destinar à comunidade',
+    recordEpisodeOrdinary: 'Passagem de turno comum',
     rejUnknownAction: 'Ação de local de trabalho desconhecida.',
     reasonReloaded:
       'Um instantâneo sintético já encerrado foi recarregado. O consentimento e a autoridade futura continuam revogados.',
@@ -732,3 +803,4 @@ export const bilateralWorkplaceMessages = defineMessages({
       `A função ${pt(PT_ROLE_OF, p.actor)} registrou a resolução antes da recarga.`,
   },
 });
+registerAlertCatalog(WORKPLACE_ENGINE_CATALOG, bilateralWorkplaceMessages);

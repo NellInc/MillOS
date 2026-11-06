@@ -46,7 +46,7 @@ export const mobilePanelMessages = defineMessages({
     statusIdle: 'Idle',
     dailyTarget: 'Daily Target',
     safety: 'Safety',
-    nearMisses: 'Misses:',
+    safetyStops: 'Stops:',
     daysSinceIncident: 'Days:',
     operationsCampaign: 'Operations campaign',
     ordersProgress: '{done}/{total} orders',
@@ -56,13 +56,12 @@ export const mobilePanelMessages = defineMessages({
     outbound: 'Outbound',
     totalBags: 'Total Bags',
 
-    safetyZones: 'Safety Zones',
-
     aiViews: 'AI Partner views',
     tabDecisions: 'Decisions',
     tabAdvisory: 'Advisory',
     recentDecisions: 'Recent AI Decisions',
     noDecisions: 'No AI decisions yet',
+    aiSettings: 'AI settings',
 
     systemMetrics: 'System Metrics',
     telemetryOn: 'Telemetry on',
@@ -128,7 +127,7 @@ export const mobilePanelMessages = defineMessages({
     statusIdle: 'Ociosas',
     dailyTarget: 'Meta diária',
     safety: 'Segurança',
-    nearMisses: 'Quase acid.:',
+    safetyStops: 'Paradas:',
     daysSinceIncident: 'Dias:',
     operationsCampaign: 'Campanha de operações',
     ordersProgress: '{done}/{total} pedidos',
@@ -138,13 +137,12 @@ export const mobilePanelMessages = defineMessages({
     outbound: 'Expedição',
     totalBags: 'Total de sacos',
 
-    safetyZones: 'Zonas de segurança',
-
     aiViews: 'Visões do parceiro de IA',
     tabDecisions: 'Decisões',
     tabAdvisory: 'Recomendações',
     recentDecisions: 'Decisões recentes da IA',
     noDecisions: 'Nenhuma decisão da IA ainda',
+    aiSettings: 'Configurações de IA',
 
     systemMetrics: 'Métricas do sistema',
     telemetryOn: 'Telemetria ligada',

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ProductionBatch } from './materialFlowStore';
 import { getDispatchQualityStatus, type QCLabState } from './qcLabStore';
 
 const baseline = (): QCLabState => ({
@@ -34,13 +35,15 @@ describe('getDispatchQualityStatus', () => {
       severity: 'medium',
       timestamp: new Date('2026-08-03T00:00:00Z'),
       sourceLotIds: [],
-      batchIds: [],
+      batchIds: ['batch-1'],
       controlNote: 'Detector alarm',
       resolved: false,
       resolution: null,
       resolvedAt: null,
     });
-    expect(getDispatchQualityStatus(qcLab)).toEqual({
+    // It holds dispatch while it holds stock (qcLabStore.alertScope.gameplay.test.ts).
+    const held = { id: 'batch-1', disposition: 'hold', availableKg: 50 } as ProductionBatch;
+    expect(getDispatchQualityStatus(qcLab, [held])).toEqual({
       released: false,
       reason: 'unresolved_contamination',
     });

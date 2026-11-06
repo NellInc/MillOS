@@ -1,0 +1,418 @@
+{
+ "en": {
+  "prompt": "You are the strategic controller for a staffed grain mill digital twin with autonomous logistics.\nReturn one JSON object only: {\"priorities\": 1-3 short imperative strings (under 80 characters each), \"reasoning\": 1-2 sentences, \"insight\"?: string, \"tradeoff\"?: string, \"focusMachine\"?: one equipment id from the telemetry, \"actionPlan\"?: [immediate, short-term, preparation] as 3 strings}.\nPrioritize safety interlocks, stable material flow, quality, energy, condition maintenance, and autonomous logistics.\nPlant period: morning. Weather: clear.\nProduction: {\"efficiency\":100,\"uptime\":100,\"quality\":99.3,\"throughput\":288}.\nEquipment telemetry: [{\"id\":\"silo-0\",\"status\":\"running\",\"load\":70.17257589638629,\"temperature\":20.913873469981628,\"vibration\":1.154977622631807,\"wear\":68.53},{\"id\":\"silo-1\",\"status\":\"running\",\"load\":70.97834939188392,\"temperature\":21.290623579414387,\"vibration\":1.1793458990179266,\"wear\":0.03},{\"id\":\"silo-2\",\"status\":\"running\",\"load\":71.81290051222074,\"temperature\":21.469301557937435,\"vibration\":1.3947234371785775,\"wear\":0.03},{\"id\":\"silo-3\",\"status\":\"running\",\"load\":72.61867400771837,\"temperature\":21.666718904891603,\"vibration\":1.329264124253817,\"wear\":0.03},{\"id\":\"silo-4\",\"status\":\"running\",\"load\":73.45322512805517,\"temperature\":22.0958773446393,\"vibration\":1.383171971342343,\"wear\":0.03},{\"id\":\"rm-101\",\"status\":\"running\",\"load\":72.90645025611038,\"temperature\":43.53423217152623,\"vibration\":1.8778822387626457,\"wear\":46.16},{\"id\":\"rm-102\",\"status\":\"running\",\"load\":73.33811462869838,\"temperature\":45.53181936188867,\"vibration\":2.008387772129027,\"wear\":0.14},{\"id\":\"rm-103\",\"status\":\"running\",\"load\":73.76977900128638,\"temperature\":47.7797662648311,\"vibration\":2.0873302831542766,\"wear\":0.13},{\"id\":\"rm-104\",\"status\":\"running\",\"load\":74.23022099871362,\"temperature\":50.28590188055339,\"vibration\":2.325617231955434,\"wear\":0.11},{\"id\":\"sifter-a\",\"status\":\"running\",\"load\":74.287776248392,\"temperature\":30.04480333984612,\"vibration\":1.36,\"wear\":0.1},{\"id\":\"sifter-b\",\"status\":\"running\",\"load\":75.09354974388962,\"temperature\":31.125463334104396,\"vibration\":1.23,\"wear\":0.08},{\"id\":\"sifter-c\",\"status\":\"running\",\"load\":75.92810086422647,\"temperature\":32.149691718923485,\"vibration\":1.88,\"wear\":0.08},{\"id\":\"packer-0\",\"status\":\"running\",\"load\":77.02165060811608,\"temperature\":28.4,\"vibration\":1.02,\"wear\":0.13},{\"id\":\"packer-1\",\"status\":\"running\",\"load\":77.82742410361371,\"temperature\":30,\"vibration\":1.3,\"wear\":0.12},{\"id\":\"packer-2\",\"status\":\"running\",\"load\":78.6619752239505,\"temperature\":31.5,\"vibration\":1.59,\"wear\":0.11}].",
+  "machines": [
+   {
+    "id": "silo-0",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 20.913873469981628,
+     "vibration": 1.154977622631807,
+     "load": 70.17257589638629,
+     "wear": 68.53,
+     "efficiency": 78
+    }
+   },
+   {
+    "id": "silo-1",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 21.290623579414387,
+     "vibration": 1.1793458990179266,
+     "load": 70.97834939188392,
+     "wear": 0.03,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "silo-2",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 21.469301557937435,
+     "vibration": 1.3947234371785775,
+     "load": 71.81290051222074,
+     "wear": 0.03,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "silo-3",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 21.666718904891603,
+     "vibration": 1.329264124253817,
+     "load": 72.61867400771837,
+     "wear": 0.03,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "silo-4",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 22.0958773446393,
+     "vibration": 1.383171971342343,
+     "load": 73.45322512805517,
+     "wear": 0.03,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "rm-101",
+    "type": "ROLLER_MILL",
+    "status": "running",
+    "metrics": {
+     "rpm": 1204.7669912566107,
+     "temperature": 43.53423217152623,
+     "vibration": 1.8778822387626457,
+     "load": 72.90645025611038,
+     "wear": 46.16,
+     "efficiency": 89
+    }
+   },
+   {
+    "id": "rm-102",
+    "type": "ROLLER_MILL",
+    "status": "running",
+    "metrics": {
+     "rpm": 1253.980574587622,
+     "temperature": 45.53181936188867,
+     "vibration": 2.008387772129027,
+     "load": 73.33811462869838,
+     "wear": 0.14,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "rm-103",
+    "type": "ROLLER_MILL",
+    "status": "running",
+    "metrics": {
+     "rpm": 1301.0103869999148,
+     "temperature": 47.7797662648311,
+     "vibration": 2.0873302831542766,
+     "load": 73.76977900128638,
+     "wear": 0.13,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "rm-104",
+    "type": "ROLLER_MILL",
+    "status": "running",
+    "metrics": {
+     "rpm": 1353.6794681633364,
+     "temperature": 50.28590188055339,
+     "vibration": 2.325617231955434,
+     "load": 74.23022099871362,
+     "wear": 0.11,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "sifter-a",
+    "type": "PLANSIFTER",
+    "status": "running",
+    "metrics": {
+     "rpm": 200,
+     "temperature": 30.04480333984612,
+     "vibration": 1.36,
+     "load": 74.287776248392,
+     "wear": 0.1,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "sifter-b",
+    "type": "PLANSIFTER",
+    "status": "running",
+    "metrics": {
+     "rpm": 206,
+     "temperature": 31.125463334104396,
+     "vibration": 1.23,
+     "load": 75.09354974388962,
+     "wear": 0.08,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "sifter-c",
+    "type": "PLANSIFTER",
+    "status": "running",
+    "metrics": {
+     "rpm": 212,
+     "temperature": 32.149691718923485,
+     "vibration": 1.88,
+     "load": 75.92810086422647,
+     "wear": 0.08,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "packer-0",
+    "type": "PACKER",
+    "status": "running",
+    "metrics": {
+     "rpm": 36.058789470714025,
+     "temperature": 28.4,
+     "vibration": 1.02,
+     "load": 77.02165060811608,
+     "wear": 0.13,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "packer-1",
+    "type": "PACKER",
+    "status": "running",
+    "metrics": {
+     "rpm": 38.378798950774765,
+     "temperature": 30,
+     "vibration": 1.3,
+     "load": 77.82742410361371,
+     "wear": 0.12,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "packer-2",
+    "type": "PACKER",
+    "status": "running",
+    "metrics": {
+     "rpm": 37.99119493328519,
+     "temperature": 31.5,
+     "vibration": 1.59,
+     "load": 78.6619752239505,
+     "wear": 0.11,
+     "efficiency": 100
+    }
+   }
+  ],
+  "metrics": {
+   "efficiency": 100,
+   "uptime": 100,
+   "quality": 99.3,
+   "throughput": 288
+  },
+  "shift": "morning",
+  "weather": "clear"
+ },
+ "pt-BR": {
+  "prompt": "You are the strategic controller for a staffed grain mill digital twin with autonomous logistics.\nReturn one JSON object only: {\"priorities\": 1-3 short imperative strings (under 80 characters each), \"reasoning\": 1-2 sentences, \"insight\"?: string, \"tradeoff\"?: string, \"focusMachine\"?: one equipment id from the telemetry, \"actionPlan\"?: [immediate, short-term, preparation] as 3 strings}.\nPrioritize safety interlocks, stable material flow, quality, energy, condition maintenance, and autonomous logistics.\nWrite every string value in Brazilian Portuguese (pt-BR), using 24-hour times; keep the JSON keys and equipment ids unchanged.\nPlant period: morning. Weather: clear.\nProduction: {\"efficiency\":100,\"uptime\":100,\"quality\":99.3,\"throughput\":288}.\nEquipment telemetry: [{\"id\":\"silo-0\",\"status\":\"running\",\"load\":70.40369590571527,\"temperature\":20.7403825308667,\"vibration\":1.1810104989582622,\"wear\":68.53},{\"id\":\"silo-1\",\"status\":\"running\",\"load\":71.17433249734772,\"temperature\":21.326794502678386,\"vibration\":1.314431989180715,\"wear\":0.03},{\"id\":\"silo-2\",\"status\":\"running\",\"load\":71.94496908898016,\"temperature\":21.60519118958597,\"vibration\":1.4322422411493996,\"wear\":0.03},{\"id\":\"silo-3\",\"status\":\"running\",\"load\":72.7156056806126,\"temperature\":21.85540070021685,\"vibration\":1.3996590012911032,\"wear\":0.03},{\"id\":\"silo-4\",\"status\":\"running\",\"load\":73.48624227224504,\"temperature\":22.16249694157974,\"vibration\":1.3619333832878513,\"wear\":0.03},{\"id\":\"rm-101\",\"status\":\"running\",\"load\":72.97248454449007,\"temperature\":43.5366041040507,\"vibration\":1.8151928432474362,\"wear\":46.16},{\"id\":\"rm-102\",\"status\":\"running\",\"load\":73.38349072669405,\"temperature\":45.28670700537082,\"vibration\":1.8090562661779424,\"wear\":0.14},{\"id\":\"rm-103\",\"status\":\"running\",\"load\":73.79449690889801,\"temperature\":48.02515008329624,\"vibration\":2.0938920468345854,\"wear\":0.13},{\"id\":\"rm-104\",\"status\":\"running\",\"load\":74.20550309110199,\"temperature\":50.25814118261511,\"vibration\":2.1475678573260257,\"wear\":0.11},{\"id\":\"sifter-a\",\"status\":\"running\",\"load\":74.25687886387747,\"temperature\":29.95862152874245,\"vibration\":1.37,\"wear\":0.1},{\"id\":\"sifter-b\",\"status\":\"running\",\"load\":75.02751545550993,\"temperature\":31.389310533864368,\"vibration\":1.43,\"wear\":0.08},{\"id\":\"sifter-c\",\"status\":\"running\",\"load\":75.79815204714237,\"temperature\":32.68286008102001,\"vibration\":1.39,\"wear\":0.08},{\"id\":\"packer-0\",\"status\":\"running\",\"load\":76.82566750265228,\"temperature\":28,\"vibration\":1,\"wear\":0.13},{\"id\":\"packer-1\",\"status\":\"running\",\"load\":77.59630409428473,\"temperature\":29.6,\"vibration\":1.3,\"wear\":0.12},{\"id\":\"packer-2\",\"status\":\"running\",\"load\":78.36694068591717,\"temperature\":31.2,\"vibration\":1.6,\"wear\":0.1}].",
+  "machines": [
+   {
+    "id": "silo-0",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 20.7403825308667,
+     "vibration": 1.1810104989582622,
+     "load": 70.40369590571527,
+     "wear": 68.53,
+     "efficiency": 78
+    }
+   },
+   {
+    "id": "silo-1",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 21.326794502678386,
+     "vibration": 1.314431989180715,
+     "load": 71.17433249734772,
+     "wear": 0.03,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "silo-2",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 21.60519118958597,
+     "vibration": 1.4322422411493996,
+     "load": 71.94496908898016,
+     "wear": 0.03,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "silo-3",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 21.85540070021685,
+     "vibration": 1.3996590012911032,
+     "load": 72.7156056806126,
+     "wear": 0.03,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "silo-4",
+    "type": "SILO",
+    "status": "running",
+    "metrics": {
+     "rpm": 0,
+     "temperature": 22.16249694157974,
+     "vibration": 1.3619333832878513,
+     "load": 73.48624227224504,
+     "wear": 0.03,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "rm-101",
+    "type": "ROLLER_MILL",
+    "status": "running",
+    "metrics": {
+     "rpm": 1202.6608490528815,
+     "temperature": 43.5366041040507,
+     "vibration": 1.8151928432474362,
+     "load": 72.97248454449007,
+     "wear": 46.16,
+     "efficiency": 89
+    }
+   },
+   {
+    "id": "rm-102",
+    "type": "ROLLER_MILL",
+    "status": "running",
+    "metrics": {
+     "rpm": 1249.8939109760977,
+     "temperature": 45.28670700537082,
+     "vibration": 1.8090562661779424,
+     "load": 73.38349072669405,
+     "wear": 0.14,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "rm-103",
+    "type": "ROLLER_MILL",
+    "status": "running",
+    "metrics": {
+     "rpm": 1303.3044338805485,
+     "temperature": 48.02515008329624,
+     "vibration": 2.0938920468345854,
+     "load": 73.79449690889801,
+     "wear": 0.13,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "rm-104",
+    "type": "ROLLER_MILL",
+    "status": "running",
+    "metrics": {
+     "rpm": 1350.0379206739672,
+     "temperature": 50.25814118261511,
+     "vibration": 2.1475678573260257,
+     "load": 74.20550309110199,
+     "wear": 0.11,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "sifter-a",
+    "type": "PLANSIFTER",
+    "status": "running",
+    "metrics": {
+     "rpm": 200,
+     "temperature": 29.95862152874245,
+     "vibration": 1.37,
+     "load": 74.25687886387747,
+     "wear": 0.1,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "sifter-b",
+    "type": "PLANSIFTER",
+    "status": "running",
+    "metrics": {
+     "rpm": 206,
+     "temperature": 31.389310533864368,
+     "vibration": 1.43,
+     "load": 75.02751545550993,
+     "wear": 0.08,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "sifter-c",
+    "type": "PLANSIFTER",
+    "status": "running",
+    "metrics": {
+     "rpm": 212,
+     "temperature": 32.68286008102001,
+     "vibration": 1.39,
+     "load": 75.79815204714237,
+     "wear": 0.08,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "packer-0",
+    "type": "PACKER",
+    "status": "running",
+    "metrics": {
+     "rpm": 33.41985656457955,
+     "temperature": 28,
+     "vibration": 1,
+     "load": 76.82566750265228,
+     "wear": 0.13,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "packer-1",
+    "type": "PACKER",
+    "status": "running",
+    "metrics": {
+     "rpm": 37.29371123583019,
+     "temperature": 29.6,
+     "vibration": 1.3,
+     "load": 77.59630409428473,
+     "wear": 0.12,
+     "efficiency": 100
+    }
+   },
+   {
+    "id": "packer-2",
+    "type": "PACKER",
+    "status": "running",
+    "metrics": {
+     "rpm": 40.38945802738651,
+     "temperature": 31.2,
+     "vibration": 1.6,
+     "load": 78.36694068591717,
+     "wear": 0.1,
+     "efficiency": 100
+    }
+   }
+  ],
+  "metrics": {
+   "efficiency": 100,
+   "uptime": 100,
+   "quality": 99.3,
+   "throughput": 288
+  },
+  "shift": "morning",
+  "weather": "clear"
+ }
+}

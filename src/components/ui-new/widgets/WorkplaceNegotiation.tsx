@@ -1,6 +1,10 @@
 import type { WorkplaceState } from '../../../types/workplace';
 import { exportPracticeProposal, WORKPLACE_PLANS } from '../../../simulation/bilateralWorkplace';
-import { thursdayNegotiation } from '../../../simulation/workplaceCampaign';
+import {
+  formatKg,
+  shiftResumable,
+  thursdayNegotiation,
+} from '../../../simulation/workplaceCampaign';
 import { formatFixed, useT } from '../../../i18n';
 import { workplaceNegotiationMessages } from './WorkplaceNegotiation.messages';
 
@@ -12,6 +16,7 @@ type StateWordKey =
   | 'wordYes'
   | 'wordNo'
   | 'wordNotOffered'
+  | 'wordNotNeeded'
   | 'wordBlocked'
   | 'wordMet'
   | 'wordShortfall';
@@ -25,6 +30,7 @@ const STATE_WORDS: Record<string, StateWordKey> = {
   yes: 'wordYes',
   no: 'wordNo',
   'not offered': 'wordNotOffered',
+  'not needed': 'wordNotNeeded',
   blocked: 'wordBlocked',
   met: 'wordMet',
   shortfall: 'wordShortfall',
@@ -72,8 +78,8 @@ export function WorkplaceNegotiation({ state }: { state: WorkplaceState }) {
     [
       t('stagePhysicalWork'),
       t('physicalWorkDetail', {
-        delivered: formatFixed(moment.delivery.deliveredKg, 0),
-        target: formatFixed(moment.delivery.targetKg, 0),
+        delivered: formatKg(moment.delivery.deliveredKg),
+        target: formatKg(moment.delivery.targetKg),
         status: word(moment.delivery.status),
       }),
     ],
@@ -132,10 +138,11 @@ export function WorkplaceNegotiation({ state }: { state: WorkplaceState }) {
               handoff: formatFixed(state.finance.improvementSpend, 2),
               compensation: formatFixed(state.finance.compensationPaid, 2),
               cash: formatFixed(state.finance.cash, 2),
-              remaining: formatFixed(moment.delivery.remainingKg, 0),
+              remaining: formatKg(moment.delivery.remainingKg),
             })}
           </p>
-          {state.phase === 'review' && <p>{t('reviewExperiment')}</p>}
+          {/* A shift a reload paused resumes; it has no actual shortfall to review yet. */}
+          {state.phase === 'review' && !shiftResumable(state) && <p>{t('reviewExperiment')}</p>}
         </div>
       </details>
     </section>

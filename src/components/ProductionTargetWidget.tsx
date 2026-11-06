@@ -12,8 +12,10 @@ import { useUIStore } from '../stores/uiStore';
 import { useWorkplaceStore } from '../stores/workplaceStore';
 import { workplaceOwnsGuidance } from '../simulation/workplaceImprovement';
 import { useMobileControlStore } from '../stores/mobileControlStore';
+import { isTargetSlotHeld } from './productionTargetSlot';
 import { useProductionStore, DAILY_TARGET_BAGS } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import {
   Target,
   Clock,
@@ -23,8 +25,9 @@ import {
   X,
   GripVertical,
   CheckCircle,
+  Truck,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useDragControls } from 'framer-motion';
 import { BAG_WEIGHT_KG } from '../types';
 import { formatFixed, useT } from '../i18n';
 import { productionTargetWidgetMessages } from './ProductionTargetWidget.messages';
@@ -38,13 +41,33 @@ export const ProductionTargetWidget: React.FC = () => {
   const mobilePanelVisible = useMobileControlStore((state) => state.mobilePanelVisible);
   const workingAgreement = useWorkplaceStore((state) => workplaceOwnsGuidance(state.workplace));
   // Working if the current agreement owns the guidance slot without changing the saved target preference.
-  const guidanceActive = onboarding || journeyVisible || mobilePanelVisible || workingAgreement;
+  const guidanceActive = isTargetSlotHeld({
+    onboarding,
+    journeyVisible,
+    mobilePanelVisible,
+    workingAgreement,
+  });
   const showProductionTarget = useAIConfigStore((state) => state.showProductionTarget);
   const setShowProductionTarget = useAIConfigStore((state) => state.setShowProductionTarget);
   const metrics = useProductionStore((state) => state.metrics);
   const dailyBagsProduced = useProductionStore((state) => state.dailyBagsProduced);
   const gameTime = useGameSimulationStore((state) => state.gameTime);
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
+  // The order feed admits no grain once every open commitment's remainder is
+  // packed (materialFlowStore), so the line stops until a truck takes it. Same
+  // reading as the header's 'Line idle' chip (StatusHUD): the active order is
+  // packed and the line is not pre-staging another one. Working if an idle,
+  // fully packed order book reads as awaiting dispatch, never as behind.
+  const orderBookPacked = useOperationsCampaignStore((state) => {
+    const execution = state.execution;
+    return (
+      !!execution?.orderId &&
+      execution.stage !== 'fulfilled' &&
+      execution.remainingKg > 1 &&
+      execution.finishedAvailableKg >= execution.remainingKg - 1 &&
+      !execution.lineCustomer
+    );
+  });
 
   const targetData = useMemo(() => {
     // The production metric is bags per game hour, the same clock as the
@@ -73,16 +96,20 @@ export const ProductionTargetWidget: React.FC = () => {
     const isBehind = rateCoverage < 0.8 - 1e-9;
 
     // A met target needs 0 t/hr, which would otherwise read as merely ON TRACK.
-    const status: 'met' | 'paused' | 'behind' | 'onTrack' | 'atRisk' =
+    // A line idle on a packed order book cannot run any required rate.
+    const awaitingDispatch = orderBookPacked && currentThroughputBags <= 0;
+    const status: 'met' | 'paused' | 'awaitingDispatch' | 'behind' | 'onTrack' | 'atRisk' =
       progress >= 100
         ? 'met'
         : paused
           ? 'paused'
-          : isBehind
-            ? 'behind'
-            : isOnTrack
-              ? 'onTrack'
-              : 'atRisk';
+          : awaitingDispatch
+            ? 'awaitingDispatch'
+            : isBehind
+              ? 'behind'
+              : isOnTrack
+                ? 'onTrack'
+                : 'atRisk';
 
     return {
       producedMass: currentMass,
@@ -93,7 +120,7 @@ export const ProductionTargetWidget: React.FC = () => {
       progress,
       status,
     };
-  }, [metrics.throughput, dailyBagsProduced, gameTime, gameSpeed]);
+  }, [metrics.throughput, dailyBagsProduced, gameTime, gameSpeed, orderBookPacked]);
 
   // This background tracker stays below z-40 narration and playback.
   // Working if an overlapping reflection can be read and dismissed on mobile.
@@ -123,6 +150,10 @@ export const ProductionTargetWidget: React.FC = () => {
     };
   }, []);
   const [dragConstraints, setDragConstraints] = useState(computeConstraints);
+  // Only the header drags. A whole-card drag sets touch-action: none on the
+  // card, so on a phone a swipe over the scrolling content moved the card
+  // instead. Working if the content scrolls by touch and the header moves it.
+  const dragControls = useDragControls();
   useEffect(() => {
     const handleResize = () => setDragConstraints(computeConstraints());
     handleResize();
@@ -136,6 +167,39 @@ export const ProductionTargetWidget: React.FC = () => {
     };
   }, [computeConstraints, showProductionTarget, guidanceActive]);
 
+  // Close and the launcher replace each other, so pressing one removes the
+  // focused element. Focus follows to its replacement, but only when one of
+  // them was pressed: the T shortcut or a settings toggle keeps focus where it is,
+  // unless it was on the control being removed (T pressed on the close button),
+  // which would drop it to the page body.
+  const launcherRef = useRef<HTMLButtonElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+  const focusReplacement = useRef(false);
+  const toggleRef = useCallback(
+    (slot: React.MutableRefObject<HTMLButtonElement | null>) =>
+      (node: HTMLButtonElement | null) => {
+        slot.current = node;
+        if (!node) return;
+        // Runs as React detaches the node, while it still holds focus.
+        return () => {
+          if (document.activeElement === node) focusReplacement.current = true;
+          slot.current = null;
+        };
+      },
+    []
+  );
+  const launcherCallbackRef = useMemo(() => toggleRef(launcherRef), [toggleRef]);
+  const closeCallbackRef = useMemo(() => toggleRef(closeRef), [toggleRef]);
+  useEffect(() => {
+    if (!focusReplacement.current) return;
+    focusReplacement.current = false;
+    (showProductionTarget ? closeRef : launcherRef).current?.focus();
+  }, [showProductionTarget]);
+  // A guidance or work sheet taking the slot leaves no replacement to focus.
+  useEffect(() => {
+    if (guidanceActive) focusReplacement.current = false;
+  }, [guidanceActive]);
+
   // Guidance and mobile work sheets own this lane without changing the target preference.
   // Working if their controls stay clear and dismissal restores the saved tracker state.
   if (guidanceActive) return null;
@@ -145,10 +209,14 @@ export const ProductionTargetWidget: React.FC = () => {
   if (!showProductionTarget) {
     return (
       <button
+        ref={launcherCallbackRef}
         type="button"
-        onClick={() => setShowProductionTarget(true)}
+        onClick={() => {
+          focusReplacement.current = true;
+          setShowProductionTarget(true);
+        }}
         aria-label={t('showTracker')}
-        className="fixed bottom-[min(11rem,30dvh)] left-4 z-30 flex items-center gap-2 rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-slate-200 shadow-lg backdrop-blur-sm transition-colors hover:bg-slate-800 pointer-events-auto"
+        className="fixed bottom-[min(11rem,30dvh)] left-4 z-30 flex items-center gap-2 millos-glass rounded-lg px-3 py-2 text-slate-200 transition-colors hover:bg-slate-800 pointer-events-auto"
       >
         <Target className="w-4 h-4 text-green-400" />
         <span className="text-xs font-medium">{t('launcher')}</span>
@@ -162,6 +230,12 @@ export const ProductionTargetWidget: React.FC = () => {
       border: 'border-slate-400/50',
       text: 'text-slate-300',
       bar: 'bg-slate-400',
+    },
+    awaitingDispatch: {
+      bg: 'bg-sky-500/20',
+      border: 'border-sky-400/50',
+      text: 'text-sky-300',
+      bar: 'bg-sky-400',
     },
     met: {
       bg: 'bg-emerald-500/20',
@@ -198,7 +272,9 @@ export const ProductionTargetWidget: React.FC = () => {
         ? TrendingUp
         : targetData.status === 'behind'
           ? TrendingDown
-          : Minus;
+          : targetData.status === 'awaitingDispatch'
+            ? Truck
+            : Minus;
 
   return (
     <AnimatePresence>
@@ -210,13 +286,19 @@ export const ProductionTargetWidget: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 20 }}
         drag
+        dragListener={false}
+        dragControls={dragControls}
         dragMomentum={false}
         dragElastic={0.1}
         dragConstraints={dragConstraints}
-        className={`fixed bottom-[min(11rem,30dvh)] left-4 max-h-[calc(100dvh-min(11rem,30dvh)-9rem)] overflow-y-auto w-72 max-w-[calc(100vw-2rem)] sm:max-w-[calc(50vw-2rem)] bg-[#071722]/95 ${colors.border} border rounded-lg p-4 backdrop-blur-sm z-30`}
+        className={`fixed bottom-[min(11rem,30dvh)] left-4 max-h-[calc(100dvh-min(11rem,30dvh)-9rem)] overflow-y-auto w-72 max-w-[calc(100vw-2rem)] sm:max-w-[calc(50vw-2rem)] millos-glass millos-glass-thick millos-glass-scroll ${colors.border} rounded-lg p-4 z-30`}
       >
         {/* Header - Drag Handle */}
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 cursor-move select-none">
+        <div
+          data-drag-handle=""
+          onPointerDown={(event) => dragControls.start(event)}
+          className="flex flex-wrap items-center justify-between gap-2 mb-3 cursor-move select-none touch-none"
+        >
           <div className="flex items-center gap-2">
             <Target className={`w-5 h-5 ${colors.text}`} />
             <span className="text-white font-semibold text-sm">{t('title')}</span>
@@ -237,8 +319,12 @@ export const ProductionTargetWidget: React.FC = () => {
               </span>
             </div>
             <button
+              ref={closeCallbackRef}
               type="button"
-              onClick={() => setShowProductionTarget(false)}
+              onClick={() => {
+                focusReplacement.current = true;
+                setShowProductionTarget(false);
+              }}
               onPointerDownCapture={(e) => e.stopPropagation()}
               aria-label={t('closeTracker')}
               className="-m-2.5 -mr-3.5 p-3.5 rounded text-slate-400 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
@@ -287,7 +373,7 @@ export const ProductionTargetWidget: React.FC = () => {
               })}
             </span>
           </div>
-          {targetData.status !== 'met' && (
+          {targetData.status !== 'met' && targetData.status !== 'awaitingDispatch' && (
             <div className="col-span-2 text-slate-400">
               {t('required')}{' '}
               <span className={`font-mono whitespace-nowrap ${colors.text}`}>
@@ -307,11 +393,13 @@ export const ProductionTargetWidget: React.FC = () => {
               ? t('statusMet')
               : targetData.status === 'paused'
                 ? t('statusPaused')
-                : targetData.status === 'onTrack'
-                  ? t('statusOnTrack')
-                  : targetData.status === 'behind'
-                    ? t('statusBehind')
-                    : t('statusAtRisk')}
+                : targetData.status === 'awaitingDispatch'
+                  ? t('statusAwaitingDispatch')
+                  : targetData.status === 'onTrack'
+                    ? t('statusOnTrack')
+                    : targetData.status === 'behind'
+                      ? t('statusBehind')
+                      : t('statusAtRisk')}
           </span>
         </div>
       </motion.div>

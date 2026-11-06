@@ -10,9 +10,23 @@ import {
 } from '../../chronicle/ledger';
 import { fundOf, knowHowOf, type ChronicleState } from '../../chronicle/engine';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
-import { Section, whole } from './shared';
+import { amount, Section, whole } from './shared';
 
-function Lines({ lines, total, unit }: { lines: SourceLine[]; total: number; unit: string }) {
+function Lines({
+  lines,
+  total,
+  unit,
+  totalLabel,
+  format = whole,
+}: {
+  lines: SourceLine[];
+  total: number;
+  unit: string;
+  /** Defaults to "Balance". */
+  totalLabel?: string;
+  /** Know-how comes in halves; it is shown to a tenth, not rounded past a price. */
+  format?: (value: number) => string;
+}) {
   const t = useT(messages);
   const largest = Math.max(1, ...lines.map((line) => Math.abs(line.value)));
   return (
@@ -34,15 +48,15 @@ function Lines({ lines, total, unit }: { lines: SourceLine[]; total: number; uni
               className={`py-1 text-right tabular-nums ${line.value >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}
             >
               {line.value >= 0 ? '+' : ''}
-              {whole(line.value)}
+              {format(line.value)}
             </td>
           </tr>
         ))}
         <tr className="border-t border-slate-700">
           <th scope="row" className="py-1 text-left font-semibold text-white">
-            {t('m0')}
+            {totalLabel ?? t('m0')}
           </th>
-          <td className="py-1 text-right font-semibold tabular-nums text-white">{whole(total)}</td>
+          <td className="py-1 text-right font-semibold tabular-nums text-white">{format(total)}</td>
         </tr>
       </tbody>
     </table>
@@ -52,25 +66,33 @@ function Lines({ lines, total, unit }: { lines: SourceLine[]; total: number; uni
 export function LedgerTab({ state }: { state: ChronicleState }) {
   const t = useT(messages);
   const economics = useOperationsCampaignStore((s) => s.economics);
-  const lastShiftFund = sourceLines(
-    state.ledger.lastShiftFund,
-    localizedSourceLabels(FUND_SOURCE_LABELS)
-  );
+  const labels = localizedSourceLabels(FUND_SOURCE_LABELS);
+  const lastClose = sourceLines(state.ledger.lastShiftFund, labels);
+  const sinceClose = sourceLines(state.ledger.sinceCloseFund, labels);
+  // Before the first close there is no close to count from.
+  const sinceTitle = state.shift > 0 ? t('m4') : t('m9');
+  const net = (lines: SourceLine[]) => lines.reduce((sum, line) => sum + line.value, 0);
   return (
     <div className="space-y-3">
       <Section title={t('m1')}>
         <Lines
-          lines={sourceLines(state.ledger.fund, localizedSourceLabels(FUND_SOURCE_LABELS))}
+          lines={sourceLines(state.ledger.fund, labels)}
           total={fundOf(state)}
           unit={t('m2')}
         />
       </Section>
-      {lastShiftFund.length > 0 && (
+      {lastClose.length > 0 && (
         <Section title={t('m3')}>
+          <Lines lines={lastClose} total={net(lastClose)} unit={t('m3')} totalLabel={t('m10')} />
+        </Section>
+      )}
+      {sinceClose.length > 0 && (
+        <Section title={sinceTitle}>
           <Lines
-            lines={lastShiftFund}
-            total={lastShiftFund.reduce((sum, line) => sum + line.value, 0)}
-            unit={t('m4')}
+            lines={sinceClose}
+            total={net(sinceClose)}
+            unit={sinceTitle}
+            totalLabel={t('m10')}
           />
         </Section>
       )}
@@ -79,6 +101,7 @@ export function LedgerTab({ state }: { state: ChronicleState }) {
           lines={sourceLines(state.ledger.knowHow, localizedSourceLabels(KNOW_HOW_SOURCE_LABELS))}
           total={knowHowOf(state)}
           unit={t('m5')}
+          format={amount}
         />
       </Section>
       <Section title={t('m6')}>

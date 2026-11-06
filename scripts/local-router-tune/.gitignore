@@ -1,0 +1,10 @@
+__pycache__/
+data/train_raw.jsonl
+data/train_dedup.json
+data/train_labelled.json
+data/smoke_train.json
+runs/smoke-*.json
+logs/
+data/train_pt_raw.jsonl
+data/train_pt_dedup.json
+data/train_pt_labelled.json

@@ -16,6 +16,7 @@ vi.mock('../../components/CameraController', () => ({
 }));
 vi.mock('../../components/GameFeatures', () => ({
   FORKLIFT_STOP_ANNOUNCEMENTS: [{ message: 'Forklifts stopped.' }],
+  FORKLIFT_STOP_TOPIC: 'forklift-stop',
 }));
 vi.mock('../../utils/audioManager', () => ({
   audioManager: {

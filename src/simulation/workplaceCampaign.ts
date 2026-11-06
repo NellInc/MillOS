@@ -11,9 +11,11 @@ import type {
   ObjectionKind,
   WorkplaceEvent,
 } from '../types/workplace';
-import { formatFixed, translate } from '../i18n';
+import { LOCALES, formatFixed, formatGrouped, translate } from '../i18n';
 import { workplaceCampaignMessages as msg } from './workplaceCampaign.messages';
 import { bilateralWorkplaceMessages } from './bilateralWorkplace.messages';
+// Call-time only: bilateralWorkplace imports this module too.
+import { coverConsentDecides } from './bilateralWorkplace';
 
 /**
  * A campaign shift that a reload settled before its end can resume: reload
@@ -21,16 +23,40 @@ import { bilateralWorkplaceMessages } from './bilateralWorkplace.messages';
  * resumable; a stop, an objection, an emergency or a changed mission stand.
  * The reload's settle stores the English sentinel as reviewReason, and restore
  * keeps exactly that sentinel (any other reason is replaced with canonical
- * text). Working if a reload mid-shift no longer costs the season its agreement.
+ * text). A deliberation reloaded before approval resumes too, and so does a
+ * shift approved while the plant was paused and reloaded before its first
+ * minute: nothing was worked or paid, re-approval reads its purchase against
+ * improvementSpend (bought once) and counts the bounded adviser action only if
+ * none was counted this shift.
+ * Working if a reload mid-shift, before approval, or between approval and the
+ * first minute no longer costs the season its agreement.
+ *
+ * A handoff deliberation a reload interrupted resumes the same way: it is at
+ * minute 0, unfunded and never activated, so resuming buys nothing twice and
+ * records no cycle. Restore keeps only relationship events, so activation is
+ * read from its bounded AI action (each handoff shift starts at zero); where
+ * activation takes none, a minute-0 steady shift bought nothing to repeat.
+ * Working if a reloaded second handoff shift deliberates again instead of
+ * costing one of MAX_IMPROVEMENT_CYCLES.
  */
 export function shiftResumable(s: WorkplaceState): boolean {
+  const i = s.improvement;
+  if (i)
+    return (
+      s.mode !== 'pilot' &&
+      s.phase === 'review' &&
+      s.reviewReason === bilateralWorkplaceMessages.en.evReloadSafety &&
+      s.minute === 0 &&
+      !i.funded &&
+      !i.verdict &&
+      s.aiActions === 0
+    );
   return (
     s.mode === 'game' &&
     !!s.campaign &&
     !s.improvement &&
     s.phase === 'review' &&
     s.reviewReason === bilateralWorkplaceMessages.en.evReloadSafety &&
-    s.minute > 0 &&
     s.minute < s.durationMinutes
   );
 }
@@ -169,10 +195,25 @@ const OBJECTION_KEYS = {
   'repeat-cover': 'repeatCoverObjection',
 } as const;
 
-/** Display text for a stored objection statement; the stored English stays the matching key. */
+const OBJECTION_KINDS: ObjectionKind[] = ['rest', 'burden', 'privacy', 'authority'];
+
+/**
+ * Display text for a stored objection statement; the stored English stays the
+ * matching key. A boundary objection is stored in the language active when it
+ * was raised (a reload regenerates it), so it is shown in the language active
+ * now. Working if switching language rewrites an open objection's statement.
+ */
 export function pressureObjectionText(statement: string): string {
   const pressure = CAMPAIGN_PRESSURES.find((item) => item.objection === statement);
-  return pressure ? translate(msg, OBJECTION_KEYS[pressure.id]) : statement;
+  if (pressure) return translate(msg, OBJECTION_KEYS[pressure.id]);
+  for (const kind of OBJECTION_KINDS)
+    if (
+      LOCALES.some(
+        (locale) => bilateralWorkplaceMessages[locale].objectionStatement({ kind }) === statement
+      )
+    )
+      return translate(bilateralWorkplaceMessages, 'objectionStatement', { kind });
+  return statement;
 }
 
 const RELATIONSHIP_KINDS = new Set([
@@ -569,10 +610,35 @@ export function campaignAgreementHonoured(s: WorkplaceState): boolean {
 }
 
 /** Working if a completed agreement with zero qualifying delivery cannot win. */
+/**
+ * A linked order's credit read against the figure a player can compare it to:
+ * a renegotiated installment until credit passes it, then the full order. The
+ * agreed deferral stays the agreed figure. Working if credited kg never
+ * exceeds its denominator short of the full order ("6000 / 4800" never shows).
+ */
+export function missionDelivery(
+  m: Pick<WorkplaceMission, 'creditedKg' | 'targetKg' | 'originalTargetKg'>
+) {
+  const installment = m.creditedKg <= m.targetKg + 1e-6;
+  return {
+    deliveredKg: m.creditedKg,
+    targetKg: installment ? m.targetKg : m.originalTargetKg,
+    /** True while the denominator is a renegotiated installment, not the order. */
+    installment: installment && m.targetKg < m.originalTargetKg - 1e-6,
+    deferredKg: Math.max(0, m.originalTargetKg - m.targetKg),
+  };
+}
+
+/** Kilograms in delivery copy: fixed digits, grouped in every language ("6,000" / "6.000"). */
+export const formatKg = (kg: number, digits = 0) =>
+  formatGrouped(kg, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
 export function campaignOutcomes(s: WorkplaceState) {
   const history = s.campaign?.history ?? [];
   const mission = s.campaign?.mission;
-  const ended = s.phase === 'review' && s.campaign?.shift === 2;
+  // A final shift a reload paused has not ended: it can resume with fresh
+  // consent, so neither its delivery nor its agreement is final yet.
+  const ended = s.phase === 'review' && s.campaign?.shift === 2 && !shiftResumable(s);
   const deliveredKg = mission?.creditedKg ?? history.reduce((n, h) => n + h.shippedKg, s.shippedKg);
   const targetKg = mission?.targetKg ?? history.reduce((n, h) => n + h.targetKg, s.targetKg);
   const evidenceCurrent = !mission || mission.evidence === 'current';
@@ -581,18 +647,20 @@ export function campaignOutcomes(s: WorkplaceState) {
   const accounts = [...history.map((h) => h.finance), s.finance];
   const originalTargetKg = mission?.originalTargetKg ?? 600 * (history.length + 1);
   const remainingKg = Math.max(0, originalTargetKg - deliveredKg);
+  const shown = mission
+    ? missionDelivery(mission)
+    : { targetKg, deferredKg: Math.max(0, originalTargetKg - targetKg) };
   return {
     delivery: {
       status: !evidenceCurrent ? 'blocked' : deliveryMet ? 'met' : ended ? 'shortfall' : 'pending',
       deliveredKg,
-      targetKg,
-      deferredKg: Math.max(0, originalTargetKg - targetKg),
+      targetKg: shown.targetKg,
+      deferredKg: shown.deferredKg,
       remainingKg: remainingKg <= 1e-6 ? 0 : remainingKg,
       customer: mission?.customer ?? translate(msg, 'teachingCustomer'),
     },
-    // A shift paused by a reload has not ended: it can resume with fresh consent.
     agreement: {
-      status: agreementMet ? 'honoured' : ended && !shiftResumable(s) ? 'incomplete' : 'pending',
+      status: agreementMet ? 'honoured' : ended ? 'incomplete' : 'pending',
     },
     complete: !!s.campaign && deliveryMet && agreementMet,
     accounts: {
@@ -625,13 +693,13 @@ export function campaignLearningReview(s: WorkplaceState) {
   const evidence = [
     campaign.mission
       ? translate(msg, 'reviewDelivery', {
-          delivered: formatFixed(outcome.delivery.deliveredKg, 1),
+          delivered: formatKg(outcome.delivery.deliveredKg, 1),
           evidence: campaign.mission.evidence,
-          remaining: formatFixed(outcome.delivery.remainingKg, 1),
+          remaining: formatKg(outcome.delivery.remainingKg, 1),
         })
       : translate(msg, 'reviewTeaching', {
-          delivered: formatFixed(outcome.delivery.deliveredKg, 1),
-          target: formatFixed(outcome.delivery.targetKg, 1),
+          delivered: formatKg(outcome.delivery.deliveredKg, 1),
+          target: formatKg(outcome.delivery.targetKg, 1),
         }),
     translate(msg, 'reviewRecovery', {
       recovered: formatFixed(recovered, 1),
@@ -640,7 +708,7 @@ export function campaignLearningReview(s: WorkplaceState) {
   ];
   if (outcome.delivery.deferredKg > 0)
     evidence.push(
-      translate(msg, 'reviewDeferred', { deferred: formatFixed(outcome.delivery.deferredKg, 1) })
+      translate(msg, 'reviewDeferred', { deferred: formatKg(outcome.delivery.deferredKg, 1) })
     );
   if (inspection !== undefined)
     evidence.push(
@@ -697,7 +765,7 @@ export function campaignStory(s: WorkplaceState): string[] {
     lines.push(
       mission
         ? translate(msg, 'storyMission', {
-            remaining: formatFixed(Math.max(0, mission.originalTargetKg - mission.creditedKg), 0),
+            remaining: formatKg(Math.max(0, mission.originalTargetKg - mission.creditedKg)),
             customer: mission.customer,
           })
         : last.shippedKg + 1e-6 >= last.targetKg
@@ -743,13 +811,16 @@ export function thursdayNegotiation(s: WorkplaceState) {
   );
   const correction = s.events.some((event) => event.kind === 'adviser-correction');
   const yesNo = (value: boolean | null) => (value === null ? 'pending' : value ? 'yes' : 'no');
+  // Packing is asked about cover only while its answer can still decide it.
+  const coverAsked = s.planId === 'cover' && coverConsentDecides(s, 'packing');
   const next =
     challenge?.status === 'open'
       ? protectedTerms
         ? translate(msg, 'nextPackingReviews')
         : translate(msg, 'nextRestate')
       : s.phase === 'review'
-        ? translate(msg, 'nextReview')
+        ? // A reload paused it: it resumes rather than being compared as done.
+          translate(msg, shiftResumable(s) ? 'nextResume' : 'nextReview')
         : s.phase === 'active'
           ? translate(msg, 'nextActive')
           : !correction
@@ -760,9 +831,9 @@ export function thursdayNegotiation(s: WorkplaceState) {
                 ? translate(msg, 'nextVote')
                 : packing.ballot === false && s.governance === 'team-consent'
                   ? translate(msg, 'nextPolicyNo')
-                  : s.planId === 'cover' && packing.coverConsent === null
+                  : coverAsked && packing.coverConsent === null
                     ? translate(msg, 'nextCoverPending')
-                    : s.planId === 'cover' && packing.coverConsent === false
+                    : coverAsked && packing.coverConsent === false
                       ? translate(msg, 'nextCoverDeclined')
                       : translate(msg, 'nextReviewRoles');
   return {
@@ -772,7 +843,13 @@ export function thursdayNegotiation(s: WorkplaceState) {
     challenge: challenge?.status ?? (protectedTerms ? 'prevented' : 'not raised'),
     understanding: packing.understood ? 'confirmed' : 'pending',
     policy: yesNo(packing.ballot),
-    cover: s.planId === 'cover' ? yesNo(packing.coverConsent) : 'not offered',
+    // Beside `next`: a consent that can no longer decide the cover is not pending.
+    cover:
+      s.planId !== 'cover'
+        ? 'not offered'
+        : coverAsked
+          ? yesNo(packing.coverConsent)
+          : 'not needed',
     retainedPacking,
     paid: totals.members.reduce((sum, member) => sum + member.compensationPaid, 0),
     delivered: totals.members.reduce((sum, member) => sum + member.recoveryMinutes, 0),

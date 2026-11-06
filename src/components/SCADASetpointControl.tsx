@@ -33,7 +33,10 @@ export interface SCADASetpointControlProps {
   writeSetpoint: (tagId: string, value: number) => Promise<boolean>;
 }
 
-type Feedback = { kind: 'applied' | 'refused'; text: string } | null;
+// Results are kept as data and worded at render, so a language switch
+// re-reads them instead of leaving the line in the language it was written in.
+type Feedback = { kind: 'applied'; value: number } | { kind: 'refused' } | null;
+type InputError = 'invalidNumber' | 'outOfRange' | null;
 
 export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
   tag,
@@ -53,7 +56,7 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
   const reasonId = `${ids}-reason`;
 
   const [draft, setDraft] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<InputError>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [busy, setBusy] = useState(false);
 
@@ -96,12 +99,12 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
     const text = inputValue.trim();
     const value = text === '' ? Number.NaN : Number(text);
     if (!Number.isFinite(value)) {
-      setError(t('invalidNumber'));
+      setError('invalidNumber');
       setFeedback(null);
       return;
     }
     if (value < tag.engLow || value > tag.engHigh) {
-      setError(t('outOfRange', { low: format(tag.engLow), high: format(tag.engHigh), unit }));
+      setError('outOfRange');
       setFeedback(null);
       return;
     }
@@ -111,16 +114,29 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
       const ok = await writeSetpoint(tag.id, value);
       if (ok) {
         setDraft(null);
-        setFeedback({ kind: 'applied', text: t('applied', { reading: withUnit(value) }) });
+        setFeedback({ kind: 'applied', value });
       } else {
-        setFeedback({ kind: 'refused', text: t('refused') });
+        setFeedback({ kind: 'refused' });
       }
     } catch {
-      setFeedback({ kind: 'refused', text: t('refused') });
+      setFeedback({ kind: 'refused' });
     } finally {
       setBusy(false);
     }
   };
+
+  const errorText =
+    error === 'outOfRange'
+      ? t('outOfRange', { low: format(tag.engLow), high: format(tag.engHigh), unit })
+      : error === 'invalidNumber'
+        ? t('invalidNumber')
+        : null;
+  const feedbackText =
+    feedback?.kind === 'applied'
+      ? t('applied', { reading: withUnit(feedback.value) })
+      : feedback?.kind === 'refused'
+        ? t('refused')
+        : '';
 
   const describedBy = [helperId, error ? errorId : null, disabledReason ? reasonId : null]
     .filter(Boolean)
@@ -179,9 +195,15 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
         <span className="text-slate-400" aria-hidden="true">
           {unit}
         </span>
+        {/* A pending write marks Apply busy rather than disabling it: a browser
+            moves focus off a focused control that becomes disabled, so the
+            keyboard user who pressed it landed on the page body. submit()
+            ignores a press while busy. */}
         <button
           type="submit"
-          disabled={disabled}
+          disabled={disabledReason !== null}
+          aria-disabled={busy || undefined}
+          aria-busy={busy || undefined}
           aria-describedby={disabledReason ? reasonId : undefined}
           className="ml-auto rounded bg-cyan-600/80 px-3 py-1 text-sm font-medium text-white hover:bg-cyan-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-700/60 disabled:text-slate-400"
         >
@@ -191,7 +213,7 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
 
       {error && (
         <p id={errorId} role="alert" className="mt-1 text-red-300">
-          {error}
+          {errorText}
         </p>
       )}
       {disabledReason && (
@@ -207,7 +229,7 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
         aria-live="polite"
         className={feedback?.kind === 'refused' ? 'mt-1 text-amber-300' : 'mt-1 text-emerald-300'}
       >
-        {feedback?.text ?? ''}
+        {feedbackText}
       </p>
     </form>
   );

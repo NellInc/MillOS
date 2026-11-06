@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AlarmManager } from '../AlarmManager';
+import { AlarmManager, SCADA_DISPOSITION_STORAGE_KEY } from '../AlarmManager';
+import { safeJSONStorage } from '../../stores/storage';
 import { MILL_TAGS, OPERATION_TAG_IDS } from '../tagDatabase';
 import type { TagDefinition } from '../types';
 
@@ -28,6 +29,8 @@ describe('AlarmManager control lifecycle', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-27T12:00:00Z'));
+    // Dispositions are saved across a reload: each test starts with none.
+    safeJSONStorage.removeItem(SCADA_DISPOSITION_STORAGE_KEY);
   });
 
   afterEach(() => {
@@ -140,6 +143,8 @@ describe('AlarmManager condition handling', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-27T12:00:00Z'));
+    // Dispositions are saved across a reload: each test starts with none.
+    safeJSONStorage.removeItem(SCADA_DISPOSITION_STORAGE_KEY);
   });
 
   afterEach(() => {

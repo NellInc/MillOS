@@ -24,7 +24,7 @@ export { EnergyDashboard } from './EnergyDashboard';
 
 // Phase 3 Enhancements
 export { VCLDiffPanel } from './VCLDiffPanel';
-export { DecisionReplay, DecisionReplayTrigger } from './DecisionReplay';
+export { DecisionReplay } from './DecisionReplay';
 export { MultiObjectiveDashboard } from './MultiObjectiveDashboard';
 
 // Phase 4 Enhancements

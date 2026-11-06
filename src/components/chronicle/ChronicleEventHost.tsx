@@ -1,14 +1,14 @@
-import { localizedEventText } from '../../chronicle/eventDeck';
+import { EVENT_DECK, getEventDeck, localizedEventText } from '../../chronicle/eventDeck';
 import { formatGrouped } from '../../i18n';
-import { getEventDeck } from '../../chronicle/eventDeck';
 import { getFronts } from '../../chronicle/longNight';
 import { localizedConditionText } from '../../chronicle/record';
 import { localizedDescribeEffect } from '../../chronicle/describe';
 import { useT } from '../../i18n';
 import { messages } from './ChronicleEventHost.messages';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Bookmark, Flame, ScrollText, Scale } from 'lucide-react';
 import {
+  answerablePending,
   canAfford,
   choiceAvailable,
   effectiveChoice,
@@ -19,24 +19,41 @@ import {
   fundOf,
   knowHowOf,
 } from '../../chronicle/engine';
-
+import { canFundMitigations } from '../../chronicle/delegation';
 import { FRONT_HOLD_THRESHOLD, frontPreparation, otherFront } from '../../chronicle/longNight';
 import { hasMark } from '../../chronicle/record';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useSafetyStore } from '../../stores/safetyStore';
+import { useMobileControlStore } from '../../stores/mobileControlStore';
+import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { OPEN_EVENT } from './ChronicleOverview';
 import { BUTTON, BUTTON_PRIMARY, CostTag } from './shared';
 
 type Prompt = { kind: 'event'; instanceId: string } | { kind: 'fire' } | { kind: 'shortfall' };
 
+/** Where the player's focus is their own: a field they type in, or a modal they opened. */
+const PLAYER_OWNED_FOCUS =
+  'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]), textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"][aria-modal="true"]';
+
 /**
  * Predynastic Egypt's event dialog: the price and effect on every button,
  * unaffordable choices greyed out, and "Think it over" to answer later from
- * the Chronicle workspace. Mounted once by the game interface.
+ * the Chronicle workspace. Mounted once by the game interface, which hides it
+ * (rather than unmounting it) during the tour, walk mode and the shortcuts
+ * help, so a decision the player deferred stays deferred when the HUD returns.
+ * Working if "Think it over", then V and V, leaves the decision in the workspace.
  */
-export function ChronicleEventHost() {
+export function ChronicleEventHost({
+  hidden: hiddenByHost = false,
+}: { readonly hidden?: boolean } = {}) {
   const t = useT(messages);
+  // On a phone an open sheet makes this host's root inert, yet the dialog draws
+  // above the sheet, so a tap on it fell through to the sheet control beneath.
+  // Wait for the sheet to close, as for the tour; a decision asked for closes it.
+  const { isCompactLayout } = useMobileDetection();
+  const sheetOpen = useMobileControlStore((s) => s.mobilePanelVisible) && isCompactLayout;
+  const hidden = hiddenByHost || sheetOpen;
   const state = useChronicleStore((s) => s.chronicle);
   const choose = useChronicleStore((s) => s.choose);
   const suppress = useChronicleStore((s) => s.suppress);
@@ -46,15 +63,28 @@ export function ChronicleEventHost() {
   const emergency = useGameSimulationStore((s) => s.emergencyActive);
   const forkliftStop = useSafetyStore((s) => s.forkliftEmergencyStop);
   const stopped = emergency || forkliftStop;
-  const [deferred, setDeferred] = useState<Set<string>>(() => new Set());
+  // Saved in the chronicle store, so 'Think it over' survives a reload; the
+  // setter keeps the functional-update shape the rest of the host uses.
+  const deferredList = useChronicleStore((s) => s.deferredPrompts);
+  const deferred = useMemo(() => new Set(deferredList), [deferredList]);
+  const setDeferred = useCallback((update: (current: Set<string>) => Set<string>) => {
+    const current = new Set(useChronicleStore.getState().deferredPrompts);
+    const next = update(current);
+    if (next !== current) useChronicleStore.getState().setDeferredPrompts([...next]);
+  }, []);
   const [requested, setRequested] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const returnToPanelRef = useRef(false);
 
   useEffect(() => {
     const open = (event: Event) => {
       const id = (event as CustomEvent<string>).detail;
+      // On a phone this host sits in the game interface, which is inert while a
+      // sheet is open: close the sheet so the decision asked for can be pressed.
+      const mobile = useMobileControlStore.getState();
+      if (mobile.mobilePanelVisible) mobile.closeMobilePanel();
       setRequested(id);
       setDeferred((current) => {
         const next = new Set(current);
@@ -65,6 +95,15 @@ export function ChronicleEventHost() {
     window.addEventListener(OPEN_EVENT, open);
     return () => window.removeEventListener(OPEN_EVENT, open);
   }, []);
+
+  // Instance ids restart with each charter, so "Think it over" in one chronicle
+  // must not hold back a decision of the next: forget deferrals when it is let go.
+  const unsigned = state.status === 'unsigned';
+  useEffect(() => {
+    if (!unsigned) return;
+    setDeferred((current) => (current.size ? new Set() : current));
+    setRequested(null);
+  }, [unsigned]);
 
   // A deferred fire prompt re-arms for the next fire.
   const fireActive = state.fire.active;
@@ -79,21 +118,33 @@ export function ChronicleEventHost() {
   }, [fireActive]);
 
   const shortfallKey = `shortfall-${state.shift}`;
+  // An event a later deck dropped, or one the crop overtook, has nothing true
+  // to offer, so it must not hold the dialog (the next close clears it).
+  const answerable = answerablePending(state, EVENT_DECK).map(({ pending }) => pending);
   let prompt: Prompt | null = null;
-  if (state.status !== 'unsigned') {
+  if (state.status !== 'unsigned' && !hidden) {
     // A prompt the player asked for comes first; then the fire, the shortfall
     // and any unanswered event. A facility stop comes before the business:
     // while one holds, nothing else opens unasked; it all stays answerable from
     // the workspace. A forklift-only hold leaves the mill running, so it does not.
-    const asked = state.pendingEvents.find((p) => p.instanceId === requested);
+    // A partner at delegation 2 or 3 answers the fire on its next tick, so the
+    // fire is not put to the player (a restored save opened it for that tick).
+    // Working if no fire dialog shows while the partner is about to act.
+    const partnerAnswersFire = state.status === 'active' && canFundMitigations(state.delegation);
+    const asked = answerable.find((p) => p.instanceId === requested);
     if (asked) prompt = { kind: 'event', instanceId: asked.instanceId };
-    else if (state.fire.active && !state.fire.suppressing && !deferred.has('fire'))
+    else if (
+      state.fire.active &&
+      !state.fire.suppressing &&
+      !partnerAnswersFire &&
+      !deferred.has('fire')
+    )
       prompt = { kind: 'fire' };
     else if (emergency) prompt = null;
     else if (state.upkeepShortfall !== null && !deferred.has(shortfallKey))
       prompt = { kind: 'shortfall' };
     else {
-      const pending = state.pendingEvents.find((p) => !deferred.has(p.instanceId));
+      const pending = answerable.find((p) => !deferred.has(p.instanceId));
       if (pending) prompt = { kind: 'event', instanceId: pending.instanceId };
     }
   }
@@ -112,17 +163,41 @@ export function ChronicleEventHost() {
   useEffect(() => () => setDialogOpen(false), [setDialogOpen]);
 
   // Focus the heading, never a paying button, and give focus back afterwards.
+  // A prompt nobody asked for leaves a text field or a modal dialog the player
+  // is in alone: taking focus from a field sent the rest of what was typed to
+  // the game's shortcuts, where Space is the emergency stop.
+  const asked = prompt?.kind === 'event' && prompt.instanceId === requested;
   useEffect(() => {
     if (deferKey) {
-      if (!dialogRef.current?.contains(document.activeElement) && !returnFocusRef.current)
+      const active = document.activeElement;
+      if (!asked && active instanceof Element && active.closest(PLAYER_OWNED_FOCUS)) return;
+      if (!dialogRef.current?.contains(active) && !returnFocusRef.current) {
         returnFocusRef.current = document.activeElement as HTMLElement | null;
+        returnToPanelRef.current = !!returnFocusRef.current?.closest(
+          '[data-testid="chronicle-panel"]'
+        );
+      }
       headingRef.current?.focus();
+      return;
+    }
+    // Hidden, as unmounted before: focus is not handed anywhere, and a later
+    // dialog records its own return target.
+    if (hidden) {
+      returnFocusRef.current = null;
       return;
     }
     const target = returnFocusRef.current;
     returnFocusRef.current = null;
+    // Only focus the prompt took with it is handed back; a player who has moved
+    // on to another control keeps it.
+    const current = document.activeElement;
+    if (current && current !== document.body && document.contains(current)) return;
     if (target && document.contains(target)) target.focus();
-  }, [deferKey]);
+    // A "Decide" button leaves the workspace with the decision it opened; land on
+    // the workspace's tabs rather than drop focus to the page.
+    else if (target && returnToPanelRef.current)
+      document.getElementById('chronicle-tab-overview')?.focus();
+  }, [deferKey, hidden, asked]);
 
   useEffect(() => {
     if (!deferKey) return;
@@ -210,7 +285,7 @@ export function ChronicleEventHost() {
     buttons = offered.map((choice) => {
       const available = choiceAvailable(state, choice);
       const { effect } = effectiveChoice(state, choice);
-      const parts = [localizedDescribeEffect(effect)];
+      const parts = [localizedDescribeEffect(effect, { suspended: state.certifier.suspended })];
       if (effect.holdFront) {
         const other = otherFront(effect.holdFront);
         const prepared = frontPreparation(state, other);
@@ -220,8 +295,9 @@ export function ChronicleEventHost() {
           t('p14', {
             front: getFronts()[other].subject,
             outcome: prepared >= FRONT_HOLD_THRESHOLD ? t('p12') : t('p13'),
-            prepared,
-            threshold: FRONT_HOLD_THRESHOLD,
+            // Spread cover prepares by halves: 1,5 in pt-BR.
+            prepared: formatGrouped(prepared),
+            threshold: formatGrouped(FRONT_HOLD_THRESHOLD),
           })
         );
       }

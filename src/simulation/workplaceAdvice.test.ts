@@ -9,6 +9,7 @@ import {
 import {
   capturePackingPlant,
   derivePackingAdvice,
+  displayAdviceText,
   runPackingRehearsals,
   rehearseWithheldDispatch,
   packingPredictionReview,
@@ -140,6 +141,34 @@ describe('isolated packing advice', () => {
     } finally {
       setLocale('en');
     }
+  });
+  it('rewords a frozen horizon sentence in the language chosen now', () => {
+    const en = '90 workplace minutes = 180 plant seconds at every resume pace.';
+    const pt = '90 minutos de trabalho = 180 segundos da planta em qualquer ritmo de retomada.';
+    const preRelease = '90 workplace minutes are 180 plant seconds at every pace.';
+    const paceDependent =
+      '90 workplace minutes; physical seconds = 90 * 60 / selected resume game speed.';
+    try {
+      setLocale('pt-BR');
+      expect(displayAdviceText(en)).toBe(pt);
+      expect(displayAdviceText(preRelease)).toBe(pt);
+      // A different model's sentence is left as stored, never reworded.
+      expect(displayAdviceText(paceDependent)).toBe(paceDependent);
+      setLocale('en');
+      expect(displayAdviceText(pt)).toBe(en);
+    } finally {
+      setLocale('en');
+    }
+  });
+  it('states the one plant span it models, not a pace-dependent horizon', () => {
+    for (const speed of [15, 120]) {
+      const advice = derivePackingAdvice(fixture(speed).capture(), 'steady');
+      // The horizon line names one plant span, whatever the resume pace.
+      expect(advice.assumptions[0]).toContain('180 plant seconds');
+      expect(advice.assumptions.join(' ')).not.toMatch(/resume game speed/);
+    }
+    const abstained = fixture(0).capture();
+    expect(abstained.reasonToAbstain).not.toMatch(/3600x/);
   });
   it('splits five paid workplace minutes at the physical briefing boundary', () => {
     const f = fixture(),
@@ -507,7 +536,7 @@ describe('role-led captured evidence inspection', () => {
     expect(roles[0].question).toContain('proves no departure');
     expect(roles[1].fact).toBe('Dispatch release at capture: open.');
     expect(roles[2].question).toContain('do not establish material flow');
-    expect(roles[3].fact).toContain('ready; 1000 kg loaded / 1000 kg capacity');
+    expect(roles[3].fact).toContain('ready; 1,000 kg loaded / 1,000 kg capacity');
     expect(roles[3].question).toContain('actual departure receipt');
     expect(JSON.stringify(advice)).toBe(before);
   });

@@ -1,4 +1,4 @@
-import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { SITE_LAYOUT, SOUTH_ROAD_LANES } from '../../constants/siteLayout';
 import {
   advanceLongitudinalMotion,
   createArcLengthPath,
@@ -175,39 +175,56 @@ const DOCK_POSE: PosePoint = {
   z: DOCK_BUMPER_FACE_Z + TRAILER_REAR_OVERHANG + 0.02,
   rotation: 0,
 };
-/** The yard road the trucks use in both directions. */
-const ROAD_X = 20;
+/**
+ * The road's two lanes (SOUTH_ROAD_LANES): a truck keeps right, so it comes
+ * down to the yard in the east lane and leaves up the west one. Both used to
+ * be the centre line, x 20, which the trucks straddled in both directions.
+ * The receiving yard is this frame turned half a revolution, which keeps
+ * right as well: a rotation, unlike a mirror, does not change sides.
+ */
+const INBOUND_LANE_X = SOUTH_ROAD_LANES.southbound;
+const OUTBOUND_LANE_X = SOUTH_ROAD_LANES.northbound;
 /**
  * Where the arriving truck leaves the road and begins its U-turn. Low enough
  * to keep the reverse short, high enough that the swept outside of the turn
- * stays north of the staging block.
+ * stays north of the staging block. The tractor's outer front corner swings
+ * through 16.14 m about the turn's centre; from the inbound lane that centre
+ * is (8.5, z - 14), and at z 86 the corner cut 0.48 m into the block's
+ * north-west corner (15, 71.75). At 87.5 it clears it by 0.9 m (from the
+ * centre line it cleared by 0.71 m).
  */
-const TURN_IN_Z = 86;
+const TURN_IN_Z = 87.5;
 /**
- * The U-turn ends 2R west of the road, past the bay's centreline, and a
- * reverse curve of the same radius brings the truck back onto it. Ending the
- * U-turn on the centreline would need a 10 m radius, whose settled
- * articulation (0.96 rad) is past the coupling limit.
+ * The U-turn ends 2R west of the inbound lane, past the bay's centreline, and
+ * a reverse curve of the same radius brings the truck back onto it. Ending the
+ * U-turn on the centreline would need an 11.25 m radius, whose settled
+ * articulation (0.82 rad) is past the coupling limit. Coming in from the
+ * inbound lane moved the whole turn 2.5 m east of where it was on the centre
+ * line; the yard props on that side moved with it (the apron loads in
+ * dockYardDressingLayout, the receiving tyre-inspection pad), so each keeps
+ * the clearance it had.
  */
-const U_TURN_END_X = ROAD_X - 2 * TURN_RADIUS;
+const U_TURN_END_X = INBOUND_LANE_X - 2 * TURN_RADIUS;
 const S_BEND_TURN = Math.acos(1 - (DOCK_POSE.x - U_TURN_END_X) / (2 * TURN_RADIUS));
 /** Forward run on the centreline before stopping, which lets the trailer trail into line. */
 const POSITIONING_RUN = 4;
 const BACKING_END_Z = 64;
 /**
  * The departure S-bend: two 45-degree arcs of the turn radius joined by a
- * long diagonal, starting at PULLOUT_Z. It has to thread two yard props, both
- * checked by the footprint test: the weigh-scale booth west of the lane at
- * z 100.5-103.5 (any start past z 86 sweeps it) and the card-reader post
- * 2 m west of the road at z 99-103 in both yards. The trailer runs inside a
- * left turn, so the bend must still be on its diagonal, well west of the
- * post, as it passes; a start before z 82 put the tractor or the trailer
- * through the post. The old 60-degree bend from z 80 swept it on every exit.
+ * diagonal, starting at PULLOUT_Z and ending in the outbound lane at z 113,
+ * 6 m past the checkpoint's outbound arm (z 107), which the truck passes
+ * under already on the outbound half of the road. It has to thread
+ * the yard props the footprint test checks, among them the time-clock post
+ * at x 18, z 99-103 in both yards: the bend is still on its diagonal, well
+ * west of the post, as it passes. Ending in the outbound lane rather than on
+ * the centre line shortened the diagonal by 3.5 m and moved the last arc
+ * 2.5 m west, away from the post. The old 60-degree bend from z 80 swept the
+ * post on every exit.
  */
 const PULLOUT_Z = 84;
 const EXIT_TURN = Math.PI / 4;
 
-const SLOWING = composePath({ x: ROAD_X, z: 118, rotation: Math.PI }, [
+const SLOWING = composePath({ x: INBOUND_LANE_X, z: 118, rotation: Math.PI }, [
   { kind: 'line', length: 118 - TURN_IN_Z },
 ]);
 const TURNING_IN = composePath(SLOWING.end, [{ kind: 'arc', radius: TURN_RADIUS, turn: Math.PI }]);
@@ -223,20 +240,21 @@ const POSITIONING_END: PosePoint = {
 const BACKING_END: PosePoint = { x: DOCK_POSE.x, z: BACKING_END_Z, rotation: 0 };
 const PULLOUT_END: PosePoint = { x: DOCK_POSE.x, z: PULLOUT_Z, rotation: 0 };
 const EXIT_STRAIGHT =
-  (ROAD_X - DOCK_POSE.x - 2 * TURN_RADIUS * (1 - Math.cos(EXIT_TURN))) / Math.sin(EXIT_TURN);
+  (OUTBOUND_LANE_X - DOCK_POSE.x - 2 * TURN_RADIUS * (1 - Math.cos(EXIT_TURN))) /
+  Math.sin(EXIT_TURN);
 const TURNING_OUT = composePath(PULLOUT_END, [
   { kind: 'arc', radius: TURN_RADIUS, turn: EXIT_TURN },
   { kind: 'line', length: EXIT_STRAIGHT },
   { kind: 'arc', radius: TURN_RADIUS, turn: -EXIT_TURN },
 ]);
-const ACCELERATING_END: PosePoint = { x: ROAD_X, z: 165, rotation: 0 };
+const ACCELERATING_END: PosePoint = { x: OUTBOUND_LANE_X, z: 165, rotation: 0 };
 
 const POSES = {
-  tunnelIncoming: { x: ROAD_X, z: 238, rotation: Math.PI },
-  highway: { x: ROAD_X, z: 118, rotation: Math.PI },
+  tunnelIncoming: { x: INBOUND_LANE_X, z: 238, rotation: Math.PI },
+  highway: { x: INBOUND_LANE_X, z: 118, rotation: Math.PI },
   positioningEnd: POSITIONING_END,
   dock: DOCK_POSE,
-  tunnelOutgoing: { x: ROAD_X, z: 238, rotation: 0 },
+  tunnelOutgoing: { x: OUTBOUND_LANE_X, z: 238, rotation: 0 },
 } as const satisfies Record<string, PosePoint>;
 
 const PHASE_PATHS: Partial<Record<TruckPhase, ArcLengthPath>> = {
@@ -314,6 +332,17 @@ const SERVICE_DURATION: Record<TruckServicePhase, number> = {
 };
 
 const isReversePhase = (phase: TruckPhase): boolean => (MOVING_PHASE_TARGET_SPEED[phase] ?? 0) < 0;
+
+/**
+ * Which way a truck in this phase is going, 1 forward or -1 reversing: a
+ * standing phase answers for the move that follows it, and docked for none (0).
+ */
+export const truckPhaseDirection = (phase: TruckPhase): 1 | -1 | 0 => {
+  const target =
+    MOVING_PHASE_TARGET_SPEED[phase] ??
+    (phase === 'docked' ? 0 : (MOVING_PHASE_TARGET_SPEED[NEXT_PHASE[phase]] ?? 0));
+  return target > 0 ? 1 : target < 0 ? -1 : 0;
+};
 
 interface SpeedProfile {
   readonly distances: readonly number[];
@@ -596,6 +625,183 @@ const poseFromState = (
     rotation: normalizeVehicleAngle(canonical.rotation + Math.PI),
   };
 };
+
+/**
+ * The truck's tractor point and both yaws in world coordinates. The controller
+ * works in the shipping yard's frame; the receiving yard is that turned half a
+ * revolution about the site origin, exactly as poseFromState draws it.
+ */
+export function truckWorldFrame(
+  state: TruckControllerState,
+  out: { x: number; z: number; tractorYaw: number; trailerYaw: number }
+): { x: number; z: number; tractorYaw: number; trailerYaw: number } {
+  const turned = state.dock !== 'shipping';
+  out.x = turned ? -state.x : state.x;
+  out.z = turned ? -state.z : state.z;
+  out.tractorYaw = normalizeVehicleAngle(state.tractorYaw + (turned ? Math.PI : 0));
+  out.trailerYaw = normalizeVehicleAngle(state.trailerYaw + (turned ? Math.PI : 0));
+  return out;
+}
+
+/**
+ * How far the truck rolls from now if it starts braking for a stop: jerk-
+ * limited, from its present acceleration, at its full braking rate. The plain
+ * v^2 / 2a understated it badly for a truck still accelerating (15.4 m from
+ * 5 m/s at +1.4 m/s^2, against 10.4 m).
+ */
+export function truckStoppingDistance(state: TruckControllerState): number {
+  const step = 1 / 60;
+  let speed = Math.abs(state.motion.speed);
+  // Positive while it is speeding up in the way it is going.
+  let acceleration = Math.sign(state.motion.speed || 1) * state.motion.acceleration;
+  let distance = 0;
+  for (let i = 0; i < 6000 && speed > 0; i += 1) {
+    acceleration = Math.max(
+      acceleration - TRUCK_LIMITS.maximumJerk * step,
+      -TRUCK_LIMITS.maximumDeceleration
+    );
+    speed += acceleration * step;
+    if (speed > 0) distance += speed * step;
+  }
+  return distance;
+}
+
+/** Half-width of the tractor and trailer bodies, metres. */
+const TRUCK_BODY_HALF_WIDTH = 1.3;
+/** The tractor's body behind its origin (the drive axle is at 0.4 m). */
+const TRACTOR_REAR_OVERHANG = 0.6;
+/** The trailer's centre behind the tractor origin on its own heading, and its half-length. */
+const TRAILER_CENTRE_BEHIND = 5.75;
+const TRAILER_HALF_LENGTH = TRAILER_REAR_OVERHANG - TRAILER_CENTRE_BEHIND;
+/** Route step for the sweep ahead, metres. */
+const SWEEP_STEP_METRES = 0.5;
+const sweepPoint = { x: 0, z: 0, tangentX: 0, tangentZ: 1 };
+
+/** The path's point and unit tangent at `distance`, into `out`; allocates nothing. */
+const pathPointAt = (path: ArcLengthPath, distance: number, out: typeof sweepPoint) => {
+  const samples = path.samples;
+  const d = Math.max(0, Math.min(path.totalLength, distance));
+  let low = 0;
+  let high = samples.length - 1;
+  while (low + 1 < high) {
+    const middle = (low + high) >> 1;
+    if (samples[middle].distance <= d) low = middle;
+    else high = middle;
+  }
+  const a = samples[low];
+  const b = samples[high];
+  const t = Math.max(0, Math.min(1, (d - a.distance) / Math.max(1e-9, b.distance - a.distance)));
+  out.x = a.x + (b.x - a.x) * t;
+  out.z = a.z + (b.z - a.z) * t;
+  const tx = a.tangentX + (b.tangentX - a.tangentX) * t;
+  const tz = a.tangentZ + (b.tangentZ - a.tangentZ) * t;
+  const length = Math.hypot(tx, tz) || 1;
+  out.tangentX = tx / length;
+  out.tangentZ = tz / length;
+  return out;
+};
+
+/** Whether a circle at (px, pz) meets a box `ahead`/`behind` of (ox, oz) along `yaw`. */
+const circleMeetsBox = (
+  px: number,
+  pz: number,
+  radius: number,
+  ox: number,
+  oz: number,
+  yaw: number,
+  ahead: number,
+  behind: number
+): boolean => {
+  const dirX = Math.sin(yaw);
+  const dirZ = Math.cos(yaw);
+  const along = (px - ox) * dirX + (pz - oz) * dirZ;
+  const lateral = (px - ox) * dirZ - (pz - oz) * dirX;
+  const outAlong = along - Math.max(-behind, Math.min(ahead, along));
+  const outLateral =
+    lateral - Math.max(-TRUCK_BODY_HALF_WIDTH, Math.min(TRUCK_BODY_HALF_WIDTH, lateral));
+  return Math.hypot(outAlong, outLateral) < radius;
+};
+
+/**
+ * Whether the truck's body, over the next `distance` metres of its own route,
+ * comes within `radius` of world point (x, z). It walks the route ahead across
+ * its coming phases in half-metre steps, turning the trailer as the controller
+ * does (integrateTrailerYaw), and tests the tractor's and trailer's boxes at
+ * each: off-tracking on the turns, a trailer still swinging into line, the cab
+ * overhanging where the route reverses, the tail backing to the bumper, all
+ * exactly as they will be. Allowances added to a straight box or the route
+ * line held trucks short of forklifts they would never touch, or missed ones
+ * they would. Where it stands now is not tested: a truck that is about to move
+ * away from a forklift at its side is not in that forklift's way.
+ */
+export function truckSweepAheadMeets(
+  state: TruckControllerState,
+  distance: number,
+  x: number,
+  z: number,
+  radius: number
+): boolean {
+  if (!state.active || !(distance > 0)) return false;
+  // Into the controller's frame (the receiving yard is shipping turned about the origin).
+  const px = state.dock === 'shipping' ? x : -x;
+  const pz = state.dock === 'shipping' ? z : -z;
+  let trailerYaw = state.trailerYaw;
+  let phase: TruckPhase = state.phase;
+  let start = state.phaseDistance;
+  let travelled = 0;
+  for (let hops = 0; hops < 8; hops += 1) {
+    if (phase === 'docked') return false;
+    const path = PHASE_PATHS[phase];
+    if (path) {
+      const reverse = isReversePhase(phase);
+      for (let d = start; d < path.totalLength - 1e-6; ) {
+        const step = Math.min(SWEEP_STEP_METRES, path.totalLength - d);
+        d += step;
+        travelled += step;
+        const point = pathPointAt(path, d, sweepPoint);
+        const tractorYaw = normalizeVehicleAngle(
+          Math.atan2(point.tangentX, point.tangentZ) + (reverse ? Math.PI : 0)
+        );
+        trailerYaw = integrateTrailerYaw(
+          trailerYaw,
+          tractorYaw,
+          1,
+          TRAILER_AXLE_DISTANCE,
+          MAXIMUM_ARTICULATION,
+          step
+        );
+        if (
+          circleMeetsBox(
+            px,
+            pz,
+            radius,
+            point.x,
+            point.z,
+            tractorYaw,
+            TRACTOR_FRONT_OVERHANG,
+            TRACTOR_REAR_OVERHANG
+          ) ||
+          circleMeetsBox(
+            px,
+            pz,
+            radius,
+            point.x - Math.sin(trailerYaw) * TRAILER_CENTRE_BEHIND,
+            point.z - Math.cos(trailerYaw) * TRAILER_CENTRE_BEHIND,
+            trailerYaw,
+            TRAILER_HALF_LENGTH,
+            TRAILER_HALF_LENGTH
+          )
+        )
+          return true;
+        if (travelled >= distance) return false;
+      }
+      if (phase === 'leaving') return false;
+    }
+    start = 0;
+    phase = NEXT_PHASE[phase];
+  }
+  return false;
+}
 
 export function getTruckControllerPose(
   state: TruckControllerState,

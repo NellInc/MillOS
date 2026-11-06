@@ -141,14 +141,16 @@ export function demonstrationBeats(state: WorkplaceState) {
       title: translate(msg, 'beatReloadTitle'),
       section: 'Review',
       // Restore deliberately discards generic events, but preserves this canonical
-      // review reason for safe resume. Reading a preview never changes the source.
-      // Working if actual reload counts after sanitization and export alone does not.
-      observed: snapshots.some(
-        (s) =>
-          'reviewReason' in s &&
-          s.phase === 'review' &&
-          s.reviewReason === bilateralWorkplaceMessages.en.evReloadSafety
-      ),
+      // review reason for safe resume; resuming clears it and records the resume.
+      // Reading a preview never changes the source. Working if actual reload
+      // counts after sanitization, before and after its resume, and export alone does not.
+      observed:
+        snapshots.some(
+          (s) =>
+            'reviewReason' in s &&
+            s.phase === 'review' &&
+            s.reviewReason === bilateralWorkplaceMessages.en.evReloadSafety
+        ) || events.some((e) => e.kind === 'shift-resumed'),
       detail: translate(msg, 'beatReloadDetail'),
       evidence: translate(msg, 'beatReloadEvidence'),
     },

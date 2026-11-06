@@ -4,7 +4,12 @@ import { useOperationsCampaignStore, type ShiftCampaignReport } from './operatio
 import { useGameSimulationStore } from './gameSimulationStore';
 import { useKnowledgeStore } from './knowledgeStore';
 import { DEFAULT_CHARTER } from '../chronicle/charter';
-import { createInitialState, fundOf, recordOwnedIncident } from '../chronicle/engine';
+import {
+  createInitialState,
+  fundOf,
+  policyBlockReason,
+  recordOwnedIncident,
+} from '../chronicle/engine';
 import { NEUTRAL_EFFECT } from '../chronicle/effects';
 
 let reportCount = 0;
@@ -29,6 +34,7 @@ function closeShift(net = 2000, grade: ShiftCampaignReport['grade'] = 'A', pause
       qualityFailureKg: 0,
       incidentsResolved: 0,
       automaticActions: 0,
+      commitmentMinutes: 0,
     },
     completedOrderIds: [],
     openRisks: [],
@@ -177,6 +183,64 @@ describe('chronicle store', () => {
     expect(chronicle.firedScheduled).toContain('evt-standby-cover');
     expect(chronicle.firedScheduled).toContain('evt-valley-meeting');
     expect(chronicle.firedScheduled).not.toContain('evt-long-night');
+  });
+
+  it('loads a chronicle saved before part three on the middle of every ladder, with a crew', () => {
+    useChronicleStore.getState().sign(DEFAULT_CHARTER, 21);
+    const saved = { ...useChronicleStore.getState().chronicle, shift: 12 } as Record<
+      string,
+      unknown
+    >;
+    delete saved.governance;
+    const merge = useChronicleStore.persist.getOptions().merge!;
+    const restored = merge({ chronicle: saved }, useChronicleStore.getState()) as ReturnType<
+      typeof useChronicleStore.getState
+    >;
+    const governance = restored.chronicle.governance;
+    expect(governance.policies).toEqual({ maintenance: 1, intake: 1, stock: 1, orders: 1 });
+    expect(governance.crew).toHaveLength(6);
+    expect(governance.reserve).toEqual({ balance: 0, autofill: false, drawn: 0 });
+    expect(governance.brief).toBe('conventional');
+    expect(governance.tally.year).toBe(restored.chronicle.crop?.index ?? 0);
+    // A damaged save keeps what it can and repairs the rest.
+    const damaged = merge(
+      {
+        chronicle: {
+          ...saved,
+          governance: { policies: { maintenance: 7 }, crew: 'x', brief: 'ruthless' },
+        },
+      },
+      useChronicleStore.getState()
+    ) as ReturnType<typeof useChronicleStore.getState>;
+    expect(damaged.chronicle.governance.policies.maintenance).toBe(1);
+    expect(damaged.chronicle.governance.crew).toHaveLength(6);
+    expect(damaged.chronicle.governance.brief).toBe('conventional');
+  });
+
+  it('puts a policy change to the assembly from the store', () => {
+    useChronicleStore.getState().sign(DEFAULT_CHARTER, 21);
+    // A change costs 4 know-how, which a chronicle earns from its first shift grades.
+    const signed = useChronicleStore.getState().chronicle;
+    expect(policyBlockReason(signed, 'orders', 2)).toMatch(/know-how/);
+    useChronicleStore.setState({
+      chronicle: {
+        ...signed,
+        ledger: { ...signed.ledger, knowHow: { ...signed.ledger.knowHow, grades: 20 } },
+      },
+    });
+    const before = useChronicleStore.getState().chronicle.governance.policies.orders;
+    useChronicleStore.getState().propose('orders', 2);
+    const after = useChronicleStore.getState().chronicle;
+    // Either the assembly carried it, or it stands open before them.
+    expect(after.governance.policies.orders !== before || after.governance.proposal !== null).toBe(
+      true
+    );
+    expect(after.ledger.knowHow.policies + after.ledger.knowHow.grades).toBeLessThanOrEqual(20);
+    useChronicleStore.getState().withdraw();
+    useChronicleStore.getState().setBrief('thrift');
+    expect(useChronicleStore.getState().chronicle.governance.brief).toBe('thrift');
+    useChronicleStore.getState().setReserveAutofill(true);
+    expect(useChronicleStore.getState().chronicle.governance.reserve.autofill).toBe(true);
   });
 
   it('releases its fire and incidents when abandoned', () => {

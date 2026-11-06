@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
-import { useGraphicsStore } from '../../stores/graphicsStore';
+import { isPostProcessingActive, useGraphicsStore } from '../../stores/graphicsStore';
 import { RENDER_ORDER, SHADOW_CONFIG } from '../../constants/renderLayers';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import {
@@ -288,6 +288,18 @@ void main() {
   gl_FragColor = vec4(sky, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+
+  // OUTPUT DITHER, defined only where this shader writes the 8-bit canvas
+  // directly (\`low\`, no composer; see \`skyMaterial.dithering\` below). The
+  // composer tiers dither once, in their screen pass. three's
+  // <dithering_fragment> needs \`rand\` from <common>, which this shader does
+  // not include, so the same +-0.5 LSB offset is written out here with
+  // interleaved gradient noise (Jimenez 2014) as the per-pixel grid value.
+  #ifdef DITHERING
+  float ditherGrid = fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) );
+  vec3 ditherShift = vec3( 0.25, -0.25, 0.25 ) / 255.0;
+  gl_FragColor.rgb += mix( 2.0 * ditherShift, -2.0 * ditherShift, ditherGrid );
+  #endif
 }
 `;
 
@@ -1152,12 +1164,32 @@ export const CELESTIAL_RADIUS = 930;
 const CELESTIAL_SCALE = CELESTIAL_RADIUS / 345;
 const STAR_RADIUS = 950;
 const radialGlowTexture = createRadialGlowTexture(64);
+/**
+ * THE DISC IS THE BRIGHTEST POINT IN ITS OWN GLARE.
+ *
+ * The core used to be drawn with normal blending in an LDR colour over a sky
+ * glare, a halo sprite and an additive glow that already sum past white. It
+ * REPLACED that sum with something dimmer, so the noon capture showed a dark
+ * yellow dot (252, 244, 209) inside a white aureole (255, 255, 235).
+ *
+ * Additive blending keeps the disc at least as bright as what is behind it,
+ * and a scene-referred radiance well above 1 lets the tone curve roll it to a
+ * near-white peak (Neutral desaturates highlights) while the warm aureole
+ * around it keeps the colour. A near-white noon core matters: Neutral scales a
+ * bright pixel's channels by one shared factor, so a saturated yellow core,
+ * however bright, still rolls its blue channel BELOW a warm-white glare. Golden
+ * hour keeps its orange disc at a lower radiance. `low` has no composer and
+ * `toneMapped` is false, so there the sum clips to the same white.
+ */
+export const SUN_CORE_RADIANCE = { noon: 4, golden: 2.5 } as const;
+
 const sunCoreMaterial = new THREE.MeshBasicMaterial({
-  color: '#fff0b3',
+  color: new THREE.Color('#fffdf6').multiplyScalar(SUN_CORE_RADIANCE.noon),
   fog: false,
   toneMapped: false,
   transparent: true,
   opacity: 1,
+  blending: THREE.AdditiveBlending,
   depthWrite: false,
 });
 const sunGlowMaterial = new THREE.MeshBasicMaterial({
@@ -1572,7 +1604,7 @@ const nightCloudShadow = new THREE.Color('#28303f');
 const blueHourCloudShadow = new THREE.Color('#293b5d');
 const lightDay = new THREE.Color('#fff1cf');
 const lightGolden = new THREE.Color('#ffb15d');
-const sunCoreNoon = new THREE.Color('#fff8d8');
+const sunCoreNoon = new THREE.Color('#fffdf6');
 const sunCoreGolden = new THREE.Color('#ffd064');
 const sunHaloNoon = new THREE.Color('#ffe6a6');
 const sunHaloGolden = new THREE.Color('#ff9f43');
@@ -1686,6 +1718,7 @@ export function createRidgeMaterial(
 export function OptimizedSkySystem() {
   const scene = useThree((state) => state.scene);
   const quality = useGraphicsStore((state) => state.graphics.quality);
+  const composerActive = useGraphicsStore((state) => isPostProcessingActive(state.graphics));
   const enableHighResShadows = useGraphicsStore((state) => state.graphics.enableHighResShadows);
   const configuredShadowMapSize = useGraphicsStore((state) => state.graphics.shadowMapSize);
   // Every tier except `low` casts sun shadows. `low` is the one forward-only
@@ -1784,6 +1817,16 @@ export function OptimizedSkySystem() {
   }, [ridgeMaterials]);
 
   useEffect(() => () => skyMaterial.dispose(), [skyMaterial]);
+
+  // The dome is the largest smooth gradient in the frame. Where no composer
+  // runs, this shader's own output is the 8-bit write, so it dithers itself;
+  // under a composer it writes HalfFloat and the screen pass dithers instead.
+  // A tier change recompiles the dome once.
+  useEffect(() => {
+    if (skyMaterial.dithering === !composerActive) return;
+    skyMaterial.dithering = !composerActive;
+    skyMaterial.needsUpdate = true;
+  }, [skyMaterial, composerActive]);
 
   // `DirectionalLightShadow` allocates its depth target once and never resizes
   // it, so changing `shadow.mapSize` on a light that has already rendered is a
@@ -1944,7 +1987,12 @@ export function OptimizedSkySystem() {
       response,
       delta
     );
-    targetSunCoreScratch.copy(sunCoreNoon).lerp(sunCoreGolden, celestial.goldenHour);
+    targetSunCoreScratch
+      .copy(sunCoreNoon)
+      .lerp(sunCoreGolden, celestial.goldenHour)
+      .multiplyScalar(
+        THREE.MathUtils.lerp(SUN_CORE_RADIANCE.noon, SUN_CORE_RADIANCE.golden, celestial.goldenHour)
+      );
     targetSunHaloScratch.copy(sunHaloNoon).lerp(sunHaloGolden, celestial.goldenHour);
     sunCoreMaterial.color.lerp(targetSunCoreScratch, colourAlpha);
     sunGlowMaterial.color.lerp(targetSunHaloScratch, colourAlpha);

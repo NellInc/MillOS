@@ -13,7 +13,8 @@ import { getTourCameraPreset, TOUR_CAMERA_PRESETS } from './tourCamera';
 const flightPoint = (from: number, to: number, t: number): Vec3Tuple => {
   const start = CAMERA_PRESETS[from].position;
   const end = CAMERA_PRESETS[to].position;
-  return [0, 1, 2].map((axis) => start[axis] + (end[axis] - start[axis]) * t) as Vec3Tuple;
+  const lerp = (axis: 0 | 1 | 2) => start[axis] + (end[axis] - start[axis]) * t;
+  return [lerp(0), lerp(1), lerp(2)];
 };
 
 const FLIGHT_SAMPLES = 400;

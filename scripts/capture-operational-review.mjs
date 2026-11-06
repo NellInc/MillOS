@@ -1305,6 +1305,19 @@ async function exercisePlantReplay(page, mobile = false) {
   };
 }
 
+const LEGACY_DOCK_STYLE = `
+  #navigation-dock.millos-glass {
+    background-color: rgb(7 23 34 / 0.95) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    backdrop-filter: blur(24px) !important;
+    border-color: rgb(207 250 254 / 0.15) !important;
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25) !important;
+    text-shadow: none !important;
+  }
+  #navigation-dock.millos-glass::before,
+  #navigation-dock.millos-glass::after { display: none !important; }
+`;
+
 const SCENARIOS = {
   'workplace-replay': {
     title: 'Matched operational replay across toe-dip, team and cooperative charters',
@@ -1366,6 +1379,47 @@ const SCENARIOS = {
     dockLabel: 'Mill Overview',
     surfaceRole: 'complementary',
     surfaceName: 'Mill Overview sidebar panel',
+  },
+  // Liquid glass on the dock against the look it replaced, in one build. The
+  // legacy arm restores the replaced utility classes exactly: bg-[#071722]/95,
+  // backdrop-blur-xl (24px), border-cyan-100/15 and shadow-2xl.
+  ...Object.fromEntries(
+    [
+      ['dock-glass', DESKTOP_VIEWPORT, false],
+      ['dock-legacy', DESKTOP_VIEWPORT, true],
+      ['dock-glass-mobile', MOBILE_VIEWPORT, false],
+      ['dock-legacy-mobile', MOBILE_VIEWPORT, true],
+    ].map(([name, viewport, legacy]) => [
+      name,
+      {
+        title: `Navigation dock, ${legacy ? 'legacy near-opaque' : 'liquid glass'}`,
+        viewport,
+        prepare: async () => {},
+        surfaceRole: 'navigation',
+        surfaceName: 'Main Navigation',
+        styleOverride: legacy ? LEGACY_DOCK_STYLE : null,
+      },
+    ])
+  ),
+  'mobile-overview': {
+    title: 'Mill overview sheet at phone width',
+    viewport: MOBILE_VIEWPORT,
+    dockLabel: 'Mill Overview',
+    surfaceRole: 'dialog',
+    surfaceName: 'Mill Overview mobile panel',
+  },
+  'scada-workspace': {
+    title: 'Full simulated SCADA workspace',
+    viewport: DESKTOP_VIEWPORT,
+    prepare: async (page) => {
+      await page.getByRole('button', { name: 'Simulated SCADA', exact: true }).click();
+      await page
+        .getByRole('complementary', { name: 'Simulated SCADA sidebar panel' })
+        .getByRole('button', { name: 'Open full SCADA workspace', exact: true })
+        .click();
+    },
+    surfaceRole: 'dialog',
+    surfaceName: 'Full simulated SCADA workspace',
   },
   'scada-overview': {
     title: 'SCADA overview',
@@ -1566,7 +1620,7 @@ const SCENARIOS = {
     surfaceName: 'Safety & Emergency sidebar panel',
     afterOpen: async (page) => {
       await page.getByRole('button', { name: 'START DRILL', exact: true }).click();
-      await page.getByRole('alert', { name: 'Simulated fire drill', exact: true }).waitFor();
+      await page.getByRole('alert', { name: 'Egress verification drill', exact: true }).waitFor();
     },
   },
   'facility-stop': {
@@ -1638,7 +1692,7 @@ const SCENARIOS = {
       // GameInterface becomes aria-hidden while the modal mobile panel owns
       // focus, but the emergency overlay remains deliberately visible above it.
       await page
-        .locator('[role="alert"][aria-label="Simulated fire drill"]')
+        .locator('[role="alert"][aria-label="Egress verification drill"]')
         .waitFor({ state: 'visible' });
       await panel
         .getByRole('group', { name: 'Emergency egress verification drill' })
@@ -2383,6 +2437,15 @@ const SCENARIO_SETS = {
     'facility-recovery',
     'mobile-fire-drill',
   ],
+  glass: ['dock-glass', 'dock-legacy', 'dock-glass-mobile', 'dock-legacy-mobile'],
+  'glass-interface': [
+    'dock-glass',
+    'dock-glass-mobile',
+    'overview',
+    'scada-workspace',
+    'mobile-overview',
+    'camera-menu-landscape',
+  ],
   workplace: ['workplace-game', 'workplace-mobile', 'workplace-practices', 'workplace-pilot'],
   'living-cooperative': ['workplace-campaign', 'workplace-campaign-mobile'],
   'linked-cooperative': ['workplace-mission', 'workplace-mission-mobile'],
@@ -2434,7 +2497,7 @@ Usage:
 
 Options:
   --label=<name>        Required. Output under test-results/operational-review
-  --set=<name>          quick, desktop, safety, workplace, living-cooperative, linked-cooperative, workplace-replay, workplace-dissent, worker-improvement, or full; default full
+  --set=<name>          quick, desktop, glass, glass-interface, safety, workplace, living-cooperative, linked-cooperative, workplace-replay, workplace-dissent, worker-improvement, or full; default full
   --states=<list>       Explicit comma-separated state names, overrides --set
   --quality=<tier>      low, medium, high, or ultra; default medium
   --port=<number>       Local preview port; default 4174
@@ -2729,6 +2792,7 @@ async function runScenario(browser, baseUrl, stateName) {
     else await page.getByRole('button', { name: scenario.dockLabel, exact: true }).click();
     const surface = page.getByRole(scenario.surfaceRole, { name: scenario.surfaceName });
     await surface.waitFor({ state: 'visible', timeout: 30_000 });
+    if (scenario.styleOverride) await page.addStyleTag({ content: scenario.styleOverride });
     const interactionEvidence = scenario.afterOpen ? await scenario.afterOpen(page) : null;
     await page.waitForTimeout(options.settleSeconds * 1000);
     await page.screenshot({ path: imagePath, fullPage: true, timeout: 30_000 });
@@ -2856,8 +2920,9 @@ async function main() {
 
   const baseUrl = await startPreview();
   const browser = await chromium.launch({
+    chromiumSandbox: true,
     headless: !options.headed,
-    channel: options.browserChannel || undefined,
+    channel: options.browserChannel || undefined || 'chrome',
     args: ['--mute-audio'],
   });
   const results = [];

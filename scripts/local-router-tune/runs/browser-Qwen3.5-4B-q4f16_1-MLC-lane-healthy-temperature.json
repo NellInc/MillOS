@@ -1,0 +1,1244 @@
+{
+ "model": "Qwen3.5-4B-q4f16_1-MLC",
+ "fastLane": true,
+ "fetchedRepos": [],
+ "at": "2026-11-04T13:32:35.612Z",
+ "loadSeconds": 45.015,
+ "load": [
+  8.583984375,
+  7.712890625,
+  9.47021484375
+ ],
+ "summary": {
+  "strategyByTemperature": {
+   "0.7": {
+    "hits": 48,
+    "parsed": 48,
+    "n": 50,
+    "medianSeconds": 33.2,
+    "overriddenAll": true
+   },
+   "0.3": {
+    "hits": 50,
+    "parsed": 50,
+    "n": 50,
+    "medianSeconds": 33,
+    "overriddenAll": true
+   }
+  },
+  "strategy": {
+   "hits": 98,
+   "parsed": 98,
+   "n": 100,
+   "medianSeconds": 33
+  }
+ },
+ "routing": {},
+ "strategic": [
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 21.3
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 25.1
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 37.5
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 49.1
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 43.2
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 31.5
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 44.4
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 27.3
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 38.6
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 31
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 33.7
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 34.6
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 36.1
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 33
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 53.4
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 44.1
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 45.2
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 32.6
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 36.7
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 32.5
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 34.8
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 35.2
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 29.6
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 32.1
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 36.6
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 32.4
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 24.4
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 29.5
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 35.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 39.8
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 39.6
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 33.2
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 37.6
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 35.1
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 34.4
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 31.7
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 25.7
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 25.1
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": false,
+   "hit": false,
+   "focus": null,
+   "seconds": 37.2,
+   "raw": "{\"priorities\": [\"STOP sifter-b immediately due to critical vibration\", \"Rebalance production flow to isolate fault\", \"Schedule preventive maintenance for sifter-b\"], \"reasoning\": \"Sifter-b exhibits abnormal vibration (4.32 vs 1.44) and elevated temperature (47.9 vs 29.9) with high wear (93), indicat"
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 27.8
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 31.9
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 28.9
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 28
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 32.8
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 28.1
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 29.1
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 32.5
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 35
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 46.7
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 35.4
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 31.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 31.2
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 35.5
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 31.5
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 40.2
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 41.3
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 33.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 27.4
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 25.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 35.4
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 27.8
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 26.5
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 23.6
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 26.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 27.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 28.7
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 24.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 26.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 27.2
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 30.2
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 22.6
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 23.3
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 25.6
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 30.1
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 38
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 52
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 42.8
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 55
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 60.9
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 47.7
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 30.6
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 22.4
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": false,
+   "hit": false,
+   "focus": null,
+   "seconds": 32.9,
+   "raw": "{\"priorities\": [\"Immediate safety stop for packer-0\", \"Reduce load on packer-0 to prevent overheating\", \"Schedule maintenance for packer-0\"], \"reasoning\": \"Packer-0 is running at 74% load with elevated temperature (47.9°C) and vibration (4.32) despite 93% wear, indicating imminent failure risk that "
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 75.4
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 72
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 44.6
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 32.6
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 21
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 45.6
+  },
+  {
+   "temperature": 0.7,
+   "overridden": [
+    0.7
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 48.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-102",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-102",
+   "seconds": 52.8
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "sifter-a",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-a",
+   "seconds": 47.4
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "packer-0",
+   "parsed": true,
+   "hit": true,
+   "focus": "packer-0",
+   "seconds": 32.6
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "planted",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 24.5
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "rm-103",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-103",
+   "seconds": 46.1
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "two-anomalies",
+   "want": "sifter-c",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-c",
+   "seconds": 36.9
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-07",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-07",
+   "seconds": 43
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "opaque-ids",
+   "want": "unit-01",
+   "parsed": true,
+   "hit": true,
+   "focus": "unit-01",
+   "seconds": 27.7
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "sifter-b",
+   "parsed": true,
+   "hit": true,
+   "focus": "sifter-b",
+   "seconds": 50.2
+  },
+  {
+   "temperature": 0.3,
+   "overridden": [
+    0.3
+   ],
+   "kind": "no-status",
+   "want": "rm-101",
+   "parsed": true,
+   "hit": true,
+   "focus": "rm-101",
+   "seconds": 48.3
+  }
+ ],
+ "console": [
+  "12:33:20 [INFO] [WebGPU] Model Qwen3.5-4B-q4f16_1-MLC loaded successfully (worker, with fast lane)"
+ ]
+}

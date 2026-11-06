@@ -13,11 +13,12 @@ import {
  * (`truckController.ts`, checked in `truckController.test.ts`) leaves two clear
  * pieces of yard in view:
  *
- *  - the middle of the turning loop, x 3-16 / z 82-90, which every truck drives
+ *  - the middle of the turning loop, round (8.5, 87.5) since the trucks keep
+ *    right (it was x 3-16 / z 82-90 round (6, 86)), which every truck drives
  *    round and none crosses. It becomes a kerbed pallet island: empty pallet
  *    stacks, loads waiting for the next trailer, a pallet jack, spare chocks, a
  *    spare dock board and a spill kit, with a bollard at each corner.
- *  - the strip east of the x 18-21 inbound lane, beside the dispatch box, where
+ *  - the strip east of the x 21-24 inbound lane, beside the dispatch box, where
  *    two wrapped loads and a short pallet stack wait to be staged.
  *
  * World metres; the shipping yard only (receiving is not in a graded frame and
@@ -149,11 +150,15 @@ export function paintedLegendBounds(legend: {
   };
 }
 
-/** Props standing on the apron itself, east of the inbound lane. */
+/**
+ * Props standing on the apron itself, east of the inbound lane. The trucks
+ * keep right, so the lane is x 21-24 (it was the centre line, x 18-21) and
+ * these stand 2.5 m further east than they did, the same distance off it.
+ */
 export const DOCK_APRON_ITEMS: readonly DockDressingItem[] = [
-  { id: 'lane-load-a', kind: 'load', at: [24.2, 81.4], rotation: Math.PI / 2 },
-  { id: 'lane-load-b', kind: 'load', at: [24.3, 83.1], rotation: Math.PI / 2 + 0.04 },
-  { id: 'lane-empties', kind: 'palletStack', at: [24.6, 86.2], rotation: 0.08, count: 6 },
+  { id: 'lane-load-a', kind: 'load', at: [26.7, 81.4], rotation: Math.PI / 2 },
+  { id: 'lane-load-b', kind: 'load', at: [26.8, 83.1], rotation: Math.PI / 2 + 0.04 },
+  { id: 'lane-empties', kind: 'palletStack', at: [27.1, 86.2], rotation: 0.08, count: 6 },
 ];
 
 const FOOTPRINT: Record<DockDressingKind, readonly [number, number]> = {

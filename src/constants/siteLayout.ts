@@ -582,7 +582,8 @@ export const SITE_LAYOUT = {
       { position: [115, 0, -80] as Vec3Tuple, radius: 6 },
     ],
     nissenHuts: [
-      { position: [-75, 0, -100] as Vec3Tuple, length: 14, rotation: 0 },
+      // Door (local -Z) faces the site uphill, not the river bank 1.2 m down.
+      { position: [-75, 0, -100] as Vec3Tuple, length: 14, rotation: Math.PI },
       { position: [85, 0, -100] as Vec3Tuple, length: 10, rotation: Math.PI / 2 },
     ],
   },
@@ -747,8 +748,10 @@ export const SITE_LAYOUT = {
     // into the terrain with 25 m sloped banks.
     river: { position: [34, 16, -118], target: [0, -2, -145] },
     // Exterior sweep cameras, one per feature that had never been framed.
-    // Tunnel portal at (160, 0, 50), rotated a quarter turn, 15 m long.
-    tunnel: { position: [132, 8, 36], target: [160, 3, 50] },
+    // Riverside station (constants/railwayLayout.ts), which replaced the
+    // Victorian road tunnel at (160, 0, 50): over the car park's north-west
+    // corner to the street front, the cross gable and the platform beyond.
+    railway: { position: [116, 11, 20], target: [150, 3, 55] },
     // Nissen hut at (-75, 0, -100), 14 m long, with the modern path lamps.
     huts: { position: [-52, 8, -78], target: [-75, 3, -100] },
     // Four-floor office block at (-78, 0, 95).
@@ -759,6 +762,9 @@ export const SITE_LAYOUT = {
     canal: { position: [-137, 13, 72], target: [-145, 0, 34] },
     // Lake at (120, 0, 120), 40 x 30 m, with the picnic tables and LAKE sign.
     lake: { position: [86, 14, 86], target: [120, 0, 120] },
+    // 3 m over the lake's south-west shallows, looking across the basin.
+    // Working if the bed shows its moving caustic network under the surface.
+    lakeside: { position: [108, 3.2, 110], target: [118, 0, 120] },
     // Bus stop at (29, 0, 140) beside the front road.
     busstop: { position: [44, 5, 122], target: [29, 2, 140] },
     // South truck road tunnel: portal at (20, 0, 220), bore running out to +Z
@@ -812,6 +818,25 @@ export const SITE_LAYOUT = {
       maxZ: 100,
     },
   } satisfies Record<string, SiteBounds>,
+} as const;
+
+/**
+ * THE VALLEY ROADS KEEP RIGHT. Each truck road is a 10 m two-lane carriageway
+ * (the yard road in TruckBay, the tunnel's own road) either side of a yellow
+ * centre line on its tunnel's x, and everything that drives it keeps to the
+ * middle of the 5 m lane on its right. A vehicle heading -z has +x on its
+ * right, so on the south road the southbound lane (toward the yard) is
+ * x 22.5 and the northbound lane (out to the tunnel) is x 17.5. The north road
+ * is the same layout turned half a revolution about the site origin, as the
+ * receiving truck's whole route is. Both trucks used to drive the centre
+ * line itself in both directions.
+ * Working if no truck or bus straddles a centre line between its tunnel and
+ * its checkpoint (`truckController.test.ts`).
+ */
+export const SOUTH_ROAD_LANES = {
+  centre: SITE_LAYOUT.roadTunnels.south.position[0],
+  southbound: SITE_LAYOUT.roadTunnels.south.position[0] + 2.5,
+  northbound: SITE_LAYOUT.roadTunnels.south.position[0] - 2.5,
 } as const;
 
 /** Conveyor ports are derived from the actual elevator and end bins.

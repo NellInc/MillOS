@@ -34,7 +34,12 @@ const SILO_IDS = ['silo-0', 'silo-1', 'silo-2', 'silo-3', 'silo-4'];
 const GRAIN_TYPES = ['Wheat', 'Corn', 'Barley', 'Oats', 'Rye'];
 
 const siloTags: TagDefinition[] = SILO_NAMES.flatMap((name, idx) => [
-  // Level Transmitter
+  // Level Transmitter: the silo's stock in the material model as a share of
+  // its capacity (store.ts buildOperationalTelemetry), the stock the Machine
+  // Inspector shows. No low limits: milling empties a silo by design and trucks
+  // top up the emptiest one; raw inventory alarms on OPERATIONS.WT001. A full
+  // silo is a HIGH notice, not a CRITICAL one: a truck it cannot take is the
+  // delivery schedule's own outcome, not a safety condition.
   {
     id: `SILO_${name}.LT001.PV`,
     get name() {
@@ -46,10 +51,7 @@ const siloTags: TagDefinition[] = SILO_NAMES.flatMap((name, idx) => [
     engUnit: '%',
     engLow: 0,
     engHigh: 100,
-    alarmLo: 10,
-    alarmLoLo: 5,
     alarmHi: 95,
-    alarmHiHi: 98,
     deadband: 2,
     machineId: SILO_IDS[idx],
     group: 'LEVEL' as const,
@@ -254,7 +256,12 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
       statusDependent: true,
     },
   },
-  // Feed Rate
+  // Feed Rate: the grain this mill's rolls process in the material model, in
+  // t per GAME hour (store.ts buildOperationalTelemetry). Rated 50 kg per plant
+  // second is 6 t/h; on a steady line the packers hold each mill at ~2-4.5 t/h.
+  // No low limits: the line works to its order, so a mill runs empty by design
+  // whenever the order's remainder is covered. Empty silos alarm on
+  // OPERATIONS.WT001 instead.
   {
     id: `RM${num}.FT001.PV`,
     get name() {
@@ -265,16 +272,14 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
     accessMode: 'READ' as const,
     engUnit: 't/h',
     engLow: 0,
-    engHigh: 50,
-    alarmLo: 10,
-    alarmLoLo: 5,
+    engHigh: 10,
+    deadband: 0.1,
     machineId: MILL_IDS[idx],
     group: 'FLOW' as const,
     simulation: {
-      baseValue: 25 + idx * 2,
-      noiseAmplitude: 1.5,
+      baseValue: 3.3,
+      noiseAmplitude: 0,
       driftRate: 0,
-      loadFactor: true,
       statusDependent: true,
     },
   },
@@ -418,24 +423,30 @@ const PACKER_NUMBERS = ['1', '2', '3'];
 const PACKER_IDS = ['packer-0', 'packer-1', 'packer-2'];
 
 const packerTags: TagDefinition[] = PACKER_NUMBERS.flatMap((num, idx) => [
-  // Bag Counter
+  // Feed Rate: the flour or semolina this line packs in the material model, in
+  // t per GAME hour (store.ts buildOperationalTelemetry), so the three lines sum
+  // to OPERATIONS.FT001. Rated 25 kg per plant second is 3 t/h. It replaces a
+  // bag counter that had no source and read 0 on a working line, which the
+  // Machine Inspector showed as the line's feed. No low limits: a line idles
+  // by design whenever its order's remainder is packed.
   {
-    id: `PACKER_${num}.CT001.PV`,
+    id: `PACKER_${num}.FT001.PV`,
     get name() {
-      return translate(msg, 'packerBagCount', { packer: num });
+      return translate(msg, 'packerFeedRate', { packer: num });
     },
-    description: `Packing Line ${num} bags produced in the active run window`,
-    dataType: 'INT32' as const,
+    description: `Packing Line ${num} product feed rate`,
+    dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
-    engUnit: 'bags',
+    engUnit: 't/h',
     engLow: 0,
-    engHigh: 10000,
+    engHigh: 10,
+    deadband: 0.1,
     machineId: PACKER_IDS[idx],
     group: 'FLOW' as const,
     simulation: {
       baseValue: 0,
       noiseAmplitude: 0,
-      driftRate: 0.5, // ~1800 bags/hour when running
+      driftRate: 0,
       statusDependent: true,
     },
   },
@@ -518,6 +529,9 @@ const packerTags: TagDefinition[] = PACKER_NUMBERS.flatMap((num, idx) => [
 // ============================================================================
 // Utility & Ambient (10 tags)
 // ============================================================================
+
+/** Whole-site electrical demand in kW, published from the energy model. */
+export const TOTAL_POWER_TAG_ID = 'UTILITY.PT002.PV';
 
 const utilityTags: TagDefinition[] = [
   // Ambient Temperature
@@ -615,9 +629,11 @@ const utilityTags: TagDefinition[] = [
       driftRate: 0,
     },
   },
-  // Total Power
+  // Total Power: the site demand the Energy dashboard shows and the campaign
+  // bills (store.ts currentOperationalTelemetry); the simulation below is only
+  // the reading before the bridge first publishes.
   {
-    id: 'UTILITY.PT002.PV',
+    id: TOTAL_POWER_TAG_ID,
     get name() {
       return translate(msg, 'totalPower');
     },
@@ -737,18 +753,17 @@ const utilityTags: TagDefinition[] = [
     description: 'Combined throughput from all roller mills',
     dataType: 'FLOAT32' as const,
     accessMode: 'READ' as const,
+    // The sum of the four RM*.FT001 feed tags, on the same game clock.
     engUnit: 't/h',
     engLow: 0,
-    engHigh: 300,
-    alarmLo: 100,
-    alarmLoLo: 50,
+    engHigh: 40,
+    deadband: 0.1,
     machineId: 'utility',
     group: 'FLOW' as const,
     simulation: {
-      baseValue: 150,
-      noiseAmplitude: 10,
+      baseValue: 13,
+      noiseAmplitude: 0,
       driftRate: 0,
-      loadFactor: true,
     },
   },
 ];
@@ -991,6 +1006,24 @@ const vehicleTags: TagDefinition[] = Object.entries(VEHICLE_TAG_IDS).flatMap(([v
   ];
 });
 
+/** Each roller mill's feed transmitter, published from the material model. */
+export const MILL_FEED_TAG_IDS: Readonly<Record<string, string>> = Object.fromEntries(
+  MILL_IDS.map((id, idx) => [id, `RM${MILL_NUMBERS[idx]}.FT001.PV`])
+);
+
+/** Each silo's level transmitter, published from the material model. */
+export const SILO_LEVEL_TAG_IDS: Readonly<Record<string, string>> = Object.fromEntries(
+  SILO_IDS.map((id, idx) => [id, `SILO_${SILO_NAMES[idx]}.LT001.PV`])
+);
+
+/** Each packing line's feed transmitter, published from the material model. */
+export const PACKER_FEED_TAG_IDS: Readonly<Record<string, string>> = Object.fromEntries(
+  PACKER_IDS.map((id, idx) => [id, `PACKER_${PACKER_NUMBERS[idx]}.FT001.PV`])
+);
+
+/** Combined roller-mill throughput: the sum of MILL_FEED_TAG_IDS. */
+export const MILL_THROUGHPUT_TAG_ID = 'UTILITY.FT002.PV';
+
 /** Stable IDs used by the material-flow bridge and control workspace. */
 export const OPERATION_TAG_IDS = {
   rawInventory: 'OPERATIONS.WT001.PV',
@@ -1062,15 +1095,19 @@ const operationalTags: TagDefinition[] = [
     get name() {
       return translate(msg, 'finalPackingFlow');
     },
+    // t per GAME hour, the clock the HUD's bag rate is read on: three packers
+    // at 25 kg per plant second are 9 t/h.
     description: 'Causal final-stage production throughput',
     dataType: 'FLOAT32',
     accessMode: 'READ',
     engUnit: 't/h',
     engLow: 0,
-    engHigh: 400,
+    engHigh: 20,
+    // Historian resolution at the game-hour scale; the 0.5 default is 5% of 9 t/h.
+    deadband: 0.1,
     machineId: 'operations',
     group: 'FLOW',
-    simulation: { baseValue: 270, noiseAmplitude: 0, driftRate: 0 },
+    simulation: { baseValue: 9, noiseAmplitude: 0, driftRate: 0 },
   },
   {
     id: OPERATION_TAG_IDS.materialBalanceError,

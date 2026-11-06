@@ -21,6 +21,7 @@ import {
   ORBIT_POLAR_LIMITS,
   clampNavigationDelta,
   getNavigationIntent,
+  releaseNavigationKey,
   shouldHandleNavigationKey,
   shouldPreventNavigationDefault,
   syncOrbitTargetToAcceptedTranslation,
@@ -180,10 +181,25 @@ interface CameraStore {
   targetLookAt: THREE.Vector3 | null;
   targetFov: number;
   isAnimating: boolean;
+  /** The lens is easing back to `targetFov` with no flight running. */
+  lensReturning: boolean;
+  /**
+   * The flight a manual takeover (an orbit drag, a zoom, W A S D) last
+   * cancelled, so the detail view that opened it can still release its lens.
+   * A newer flight or preset clears it.
+   */
+  cancelledFlight: THREE.Vector3 | null;
   setPreset: (index: number) => void;
   focusOn: (position: [number, number, number], target: [number, number, number]) => void;
   clearAnimation: () => void;
   cancelAnimation: () => void;
+  /**
+   * A detail view (a cutaway lesson's narrow lens) is done with the camera:
+   * stop its flight if one is running and ease the lens back to the ordinary
+   * 65 degrees. `owned` is the flight's targetPosition; a newer flight or
+   * preset owns the camera and is left alone.
+   */
+  releaseFocus: (owned: THREE.Vector3 | null) => void;
 }
 
 export const useCameraStore = create<CameraStore>((set) => ({
@@ -192,6 +208,8 @@ export const useCameraStore = create<CameraStore>((set) => ({
   targetLookAt: null,
   targetFov: 65,
   isAnimating: false,
+  lensReturning: false,
+  cancelledFlight: null,
   setPreset: (index) => {
     if (index >= 0 && index < CAMERA_PRESETS.length) {
       const preset = CAMERA_PRESETS[index];
@@ -201,6 +219,8 @@ export const useCameraStore = create<CameraStore>((set) => ({
         targetLookAt: new THREE.Vector3(...preset.target),
         targetFov: preset.fov ?? 65,
         isAnimating: true,
+        lensReturning: false,
+        cancelledFlight: null,
       });
     }
   },
@@ -211,15 +231,37 @@ export const useCameraStore = create<CameraStore>((set) => ({
       targetLookAt: new THREE.Vector3(...target),
       targetFov: 65,
       isAnimating: true,
+      lensReturning: false,
+      cancelledFlight: null,
     }),
   clearAnimation: () => set({ isAnimating: false }),
+  // Orbiting or zooming round a cutaway cancels its flight; the cutaway still
+  // owns the narrow lens it set, so its close must find it. Working if a
+  // cutaway orbited by the player closes back to 65 degrees.
   cancelAnimation: () =>
-    set({
+    set((state) => ({
       activePreset: null,
       targetPosition: null,
       targetLookAt: null,
       isAnimating: false,
-    }),
+      cancelledFlight: state.targetPosition ?? state.cancelledFlight,
+    })),
+  releaseFocus: (owned) =>
+    set((state) =>
+      owned &&
+      (state.targetPosition === owned ||
+        (state.targetPosition === null && state.cancelledFlight === owned))
+        ? {
+            activePreset: null,
+            targetPosition: null,
+            targetLookAt: null,
+            isAnimating: false,
+            targetFov: 65,
+            lensReturning: true,
+            cancelledFlight: null,
+          }
+        : {}
+    ),
 }));
 
 // Camera controller component - must be inside Canvas
@@ -273,7 +315,7 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      pressedKeys.delete(e.code);
+      releaseNavigationKey(pressedKeys, e);
     };
 
     // Clear keys when window loses focus
@@ -498,6 +540,20 @@ export const CameraController: React.FC<CameraControllerProps> = ({
       }
     }
 
+    // A released detail lens eases back where the camera stands, by time.
+    // Read live: the release lands between renders, from a cutaway's cleanup.
+    const lens = useCameraStore.getState();
+    if (lens.lensReturning && !lens.isAnimating && camera instanceof THREE.PerspectiveCamera) {
+      const gap = lens.targetFov - camera.fov;
+      if (reducedMotion || Math.abs(gap) < 0.05) {
+        camera.fov = lens.targetFov;
+        useCameraStore.setState({ lensReturning: false });
+      } else {
+        camera.fov += gap * (1 - Math.exp(-movementDelta / 0.2));
+      }
+      camera.updateProjectionMatrix();
+    }
+
     if (camera.position.y < MIN_CAMERA_HEIGHT) camera.position.y = MIN_CAMERA_HEIGHT;
     if (orbitControlsRef?.current && orbitControlsRef.current.target.y < MIN_TARGET_HEIGHT) {
       orbitControlsRef.current.target.y = MIN_TARGET_HEIGHT;
@@ -660,7 +716,7 @@ export const CameraPresetIndicator: React.FC = () => {
       className="fixed top-32 left-4 z-40 pointer-events-none max-w-[calc(100vw-2rem)]"
     >
       <div
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 shadow-lg transition-all duration-300 ${isAnimating ? 'scale-105' : ''}`}
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg millos-glass transition-all duration-300 ${isAnimating ? 'scale-105' : ''}`}
       >
         {/* Preset number badge */}
         <div className="w-6 h-6 rounded-md bg-cyan-600 flex items-center justify-center">

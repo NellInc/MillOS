@@ -219,7 +219,11 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
       expect(c.activate().changed).toBe(false);
       c.agree();
       const before = structuredClone(c.state);
-      expect(workplaceReadiness(c.state)).toEqual({ allowed: true, reasons: [] });
+      expect(workplaceReadiness(c.state)).toEqual({
+        allowed: true,
+        reasons: [],
+        reasonsCopy: [],
+      });
       const alternative = workplaceAlternatives(c.state).find((p) => p.id === plan)!;
       expect(alternative.reserve).toBe(12);
       expect(alternative.cashAfterReservations).toBe(before.finance.cash - 12);

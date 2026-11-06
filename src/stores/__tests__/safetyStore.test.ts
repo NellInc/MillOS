@@ -58,12 +58,46 @@ describe('SafetyStore', () => {
         speedZoneSlowdown: 0.5,
       },
       speedZones: [
-        { id: 'zone-1', x: 0, z: 0, radius: 5, name: 'Central Area' },
-        { id: 'zone-2', x: 0, z: 28, radius: 4, name: 'North Loading' },
-        { id: 'zone-3', x: 0, z: -28, radius: 4, name: 'South Loading' },
-        { id: 'zone-4', x: -28, z: 0, radius: 3, name: 'West Corridor' },
-        { id: 'zone-5', x: 28, z: 0, radius: 3, name: 'East Corridor' },
-        { id: 'zone-6', x: 0, z: 18, radius: 4, name: 'Packing Zone' },
+        {
+          id: 'zone-west-service',
+          x: -35,
+          z: -22,
+          radius: 4,
+          name: 'West Service Door',
+          nameKey: 'zoneWestServiceDoor',
+        },
+        {
+          id: 'zone-west-walkway',
+          x: -35,
+          z: -34,
+          radius: 5,
+          name: 'West Walkway',
+          nameKey: 'zoneWestWalkway',
+        },
+        {
+          id: 'zone-shipping-door',
+          x: 0,
+          z: 45,
+          radius: 4,
+          name: 'Shipping Dock Door',
+          nameKey: 'zoneShippingDockDoor',
+        },
+        {
+          id: 'zone-receiving-door',
+          x: 0,
+          z: -45,
+          radius: 4,
+          name: 'Receiving Dock Door',
+          nameKey: 'zoneReceivingDockDoor',
+        },
+        {
+          id: 'zone-shipping-crew',
+          x: -12,
+          z: 42,
+          radius: 3,
+          name: 'Shipping Crew Point',
+          nameKey: 'zoneShippingCrewPoint',
+        },
       ],
     });
   });
@@ -115,6 +149,8 @@ describe('SafetyStore', () => {
         ...mockIncidents[0],
         id: expect.stringMatching(/^incident-/),
         timestamp: FIXED_NOW.getTime(),
+        // The plant clock at logging (a fresh plant reads day 0, 10:00).
+        gameClock: { day: 0, hour: 10 },
       });
     });
 
@@ -392,29 +428,29 @@ describe('SafetyStore', () => {
       const { removeSpeedZone } = useSafetyStore.getState();
       const initialLength = useSafetyStore.getState().speedZones.length;
 
-      removeSpeedZone('zone-1');
+      removeSpeedZone('zone-west-walkway');
 
       const { speedZones } = useSafetyStore.getState();
       expect(speedZones.length).toBe(initialLength - 1);
-      expect(speedZones.find((z) => z.id === 'zone-1')).toBeUndefined();
+      expect(speedZones.find((z) => z.id === 'zone-west-walkway')).toBeUndefined();
     });
 
     it('should update speed zone', () => {
       const { updateSpeedZone } = useSafetyStore.getState();
-      updateSpeedZone('zone-1', { radius: 10, name: 'Updated Central' });
+      updateSpeedZone('zone-west-walkway', { radius: 10, name: 'Updated Central' });
 
       const { speedZones } = useSafetyStore.getState();
-      const zone = speedZones.find((z) => z.id === 'zone-1');
+      const zone = speedZones.find((z) => z.id === 'zone-west-walkway');
       expect(zone?.radius).toBe(10);
       expect(zone?.name).toBe('Updated Central');
     });
 
     it('should update speed zone position', () => {
       const { updateSpeedZone } = useSafetyStore.getState();
-      updateSpeedZone('zone-1', { x: 15, z: 25 });
+      updateSpeedZone('zone-west-walkway', { x: 15, z: 25 });
 
       const { speedZones } = useSafetyStore.getState();
-      const zone = speedZones.find((z) => z.id === 'zone-1');
+      const zone = speedZones.find((z) => z.id === 'zone-west-walkway');
       expect(zone?.x).toBe(15);
       expect(zone?.z).toBe(25);
     });

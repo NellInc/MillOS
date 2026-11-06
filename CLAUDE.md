@@ -222,6 +222,8 @@ These rules create external verification so the work speaks for itself.
 
 MillOS is an AI-powered grain mill digital twin simulator - a 3D React application that visualizes a virtual grain mill factory with interactive machines, workers, conveyors, and real-time production metrics.
 
+Design decisions, and who made each one, are logged in `docs/DECISIONS.md`. Entries tagged `[Nell]` outrank `[proposed]` ones. A changed decision gets a new entry that supersedes the old; earlier entries are never edited away. Read the log before reversing anything it records.
+
 ## Development Commands
 
 ```bash
@@ -319,9 +321,10 @@ The app uses both React local state (App.tsx) and Zustand global state (store.ts
 
 ## Emergency Egress Verification Drill
 
-The site has anonymous local personnel and autonomous logistics (see `npm run validate:community`).
+The site has anonymous local personnel, crewed forklifts and autonomous trucks (see `npm run validate:community`).
 The drill remains an automated egress-verification sequence, not a simulated worker evacuation.
-Personnel hold their current safe positions during the stop; the zone results do not certify an
+Personnel hold their current safe positions during the stop (a forklift operator stays seated in
+the stopped cab); the zone results do not certify an
 evacuation. Working if the drill stops movement and reports only verified egress zones. It is started from the Safety panel
 (`src/components/ui-new/panels/SafetyPanel.tsx`, Controls tab) or through the agent command
 `simulation.start-fire-drill`.
@@ -381,6 +384,55 @@ interface DrillMetrics {
 
 `@/*` maps to project root (configured in tsconfig.json and vite.config.ts)
 
+## Forklift Crews and Driving
+
+**Decision (2026-10-31, Nell):** forklifts are crewed. This reverses the v0.40 "uncrewed"
+vehicles; `HUMAN_PRESENCE_POLICY.vehicleOperators` is `true` and `validate:community`
+requires it. The retired seated-operator components stay banned by name.
+
+- Each forklift has a roster operator (`src/constants/forkliftCrewLayout.ts`). Their routine is
+  an ordinary four-hour mill loop whose first stop is the driving spell; their personal hour
+  holds at both ends of it until the forklift is parked at its crew point
+  (`src/simulation/forkliftCrew.ts`). Because a held hour leaves the timing sweep, an operator's
+  strip must be clear of everyone by distance alone; `forkliftCrew.test.ts` checks it.
+- Unmanned, a forklift works nothing: walking pace to its crew point (or the spot its displaced
+  operator waits at), stop reason `scheduled`. It never goes up a dock spur (the door is shut with
+  no trailer docked): it turns standing at the spur's hold point onto the leg back
+  (`unmannedSpurTurn`).
+- A truck stops short of a forklift under manual control that its body would sweep over its
+  stopping distance of route ahead (`manualForkliftInTruckPath`, `truckSweepAheadMeets`), and for
+  no other; autopilot forklifts are the dock interlock's business.
+- First person, F boards any forklift in reach and leaves it (`forkliftDriveStore.ts`,
+  `forkliftManualDrive.ts`). On a phone a Drive button does it (`MobileControlsOverlay.tsx`,
+  with the fork and Step down buttons) and the D-pad drives (`MobileFirstPersonController.tsx`); the forklift turns the camera with the cab, so a controller that
+  writes the camera's rotation each frame must fold that turn in. A crewed forklift's operator
+  steps off and waits; on leaving, the forklift steers back to its lane and returns to them.
+- CommunityLife steps the crew and places people; the forklift writes a seated operator's root
+  after it moves (`forkliftCrewStore.ts`). If CommunityLife stops stepping (heartbeat), forklifts
+  work as if crewed, so nothing waits on an operator who is not there.
+
+## PA Voice
+
+**Decision (2026-11-04, Nell, D-025):** PA lines are spoken as well as captioned, by Gradium's
+Phonon 40M models running on the device (`phonon-webgpu`, pinned to a commit tarball).
+`HUMAN_PRESENCE_POLICY.humanVoiceAudio` is `true` and `validate:community` requires it; host
+`speechSynthesis` and the retired worker and radio voices stay banned by name.
+
+- `src/audio/paVoice.ts` loads one model per language (`phonon-40m-en`, `phonon-40m-pt`, about
+  54 MB each, cached by the browser) after the first unmuted gesture, and never in benchmark
+  runs. A line that arrives before its model is ready is shown, not spoken.
+- `src/audio/paSpeechText.ts` writes numbers, `%`, `£` and clock times as words in the active
+  language; Phonon cannot. Test new kinds of PA copy there.
+- The player picks a voice per language in Settings (`src/audio/paVoiceCatalog.ts`, the catalogue
+  at Phonon's pinned revision; `voiceNames` in the PA store). Defaults: Edwin, Débora.
+- PA copy is spoken, so keep each line to one short breath (about 50 characters in English):
+  one fact, or a fact and its consequence. `shared.messages.ts` is the main corpus.
+- `PAAnnouncementSystem.tsx` speaks each new line once, holds the caption until the voice ends,
+  and stops the voice when the line leaves or audio is muted. Playback goes through
+  `audioManager.playPAVoice` (tannoy band-pass, under master volume).
+- **The weights are CC BY-NC 4.0.** MillOS may use them only while non-commercial. The About
+  dialog carries the credit; keep it.
+
 ## The Mill Chronicle
 
 A long-arc campaign layer borrowed from Clarus Victoria's *Predynastic Egypt*
@@ -394,6 +446,7 @@ captures and pre-existing tests see the plant unchanged.
 | `src/chronicle/*.ts` | Data and rules per system (charter, plans, crop years, contractors, trials, ledger, scoring) |
 | `src/chronicle/eventDeck.ts`, `history.ts`, `quiz.ts` | Authored content; history notes are source-checked |
 | `src/stores/chronicleStore.ts` | Persisted store; performs engine commands on other stores |
+| `src/chronicle/funnel.ts` | Local-only playtest funnel (`localStorage['millos-chronicle-funnel']`): per charter, shifts closed, outcome, sessions, own vs delegated decisions. It only observes, and is not installed in benchmark runtime |
 | `src/components/chronicle/` | Workspace tabs and the decision dialog host |
 
 Rules that keep it honest:
@@ -421,6 +474,12 @@ Rules that keep it honest:
    presentation adapter translates recognised historical records at display time.
    Datalinks history and search follow live language changes too. Working if a
    locale switch changes visible copy without rewriting IDs, outcomes or receipts.
+8. **Nothing about the crew is a number.** Part three's crew
+   (`src/chronicle/governance.ts`) are anonymous roles with a temperament, a
+   value, a preference and a need. Their votes and objections follow from
+   those, and the record says when a need was met or outvoted; no score, meter
+   or loyalty value of a person may be added. Every standing condition prints
+   its way out ("To clear:"), so rule 4 holds by construction.
 
 ## Interface Language (English and Brazilian Portuguese)
 

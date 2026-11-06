@@ -38,6 +38,7 @@ export const buildCacheDiagnosticsMessages = defineMessages({
     statusActivateFailed: 'The waiting build could not be activated.',
     statusRefreshing: 'Refreshing build and cache status.',
     statusWaiting: 'A newer build is waiting.',
+    statusInstalling: 'A newer build was found and is installing.',
   },
   'pt-BR': {
     heading: 'Versão e cache',
@@ -76,6 +77,7 @@ export const buildCacheDiagnosticsMessages = defineMessages({
     statusActivateFailed: 'Não foi possível ativar a versão em espera.',
     statusRefreshing: 'Atualizando o status da versão e do cache.',
     statusWaiting: 'Há uma versão mais recente em espera.',
+    statusInstalling: 'Uma versão mais recente foi encontrada e está sendo instalada.',
   },
 });
 
@@ -91,4 +93,5 @@ export type BuildCacheStatusKey =
   | 'statusActivating'
   | 'statusActivateFailed'
   | 'statusRefreshing'
-  | 'statusWaiting';
+  | 'statusWaiting'
+  | 'statusInstalling';

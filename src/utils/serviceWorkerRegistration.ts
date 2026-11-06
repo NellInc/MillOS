@@ -190,12 +190,25 @@ export async function unregisterServiceWorker(): Promise<boolean> {
   }
 }
 
+const UPDATE_CHECK_DEADLINE_MS = 10_000;
+
 export async function updateServiceWorker(): Promise<boolean> {
   if (!isServiceWorkerSupported()) return false;
   try {
     const registration = await navigator.serviceWorker.getRegistration(basePath());
     if (!registration) return false;
-    await registration.update();
+    // update() fetches the worker script; on a stalled connection it can hang,
+    // and the diagnostics panel holds its buttons until it settles.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<'timeout'>((resolve) => {
+      timer = setTimeout(() => resolve('timeout'), UPDATE_CHECK_DEADLINE_MS);
+    });
+    const outcome = await Promise.race([
+      registration.update().then(() => 'done' as const),
+      deadline,
+    ]);
+    clearTimeout(timer);
+    if (outcome === 'timeout') return false;
     emitStatusChange();
     return true;
   } catch {

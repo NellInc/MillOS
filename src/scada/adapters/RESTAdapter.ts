@@ -480,7 +480,15 @@ export class RESTAdapter implements IProtocolAdapter {
     }, timeoutMs);
 
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const requestHeaders = new Headers(options.headers);
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        redirect:
+          requestHeaders.has('Authorization') || requestHeaders.has('x-api-key')
+            ? 'error'
+            : options.redirect,
+      });
       return await consume(response);
     } catch (err) {
       if (isAbortError(err)) {
@@ -514,8 +522,19 @@ export class RESTAdapter implements IProtocolAdapter {
 
     const headers = new Headers(options.headers);
 
+    const authMode = this.config.apiKeyAuth ?? 'bearer';
+    if (authMode !== 'bearer' && authMode !== 'x-api-key') {
+      throw new Error('Unsupported REST authentication mode');
+    }
+
     if (this.config.apiKey) {
-      headers.set('Authorization', `Bearer ${this.config.apiKey}`);
+      if (authMode === 'x-api-key') {
+        headers.delete('Authorization');
+        headers.set('x-api-key', this.config.apiKey);
+      } else {
+        headers.delete('x-api-key');
+        headers.set('Authorization', `Bearer ${this.config.apiKey}`);
+      }
     }
 
     return this.fetchWithTimeout(url, { ...options, headers }, consume);

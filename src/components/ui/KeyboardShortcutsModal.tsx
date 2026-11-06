@@ -55,7 +55,6 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         { key: 'U', description: t('toggleEnergy') },
         { key: 'Y', description: t('toggleMultiObjective') },
         { key: '$', description: t('toggleCost') },
-        { key: 'M', description: t('minimizePanel') },
         { key: 'F', description: t('toggleFullscreen') },
         { key: 'G', description: t('toggleMiniMap') },
         { key: 'C', description: t('toggleAutoRotate') },
@@ -96,13 +95,14 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="kbd-shortcuts-title"
+        // A click on the list focuses the dialog, not <body>, where the global
+        // shortcuts (Space stops the forklifts) no longer saw it.
+        tabIndex={-1}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className={`relative backdrop-blur-xl rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden ${
-          theme === 'light'
-            ? 'bg-white/95 border border-slate-200'
-            : 'bg-slate-900/95 border border-slate-700/50'
+        className={`relative millos-glass millos-glass-thick rounded-2xl max-w-md w-full mx-4 overflow-hidden ${
+          theme === 'light' ? 'bg-white/95 border border-slate-200' : ''
         }`}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(event) => {

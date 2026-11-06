@@ -114,7 +114,7 @@ export const workplaceCampaignMessages = defineMessages({
 
     // Learning review
     reviewDelivery: (p: { delivered: string; evidence: string; remaining: string }) =>
-      `Delivery record: ${p.delivered} kg credited; source evidence ${p.evidence}. Full customer commitment still open: ${p.remaining} kg.`,
+      `Delivery record: ${p.delivered} kg credited; source evidence ${p.evidence === 'quality-failed' ? 'failed quality' : p.evidence}. Full customer commitment still open: ${p.remaining} kg.`,
     reviewTeaching:
       'Teaching output: {delivered} kg against {target} kg agreed. This exercise counter is separate from customer shipment receipts.',
     reviewRecovery:
@@ -170,6 +170,8 @@ export const workplaceCampaignMessages = defineMessages({
     nextRestate: 'Restate protected terms. The challenge remains yours.',
     nextReview:
       'Compare actual work with the agreement. Paid compensation and delivered recovery have separate receipts.',
+    nextResume:
+      'A reload paused this shift before its end. Resume it in Review; Packing decides again on fresh terms.',
     nextActive: 'Run or pause the plant. Cover can be withdrawn; earned obligations remain.',
     nextCorrect: 'Correct the adviser and protect refusal before making a fresh offer.',
     nextUnderstand:
@@ -336,6 +338,8 @@ export const workplaceCampaignMessages = defineMessages({
     nextRestate: 'Reafirme os termos protegidos. A contestação continua sendo sua.',
     nextReview:
       'Compare o trabalho real com o acordo. A compensação paga e a recuperação entregue têm comprovantes separados.',
+    nextResume:
+      'Uma recarga pausou este turno antes do fim. Retome-o em Revisão; o Ensaque decide de novo com termos novos.',
     nextActive:
       'Ponha a planta para funcionar ou pause-a. A cobertura pode ser retirada; as obrigações já adquiridas permanecem.',
     nextCorrect: 'Corrija o conselheiro e proteja a recusa antes de fazer uma nova oferta.',

@@ -12,16 +12,24 @@ const state = vi.hoisted(() => ({
   prepared: false,
   opened: false,
   ready: false,
+  deferredShaders: false,
+  startedTasks: 0,
+  finishedTasks: 0,
+  shaderPrograms: 0,
+  shaderProgramsReady: 0,
+  settleFrames: 0,
 }));
 const beginTask = vi.hoisted(() =>
   vi.fn(() => {
     state.pendingTasks++;
+    state.startedTasks++;
     state.revision++;
     let finished = false;
     return (failed = false) => {
       if (finished) return;
       finished = true;
       state.pendingTasks--;
+      state.finishedTasks++;
       state.errors += Number(failed);
       state.revision++;
     };
@@ -65,11 +73,17 @@ beforeEach(() => {
   state.ready = false;
   state.prepared = false;
   state.opened = false;
+  state.deferredShaders = false;
   state.errors = 0;
   state.pendingAssets = 0;
   state.pendingTasks = 0;
   state.loadedAssets = 10;
   state.totalAssets = 10;
+  state.startedTasks = 0;
+  state.finishedTasks = 0;
+  state.shaderPrograms = 0;
+  state.shaderProgramsReady = 0;
+  state.settleFrames = 0;
   state.revision = 0;
   beginTask.mockClear();
   openPrepared.mockClear();
@@ -90,21 +104,40 @@ afterEach(() => {
 });
 
 describe('LoadingScreen final readiness', () => {
-  it('keeps one truthful status across late asset and preparation waves', async () => {
+  it('names the work holding the cover, and only the phase is announced', async () => {
     const view = render(<LoadingScreen />);
-    for (const next of [
-      { pendingAssets: 2, loadedAssets: 8, totalAssets: 10, pendingTasks: 0 },
-      { pendingAssets: 0, loadedAssets: 10, totalAssets: 10, pendingTasks: 1 },
-      { pendingAssets: 3, loadedAssets: 10, totalAssets: 13, pendingTasks: 0 },
-      { pendingAssets: 0, loadedAssets: 13, totalAssets: 13, pendingTasks: 0 },
-    ]) {
+    const live = () => screen.getByRole('progressbar').getAttribute('aria-valuetext');
+    for (const [next, phase, count] of [
+      [{ pendingAssets: 2, loadedAssets: 8, totalAssets: 10 }, 'Downloading', '8 of 10 files'],
+      [
+        { pendingAssets: 0, loadedAssets: 10, pendingTasks: 1, startedTasks: 3, finishedTasks: 2 },
+        'Building the world',
+        '2 of 3 parts',
+      ],
+      [
+        { pendingAssets: 3, loadedAssets: 10, totalAssets: 13, pendingTasks: 0, finishedTasks: 3 },
+        'Downloading',
+        '10 of 13 files',
+      ],
+      [
+        { pendingAssets: 0, loadedAssets: 13, shaderPrograms: 40, shaderProgramsReady: 12 },
+        'Compiling shaders',
+        '12 of 40',
+      ],
+      [
+        { shaderProgramsReady: 40, settleFrames: 20 },
+        'Settling the animation',
+        '20 of 45 frames on time',
+      ],
+    ] as const) {
       Object.assign(state, next);
       view.rerender(<LoadingScreen />);
-      expect(screen.getByText('Preparing the complete scene')).toBeVisible();
-      expect(screen.getByRole('progressbar')).toHaveAttribute(
-        'aria-valuetext',
-        'Preparing the complete scene'
-      );
+      expect(live()).toBe(phase);
+      // The count is visual: the live status holds the phase alone.
+      const status = screen.getByText(count, { exact: false });
+      expect(status).toHaveAttribute('aria-hidden', 'true');
+      expect(status.parentElement).toHaveAttribute('aria-live', 'polite');
+      expect(status.parentElement?.firstChild?.textContent).toBe(phase);
     }
     await act(async () => vi.advanceTimersByTimeAsync(60000));
     expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
@@ -112,19 +145,24 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.getByRole('progressbar')).toBeVisible();
   });
 
-  it('never moves the progress bar backwards when later assets are queued', () => {
+  it('fills through every kind of startup work and never moves backwards', () => {
     const bar = () => Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'));
     Object.assign(state, { pendingAssets: 8, loadedAssets: 2, totalAssets: 10 });
     const view = render(<LoadingScreen />);
-    expect(bar()).toBe(19);
+    // Downloads are 10% of the bar (STARTUP_PHASE_WEIGHTS).
+    expect(bar()).toBe(2);
     // The held-asset run read 94, 92, 53, 94, 84, 95: each wave of newly
     // queued assets grew the total and pulled the bar back.
     for (const [next, shown] of [
-      [{ pendingAssets: 5, loadedAssets: 5, totalAssets: 10 }, 48],
-      [{ pendingAssets: 15, loadedAssets: 5, totalAssets: 20 }, 48],
-      [{ pendingAssets: 5, loadedAssets: 15, totalAssets: 20 }, 71],
-      [{ pendingAssets: 0, loadedAssets: 20, totalAssets: 20 }, 95],
-      [{ pendingAssets: 30, loadedAssets: 20, totalAssets: 50 }, 95],
+      [{ pendingAssets: 5, loadedAssets: 5, totalAssets: 10 }, 5],
+      [{ pendingAssets: 15, loadedAssets: 5, totalAssets: 20 }, 5],
+      [{ pendingAssets: 5, loadedAssets: 15, totalAssets: 20 }, 8],
+      [{ pendingAssets: 0, loadedAssets: 20, totalAssets: 20 }, 10],
+      [{ pendingAssets: 30, loadedAssets: 20, totalAssets: 50 }, 10],
+      // The old bar stopped at 95 here, whatever was still left to do.
+      [{ pendingAssets: 0, loadedAssets: 50, startedTasks: 4, finishedTasks: 4 }, 55],
+      [{ shaderPrograms: 100, shaderProgramsReady: 50 }, 73],
+      [{ shaderProgramsReady: 100, settleFrames: 45 }, 99],
     ] as const) {
       Object.assign(state, next);
       view.rerender(<LoadingScreen />);
@@ -162,6 +200,22 @@ describe('LoadingScreen final readiness', () => {
     view.rerender(<LoadingScreen />);
     expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Open loaded scene (slow)' })).toBeNull();
+  });
+
+  // A deferred truck prewarm is offered through the slow-device path; the
+  // status must name what is unfinished, not claim the animation is slow.
+  it('says the trucks are still being prepared when a deferred prewarm is offered', async () => {
+    state.prepared = true;
+    state.deferredShaders = true;
+    render(<LoadingScreen minimumLoadTimeMs={0} />);
+    await act(async () => vi.advanceTimersByTimeAsync(5000));
+    expect(
+      screen.getByText('The scene is loaded, but the delivery trucks are still being prepared.')
+    ).toBeVisible();
+    expect(screen.queryByText(/animation is still slow/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Open loaded scene (slow)' }));
+    expect(openPrepared).toHaveBeenCalledTimes(1);
   });
 
   it('keeps "Open loaded scene" through a hitch in the same revision, and it still opens', async () => {
@@ -207,6 +261,75 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
   });
 
+  // A tab opened in the background cannot become ready: rendering and the
+  // readiness probe stop while it is hidden. The 30 s timer ran on wall time,
+  // so the player came back to "taking longer than usual" and an offer to drop
+  // to Low, a choice that is then kept for every later visit.
+  // Working if only visible time counts towards the slow-load offer.
+  it('counts only visible time towards the slow-load offer', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    let visibility: DocumentVisibilityState = 'visible';
+    const visibilitySpy = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockImplementation(() => visibility);
+    try {
+      render(<LoadingScreen />);
+      await act(async () => vi.advanceTimersByTimeAsync(10_000));
+      visibility = 'hidden';
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(60_000));
+      visibility = 'visible';
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+      expect(screen.queryByText(/taking longer than usual/)).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(19_999));
+      expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
+    } finally {
+      visibilitySpy.mockRestore();
+    }
+  });
+
+  // The slow-world confirmation ran on wall time too. Nothing renders while
+  // the tab is hidden, so `prepared` keeps its last value and the 5 s ran out
+  // in the background: a world slow for a moment before the player switched
+  // tabs came back latched as slow, offering Low (a choice that is kept).
+  // Working if only visible time confirms a slow world.
+  it('counts only visible time towards confirming a slow world', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    state.prepared = true;
+    let visibility: DocumentVisibilityState = 'visible';
+    const visibilitySpy = vi
+      .spyOn(document, 'visibilityState', 'get')
+      .mockImplementation(() => visibility);
+    try {
+      render(<LoadingScreen />);
+      await act(async () => vi.advanceTimersByTimeAsync(2_000));
+      visibility = 'hidden';
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await act(async () => vi.advanceTimersByTimeAsync(20_000));
+      visibility = 'visible';
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+      expect(screen.queryByText(/animation is still slow/)).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(2_999));
+      expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
+    } finally {
+      visibilitySpy.mockRestore();
+    }
+  });
+
   it('never lets optional quote failure invalidate scene startup', async () => {
     flags.KNOWLEDGE_LOADING_QUOTES_ENABLED = true;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -241,6 +364,25 @@ describe('LoadingScreen final readiness', () => {
     expect(useGraphicsStore.getState().graphics.quality).toBe('low');
     expect(screen.getByRole('progressbar')).toBeVisible();
     expect(openPrepared).not.toHaveBeenCalled();
+  });
+
+  it('keeps keyboard focus on the cover when Use low graphics removes itself', async () => {
+    useGraphicsStore.getState().setGraphicsQuality('medium');
+    render(
+      <>
+        <LoadingScreen recoveryDelayMs={1} minimumLoadTimeMs={0} />
+        <button>Covered application control</button>
+      </>
+    );
+    await act(async () => vi.advanceTimersByTimeAsync(2));
+    const lowGraphics = screen.getByRole('button', { name: 'Use low graphics' });
+    lowGraphics.focus();
+    fireEvent.click(lowGraphics);
+    expect(screen.queryByRole('button', { name: 'Use low graphics' })).toBeNull();
+    const cover = screen.getByRole('dialog', { name: 'Loading MillOS' });
+    expect(cover).toHaveFocus();
+    fireEvent.keyDown(cover, { key: 'Tab' });
+    expect(screen.getByRole('button', { name: 'Covered application control' })).not.toHaveFocus();
   });
 
   it('does not offer slow access after a loading error', async () => {
@@ -299,6 +441,19 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.getByRole('progressbar', { name: 'Loading MillOS' })).toBeVisible();
     expect(document.documentElement.dataset.loaderFallback).toBeUndefined();
     expect(screen.queryByRole('button', { name: 'Continue while preparing' })).toBeNull();
+  });
+
+  // At Low graphics a load that stops moving (an asset fetch with no timeout)
+  // left only the progress bar: no control at all. A slow device still gets no
+  // routine reload prompt (the test below), but nothing moving for 90 s is a
+  // stall. Working if the cover then says so and offers Reload.
+  it('offers Reload when nothing has moved for 90 seconds, at Low graphics', async () => {
+    render(<LoadingScreen />);
+    await act(async () => vi.advanceTimersByTimeAsync(60000));
+    expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(35000));
+    expect(screen.getByText('Loading has not moved for a while.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeVisible();
   });
 
   it('keeps prolonged preparation covered without a reload prompt or automatic reveal', async () => {

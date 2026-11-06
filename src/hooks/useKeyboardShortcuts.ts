@@ -7,20 +7,48 @@ import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { selectClockHolder, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { paceMessages } from '../simulation/pace.messages';
+import { STANDARD_GAME_SPEED } from '../simulation/pace';
+import { targetSlotHeld } from '../components/productionTargetSlot';
 import { audioManager } from '../utils/audioManager';
 import { useCameraStore, CAMERA_PRESETS } from '../components/CameraController';
+import { useForkliftDriveStore } from '../stores/forkliftDriveStore';
+import { useMobileControlStore } from '../stores/mobileControlStore';
+import { getMobileDetection } from './useMobileDetection';
+import { cameraControllerMessages } from '../components/CameraController.messages';
 import type { ForkliftData, MachineData } from '../types';
-import { FORKLIFT_STOP_ANNOUNCEMENTS } from '../components/GameFeatures';
+import { FORKLIFT_STOP_TOPIC } from '../components/GameFeatures';
+import { sharedMessages } from '../components/game/shared.messages';
+import { registerAlertCatalog } from '../i18n/alertCopy';
 import { formatFixed, translate } from '../i18n';
 import { keyboardShortcutsMessages } from './useKeyboardShortcuts.messages';
+import { safetyStoreMessages } from '../stores/safetyStore.messages';
+import { RESCUED_ATTRIBUTE } from '../utils/focusRescue';
 
 type KeyboardShortcutsMessages = typeof keyboardShortcutsMessages.en;
 type PlainMessageKey = {
   [K in keyof KeyboardShortcutsMessages]: KeyboardShortcutsMessages[K] extends string ? K : never;
 }[keyof KeyboardShortcutsMessages];
 
+// The Space-bar forklift stop's PA line (the only line of the forklift-stop
+// corpus), filed by key so it follows a language switch and a reload.
+const KEYBOARD_PA_CATALOG = 'keyboardShortcutsPA';
+const FORKLIFT_STOP_PA_KEY = 'forkliftStop';
+registerAlertCatalog(KEYBOARD_PA_CATALOG, sharedMessages);
+
 /** Resolved when the key is pressed, so the notification follows the current language. */
 const msg = (key: PlainMessageKey): string => translate(keyboardShortcutsMessages, key);
+
+/**
+ * The next 10 % mark strictly above (+1) or below (-1) a line rate, within
+ * 0-200 %. The Settings slider moves in 5 % steps and other writers set any
+ * rate, so rounding speed +/- 0.1 jumped 15 % or stopped the line from 15 %.
+ * Working if + and - from 85 % give 90 % and 80 %, and from a mark move 10 %.
+ */
+const stepSpeed = (speed: number, direction: 1 | -1): number => {
+  const tenths = speed * 10;
+  const mark = direction > 0 ? Math.floor(tenths + 1e-6) + 1 : Math.ceil(tenths - 1e-6) - 1;
+  return Math.min(20, Math.max(0, mark)) / 10;
+};
 
 interface KeyboardShortcutsConfig {
   showAIPanel: boolean;
@@ -103,6 +131,22 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
     selectedForklift,
   ]);
 
+  // The U and Y dashboards, most recently opened last, so Escape closes the
+  // one opened on top first. AI settings toggles them too, hence the store.
+  const openDashboardsRef = useRef<Array<'energy' | 'objectives'>>([]);
+  useEffect(() => {
+    const sync = (state: { showEnergyDashboard: boolean; showMultiObjective: boolean }) => {
+      const open = openDashboardsRef.current.filter((id) =>
+        id === 'energy' ? state.showEnergyDashboard : state.showMultiObjective
+      );
+      if (state.showEnergyDashboard && !open.includes('energy')) open.push('energy');
+      if (state.showMultiObjective && !open.includes('objectives')) open.push('objectives');
+      openDashboardsRef.current = open;
+    };
+    sync(useAIConfigStore.getState());
+    return useAIConfigStore.subscribe(sync);
+  }, []);
+
   // Graphics quality shortcuts
   const setGraphicsQuality = useGraphicsStore((state) => state.setGraphicsQuality);
 
@@ -130,12 +174,25 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Native editors and modal controls own their keys. In particular, a
       // collection select's P search must never pause production underneath it.
+      // A floating panel marked data-owns-keys (Achievements) is not modal, but
+      // a key pressed inside it is its own: Space there never stops forklifts.
       if (
         e.defaultPrevented ||
         (e.target instanceof Element &&
           e.target.closest(
-            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"][aria-modal="true"]'
+            'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"][aria-modal="true"], [data-owns-keys]'
           ))
+      ) {
+        return;
+      }
+      // A click on a modal's text (not a control) leaves focus on <body>, so
+      // the target test above misses the dialog; Space then stopped every
+      // forklift behind it and P paused the plant. An open modal owns the keys,
+      // as the sidebar and the notifications list already assume.
+      // Working if no shortcut acts while a modal dialog is open.
+      if (
+        (e.target === document.body || e.target === document.documentElement) &&
+        document.querySelector('[role="dialog"][aria-modal="true"]')
       ) {
         return;
       }
@@ -159,16 +216,21 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
       // Emergency stop on Spacebar (use ref for current state).
       // Space is also the native activation key for buttons/links/selects — if an
       // interactive element has focus, let it handle the keypress instead of e-stopping.
+      // tabindex="-1" marks a programmatic focus target (a panel heading that
+      // takes focus when its opener unmounts), which has no Space action.
       if (e.key === ' ' || e.code === 'Space') {
         const isInteractive = (el: unknown): boolean =>
           el instanceof HTMLElement &&
           !!el.closest(
-            'button, summary, select, a[href], input, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="radio"], [tabindex]'
+            'button, summary, select, a[href], input, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="radio"], [tabindex]:not([tabindex="-1"])'
           );
         if (isInteractive(e.target) || isInteractive(document.activeElement)) {
           return;
         }
         e.preventDefault();
+        // Focus rests on the panel of a control that disabled itself while
+        // pressed (Maintain, Restart): this Space was meant for that control.
+        if (document.activeElement?.hasAttribute(RESCUED_ATTRIBUTE)) return;
         // A held Space would otherwise toggle the stop at the key-repeat rate,
         // queueing a PA announcement and a safety incident on every other event.
         if (e.repeat) return;
@@ -189,18 +251,22 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
           audioManager.playEmergencyStop();
           audioManager.startEmergencyStopAlarm();
           // Forklift-only stop: the PA must not claim the mill has stopped.
-          const announcement =
-            FORKLIFT_STOP_ANNOUNCEMENTS[
-              Math.floor(Math.random() * FORKLIFT_STOP_ANNOUNCEMENTS.length)
-            ];
+          // On the forklift-stop topic, so the release retires it even after
+          // a language switch changed the line's wording; keyed, so a queued
+          // or restored line reads in the language active when shown.
           addAnnouncement({
             type: 'emergency',
-            message: announcement.message,
+            message: translate(sharedMessages, FORKLIFT_STOP_PA_KEY),
             priority: 4,
+            channel: 'safety',
+            topic: FORKLIFT_STOP_TOPIC,
+            copy: { catalog: KEYBOARD_PA_CATALOG, key: FORKLIFT_STOP_PA_KEY },
           });
+          // Kept by key, so the log reads in the language active when read.
           addSafetyIncident({
             type: 'emergency',
-            description: msg('keyboardEmergencyStopIncident'),
+            description: translate(safetyStoreMessages, 'keyboardEmergencyStop'),
+            descriptionKey: 'keyboardEmergencyStop',
           });
           setQualityNotification(msg('emergencyStop'));
         } else {
@@ -216,14 +282,29 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         // Before the first click there is no pointer lock to release, so Esc
         // is the only documented way back out of the first-person overlay.
         const ui = useUIStore.getState();
-        if (ui.fpsMode && !document.pointerLockElement) ui.setFpsMode(false);
-        if (
+        const leftWalk = ui.fpsMode && !document.pointerLockElement;
+        if (leftWalk) ui.setFpsMode(false);
+        // A cleared machine sounds its own close (App's selection effect), so
+        // one press must not play it a second time here.
+        // Working if Escape on a selected machine closes with one sound.
+        if (selectedMachineRef.current) {
+          // Sounded by the selection effect.
+        } else if (
           showAIPanelRef.current ||
           showSCAPanelRef.current ||
-          selectedMachineRef.current ||
           selectedForkliftRef.current
         ) {
           audioManager.playPanelClose();
+        } else {
+          // Nothing else to close: the U and Y dashboards are panels too, one
+          // per press, newest first. Working if Escape closes each of them.
+          const top = leftWalk ? undefined : openDashboardsRef.current.at(-1);
+          if (top) {
+            audioManager.playPanelClose();
+            if (top === 'energy') useAIConfigStore.getState().setShowEnergyDashboard(false);
+            else useAIConfigStore.getState().setShowMultiObjective(false);
+            return;
+          }
         }
         setShowAIPanel(false);
         setShowSCADAPanel(false);
@@ -252,24 +333,37 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
 
       // P - Toggle pause. The shift clock is the one pause: at 0 the plant,
       // trucks and forklifts all stop, so the line setpoint is left alone.
-      // Working if P never releases a clock hold it did not make (tour, save
-      // failure, a workplace step, the Shift pace select): another holder's
-      // pause is named instead of overridden.
+      // Working if P pauses and resumes the player's own holds (its own and
+      // the Shift pace select's) and never releases anyone else's (tour, save
+      // failure, a workplace step, a handoff): those are named, not overridden.
       if (key === 'p') {
         e.preventDefault();
         audioManager.playClick();
+        // A player pause (the Shift pace select's Paused) is the player's own
+        // too, so P resumes it: to the pace before it, or standard pace for a
+        // restored paused shift. Only the player's hold is released; a hold
+        // still underneath is then named.
+        // Working if 'Paused, inspect freely' then P runs the plant again.
         const sim = useGameSimulationStore.getState();
         const holder = selectClockHolder(sim);
+        let named: ReturnType<typeof selectClockHolder> = null;
         if (holder === null) {
           sim.holdClock('shortcut');
           setQualityNotification(msg('paused'));
-        } else if (holder === 'shortcut') {
-          sim.releaseClock('shortcut');
-          setQualityNotification(msg('resumed'));
+        } else if (holder === 'shortcut' || holder === 'player') {
+          sim.releaseClock(holder);
+          const after = useGameSimulationStore.getState();
+          if (after.gameSpeed === 0 && after.clockHolds.length === 0)
+            after.setGameSpeed(STANDARD_GAME_SPEED);
+          named = selectClockHolder(useGameSimulationStore.getState());
+          setQualityNotification(
+            named === null ? msg('resumed') : translate(paceMessages, `heldBy_${named}`)
+          );
         } else {
+          named = holder;
           setQualityNotification(translate(paceMessages, `heldBy_${holder}`));
         }
-        scheduleNotificationClear(holder !== null && holder !== 'shortcut' ? 4000 : 1500);
+        scheduleNotificationClear(named !== null ? 4000 : 1500);
         return;
       }
 
@@ -280,6 +374,17 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         setShowZones(!showZonesRef.current);
         setQualityNotification(showZonesRef.current ? msg('zonesOff') : msg('zonesOn'));
         scheduleNotificationClear(1500);
+        return;
+      }
+
+      // The compact layout has no context sidebar; AI Partner and SCADA open as
+      // sheets there, as the dock's buttons do. The sidebar flags showed
+      // nothing and left a hidden workspace holding the reflection slot.
+      // Working if I and O open their sheets in a window under 768 px.
+      if ((key === 'i' || key === 'o') && getMobileDetection().isCompactLayout) {
+        e.preventDefault();
+        audioManager.playPanelOpen();
+        useMobileControlStore.getState().openMobilePanel(key === 'i' ? 'ai' : 'scada');
         return;
       }
 
@@ -307,12 +412,13 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         return;
       }
 
-      // H - Toggle heat map
+      // H - Toggle the incident heat map: the one the scene draws and the
+      // Safety panel's toggle shows (productionStore.showHeatMap draws nothing).
       if (key === 'h') {
         e.preventDefault();
         audioManager.playClick();
-        const currentHeatMap = useProductionStore.getState().showHeatMap;
-        useProductionStore.getState().setShowHeatMap(!currentHeatMap);
+        const currentHeatMap = useSafetyStore.getState().showIncidentHeatMap;
+        useSafetyStore.getState().setShowIncidentHeatMap(!currentHeatMap);
         setQualityNotification(currentHeatMap ? msg('heatmapOff') : msg('heatmapOn'));
         scheduleNotificationClear(1500);
         return;
@@ -346,7 +452,14 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useAIConfigStore.getState().showProductionTarget;
         useAIConfigStore.getState().setShowProductionTarget(!current);
-        setQualityNotification(current ? msg('targetOff') : msg('targetOn'));
+        // The tour, the guided delivery, a phone sheet and a working agreement
+        // hold the card's slot (the guidanceActive predicate in
+        // ProductionTargetWidget): the preference is kept, but nothing shows yet.
+        // Working if T never announces a card that did not appear.
+        const slotHeld = targetSlotHeld();
+        setQualityNotification(
+          current ? msg('targetOff') : slotHeld ? msg('targetOnHeld') : msg('targetOn')
+        );
         scheduleNotificationClear(1500);
         return;
       }
@@ -388,8 +501,8 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
       if (key === '+' || key === '=') {
         e.preventDefault();
         audioManager.playClick();
-        // Round to the 0.1 grid so repeated steps land exactly on 0 and 2.
-        const newSpeed = Math.round(Math.min(2, productionSpeedRef.current + 0.1) * 10) / 10;
+        // On the 10 % grid, so repeated steps land exactly on 0 and 2.
+        const newSpeed = stepSpeed(productionSpeedRef.current, 1);
         setProductionSpeed(newSpeed);
         setQualityNotification(
           translate(keyboardShortcutsMessages, 'speed', {
@@ -404,7 +517,7 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
       if (key === '-') {
         e.preventDefault();
         audioManager.playClick();
-        const newSpeed = Math.round(Math.max(0, productionSpeedRef.current - 0.1) * 10) / 10;
+        const newSpeed = stepSpeed(productionSpeedRef.current, -1);
         setProductionSpeed(newSpeed);
         setQualityNotification(
           translate(keyboardShortcutsMessages, 'speed', {
@@ -412,15 +525,6 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
           })
         );
         scheduleNotificationClear(1200);
-        return;
-      }
-
-      // M - Toggle panel minimize
-      if (key === 'm') {
-        e.preventDefault();
-        audioManager.playClick();
-        const currentMinimized = useUIStore.getState().panelMinimized;
-        useUIStore.getState().setPanelMinimized(!currentMinimized);
         return;
       }
 
@@ -438,23 +542,64 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         e.preventDefault();
         audioManager.playClick();
         setAutoRotate(!autoRotateRef.current);
-        setQualityNotification(autoRotateRef.current ? msg('rotationOff') : msg('rotationOn'));
+        // No camera controller runs in walk mode, and App holds the orbit
+        // while a machine is selected: the choice is kept for later, and the
+        // notice says when. Working if C never announces a turn that is not
+        // happening.
+        setQualityNotification(
+          autoRotateRef.current
+            ? msg('rotationOff')
+            : useUIStore.getState().fpsMode
+              ? msg('rotationOnOrbit')
+              : selectedMachineRef.current
+                ? msg('rotationOnInspector')
+                : msg('rotationOn')
+        );
         scheduleNotificationClear(1500);
         return;
       }
 
-      // F - Toggle fullscreen
+      // F - Toggle fullscreen. In first person, beside or inside a forklift, F
+      // boards or leaves it instead (FirstPersonController).
+      const drive = useForkliftDriveStore.getState();
+      if (key === 'f' && (drive.drivenId || drive.inReachId)) return;
       if (key === 'f') {
         e.preventDefault();
         audioManager.playClick();
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => {});
-          setQualityNotification(msg('fullscreen'));
-        } else {
-          document.exitFullscreen().catch(() => {});
-          setQualityNotification(msg('windowed'));
+        // Announced once the browser answers, as the dock's button reads it:
+        // an iPhone has no Fullscreen API (the request threw before any
+        // notice) and an embed without allowfullscreen refuses it, so saying
+        // FULLSCREEN as it asked was false there.
+        // Working if F says FULLSCREEN only once the page is fullscreen.
+        const root = document.documentElement as HTMLElement & {
+          webkitRequestFullscreen?: () => Promise<void> | void;
+        };
+        const doc = document as Document & {
+          webkitFullscreenElement?: Element | null;
+          webkitExitFullscreen?: () => Promise<void> | void;
+        };
+        const entering = !(document.fullscreenElement || doc.webkitFullscreenElement);
+        const announce = (notice: PlainMessageKey) => {
+          setQualityNotification(msg(notice));
+          scheduleNotificationClear(1500);
+        };
+        const change = entering
+          ? (root.requestFullscreen ?? root.webkitRequestFullscreen)
+          : (document.exitFullscreen ?? doc.webkitExitFullscreen);
+        if (!change) {
+          announce('fullscreenUnavailable');
+          return;
         }
-        scheduleNotificationClear(1500);
+        let request: Promise<void>;
+        try {
+          request = Promise.resolve(change.call(entering ? root : document));
+        } catch (error) {
+          request = Promise.reject(error);
+        }
+        request.then(
+          () => announce(entering ? 'fullscreen' : 'windowed'),
+          () => announce(entering ? 'fullscreenUnavailable' : 'fullscreen')
+        );
         return;
       }
 
@@ -464,7 +609,15 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         audioManager.playClick();
         const current = useUIStore.getState().showMiniMap;
         useUIStore.getState().setShowMiniMap(!current);
-        setQualityNotification(current ? msg('gpsOff') : msg('gpsOn'));
+        // The compact layout mounts no mini-map (GameInterface); the choice is
+        // kept for a wider window. Working if G never announces a map not shown.
+        setQualityNotification(
+          current
+            ? msg('gpsOff')
+            : getMobileDetection().isCompactLayout
+              ? msg('gpsOnWide')
+              : msg('gpsOn')
+        );
         scheduleNotificationClear(1500);
         return;
       }
@@ -501,7 +654,10 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         if (useUIStore.getState().fpsMode) useUIStore.getState().setFpsMode(false);
         setCameraPreset(presetIndex);
         const preset = CAMERA_PRESETS[presetIndex];
-        setQualityNotification(preset.name.toUpperCase());
+        // Preset names are English ids, translated where they are shown.
+        setQualityNotification(
+          translate(cameraControllerMessages, 'presetName', { name: preset.name }).toUpperCase()
+        );
         scheduleNotificationClear(2000);
         return;
       }

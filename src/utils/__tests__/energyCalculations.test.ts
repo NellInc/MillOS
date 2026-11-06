@@ -28,14 +28,24 @@ function makeMachine(
 
 describe('getMachineEnergy', () => {
   it('charges a warning machine the running load curve plus 10%', () => {
-    for (const load of [10, 55, 100]) {
+    // On the working curve (load 50+); below it the +10% is on the working
+    // share only, as the standby figure is not inefficient operation.
+    for (const load of [50, 55, 100]) {
       const running = getMachineEnergy(makeMachine({ status: 'running', load }));
       const warning = getMachineEnergy(makeMachine({ status: 'warning', load }));
       expect(warning).toBeCloseTo(running * 1.1, 10);
     }
-    // At the productionStore floor (load 10) a warning mill is not a +51% jump.
+    // At load 10 a warning mill is not a +51% jump. Below the working floor
+    // (load 50) demand blends toward the 2 kW standby figure: a unit easing
+    // down with no feed is not billed 70% of running.
     expect(getMachineEnergy(makeMachine({ status: 'warning', load: 10 }))).toBeCloseTo(
-      45 * 0.73 * 1.1,
+      2 + (45 * 0.73 * 1.1 - 2) * 0.2,
+      10
+    );
+    expect(getMachineEnergy(makeMachine({ status: 'running', load: 0 }))).toBeCloseTo(2, 10);
+    // A working load (50 + line rate * 30) keeps the 70-100% curve.
+    expect(getMachineEnergy(makeMachine({ status: 'running', load: 50 }))).toBeCloseTo(
+      45 * 0.85,
       10
     );
   });

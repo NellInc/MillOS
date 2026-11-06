@@ -43,7 +43,7 @@ const declaration = (name: string) => {
   return node.getText(ast);
 };
 const compiled = ts.transpileModule(
-  `${declaration('ROAD_PAINT_WHITE')}\n${declaration('CheckpointBarrier')}`,
+  `${declaration('ROAD_PAINT_WHITE')}\n${declaration('BARRIER_ARM_HEIGHT')}\n${declaration('CheckpointBarrier')}`,
   { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React } }
 ).outputText;
 
@@ -289,7 +289,10 @@ describe.each(sites)('$dock checkpoint mounted assembly', (site) => {
       expect(materials.map((material) => material.color.getHex())).toEqual([0x35d46f, 0x35d46f]);
       expect(mounted.arms[0].rotation.z).toBeCloseTo(Math.PI / 2, 6);
       expect(mounted.arms[1].rotation.z).toBe(mounted.arms[0].rotation.z);
-      expect(mounted.arms[1].rotation.y).toBe(Math.PI);
+      // Traffic keeps right: the inbound arm swings in from the +x kerb, so it
+      // is the one turned half a revolution; the outbound arm is not.
+      expect(mounted.arms[0].rotation.y).toBe(Math.PI);
+      expect(mounted.arms[1].rotation.y).toBe(0);
       put('cab', 80);
       put('trailer', 40);
       mounted.tick(5, 0.1);

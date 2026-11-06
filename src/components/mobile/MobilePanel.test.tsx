@@ -52,15 +52,17 @@ describe('Mobile AI advisory wiring', () => {
     expect(requestMock).not.toHaveBeenCalled();
   });
 
-  it('forgets the credential and consent on tab changes', () => {
+  // Superseded (pass 20): a tab switch keeps the key (page memory only) and the
+  // consent, as on desktop; closing the sheet still forgets and aborts (below).
+  it('keeps the credential and consent across tab changes, in page memory', () => {
     render(<MobilePanel isVisible content="ai" onClose={vi.fn()} />);
     fireEvent.click(screen.getByRole('tab', { name: 'Advisory' }));
     fireEvent.change(screen.getByLabelText('Your OpenRouter API key'), { target: { value: key } });
     fireEvent.click(screen.getByRole('checkbox'));
     fireEvent.click(screen.getByRole('tab', { name: 'Decisions' }));
     fireEvent.click(screen.getByRole('tab', { name: 'Advisory' }));
-    expect(screen.getByLabelText('Your OpenRouter API key')).toHaveValue('');
-    expect(screen.getByRole('checkbox')).not.toBeChecked();
+    expect(screen.getByLabelText('Your OpenRouter API key')).toHaveValue(key);
+    expect(screen.getByRole('checkbox')).toBeChecked();
   });
 
   it('aborts advisory work when the mobile panel closes', () => {

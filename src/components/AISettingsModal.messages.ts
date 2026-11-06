@@ -29,8 +29,11 @@ export const aiSettingsModalMessages = defineMessages({
     unloadModel: 'Unload model (free GPU memory)',
     deleting: 'Deleting...',
     deleteModel: 'Delete downloaded model',
+    deleteModelFailed:
+      'The downloaded model could not be deleted. Close other MillOS tabs and try again.',
     lightsOutLabel: 'Lights-out: the on-device AI handles incidents',
     fastLaneLabel: 'Fast routing lane (+{size} GB GPU memory)',
+    fastLaneLabelDownload: 'Fast routing lane (+{download} GB download, +{size} GB GPU memory)',
     cachedInBrowser: 'Cached in this browser',
     cachedWithSize: 'Cached in this browser (~{size} used)',
     notDownloaded: 'Not downloaded yet',
@@ -168,8 +171,12 @@ export const aiSettingsModalMessages = defineMessages({
     unloadModel: 'Descarregar modelo (liberar memória da GPU)',
     deleting: 'Excluindo...',
     deleteModel: 'Excluir modelo baixado',
+    deleteModelFailed:
+      'Não foi possível excluir o modelo baixado. Feche as outras abas do MillOS e tente novamente.',
     lightsOutLabel: 'Luzes apagadas: a IA no dispositivo trata as ocorrências',
     fastLaneLabel: 'Via rápida de encaminhamento (+{size} GB de memória da GPU)',
+    fastLaneLabelDownload:
+      'Via rápida de encaminhamento (+{download} GB de download, +{size} GB de memória da GPU)',
     cachedInBrowser: 'Em cache neste navegador',
     cachedWithSize: 'Em cache neste navegador (~{size} em uso)',
     notDownloaded: 'Ainda não baixado',

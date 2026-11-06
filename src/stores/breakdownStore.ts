@@ -6,6 +6,7 @@ import {
 } from '../simulation/workplaceReplayRuntime';
 import { translate } from '../i18n';
 import { breakdownStoreMessages } from './breakdownStore.messages';
+import { readPlantClock, sanitizePlantClock, type PlantClock } from '../utils/timeFormatting';
 
 // =========================================================================
 // EQUIPMENT BREAKDOWN AND MAINTENANCE CAUSALITY
@@ -73,6 +74,14 @@ export interface PredictiveAlert {
   basedOnMetrics: { vibration: number; temperature: number; load: number };
   acknowledged: boolean;
   createdAt: number;
+  /** The plant clock when it was raised; absent on a prediction from before it was kept. */
+  createdAtClock?: PlantClock;
+  /**
+   * True when the window came from the unit's wear (the tick's wear warning);
+   * absent when it was estimated from metrics, as a campaign incident raises
+   * it. closeIncidentPredictions closes only the latter.
+   */
+  windowFromWear?: boolean;
 }
 
 export interface PartsInventory {
@@ -157,6 +166,9 @@ const DEFAULT_PARTS_INVENTORY: PartsInventory = {
   sensors: 12,
 };
 
+/** Predictions retained; open ones (one per machine at most) are never dropped for it. */
+const MAX_PREDICTIVE_ALERTS = 10;
+
 /** Closed (returned_to_service) work orders retained for audit. */
 const MAX_CLOSED_WORK_ORDERS = 30;
 
@@ -190,6 +202,227 @@ export const missingParts = (
   return (Object.entries(counts) as [keyof PartsInventory, number][])
     .filter(([part, count]) => inventory[part] < count)
     .map(([part]) => part);
+};
+
+type ReservingOrder = Pick<MaintenanceWorkOrder, 'id' | 'phase' | 'openedAt' | 'requiredParts'>;
+
+/** True when `other` has first claim on stock ahead of `order`. */
+const outranks = (other: ReservingOrder, order: ReservingOrder | null): boolean => {
+  if (other.phase !== 'diagnosed' || other.id === order?.id) return false;
+  if (!order || order.phase !== 'diagnosed') return true;
+  // Two orders opened in one tick share a timestamp; ids are zero-padded.
+  return other.openedAt !== order.openedAt ? other.openedAt < order.openedAt : other.id < order.id;
+};
+
+/**
+ * Stock left once every diagnosed work order that outranks `order` has its
+ * parts held back: all diagnosed orders for an order still waiting, or for any
+ * other use of stock (`order` null); older diagnosed orders for a diagnosed
+ * one. A diagnosed order is ready on parts, so its parts are not free.
+ */
+export const freePartsInventory = (
+  workOrders: readonly ReservingOrder[],
+  inventory: PartsInventory,
+  order: ReservingOrder | null = null
+): PartsInventory => {
+  const free = { ...inventory };
+  workOrders
+    .filter((other) => outranks(other, order))
+    .forEach((other) =>
+      (Object.entries(countParts(other.requiredParts)) as [keyof PartsInventory, number][]).forEach(
+        ([part, count]) => {
+          free[part] -= count;
+        }
+      )
+    );
+  return free;
+};
+
+/**
+ * Parts a work order cannot take without using stock reserved for another
+ * order. startRepair refuses on these; Dispatch must agree with it.
+ * Working if Dispatch is enabled exactly when startRepair would start.
+ */
+export const missingPartsForOrder = (
+  workOrders: readonly ReservingOrder[],
+  inventory: PartsInventory,
+  order: ReservingOrder
+): (keyof PartsInventory)[] =>
+  missingParts(freePartsInventory(workOrders, inventory, order), order.requiredParts);
+
+const clockHours = (clock: PlantClock): number => clock.day * 24 + clock.hour;
+
+/**
+ * The plant clock at the last downtime tick: what a wound-back clock is
+ * measured from. Module state, not saved: a restored save's predictions are
+ * never stamped ahead of its own clock, so they never read it.
+ */
+let lastTickClock: PlantClock | undefined;
+
+/**
+ * Game minutes left of a prediction's window on the plant clock `now`, never
+ * negative (0 once it has passed). A prediction without a stamp, or with no
+ * clock to read, keeps the window it was raised with. A stamp ahead of `now`
+ * means the clock was wound back (Settings > Reset to 10 AM, which keeps wear):
+ * the window holds what was left at the last tick until the tick re-raises it
+ * at the new clock (rebaseWoundBackPredictions).
+ * Working if the panel's window runs down with the plant clock, and a reset
+ * neither freezes it nor gives back the time already used.
+ */
+export const predictionMinutesLeft = (
+  alert: Pick<PredictiveAlert, 'predictedTimeToFailure' | 'createdAtClock'>,
+  now: PlantClock | undefined
+): number => {
+  const window = Number.isFinite(alert.predictedTimeToFailure)
+    ? Math.max(0, alert.predictedTimeToFailure)
+    : 0;
+  const raised = sanitizePlantClock(alert.createdAtClock);
+  const current = sanitizePlantClock(now);
+  if (!raised || !current) return window;
+  let elapsedHours = clockHours(current) - clockHours(raised);
+  if (elapsedHours < 0) {
+    const last = lastTickClock;
+    elapsedHours = last ? Math.max(0, clockHours(last) - clockHours(raised)) : 0;
+  }
+  return Math.max(0, window - elapsedHours * 60);
+};
+
+/**
+ * Open predictions stamped ahead of `now` re-raised at `now` with the minutes
+ * they showed; the same array when there are none.
+ */
+const rebaseWoundBackPredictions = (
+  alerts: PredictiveAlert[],
+  now: PlantClock | undefined
+): PredictiveAlert[] => {
+  if (!now) return alerts;
+  const ahead = (alert: PredictiveAlert) => {
+    const raised = sanitizePlantClock(alert.createdAtClock);
+    return !alert.acknowledged && !!raised && clockHours(raised) > clockHours(now);
+  };
+  if (!alerts.some(ahead)) return alerts;
+  return alerts.map((alert) =>
+    ahead(alert)
+      ? {
+          ...alert,
+          predictedTimeToFailure: predictionMinutesLeft(alert, now),
+          createdAtClock: { ...now },
+        }
+      : alert
+  );
+};
+
+/**
+ * A machine's predictions with every open one acknowledged; the same array when
+ * none was open. addPredictiveAlert raises nothing while one is open, so a
+ * prediction left open after service would swallow the machine's next warning.
+ */
+const closeMachinePredictions = (
+  alerts: PredictiveAlert[],
+  machineId: string
+): PredictiveAlert[] =>
+  alerts.some((alert) => alert.machineId === machineId && !alert.acknowledged)
+    ? alerts.map((alert) =>
+        alert.machineId === machineId && !alert.acknowledged
+          ? { ...alert, acknowledged: true }
+          : alert
+      )
+    : alerts;
+
+/**
+ * The schedule with a machine's booked services closed; the same array when
+ * none was open. Used when the unit was serviced or repaired by another path:
+ * the booking's parts are not charged, because that service used its own.
+ */
+const closeMachineSchedule = (
+  schedule: MaintenanceScheduleItem[],
+  machineId: string
+): MaintenanceScheduleItem[] =>
+  schedule.some((task) => task.machineId === machineId && !task.completed)
+    ? schedule.map((task) =>
+        task.machineId === machineId && !task.completed ? { ...task, completed: true } : task
+      )
+    : schedule;
+
+/**
+ * Work orders with each one waiting on parts that the stock now covers back at
+ * 'diagnosed', oldest first; the same array when nothing changes. Stock is
+ * reserved for orders already diagnosed, oldest first, then for each one
+ * promoted, so two orders never both read ready on parts for one repair. A
+ * diagnosed order the stock left after older ones does not cover (a save from
+ * before reservations held two on one part) is filed awaiting parts, as
+ * startRepair would file it. Call after stock rises, and on the plant tick.
+ * Working if no order reads "awaiting parts" beside an enabled Dispatch, and
+ * none reads "diagnosed" beside "Awaiting stock".
+ */
+export const promoteCoveredOrders = (
+  workOrders: MaintenanceWorkOrder[],
+  inventory: PartsInventory
+): MaintenanceWorkOrder[] => {
+  if (!workOrders.some((order) => order.phase === 'awaiting_parts' || order.phase === 'diagnosed'))
+    return workOrders;
+  const free = { ...inventory };
+  const reserve = (parts: (keyof PartsInventory)[]) =>
+    (Object.entries(countParts(parts)) as [keyof PartsInventory, number][]).forEach(
+      ([part, count]) => {
+        free[part] -= count;
+      }
+    );
+  const demoted = new Map<string, (keyof PartsInventory)[]>();
+  workOrders
+    .filter((order) => order.phase === 'diagnosed')
+    // The rank freePartsInventory gives: opened first, then id.
+    .sort((a, b) =>
+      a.openedAt !== b.openedAt ? a.openedAt - b.openedAt : a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+    )
+    .forEach((order) => {
+      const short = missingParts(free, order.requiredParts);
+      if (short.length > 0) demoted.set(order.id, short);
+      else reserve(order.requiredParts);
+    });
+  const promoted = new Set<string>();
+  [...workOrders]
+    .filter((order) => order.phase === 'awaiting_parts')
+    .sort((a, b) => a.openedAt - b.openedAt)
+    .forEach((order) => {
+      if (missingParts(free, order.requiredParts).length > 0) return;
+      reserve(order.requiredParts);
+      promoted.add(order.id);
+    });
+  if (promoted.size === 0 && demoted.size === 0) return workOrders;
+  const now = workplaceSimulationNow();
+  return workOrders.map((order) => {
+    const short = demoted.get(order.id);
+    if (short)
+      return {
+        ...order,
+        phase: 'awaiting_parts' as const,
+        audit: [
+          ...order.audit,
+          {
+            phase: 'awaiting_parts' as const,
+            timestamp: now,
+            note: translate(breakdownStoreMessages, 'auditBlocked', { parts: partList(short) }),
+          },
+        ],
+      };
+    return promoted.has(order.id)
+      ? {
+          ...order,
+          phase: 'diagnosed' as const,
+          audit: [
+            ...order.audit,
+            {
+              phase: 'diagnosed' as const,
+              timestamp: now,
+              note: translate(breakdownStoreMessages, 'auditPartsArrived', {
+                parts: partList(order.requiredParts),
+              }),
+            },
+          ],
+        }
+      : order;
+  });
 };
 
 export interface StartRepairResult {
@@ -230,6 +463,17 @@ export interface BreakdownStore {
     predictedMinutes?: number
   ) => void;
   acknowledgePredictiveAlert: (alertId: string) => void;
+  /**
+   * Close a machine's open predictions, and its booked services, once it has
+   * been serviced or repaired. Call only after a service that succeeded.
+   */
+  acknowledgeMachinePredictiveAlerts: (machineId: string) => void;
+  /**
+   * Close a unit's open predictions that an incident raised (those without a
+   * wear window) once the incident is mitigated or resolved. Its bookings and
+   * any wear prediction stay: settling the incident services nothing.
+   */
+  closeIncidentPredictions: (machineId: string) => void;
   clearOldPredictiveAlerts: () => void;
 
   consumePart: (partType: keyof PartsInventory) => boolean;
@@ -309,8 +553,10 @@ export const useBreakdownStore = create<BreakdownStore>()(
           cause: breakdownType,
           requiredParts,
           consumedParts: [],
+          // Stock already held for a diagnosed order is not this order's.
           phase:
-            missingParts(state.partsInventory, requiredParts).length > 0
+            missingParts(freePartsInventory(state.workOrders, state.partsInventory), requiredParts)
+              .length > 0
               ? 'awaiting_parts'
               : 'diagnosed',
           openedAt: now,
@@ -325,7 +571,10 @@ export const useBreakdownStore = create<BreakdownStore>()(
         };
 
         createdBreakdown = breakdown;
+        // The predicted failure has happened: its countdown is false from here,
+        // and Schedule would book a service for a unit now under repair.
         return {
+          predictiveAlerts: closeMachinePredictions(state.predictiveAlerts, machineId),
           idSequence: nextSequence,
           activeBreakdowns: [...state.activeBreakdowns, breakdown],
           workOrders: [...state.workOrders, workOrder],
@@ -352,7 +601,8 @@ export const useBreakdownStore = create<BreakdownStore>()(
           return {};
         }
 
-        const unavailable = missingParts(state.partsInventory, workOrder.requiredParts);
+        // Stock reserved for an order ahead of this one is not available to it.
+        const unavailable = missingPartsForOrder(state.workOrders, state.partsInventory, workOrder);
         if (unavailable.length > 0) {
           result = { started: false, reason: 'missing_parts', missingParts: unavailable };
           return {
@@ -547,7 +797,11 @@ export const useBreakdownStore = create<BreakdownStore>()(
         const retainedClosedIds = new Set(
           closedWorkOrders.slice(-MAX_CLOSED_WORK_ORDERS).map((candidate) => candidate.id)
         );
+        // The predicted failure has happened and been repaired: its window is
+        // gone, and an open prediction would block the machine's next one.
         return {
+          predictiveAlerts: closeMachinePredictions(state.predictiveAlerts, workOrder.machineId),
+          maintenanceSchedule: closeMachineSchedule(state.maintenanceSchedule, workOrder.machineId),
           activeBreakdowns: state.activeBreakdowns.filter(
             (candidate) => candidate.id !== breakdownId
           ),
@@ -572,6 +826,11 @@ export const useBreakdownStore = create<BreakdownStore>()(
 
     tickDowntime: (deltaSeconds) => {
       if (!Number.isFinite(deltaSeconds) || deltaSeconds <= 0) return;
+      // Before the early return: a reset can leave predictions with no repair open.
+      const clock = readPlantClock();
+      const predictiveAlerts = rebaseWoundBackPredictions(get().predictiveAlerts, clock);
+      if (predictiveAlerts !== get().predictiveAlerts) set({ predictiveAlerts });
+      lastTickClock = clock;
       const current = get();
       if (
         current.activeBreakdowns.length === 0 &&
@@ -584,10 +843,15 @@ export const useBreakdownStore = create<BreakdownStore>()(
           ...breakdown,
           downtimeSeconds: breakdown.downtimeSeconds + deltaSeconds,
         })),
-        workOrders: state.workOrders.map((workOrder) =>
-          workOrder.phase === 'returned_to_service'
-            ? workOrder
-            : { ...workOrder, downtimeSeconds: workOrder.downtimeSeconds + deltaSeconds }
+        // A restored save may hold orders whose phase disagrees with the
+        // stock; the tick files them as the stock says.
+        workOrders: promoteCoveredOrders(
+          state.workOrders.map((workOrder) =>
+            workOrder.phase === 'returned_to_service'
+              ? workOrder
+              : { ...workOrder, downtimeSeconds: workOrder.downtimeSeconds + deltaSeconds }
+          ),
+          state.partsInventory
         ),
       }));
       // A dispatched service unit works for its estimated time on the same
@@ -610,8 +874,16 @@ export const useBreakdownStore = create<BreakdownStore>()(
 
     addPredictiveAlert: (machineId, machineName, metrics, predictedMinutes) => {
       const state = get();
+      const fromWear = predictedMinutes !== undefined && Number.isFinite(predictedMinutes);
+      // One open prediction per unit. A wear prediction takes over from one an
+      // incident raised: the incident's closes when it is settled, and the unit
+      // stays worn. Working if a worn unit keeps a prediction after its incident.
+      const supersedes = (alert: PredictiveAlert) =>
+        fromWear && alert.machineId === machineId && !alert.acknowledged && !alert.windowFromWear;
       if (
-        state.predictiveAlerts.some((alert) => alert.machineId === machineId && !alert.acknowledged)
+        state.predictiveAlerts.some(
+          (alert) => alert.machineId === machineId && !alert.acknowledged && !supersedes(alert)
+        )
       ) {
         return;
       }
@@ -637,18 +909,37 @@ export const useBreakdownStore = create<BreakdownStore>()(
         machineName,
         predictedFailureType,
         confidence: Math.round(confidence),
-        predictedTimeToFailure:
-          predictedMinutes !== undefined && Number.isFinite(predictedMinutes)
-            ? Math.max(5, Math.round(predictedMinutes))
-            : Math.max(5, 30 - Math.floor(confidence / 5)),
+        predictedTimeToFailure: fromWear
+          ? Math.max(5, Math.round(predictedMinutes))
+          : Math.max(5, 30 - Math.floor(confidence / 5)),
         basedOnMetrics: metrics,
         acknowledged: false,
         createdAt: workplaceSimulationNow(),
       };
-      set((current) => ({
-        idSequence: nextSequence,
-        predictiveAlerts: [alert, ...current.predictiveAlerts].slice(0, 10),
-      }));
+      if (fromWear) alert.windowFromWear = true;
+      // The window is in game minutes, so it runs down on the plant clock.
+      const createdAtClock = readPlantClock();
+      if (createdAtClock) alert.createdAtClock = createdAtClock;
+      // Newest first. Every open prediction stays, so a machine still in
+      // warning never drops off the list; closed ones fill what room is left.
+      set((current) => {
+        const alerts = [
+          alert,
+          ...current.predictiveAlerts.map((candidate) =>
+            supersedes(candidate) ? { ...candidate, acknowledged: true } : candidate
+          ),
+        ];
+        let closedRoom = Math.max(
+          0,
+          MAX_PREDICTIVE_ALERTS - alerts.filter((candidate) => !candidate.acknowledged).length
+        );
+        return {
+          idSequence: nextSequence,
+          predictiveAlerts: alerts.filter(
+            (candidate) => !candidate.acknowledged || closedRoom-- > 0
+          ),
+        };
+      });
     },
 
     acknowledgePredictiveAlert: (alertId) =>
@@ -657,6 +948,29 @@ export const useBreakdownStore = create<BreakdownStore>()(
           alert.id === alertId ? { ...alert, acknowledged: true } : alert
         ),
       })),
+
+    acknowledgeMachinePredictiveAlerts: (machineId) =>
+      set((state) => {
+        const predictiveAlerts = closeMachinePredictions(state.predictiveAlerts, machineId);
+        const maintenanceSchedule = closeMachineSchedule(state.maintenanceSchedule, machineId);
+        return predictiveAlerts === state.predictiveAlerts &&
+          maintenanceSchedule === state.maintenanceSchedule
+          ? {}
+          : { predictiveAlerts, maintenanceSchedule };
+      }),
+
+    closeIncidentPredictions: (machineId) =>
+      set((state) => {
+        const raisedByIncident = (alert: PredictiveAlert) =>
+          alert.machineId === machineId && !alert.acknowledged && !alert.windowFromWear;
+        return state.predictiveAlerts.some(raisedByIncident)
+          ? {
+              predictiveAlerts: state.predictiveAlerts.map((alert) =>
+                raisedByIncident(alert) ? { ...alert, acknowledged: true } : alert
+              ),
+            }
+          : {};
+      }),
 
     clearOldPredictiveAlerts: () =>
       set((state) => {
@@ -680,12 +994,16 @@ export const useBreakdownStore = create<BreakdownStore>()(
     },
 
     restockPart: (partType, quantity) =>
-      set((state) => ({
-        partsInventory: {
+      set((state) => {
+        const partsInventory = {
           ...state.partsInventory,
           [partType]: Math.max(0, state.partsInventory[partType] + Math.max(0, quantity)),
-        },
-      })),
+        };
+        return {
+          partsInventory,
+          workOrders: promoteCoveredOrders(state.workOrders, partsInventory),
+        };
+      }),
 
     restockDelivery: () =>
       set((state) => {
@@ -693,7 +1011,10 @@ export const useBreakdownStore = create<BreakdownStore>()(
         (Object.keys(DEFAULT_PARTS_INVENTORY) as (keyof PartsInventory)[]).forEach((part) => {
           partsInventory[part] = Math.min(DEFAULT_PARTS_INVENTORY[part], partsInventory[part] + 2);
         });
-        return { partsInventory };
+        return {
+          partsInventory,
+          workOrders: promoteCoveredOrders(state.workOrders, partsInventory),
+        };
       }),
 
     getPartsForBreakdown: (type) => PARTS_FOR_BREAKDOWN[type],
@@ -724,7 +1045,9 @@ export const useBreakdownStore = create<BreakdownStore>()(
         if (
           !task ||
           task.completed ||
-          missingParts(state.partsInventory, task.partsNeeded).length > 0
+          // A booked service never takes the parts held for a repair.
+          missingParts(freePartsInventory(state.workOrders, state.partsInventory), task.partsNeeded)
+            .length > 0
         ) {
           return {};
         }
@@ -751,6 +1074,9 @@ export const useBreakdownStore = create<BreakdownStore>()(
     getAlertsForMachine: (machineId) =>
       get().predictiveAlerts.filter((alert) => alert.machineId === machineId),
     hasLowInventory: () => Object.values(get().partsInventory).some((count) => count < 3),
-    resetBreakdownStore: () => set(initialState()),
+    resetBreakdownStore: () => {
+      lastTickClock = undefined;
+      set(initialState());
+    },
   }))
 );

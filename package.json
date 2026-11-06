@@ -65,6 +65,7 @@
     "jose": "^6.2.12",
     "lucide-react": "^0.562.0",
     "maath": "^0.10.8",
+    "phonon-webgpu": "https://codeload.github.com/blixt/phonon/tar.gz/36e7e5eff820733be38e9df19ccf58ae891bd45c",
     "postprocessing": "^6.39.5",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

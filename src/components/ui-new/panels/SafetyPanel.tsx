@@ -1,6 +1,8 @@
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { Shield, Cloud, AlertTriangle, Activity, CheckCircle2 } from 'lucide-react';
 import { useGameSimulationStore, useSafetyStore } from '../../../stores';
+import { safetyEventCopy } from '../../../stores/gameSimulationStore';
+import { recordOperatorAction } from '../../../stores/operationsCampaignStore';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../../../utils/audioManager';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
@@ -28,6 +30,13 @@ const ZoneCustomizationPanel = recoverableLazy(() =>
 
 type SafetyTab = 'controls' | 'analytics' | 'config';
 
+/**
+ * START DRILL takes END DRILL's place when a drill ends, including when it
+ * ends itself. A click aimed at END DRILL that lands just after must not start
+ * a fresh drill, so START waits this long (wall clock: the player's hand).
+ */
+const DRILL_RESTART_GUARD_MS = 2000;
+
 const TabLoader = () => {
   const t = useT(safetyPanelMessages);
   return (
@@ -45,6 +54,22 @@ export const SafetyPanel: React.FC = () => {
   const t = useT(safetyPanelMessages);
   const [tab, setTab] = useState<SafetyTab>('controls');
   const [confirmEmergencyStop, setConfirmEmergencyStop] = useState(false);
+  // Acknowledge and Release remove the control that was pressed; focus moves
+  // here rather than falling to <body>. Working if a keyboard user stays in
+  // the Safety panel after either.
+  const responseHeadingRef = useRef<HTMLHeadingElement>(null);
+  // The plant removes controls too: a drill that ends itself takes its event
+  // card and Acknowledge with it, and a crisis or stop elsewhere swaps them.
+  // Focus resting in Emergency Response then moves to its heading, not <body>.
+  // Working if a keyboard user stays in the panel whatever ends the event.
+  const focusInResponse = useRef(false);
+  useEffect(() => {
+    if (!focusInResponse.current) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    focusInResponse.current = false;
+    responseHeadingRef.current?.focus();
+  });
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
   const {
     emergencyActive,
@@ -73,6 +98,18 @@ export const SafetyPanel: React.FC = () => {
       drillMetrics: state.drillMetrics,
     }))
   );
+  // Working if a click on END DRILL that lands after the drill ended itself
+  // never starts another one.
+  const [drillJustEnded, setDrillJustEnded] = useState(false);
+  const wasDrillRef = useRef(emergencyDrillMode);
+  useEffect(() => {
+    const wasDrill = wasDrillRef.current;
+    wasDrillRef.current = emergencyDrillMode;
+    if (!wasDrill || emergencyDrillMode) return;
+    setDrillJustEnded(true);
+    const timer = setTimeout(() => setDrillJustEnded(false), DRILL_RESTART_GUARD_MS);
+    return () => clearTimeout(timer);
+  }, [emergencyDrillMode]);
   const activeSafetyEvent = safetyEvents.find((event) => event.id === activeSafetyEventId);
   const latestClearedSafetyEvent = [...safetyEvents]
     .reverse()
@@ -169,8 +206,20 @@ export const SafetyPanel: React.FC = () => {
         {tab !== 'controls' ? null : (
           <>
             {/* Emergency Controls */}
-            <section>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <section
+              onFocus={() => {
+                focusInResponse.current = true;
+              }}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                  focusInResponse.current = false;
+              }}
+            >
+              <h3
+                ref={responseHeadingRef}
+                tabIndex={-1}
+                className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2 focus:outline-none"
+              >
                 <Shield size={14} className="text-orange-500" />
                 {t('emergencyResponse')}
               </h3>
@@ -196,17 +245,22 @@ export const SafetyPanel: React.FC = () => {
                         {t('stage', { value: activeSafetyEvent.stage })}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs text-slate-200">{activeSafetyEvent.cause}</p>
-                    <p className="mt-1 text-[11px] text-slate-400">{activeSafetyEvent.response}</p>
+                    <p className="mt-2 text-xs text-slate-200">
+                      {safetyEventCopy(activeSafetyEvent, 'cause')}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {safetyEventCopy(activeSafetyEvent, 'response')}
+                    </p>
                     {activeSafetyEvent.stage === 'active' && (
                       <button
                         type="button"
-                        onClick={() =>
+                        onClick={() => {
                           acknowledgeSafetyEvent(
                             activeSafetyEvent.id,
                             translate(safetyPanelMessages, 'acknowledgementNote')
-                          )
-                        }
+                          );
+                          responseHeadingRef.current?.focus();
+                        }}
                         className="mt-3 min-h-9 rounded-lg bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600"
                       >
                         {t('acknowledgeEvent')}
@@ -231,9 +285,11 @@ export const SafetyPanel: React.FC = () => {
                         {t('cleared')}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs text-slate-200">{latestClearedSafetyEvent.cause}</p>
+                    <p className="mt-2 text-xs text-slate-200">
+                      {safetyEventCopy(latestClearedSafetyEvent, 'cause')}
+                    </p>
                     <p className="mt-1 text-[11px] text-emerald-100/80">
-                      {latestClearedSafetyEvent.recovery}
+                      {safetyEventCopy(latestClearedSafetyEvent, 'recovery')}
                     </p>
                   </div>
                 )}
@@ -269,7 +325,13 @@ export const SafetyPanel: React.FC = () => {
                   {emergencyDrillMode ? (
                     <button
                       type="button"
-                      onClick={() => endEmergencyDrill()}
+                      onClick={() => {
+                        // The drill may have ended itself since this rendered.
+                        if (!useGameSimulationStore.getState().emergencyDrillMode) return;
+                        endEmergencyDrill();
+                        if (!useGameSimulationStore.getState().emergencyDrillMode)
+                          recordOperatorAction({ kind: 'drillEnded' });
+                      }}
                       className="mt-3 min-h-9 rounded-lg bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-500"
                     >
                       {t('endDrill')}
@@ -277,11 +339,19 @@ export const SafetyPanel: React.FC = () => {
                   ) : (
                     <button
                       type="button"
-                      disabled={emergencyActive || crisisActive}
+                      disabled={emergencyActive || crisisActive || drillJustEnded}
                       title={
-                        emergencyActive || crisisActive ? t('clearEmergencyBeforeDrill') : undefined
+                        emergencyActive || crisisActive
+                          ? t('clearEmergencyBeforeDrill')
+                          : drillJustEnded
+                            ? t('drillJustEnded')
+                            : undefined
                       }
-                      onClick={() => startEmergencyDrill()}
+                      onClick={() => {
+                        startEmergencyDrill();
+                        if (useGameSimulationStore.getState().emergencyDrillMode)
+                          recordOperatorAction({ kind: 'drillStarted' });
+                      }}
                       className="mt-3 min-h-9 rounded-lg bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {t('startDrill')}
@@ -297,6 +367,7 @@ export const SafetyPanel: React.FC = () => {
                     onClick={() => {
                       useSafetyStore.getState().setForkliftEmergencyStop(false);
                       audioManager.stopEmergencyStopAlarm();
+                      responseHeadingRef.current?.focus();
                     }}
                     className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-500/50 bg-amber-900/30 text-sm font-bold text-amber-100 transition-colors hover:bg-amber-900/50"
                   >
@@ -323,8 +394,11 @@ export const SafetyPanel: React.FC = () => {
                   onClick={() => {
                     if (emergencyActive && !emergencyDrillMode && !crisisActive) {
                       // If already in emergency, resolve it
+                      // The store silences the alarm unless a forklift stop the
+                      // player set before outlives the facility stop.
                       useGameSimulationStore.getState().resolveEmergency();
-                      audioManager.stopEmergencyStopAlarm();
+                      if (!useGameSimulationStore.getState().emergencyActive)
+                        recordOperatorAction({ kind: 'emergencyCleared' });
                     } else if (!emergencyActive) {
                       setConfirmEmergencyStop(true);
                     }
@@ -395,7 +469,21 @@ export const SafetyPanel: React.FC = () => {
         onCancel={() => setConfirmEmergencyStop(false)}
         onConfirm={() => {
           setConfirmEmergencyStop(false);
+          // A drill or crisis that took the interlock while the dialog was open
+          // makes triggerEmergency refuse; the alarm sounds only for a stop
+          // this confirm actually started.
+          if (useGameSimulationStore.getState().emergencyActive) return;
           useGameSimulationStore.getState().triggerEmergency('E-STOP');
+          if (!useGameSimulationStore.getState().emergencyActive) return;
+          recordOperatorAction({ kind: 'emergencyStop' });
+          // The operator's own stop is an incident like the Space-bar stop, so
+          // the Analytics log and its Last Event include it. A drill is a
+          // planned exercise and is not logged.
+          useSafetyStore.getState().addSafetyIncident({
+            type: 'emergency',
+            description: translate(safetyPanelMessages, 'facilityStopIncident'),
+            descriptionKey: 'facilityStop',
+          });
           audioManager.playEmergencyStop();
           audioManager.startEmergencyStopAlarm();
         }}

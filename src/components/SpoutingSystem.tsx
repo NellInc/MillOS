@@ -18,6 +18,7 @@ import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { isFlowAudible, machineFlowState } from '../simulation/lineFlow';
 import { useShallow } from 'zustand/react/shallow';
 import { generateProceduralNormal } from '../textures/normalGenerator';
+import { useInstanceDistanceLod } from './performance/DistanceLod';
 import {
   buildSpoutRoutes,
   createSpoutTubeGeometry,
@@ -94,6 +95,25 @@ function createPipeFlangeGeometry(): THREE.LatheGeometry {
 }
 
 const PIPE_FLANGE_GEOMETRY = createPipeFlangeGeometry();
+
+/**
+ * The flange beyond `PIPE_FLANGE_LOD.distance`: hub roots, hub ends and the
+ * plate rim band of the same envelope on 8 sides (the medium pipe's count).
+ * The chamfers and the 16 mm joint groove are under a pixel past 25 m; 80
+ * triangles against the near flange's 456.
+ */
+export const PIPE_FLANGE_FAR_GEOMETRY = new THREE.LatheGeometry(
+  [
+    new THREE.Vector2(0.14, -0.06),
+    new THREE.Vector2(0.188, -0.06),
+    new THREE.Vector2(0.22, -0.0315),
+    new THREE.Vector2(0.22, 0.0315),
+    new THREE.Vector2(0.188, 0.06),
+    new THREE.Vector2(0.14, 0.06),
+  ],
+  8
+);
+export const PIPE_FLANGE_LOD = { distance: 30, hysteresis: 0.1 } as const;
 
 /**
  * Pipe-rack column, instanced at [0.1, height, 0.1] with height 10-12: a 0.2 m
@@ -313,6 +333,10 @@ export const getSpoutRouteMaterials = (): Record<PipeRouteFamily, THREE.MeshStan
 
 function InstancedPipeFlanges({ matrices }: { readonly matrices: readonly THREE.Matrix4[] }) {
   const ref = useRef<THREE.InstancedMesh>(null);
+  const farRef = useRef<THREE.InstancedMesh>(null);
+  const near = useMemo(() => [ref], []);
+  const far = useMemo(() => [farRef], []);
+  useInstanceDistanceLod({ near, far, matrices, ...PIPE_FLANGE_LOD });
 
   useLayoutEffect(() => {
     if (!ref.current) return;
@@ -324,20 +348,29 @@ function InstancedPipeFlanges({ matrices }: { readonly matrices: readonly THREE.
   if (matrices.length === 0) return null;
 
   return (
-    <instancedMesh
-      ref={ref}
-      args={[PIPE_FLANGE_GEOMETRY, PIPE_FLANGE_MATERIAL, matrices.length]}
-      castShadow
-      receiveShadow
-    >
-      <GeneratedBoundary fallback={null}>
-        <GeneratedGeometrySurface
-          asset={'spoutingFlangeUnit'}
-          original={PIPE_FLANGE_GEOMETRY}
-          meshRef={ref}
-        />
-      </GeneratedBoundary>
-    </instancedMesh>
+    <>
+      <instancedMesh
+        ref={ref}
+        args={[PIPE_FLANGE_GEOMETRY, PIPE_FLANGE_MATERIAL, matrices.length]}
+        castShadow
+        receiveShadow
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset={'spoutingFlangeUnit'}
+            original={PIPE_FLANGE_GEOMETRY}
+            meshRef={ref}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
+      <instancedMesh
+        name="spout-flanges-far"
+        ref={farRef}
+        args={[PIPE_FLANGE_FAR_GEOMETRY, PIPE_FLANGE_MATERIAL, matrices.length]}
+        castShadow
+        receiveShadow
+      />
+    </>
   );
 }
 

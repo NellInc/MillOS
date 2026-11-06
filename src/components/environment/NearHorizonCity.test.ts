@@ -9,6 +9,7 @@ import {
   createNearCityPitchedRoof,
   nearCityBodyColour,
   nearCityFootprint,
+  nearCityGroundSamples,
   nearCityRoofColour,
   nearCityRoofRise,
 } from './NearHorizonCity';
@@ -100,6 +101,19 @@ describe('near horizon city layout', () => {
     }
   });
 
+  it('places no pane inside the hill on walls that run up the slope', () => {
+    const buildings = buildNearCitySpecs();
+    // Some plots do climb the ridge: the plinth takes more than a storey of slope.
+    expect(buildings.some((b) => b.baseY - b.footingY > 2.5)).toBe(true);
+    for (const w of buildNearCityWindows(buildings)) {
+      const outside = sampleFoothillGroundHeight(
+        w.x + Math.sin(w.yaw) * 0.6,
+        w.z + Math.cos(w.yaw) * 0.6
+      );
+      expect(w.y - w.height / 2).toBeGreaterThanOrEqual(outside + 0.25);
+    }
+  });
+
   it('keeps instance colours independent of absent vertex colours', () => {
     const source = readFileSync('src/components/environment/NearHorizonCity.tsx', 'utf8');
     const bodyMaterial = source.match(
@@ -148,20 +162,31 @@ describe('near horizon city layout', () => {
         expect(Math.hypot(x, z)).toBeGreaterThan(SITE_LAYOUT.world.radius + 16);
   });
 
-  it('seats every building on the real hill surface without hanging a corner', () => {
+  // Seated at its lowest corner, every building had its uphill side sunk 1.3 to
+  // 4.4 m into the slope, so from the mill the hill cut diagonally across the
+  // ground floors (Nell: "the hills clip into it"). A hill-town building stands
+  // on a stone plinth instead: its walls start above the highest ground under
+  // it, and the plinth runs down to the lowest.
+  // Working if no ground rises inside any wall and no plinth hangs over air.
+  it('keeps the hill out of every wall, on a plinth down to the lowest ground', () => {
     // Rays through the shipped ridge meshes, the same ones the renderer draws.
     const violations: string[] = [];
     let deepest = 0;
     for (const [index, building] of buildNearCitySpecs().entries()) {
-      const ground = nearCityFootprint(building).map(([x, z]) => sampleFoothillGroundHeight(x, z));
-      // No corner over air: the base is the lowest ground under the footprint.
-      if (Math.abs(Math.min(...ground) - building.baseY) > 1e-6)
-        violations.push(`${index}: base ${building.baseY} vs ground ${Math.min(...ground)}`);
-      // And the uphill side still stands its authored 6.5 m or more above the slope.
-      const uphillHeight = building.baseY + building.height - Math.max(...ground);
-      deepest = Math.max(deepest, Math.max(...ground) - building.baseY);
-      if (uphillHeight < 6.5 - 1e-6)
-        violations.push(`${index}: ${uphillHeight.toFixed(1)} m above the uphill corner`);
+      const ground = nearCityGroundSamples(building).map(([x, z]) =>
+        sampleFoothillGroundHeight(x, z)
+      );
+      const highest = Math.max(...ground);
+      const lowest = Math.min(...ground);
+      if (highest > building.baseY + 1e-6)
+        violations.push(
+          `${index}: hill ${(highest - building.baseY).toFixed(2)} m inside the walls`
+        );
+      if (building.footingY > lowest + 1e-6)
+        violations.push(`${index}: plinth ${(building.footingY - lowest).toFixed(2)} m over air`);
+      // Each building still stands its authored 6.5 m or more above the slope.
+      if (building.height < 6.5 - 1e-6) violations.push(`${index}: ${building.height} m tall`);
+      deepest = Math.max(deepest, building.baseY - building.footingY);
     }
     expect(violations).toEqual([]);
     // The town genuinely stands on a slope, not on a flat shelf.

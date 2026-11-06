@@ -100,6 +100,17 @@ export interface AlertData {
    * shift). Routine alerts and SCADA alarm traffic leave it unset.
    */
   announce?: 'polite' | 'assertive';
+  /**
+   * Keyed copy (src/i18n/alertCopy.ts): the catalogue a producer registered and
+   * the keys of its title and message, so the bell follows the language. The
+   * stored title and message stay as the fallback.
+   */
+  copy?: {
+    catalog: string;
+    title: string;
+    message: string;
+    params?: Record<string, string | number>;
+  };
 }
 
 export type AIDecisionDisposition = 'accepted' | 'modified' | 'rejected' | 'deferred' | 'automatic';
@@ -129,6 +140,10 @@ export interface AIDecisionResponse {
   recordedAt: number;
   note?: string;
   modifiedAction?: string;
+  /** Plant clock when the engine first saw this deferral (saved with the card). */
+  deferredAt?: { day: number; hour: number };
+  /** The deferred card has come back to the player once. */
+  deferralReturned?: boolean;
 }
 
 export interface AIDecisionMeasuredOutcome {
@@ -158,6 +173,17 @@ export interface AIDecision {
   provenance?: AIDecisionProvenance;
   response?: AIDecisionResponse;
   measuredOutcome?: AIDecisionMeasuredOutcome;
+  /** The plant clock at admission; absent on a decision recorded before it was kept. */
+  gameClock?: { day: number; hour: number };
+  /**
+   * Keyed form of action/reasoning/impact, so the card follows the language
+   * (aiEngine decisionCardText); absent on older cards, which show their text.
+   */
+  copy?: {
+    action?: { key: string; params?: Record<string, string | number> };
+    reasoning?: { key: string; params?: Record<string, string | number> };
+    impact?: { key: string; params?: Record<string, string | number> };
+  };
 }
 
 export type StrategicCategory = 'efficiency' | 'safety' | 'quality' | 'throughput' | 'energy';

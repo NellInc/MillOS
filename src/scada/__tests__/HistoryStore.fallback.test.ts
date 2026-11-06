@@ -39,6 +39,9 @@ describe('HistoryStore fallback', () => {
     await expect(store.exportToCSV(['TEST.A', 'TEST.B'], 0, 300)).resolves.toBe(
       ['timestamp,tagId,value,quality', '100,TEST.A,1,GOOD', '200,TEST.B,2,UNCERTAIN'].join('\n')
     );
-    expect(getHistories).toHaveBeenCalledWith(['TEST.A', 'TEST.B'], 0, 300);
+    // An export reads the whole window, not the on-screen trend cap.
+    expect(getHistories).toHaveBeenCalledWith(['TEST.A', 'TEST.B'], 0, 300, {
+      wholeWindow: true,
+    });
   });
 });

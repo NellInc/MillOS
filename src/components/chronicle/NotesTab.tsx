@@ -5,7 +5,7 @@ import { localizedMarkLabel } from '../../chronicle/record';
 import { localizedNotice } from '../../chronicle/presentation';
 import { useT } from '../../i18n';
 import { messages } from './NotesTab.messages';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   Bookmark,
@@ -19,9 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { ChronicleState } from '../../chronicle/engine';
-
-import { recordEntries } from '../../chronicle/record';
-
+import { isFiledOutcome, recordEntries } from '../../chronicle/record';
 import { chronicleStream } from '../../chronicle/rng';
 import type { NoticeKind } from '../../chronicle/types';
 import { useChronicleStore } from '../../stores/chronicleStore';
@@ -78,13 +76,18 @@ export function NotesTab({ state }: { state: ChronicleState }) {
                 />
                 <span className="text-white">
                   {t('m4')} {entry.shift}: {localizedMarkLabel(entry.id)}
-                  <span className="text-slate-300">
-                    {' '}
-                    ·{' '}
-                    {t(
-                      ({ player: 'm0', 'ai-partner': 'm1', chronicle: 'm2' } as const)[entry.actor]
-                    )}
-                  </span>
+                  {/* What the year filed (a return, the reserve) was nobody's ruling, lapsed or not. */}
+                  {!isFiledOutcome(entry) && (
+                    <span className="text-slate-300">
+                      {' '}
+                      ·{' '}
+                      {t(
+                        ({ player: 'm0', 'ai-partner': 'm1', chronicle: 'm2' } as const)[
+                          entry.actor
+                        ]
+                      )}
+                    </span>
+                  )}
                 </span>
               </li>
             ))}
@@ -161,7 +164,16 @@ function QuizSection({ state }: { state: ChronicleState }) {
       next: s.nextQuizQuestion,
     }))
   );
-  const [round, setRound] = useState(0);
+  const round = useChronicleStore((s) => s.quizRound);
+  // Each step replaces the control that took it; move focus to the next one
+  // so a keyboard player is not dropped at the top of the page.
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const [focusPending, setFocusPending] = useState(false);
+  useEffect(() => {
+    if (!focusPending) return;
+    setFocusPending(false);
+    sectionRef.current?.querySelector<HTMLElement>('[data-quiz-focus]')?.focus();
+  }, [focusPending, quiz]);
   const pool = useMemo(
     () => getQuizQuestions().filter((q) => state.unlockedNotes.includes(q.noteId)),
     [state.unlockedNotes, locale]
@@ -180,8 +192,14 @@ function QuizSection({ state }: { state: ChronicleState }) {
   const begin = () => {
     // The round's questions are fixed when it starts, so a note unlocking
     // mid-round never reshuffles them.
-    const next = chronicleStream(state.charter?.seed ?? 1, 'quiz', round);
-    setRound((r) => r + 1);
+    // The round count is this session's; the saved answers and history key it
+    // too, so a reload does not deal the round the player already sat again.
+    const next = chronicleStream(
+      state.charter?.seed ?? 1,
+      `quiz:${state.quizAnswered.length}:${state.sequence}`,
+      round
+    );
+    setFocusPending(true);
     actions.start(
       [...pool]
         .map((question) => ({ question, key: next() }))
@@ -197,52 +215,67 @@ function QuizSection({ state }: { state: ChronicleState }) {
       : undefined;
   if (!quiz || quiz.finished || !question)
     return (
-      <Section title={t('p19', { best })}>
-        {quiz?.finished && (
-          <p className="text-white">
-            {quiz.score} / {quiz.questionIds.length} {t('m9')}
-          </p>
-        )}
-        <button className={BUTTON_PRIMARY} onClick={begin}>
-          {quiz?.finished ? t('m10') : t('m11')}
-        </button>
-      </Section>
+      <div ref={sectionRef}>
+        <Section title={t('p19', { best })}>
+          {quiz?.finished && (
+            <p className="text-white">
+              {quiz.score} / {quiz.questionIds.length} {t('m9')}
+            </p>
+          )}
+          <button className={BUTTON_PRIMARY} onClick={begin} data-quiz-focus>
+            {quiz?.finished ? t('m10') : t('m11')}
+          </button>
+        </Section>
+      </div>
     );
 
   const picked = quiz.picked;
   const last = quiz.index + 1 >= quiz.questionIds.length;
   return (
-    <Section title={t('p18', { index: quiz.index + 1, total: quiz.questionIds.length })}>
-      <p className="text-white">{question.prompt}</p>
-      <div className="grid gap-2">
-        {question.options.map((option, optionIndex) => {
-          const chosen = picked === optionIndex;
-          const correct = optionIndex === question.correctIndex;
-          return (
-            <button
-              key={optionIndex}
-              disabled={picked !== null}
-              onClick={() => actions.pick(optionIndex, correct)}
-              className={`min-h-11 rounded-lg border px-3 py-2 text-left text-xs ${
-                picked === null
-                  ? 'border-slate-700 hover:border-slate-500'
-                  : correct
-                    ? 'border-emerald-400 text-emerald-200'
-                    : chosen
-                      ? 'border-rose-400 text-rose-200'
-                      : 'border-slate-800 opacity-60'
-              }`}
-            >
-              {option}
-            </button>
-          );
-        })}
-      </div>
-      {picked !== null && (
-        <button className={BUTTON} onClick={actions.next}>
-          {last ? t('m12') : t('m13')}
-        </button>
-      )}
-    </Section>
+    <div ref={sectionRef}>
+      <Section title={t('p18', { index: quiz.index + 1, total: quiz.questionIds.length })}>
+        <p className="text-white">{question.prompt}</p>
+        <div className="grid gap-2">
+          {question.options.map((option, optionIndex) => {
+            const chosen = picked === optionIndex;
+            const correct = optionIndex === question.correctIndex;
+            return (
+              <button
+                key={optionIndex}
+                disabled={picked !== null}
+                data-quiz-focus={picked === null && optionIndex === 0 ? true : undefined}
+                onClick={() => {
+                  setFocusPending(true);
+                  actions.pick(optionIndex, correct);
+                }}
+                className={`min-h-11 rounded-lg border px-3 py-2 text-left text-xs ${
+                  picked === null
+                    ? 'border-slate-700 hover:border-slate-500'
+                    : correct
+                      ? 'border-emerald-400 text-emerald-200'
+                      : chosen
+                        ? 'border-rose-400 text-rose-200'
+                        : 'border-slate-800 opacity-60'
+                }`}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+        {picked !== null && (
+          <button
+            className={BUTTON}
+            data-quiz-focus
+            onClick={() => {
+              setFocusPending(true);
+              actions.next();
+            }}
+          >
+            {last ? t('m12') : t('m13')}
+          </button>
+        )}
+      </Section>
+    </div>
   );
 }

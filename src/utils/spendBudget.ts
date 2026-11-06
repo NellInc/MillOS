@@ -1,6 +1,7 @@
 /** Per-tab browser-session admission budget for billable BYOK calls. */
 import { translate } from '../i18n';
 import { spendBudgetMessages } from './spendBudget.messages';
+import { registerAlertCatalog, type KeyedLine } from '../i18n/alertCopy';
 
 export interface BilledUsage {
   inputTokens: number;
@@ -46,7 +47,11 @@ function finiteNonnegative(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
-export class SpendCapError extends Error {}
+registerAlertCatalog('spendBudget', spendBudgetMessages);
+/** Carries its key, so a surface that keeps the refusal words it in the language active now. */
+export class SpendCapError extends Error {
+  readonly copy: KeyedLine = { catalog: 'spendBudget', key: 'capReached' };
+}
 
 function readSession(): SpendSnapshot {
   const initial: SpendSnapshot = {

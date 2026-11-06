@@ -12,10 +12,13 @@ import * as THREE from 'three';
 
 type Generator = typeof import('../splatMapGenerator');
 
+// Re-taken 2026-10-31: the Riverside railway corridor (constants/railwayLayout.ts)
+// flattens meadow relief along the line and one valley hollow moved off it. The
+// guarantee is unchanged and was re-checked: cold and remembered still agree.
 const GOLDEN_3D2AF742: Record<number, string> = {
-  64: '9e42edc70077718f',
-  128: '06f9d1c83c0790ff',
-  96: 'cc9dbbcc9578a949',
+  64: '22e93ae9be5a369f',
+  128: '5771147f586714b2',
+  96: 'c8b470db41ec4b9f',
 };
 
 /** Seeded scatter, every 64-grid vertex column, off-grid rows, the edges, -0 and NaN. */
@@ -86,10 +89,11 @@ describe('terrain ground height at startup', () => {
   it('displaces the terrain meshes from the same remembered vertices, to the bit', async () => {
     // Golden position/normal hashes of `createDisplacedGeometry`, taken on 0b899e77.
     const GOLDEN_0B899E77: Record<string, string> = {
-      '1200-64': '5a3834252c293f81 11a076aea86963c5',
-      '1200-128': '3a94e604d770a017 0a59cd0b0020b624',
+      // Re-taken 2026-10-31 with the heights above (Riverside railway corridor).
+      '1200-64': 'b914234e9f41882c 9d140b56f2d8e821',
+      '1200-128': 'd0a00a2942ef90f8 f0fb8069fd174322',
       // Not laid over TERRAIN_BOUNDS' grid: every vertex takes the direct path.
-      '1000-50': '335afe065f30feb7 f7ff7dd5ec3f550c',
+      '1000-50': 'c8de31ed063a90f8 cb712d490132609a',
     };
     const generator = await fresh();
     const { createDisplacedGeometry } = await import('../TerrainGround');

@@ -175,9 +175,9 @@ jobs:
           NODE
 
       - name: Install pinned Chromium for Jev UI acceptance
-        # Playwright 1.62.1 pins full Chromium151. Compare the newer backend on
-        # this same hosted Metal path, retaining the original image/deadline.
-        # Working if the artifact records151 and the unchanged hardware gate passes.
+        # Playwright's pinned full Chromium, as on main. Stable Chrome 157 on this
+        # hosted Metal path failed the startup frame gate that main passes (PR #64).
+        # Working if the artifact records Playwright's Chromium and the gate passes.
         run: npx playwright install --no-shell chromium
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts

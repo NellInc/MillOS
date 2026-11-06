@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
-import { render, cleanup } from '@testing-library/react';
+import { act, render, cleanup } from '@testing-library/react';
 import { TouchLookHandler } from './mobile/TouchLookHandler';
 import * as THREE from 'three';
 import { OrbitControls } from 'three-stdlib';
@@ -250,5 +250,140 @@ describe('the unattended camera', () => {
 
   it('is off by default: the camera moves only on input until C turns the showcase on', () => {
     expect(IDLE_ORBIT_DEFAULT).toBe(false);
+  });
+});
+
+// A cutaway lesson (machine interior, henhouse, windmill) frames its detail
+// with a narrow lens, 11-45 degrees. Its cleanup only cancelled a flight still
+// running, so after a completed flight the lens stayed narrow and the player
+// orbited through a 3-6x zoom until they picked a preset.
+// Working if releasing a cutaway's view eases the lens back to 65 degrees, and
+// a newer flight or preset is never touched.
+describe('a released cutaway lens', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (media: string) => ({
+      matches: false,
+      media,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    touchHarness.frame = null;
+    useCameraStore.setState({
+      activePreset: null,
+      targetPosition: null,
+      targetLookAt: null,
+      targetFov: 65,
+      isAnimating: false,
+    });
+  });
+
+  it('eases back to the ordinary lens after a completed detail flight', () => {
+    const camera = (touchHarness.camera = new THREE.PerspectiveCamera(12));
+    const canvas = (touchHarness.canvas = document.createElement('canvas'));
+    const controls = new OrbitControls(camera, canvas);
+    camera.position.set(0, 4, 10);
+    controls.target.set(0, 4, 0);
+    useCameraStore.getState().focusOn([0, 4, 10], [0, 4, 0]);
+    useCameraStore.setState({ targetFov: 12 });
+    const owned = useCameraStore.getState().targetPosition;
+    render(createElement(CameraController, { orbitControlsRef: { current: controls } }));
+    // Each frame inside act, so the store's changes re-render as they do in the app.
+    const step = (frames: number) => {
+      for (let frame = 0; frame < frames; frame++) act(() => touchHarness.frame?.({}, 1 / 60));
+    };
+    step(60);
+    expect(useCameraStore.getState().isAnimating).toBe(false);
+    expect(camera.fov).toBeCloseTo(12, 3);
+
+    act(() => useCameraStore.getState().releaseFocus(owned));
+    step(120);
+    expect(camera.fov).toBeCloseTo(65, 3);
+    expect(useCameraStore.getState().lensReturning).toBe(false);
+    controls.dispose();
+  });
+
+  // The orbit rig's onStart (App) and a phone's one-finger drag cancel the
+  // flight, which emptied targetPosition, so a player who orbited or zoomed
+  // round the cutaway closed it into the narrow lens: releaseFocus no longer
+  // recognised the view it had opened.
+  // Working if orbiting a cutaway, or taking over mid-flight, still hands the
+  // lens back on close, and a newer flight after the drag is left alone.
+  it('eases back after the player orbited the cutaway', () => {
+    const camera = (touchHarness.camera = new THREE.PerspectiveCamera(65));
+    const canvas = (touchHarness.canvas = document.createElement('canvas'));
+    const controls = new OrbitControls(camera, canvas);
+    camera.position.set(0, 4, 30);
+    controls.target.set(0, 4, 0);
+    useCameraStore.getState().focusOn([0, 4, 10], [0, 4, 0]);
+    useCameraStore.setState({ targetFov: 12 });
+    const owned = useCameraStore.getState().targetPosition;
+    render(createElement(CameraController, { orbitControlsRef: { current: controls } }));
+    const step = (frames: number) => {
+      for (let frame = 0; frame < frames; frame++) act(() => touchHarness.frame?.({}, 1 / 60));
+    };
+    step(60);
+    expect(camera.fov).toBeCloseTo(12, 3);
+    // An orbit drag (App's OrbitControls onStart) inside the cutaway.
+    act(() => useCameraStore.getState().cancelAnimation());
+    step(5);
+    act(() => useCameraStore.getState().releaseFocus(owned));
+    step(120);
+    expect(camera.fov).toBeCloseTo(65, 3);
+    controls.dispose();
+  });
+
+  it('eases back after the player took over mid-flight', () => {
+    const camera = (touchHarness.camera = new THREE.PerspectiveCamera(65));
+    const canvas = (touchHarness.canvas = document.createElement('canvas'));
+    const controls = new OrbitControls(camera, canvas);
+    camera.position.set(0, 4, 30);
+    controls.target.set(0, 4, 0);
+    useCameraStore.getState().focusOn([0, 4, 10], [0, 4, 0]);
+    useCameraStore.setState({ targetFov: 12 });
+    const owned = useCameraStore.getState().targetPosition;
+    render(createElement(CameraController, { orbitControlsRef: { current: controls } }));
+    const step = (frames: number) => {
+      for (let frame = 0; frame < frames; frame++) act(() => touchHarness.frame?.({}, 1 / 60));
+    };
+    step(25);
+    expect(camera.fov).toBeLessThan(60);
+    act(() => useCameraStore.getState().cancelAnimation());
+    act(() => useCameraStore.getState().releaseFocus(owned));
+    step(120);
+    expect(camera.fov).toBeCloseTo(65, 3);
+    controls.dispose();
+  });
+
+  it('leaves a preset chosen after the drag alone', () => {
+    useCameraStore.getState().focusOn([0, 4, 10], [0, 4, 0]);
+    useCameraStore.setState({ targetFov: 12 });
+    const owned = useCameraStore.getState().targetPosition;
+    useCameraStore.getState().cancelAnimation();
+    useCameraStore.getState().setPreset(1);
+    useCameraStore.getState().releaseFocus(owned);
+    expect(useCameraStore.getState()).toMatchObject({
+      activePreset: 1,
+      isAnimating: true,
+      targetFov: 55,
+      lensReturning: false,
+    });
+  });
+
+  it('leaves a newer preset alone', () => {
+    useCameraStore.getState().focusOn([0, 4, 10], [0, 4, 0]);
+    useCameraStore.setState({ targetFov: 12 });
+    const owned = useCameraStore.getState().targetPosition;
+    useCameraStore.getState().setPreset(1);
+    useCameraStore.getState().releaseFocus(owned);
+    expect(useCameraStore.getState()).toMatchObject({
+      activePreset: 1,
+      isAnimating: true,
+      targetFov: 55,
+    });
   });
 });

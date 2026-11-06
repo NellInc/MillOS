@@ -10,16 +10,25 @@ import {
   markStartupPrepared,
   markStartupReady,
   registerStartupDrawOwner,
+  setStartupDeferredShaders,
+  setStartupSettleFrames,
+  setStartupShaderProgress,
   StartupFrameWindow,
   subscribeStartup,
 } from '../utils/startupReadiness';
 import { isPostProcessingActive, useGraphicsStore } from '../stores/graphicsStore';
+
+/** Visible time one truck prewarm attempt may hold the cover before it is deferred. */
+const TRUCK_PREPARATION_WINDOW_MS = 15000;
 
 /** CPU ticks remain live while the actual callers withhold unfinished world draws. */
 export function StartupReadiness(): null {
   const windowRef = useRef(new StartupFrameWindow());
   const lastDrawRef = useRef(getStartupDrawSerial());
   const preparationGuardRef = useRef<() => boolean>(() => false);
+  // Strict readiness certifies prepared trucks; a deferred prewarm admits only
+  // the explicit slow-device open. Working if a deferred truck never marks ready.
+  const trucksPreparedRef = useRef<() => boolean>(() => false);
   const retireObserversRef = useRef<() => void>(() => {});
   const ready = useSyncExternalStore(subscribeStartup, () => getStartupSnapshot().ready);
   const { gl: renderer, scene, camera: mainCamera } = useThree();
@@ -28,7 +37,6 @@ export function StartupReadiness(): null {
     let failed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
-    let truckDeadline: number | undefined;
     let release: ReturnType<typeof beginStartupTask> | undefined;
     let ownedRevisions = 0;
     const resourceRevision = () => getStartupSnapshot().revision - ownedRevisions;
@@ -66,6 +74,8 @@ export function StartupReadiness(): null {
       materials: Map<THREE.Material, { version: number; key: string }>;
       programs: Set<PreparedProgram>;
       ready: boolean;
+      /** Outlived its window: released the cover's barrier, still polled. */
+      deferred?: boolean;
     };
     let world: Configuration | undefined;
     let trucks: Configuration | undefined;
@@ -81,14 +91,45 @@ export function StartupReadiness(): null {
       failed = true;
       clearTimeout(timer);
       clearTimeout(deadlineTimer);
+      showDeferred(false);
       beginTask();
       finishTask(true);
       console.error('Startup shader preparation failed', error);
     };
-    const checkTruckDeadline = () => {
-      if (truckDeadline !== undefined && performance.now() >= truckDeadline)
-        throw new Error('Truck shader preparation timed out');
+    // The truck window measures the current attempt in visible time: it is
+    // re-armed for every attempt, dropped on invalidation and while the tab is
+    // hidden, and on expiry the attempt is deferred, never failed. Deferral
+    // releases the cover's barrier so the loaded scene can be opened; the
+    // compile keeps being polled and a late finish still certifies readiness.
+    // Working if a slow compile ends with "Open loaded scene", never Reload.
+    let deferredShown = false;
+    const showDeferred = (deferred: boolean) => {
+      if (deferredShown === deferred) return;
+      deferredShown = deferred;
+      setStartupDeferredShaders(deferred);
     };
+    const disarmTruckWindow = () => {
+      clearTimeout(deadlineTimer);
+      deadlineTimer = undefined;
+    };
+    const deferTrucks = () => {
+      deadlineTimer = undefined;
+      if (cancelled || failed || !trucks || trucks.ready || trucks.deferred) return;
+      trucks.deferred = true;
+      finishTask();
+      showDeferred(true);
+      console.warn('Truck shader preparation is slow; the loaded scene can be opened');
+    };
+    const armTruckWindow = () => {
+      disarmTruckWindow();
+      if (document.visibilityState === 'hidden') return;
+      deadlineTimer = setTimeout(deferTrucks, TRUCK_PREPARATION_WINDOW_MS);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') disarmTruckWindow();
+      else if (trucks && !trucks.ready && !trucks.deferred) armTruckWindow();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     const colourSpace = () => target?.texture.colorSpace ?? renderer.outputColorSpace;
     const current = (configuration: Configuration): boolean => {
       if (renderer.getContext().isContextLost())
@@ -110,10 +151,12 @@ export function StartupReadiness(): null {
     };
     const invalidate = () => {
       clearTimeout(timer);
+      disarmTruckWindow();
+      showDeferred(false);
       world = undefined;
       trucks = undefined;
+      setStartupShaderProgress(0, 0);
       beginTask();
-      checkTruckDeadline();
     };
     const valid = (): boolean => {
       if (cancelled || failed) return false;
@@ -122,13 +165,14 @@ export function StartupReadiness(): null {
           invalidate();
           return false;
         }
-        return !!world?.ready && !!trucks?.ready;
+        return !!world?.ready && (!!trucks?.ready || !!trucks?.deferred);
       } catch (error) {
         fail(error);
         return false;
       }
     };
     preparationGuardRef.current = valid;
+    trucksPreparedRef.current = () => !!trucks?.ready;
     const compile = (objects: THREE.Object3D[], truck = false): Configuration => {
       const previousTarget = renderer.getRenderTarget();
       const cubeFace = renderer.getActiveCubeFace();
@@ -239,12 +283,26 @@ export function StartupReadiness(): null {
         });
       });
     };
+    // Loading-bar counts: programs linked of those submitted, world then trucks.
+    const remainingBy = new Map<Configuration, Set<PreparedProgram>>();
+    const reportShaders = () => {
+      let total = 0;
+      let linked = 0;
+      for (const configuration of [world, trucks]) {
+        if (!configuration) continue;
+        total += configuration.programs.size;
+        linked +=
+          configuration.programs.size -
+          (configuration.ready ? 0 : (remainingBy.get(configuration)?.size ?? 0));
+      }
+      setStartupShaderProgress(linked, total);
+    };
     const poll = (configuration: Configuration, truck: boolean) => {
       const remaining = new Set(configuration.programs);
+      remainingBy.set(configuration, remaining);
       const check = () => {
         if (cancelled || failed || (truck ? trucks : world) !== configuration) return;
         try {
-          if (truck) checkTruckDeadline();
           if (!current(configuration)) {
             invalidate();
             return;
@@ -263,18 +321,18 @@ export function StartupReadiness(): null {
             if (program.diagnostics?.runnable === false)
               throw new Error('Startup shader program is not runnable');
             remaining.delete(program);
-            if (truck) checkTruckDeadline();
           }
+          reportShaders();
           if (!remaining.size) {
             configuration.ready = true;
-            // Working if a hung first truck compile stays bounded, while a succeeded
-            // one retires its deadline so later re-preparation gets a fresh 15 s window.
+            // A succeeded attempt retires its window, so a later re-preparation
+            // gets a fresh one; a deferred one that finishes late certifies too.
             if (truck) {
-              truckDeadline = undefined;
-              clearTimeout(deadlineTimer);
+              disarmTruckWindow();
               finishTask();
+              showDeferred(false);
             } else telemetry.worldCompletedAt = performance.now();
-          } else timer = setTimeout(check, 10);
+          } else timer = setTimeout(check, configuration.deferred ? 250 : 10);
         } catch (error) {
           fail(error);
         }
@@ -330,14 +388,8 @@ export function StartupReadiness(): null {
             const full = scene.getObjectByName(name)?.getObjectByName('truck-full-detail');
             return full ? [full] : [];
           });
-          if (fullTrucks.length && truckDeadline === undefined) {
-            truckDeadline = performance.now() + 15000;
-            deadlineTimer = setTimeout(() => {
-              if (!trucks?.ready) fail(new Error('Truck shader preparation timed out'));
-            }, 15000);
-          }
-          checkTruckDeadline();
           trucks = compile(fullTrucks, true);
+          if (trucks.programs.size > 0) armTruckWindow();
           // Only compiler-owned shared materials advance during these submissions.
           // Their actual variants are checked by the truck poll too.
           for (const [material, config] of trucks.materials)
@@ -357,6 +409,8 @@ export function StartupReadiness(): null {
       cancelled = true;
       clearTimeout(timer);
       clearTimeout(deadlineTimer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      showDeferred(false);
       unregister();
       retireObservers();
       if (scene.userData.startupPreparation === telemetry) {
@@ -365,6 +419,7 @@ export function StartupReadiness(): null {
       }
       finishTask();
       preparationGuardRef.current = () => false;
+      trucksPreparedRef.current = () => false;
     };
   }, [renderer, scene, mainCamera]);
   useFrame(
@@ -400,11 +455,13 @@ export function StartupReadiness(): null {
           now: performance.now(),
           prerequisitesReady: completedDraw && prerequisitesReady(),
           revision: frameRevision,
-        })
+        }) &&
+        trucksPreparedRef.current()
       ) {
         markStartupReady();
         retireObserversRef.current();
       } else {
+        setStartupSettleFrames(windowRef.current.onTime);
         markStartupPrepared(
           windowRef.current.prepared,
           () =>

@@ -73,7 +73,8 @@ Five columns, three choices each. Each choice is tagged *Beginner*,
 | Chronicle mode | Historical campaign (trials and events) | No trials (events only, +0) | Sandbox (no events or trials, +0) |
 
 Training mode is offered after the first failed trial or challenge (PE
-`start_training`): fund costs -25%, forecast chance -25%, final score -2.
+`start_training`): fund costs -25%, every forecast 25 points less likely,
+final score -2.
 
 ### 2. Eras of the mill — PE `social_*.txt`
 
@@ -450,6 +451,218 @@ if any slide is never shown, because a slide that a more common mark always
 shadows reads its mark in name only. If the AI partner made any of the record's
 decisions, the epilogue says how many.
 
+## Part three: standing orders
+
+A third set of borrows, from Kremlingames' *Crisis in the Kremlin* (2017),
+*Ostalgie: The Berlin Wall* (2018) and *Mao's Legacy* (2022). Each was read
+from its shipped data: Ostalgie's and Mao's Legacy's text assets, and the
+strings in Crisis in the Kremlin's game code, which keeps its text there.
+Sources are cited as `CiK:` (Assembly-CSharp strings), `OST:` (`science_text`,
+`Opis_en`, `Charact_en`, `Events_en_1`) and `ML:` (`Doctr_en`,
+`old_modify_opis_en`, `other_text_en`, `Events_text_en`).
+
+### Design lens
+
+Steam records 274 hours of Ostalgie (last played 2025-10-24, with four
+Yugoslavia saves from that day), 222 of Mao's Legacy and 79 of Crisis in the
+Kremlin, so the borrows lean on the two most played. The series is dry: a
+dozen stats, dense text, no world to look at. It grips because every line
+says what it does and how it ends (`ML:` "-0.5 to industry every 2 weeks. To
+deactivate: Own tech. industry"), every choice lists what it needs (`CiK:`
+"Required: subsidies, power of KGB > 80 and loyalty of KGB > 80"), the prose
+is real history, and the core loop is a setting left in place: pick a
+doctrine, watch the numbers drift under it, adjust one setting, answer the
+events.
+
+MillOS is the reverse case: the 3D plant carries the texture, and the
+Chronicle's decisions either arrive (part one) or are remembered (part two).
+What the series adds is the setting you leave in place and come back to.
+
+### Fit
+
+| Kremlingames | MillOS |
+|---|---|
+| Doctrines change statistics and thresholds | Policy ladders change bounded modifiers and forecast points through `ChronicleEffect`; nothing creates goods |
+| Ministers, factions and interest groups are scored for loyalty | Refused as scores. The crew are anonymous roles with values, preferences and needs; nothing about them is a number. Organisations keep their part-two relationships |
+| Statistics "not very accurate, so don't bother" (`CiK:` tutorial) and "Forgery in plans" | The return is filed from the recorded tally and cannot be edited. Padding a return was considered and not built: the ratchet carries the dilemma, and the backdated cleaning log already plays falsification |
+| Being deposed ends the game (`CiK:` "KGB PLOT ... you were arrested") | Rule 4: the administrator arrives, locks policies for four shifts and leaves |
+
+### Refused on principle
+
+Population satisfaction, KGB, generals' and intellectuals' loyalty, faction
+power and minister dossiers score people. `CiK:`'s "Labour policy" doctrine
+sets how hard people work. Rigged elections and referendums, psychiatric
+internment, OMON dispersals, and `ML:`'s coups, revolutions and sabotage
+against other countries have no analogue. Nor does `CiK:`'s choice of how the
+newspapers mark a politician's death: it is about a person.
+
+### 25. Policy ladders — `CiK:` doctrine buttons ("Type of economy", "Price policy", "Trade policy", "Five-years plan"); `ML:` `Doctr_en`, `old_modify_opis_en`
+
+Four ladders of three steps. Every chronicle starts on the middle step.
+Mao's Legacy's steps move thresholds ("If bird cage and standard of living <
+30 OR Mixed and < 40 OR Minimum regulation and < 50, then +0.1 corruption");
+here the ends move forecast points and are what start or end standing
+conditions.
+
+| Ladder | One end | Middle | Other end |
+|---|---|---|---|
+| Maintenance | Run to failure: upkeep x0.85, wear x1.06, grid strain and dust load +5 | Scheduled | Condition-based (needs vibration monitoring): upkeep x1.1, wear x0.92, dust -5, grid -3 |
+| Intake | Any lot: production x1.03, quality -1 | Graded at the gate | Contracted growers only: production x0.97, quality +1, growers +6 each crop year |
+| Stock | Lean: upkeep x0.9, road works +8 | Working buffer | Strategic reserve: upkeep x1.12, road works -8, storm -4 |
+| Order book | Spot: reinvestment +3%, customers -4 each crop year | Mixed | Contract: reinvestment -2%, customers +4 each crop year |
+
+A change moves one step, costs 4 know-how and a council point (`CiK:` "15
+more points to change a doctrine"), and locks that ladder for 3 shifts. One
+exception: a step off a red line whose warning is counting down (system 28)
+can be proposed at once, since the lock would otherwise hold the policy until
+the very close the warning acts. Each step shows its effect on its button.
+
+### 26. The crew and the members' assembly
+
+A departure from the games, at Nell's suggestion (2026-11-02): personnel can
+have personalities, values, preferences and needs; what the fit rules refuse
+is a score. Six roles (head miller, roll fitter, intake grader, lab
+technician, packing lead, yard hand), each with two authored profiles; the
+charter's seed picks one. A member has a temperament, a value, a preferred
+step on one ladder, and a need that one step cuts against, with a priced way
+to meet it otherwise.
+
+A change is put to the assembly and each member votes from their profile,
+in this order, with the reason shown:
+
+1. The step cuts against their need: against (abstain once the need is met another way).
+2. They have a standing objection: against, until it is met.
+3. It moves toward their preferred step: for; away from it: against.
+4. Otherwise by temperament: eager for, cautious against a move to either end, even abstains.
+
+One member, one vote; abstentions do not count and a tie does not carry. A
+change that falls stays open: meet a need (fund, on the button) or withdraw.
+A change carried over a member's need leaves their objection standing until
+the need is met or the ladder moves off that step. Both leave marks
+(`crew-overruled`, `crew-concession`), and the epilogue says what became of
+the crew. Mao's Legacy's factions and Crisis in the Kremlin's Politburo
+decide whether a doctrine passes by bloc strength; here they are members
+with stated values, so the vote can be predicted and negotiated, never
+farmed.
+
+### 27. Standing conditions with their way out — `ML:` `old_modify_opis_en`
+
+Mao's Legacy's modifiers print their exit ("Industry does not rise above
+50.0. To deactivate: Complete re-equipment of the industry"). Each condition
+card shows its effect, "To clear:" and its progress, so a condition with no
+way out cannot be written (rule 4). Two kinds of effect: a rate, and a
+ceiling (`productionCeiling`, new in `ModifierValues`), which costs nothing
+until the plant would run above it.
+
+| Condition | Arrives | Effect | To clear |
+|---|---|---|---|
+| Tired machinery | signing with tired machinery | the charter's wear x1.25 | three improvements installed |
+| Deferred maintenance | 2 shifts of austerity | production cannot rise above x0.94 | three shifts out of austerity |
+| Worn roll surfaces | 4 shifts on run-to-failure | wear x1.08, quality -1 | the roll regrinding shop, or four shifts off run-to-failure |
+| Thin stocks | a road-works forecast strikes on lean stock | production cannot rise above x0.97 | two shifts on a buffer or reserve |
+| Behind the plan | a missed quota | reinvestment -3% | meet the next quota |
+| Under the administrator | system 32 | upkeep x1.1, policies locked | it leaves after four shifts |
+
+### 28. Red lines and countdowns — `ML:` `other_text_en` ("The USSR is dissatisfied with our policy. In {0} months China will be excluded from the Soviet alliances.")
+
+| Organisation | Red line | Why |
+|---|---|---|
+| Growers' cooperative | Intake: any lot | buying any lot undercuts the cooperative's price agreement |
+| Village committee | Stock: lean | the village bakery relies on the mill's winter buffer |
+| Regional federation | Order book: spot | federation contracts depend on members' contracted supply |
+
+Crossing a red line starts a 3-shift countdown in the notes and the Policy
+tab. Moving off cancels it; letting it run out costs that relationship 15 and
+leaves a mark the epilogue reads. Each red line is acted on once. Two
+exceptions keep a warning heedable: moving off is never held by the ladder's
+3-shift lock (system 25), and while the administrator has the policies locked
+(system 32) every running countdown waits as long, so the steward has the same
+shifts to move off once it leaves. Its arrival notice says so.
+
+### 29. The partner's brief — `CiK:` "Council of Ministers ... You can see their political views, which will help to predict their actions."
+
+People are not appointed, but the AI partner is the one delegate the
+Chronicle has. Its brief is chosen in the Partners tab, and each routine
+decision waiting shows what the partner would take under it:
+
+| Brief | Routine answers | Mitigates from (level 2) | Installs first (level 3) |
+|---|---|---|---|
+| Conventional | the recommended answer, the cheapest first (part one's rule) | 40%, every hazard | the cheapest |
+| Standards first | the one that does most for the certifier's standing and the record | 25% for dust load, else 40% | quality, crop and dust plans (moisture meters, dryer, aspiration, blending bins) |
+| Thrift | the one that leaves the most in the fund | 55%, every hazard | plans that cut running costs, then the cheapest over a crop year |
+| Good neighbour | the one that does most for the growers, the village and the haulier | 25% for storms and road works, else 40% | drainage works and the haulage agreement |
+
+Measured on the authored deck (2026-11-02): the recommended answers to the
+15 routine events already favour standards, so a brief that only weighed
+answers changed none of them under "Standards first" and one under "Good
+neighbour", against twelve under "Thrift". A brief that changes nothing is an
+inert term, so each brief also sets how early the partner guards each hazard
+and what it builds first. `governance.test.ts` checks every brief departs
+from the conventional rule on the real forecasts and plans.
+
+An answer a brief has no view of scores zero, so it still beats an answer
+the brief counts against: a standards-first partner never takes the answer
+that costs standing just because the others were neutral. The conventional
+answer wins ties, so a brief with no view of any answer takes it. Chains handed to the partner
+(`resolveChain`) stay on their defaults, so every default stays free. The
+policy is a fixed rule set; no language model is consulted. The epilogue
+names a non-conventional brief.
+
+### 30. The crop-year return and the ratchet — `CiK:` "Five-years plan", "Forgery in plans"; OGAS "will significantly simplify the workflow and reduce falsifications"
+
+Each close adds its recorded dispatch, quality failures, energy cost, grade,
+reinvestment and know-how to the crop year's tally. At the year's turn, and
+with the closing shift, the return is filed. The first year sets the
+baseline: the first quota is 90% of it. After that the quota ratchets: a
+year that beats it becomes the next year's floor, and it never falls. Quotas
+round down to the hundred, so a floor is never above what its year
+dispatched. A quota
+met pays the federation's premium (60) and warms the federation by 6; a miss
+cools it by 6 and puts the mill behind the plan. The Returns tab shows the
+year so far against the quota, with a marker for an even pace and whether
+the mill is on it, and every return with its change on the year
+before. Holding output back is a real choice, because the production speed
+is the player's. The sandbox mode sets no quota.
+
+### 31. The co-op reserve — `CiK:` gold reserve ("money will be taken from here"), "ON/OFF Autofill reserve"
+
+Indivisible, after the third co-operative principle: fund goes in (a 25
+deposit, or autofill: 10% of each shift's reinvestment) and comes out only to
+cover upkeep, before the austerity choice is asked. What it cannot cover is
+still a shortfall. Ledger source `reserve`.
+
+### 32. The administrator — `CiK:` "KGB PLOT", made recoverable
+
+Two missed quotas in a row, or three of the four organisations cool, bring
+the federation's administrator once per chronicle: for four shifts policies
+are locked, upkeep is x1.1 and the AI partner acts at Forecasts or above
+(the player cannot lower it). Then it leaves, the delegation goes back to
+where it was, and the mark stays for the epilogue.
+
+### History
+
+Four notes, each source-checked against at least two sources, with quiz
+questions: OGAS (`first_return`), Project Cybersyn (`brief_set`), the
+ratchet (`quota_raised`) and democratic member control and indivisible
+reserves (`assembly_vote`). Details that could not be confirmed (the 500
+telex machines, OGAS's full English title, who coined "ratchet") were left
+out.
+
+### Not changed, and simplified
+
+The final score and its ranks are unchanged; part three shows in the
+epilogue, not the score. The Chronicle's copy stays English only (rule 7).
+
+* A chronicle saved before part three starts on the middle of every ladder
+  with its seed's crew; its first return covers only the shifts from loading
+  to the year's turn, so its first quota is set from a partial year. The
+  ratchet corrects it the year after.
+* The sandbox sets no quota and brings no administrator; ladders, the crew,
+  conditions and red lines still apply.
+* A return counts the know-how earned between one year's turn and the next,
+  so know-how a close earns after its year turns (a medal on that shift)
+  falls in the next year's return. Nothing is counted twice or dropped.
+
 ## Architecture
 
 ```
@@ -469,6 +682,7 @@ src/chronicle/
   desks.ts         works, trade and council desks of attention
   longNight.ts     the two fronts and their preparation
   epilogue.ts      epilogue sections and slides, chosen from the record
+  governance.ts    part three: policy ladders, crew, conditions, red lines, briefs, ratchet, reserve
   customers.ts     relationship tiers and updates
   trials.ts        trial table, telegraph, evaluation, trial and challenge medals
   delegation.ts    delegation levels and the AI partner policy
@@ -569,7 +783,20 @@ is tuned for standard pace.
   variants fire from the record, the certifier's cliff always has a way back,
   the long night holds or falls by preparation, and whole chronicles run to
   their epilogue with every decision lapsing and with every decision answered.
+* Part three (`__tests__/governance.test.ts`): ballots follow declared values
+  in their stated order, a tie does not carry, a met need abstains, an
+  outvoted need stands as an objection until met or moved off, each condition
+  arrives and clears on its stated terms, a ceiling costs nothing below it,
+  red lines count down and are withdrawn, briefs pick and fall back, the
+  return is filed from the tally and the quota only ratchets up, two misses
+  bring the administrator who leaves, the reserve fills and is drawn, and 300
+  seeded chronicles reach every part-three epilogue slide.
 * A store test loads a chronicle saved before part two.
+* A store test loads a chronicle saved before part three, and a damaged one.
+* `components/chronicle/PolicyTab.test.tsx` drives the Policy, Returns and
+  Partners tabs: a change put to the assembly with each vote's reason, a need
+  met, a second change held back while one is open, a carried change locking
+  its ladder, the reserve and the brief.
 * A store test that drives a sequence of real shift reports through
   `observe()`.
 * The whole gate: `npm run typecheck`, `npm run lint`, `npm test`,

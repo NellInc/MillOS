@@ -145,7 +145,8 @@ describe('UnifiedGameTick maintenance causality', () => {
     });
     expect(useProductionStore.getState().performMaintenance('packer-0').success).toBe(true);
     const [record] = useProductionStore.getState().machines[0].maintenanceHistory ?? [];
-    expect(record).toMatchObject({ type: 'preventive', date: 'Day 2, 13:30' });
+    // Game day 2 is the third day: plant stamps read Day N + 1.
+    expect(record).toMatchObject({ type: 'preventive', date: 'Day 3, 13:30' });
     expect(record.notes).toContain('60.0%');
     expect(record.notes).toContain('12.0%');
 

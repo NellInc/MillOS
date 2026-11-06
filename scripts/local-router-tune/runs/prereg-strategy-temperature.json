@@ -1,0 +1,17 @@
+{
+ "run": "strategy-temperature",
+ "writtenAt": "2026-11-04, before any measurement",
+ "approvedBy": "Nell: '2' (2026-11-04), choosing the strategy temperature test",
+ "question": "Does local strategy generation at temperature 0.3 name the faulted machine more reliably than the current 0.7?",
+ "design": {
+  "config": "Qwen3.5-4B-q4f16_1-MLC with the fast lane (Qwen3.5-0.8B routing at 914fde01), as shipped",
+  "cases": "browser_eval.mjs --healthy-base strategic cases (10)",
+  "arms": [0.7, 0.3],
+  "repeats": "5 per arm (50 answers each), both arms in one page load, order alternating per repeat (0.7,0.3 then 0.3,0.7)",
+  "how": "the eval overrides only requests that carry the strategy temperature (0.7); routing scores at temperature 1 are untouched; every overridden request is logged so the treatment arm is verified, not assumed"
+ },
+ "rule": {
+  "adopt0.3if": "hits(0.3) >= hits(0.7) + 3 AND parsed(0.3) >= parsed(0.7) AND median seconds(0.3) <= 1.2 x median seconds(0.7)",
+  "otherwise": "keep 0.7, which also keeps parity with the cloud models' setting"
+ }
+}

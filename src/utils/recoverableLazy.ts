@@ -1,4 +1,8 @@
-import { beginStartupTask } from './startupReadiness';
+import {
+  beginStartupTask,
+  noteStartupSectionBuilt,
+  noteStartupSectionRequested,
+} from './startupReadiness';
 import { formatFixed, translate } from '../i18n';
 import { recoverableLazyMessages } from './recoverableLazy.messages';
 import {
@@ -6,6 +10,7 @@ import {
   createElement,
   lazy,
   useContext,
+  useLayoutEffect,
   type ComponentProps,
   type ComponentType,
   type LazyExoticComponent,
@@ -15,6 +20,13 @@ interface RecoverableLazyOptions {
   attempts?: number;
   attemptTimeoutMs?: number;
   retryDelayMs?: number;
+  /**
+   * Work the chunk must wait for before it may evaluate (the shared texture
+   * bake). Awaited untimed, before the first attempt: it keeps its own
+   * deadline, and inside the importer it ran down the chunk's download budget.
+   * Working if a chunk always gets its full budget after the wait.
+   */
+  awaitBefore?: () => Promise<unknown>;
 }
 
 const DEFAULT_OPTIONS = {
@@ -127,7 +139,11 @@ export function recoverableLazy<T extends ComponentType<any>>(
   let loaded: { default: T } | null = null;
   let inFlight: Promise<{ default: T }> | null = null;
   const load = (): Promise<{ default: T }> => {
-    inFlight ??= importWithBoundedRetry(importer, options).then(
+    const importNow = () => importWithBoundedRetry(importer, options);
+    const prelude = options?.awaitBefore;
+    inFlight ??= (
+      prelude ? Promise.resolve().then(prelude).then(importNow, importNow) : importNow()
+    ).then(
       (module) => {
         loaded = module;
         return module;
@@ -142,6 +158,11 @@ export function recoverableLazy<T extends ComponentType<any>>(
 
   const RecoverableLazyComponent = (props: ComponentProps<T>) => {
     const recoveryGeneration = useContext(LazyRecoveryContext);
+    // Loading-bar count only (startupReadiness): constructing a section is
+    // work even when its module was preloaded. This layout effect runs after
+    // the whole lazy subtree commits.
+    noteStartupSectionRequested(RecoverableLazyComponent);
+    useLayoutEffect(() => noteStartupSectionBuilt(RecoverableLazyComponent), []);
     let LazyComponent = payloadsByGeneration.get(recoveryGeneration);
     if (!LazyComponent) {
       LazyComponent = lazy(() => {

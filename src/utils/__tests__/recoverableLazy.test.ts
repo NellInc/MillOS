@@ -117,6 +117,52 @@ describe('recoverableLazy preload', () => {
   });
 });
 
+// The scene chunks wait for the shared texture bake (its own 20 s deadline)
+// before they evaluate. Inside the importer that wait counted against the
+// chunk's 15 s download budget, so a slow device ended startup on 'Loading
+// could not finish' and Reload. Working if the budget starts after the wait.
+describe('recoverableLazy awaitBefore', () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it('starts the import, and its budget, only once the prelude settles', async () => {
+    vi.useFakeTimers();
+    const importer = vi.fn(
+      () =>
+        new Promise<{ default: () => null }>((resolve) =>
+          setTimeout(() => resolve({ default: () => null }), 20)
+        )
+    );
+    const prelude = () => new Promise<void>((resolve) => setTimeout(resolve, 40));
+    const Deferred = recoverableLazy(importer, {
+      attempts: 1,
+      attemptTimeoutMs: 25,
+      retryDelayMs: 0,
+      awaitBefore: prelude,
+    });
+    let settled = false;
+    const loaded = Deferred.preload().then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(39);
+    expect(importer).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(importer).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(20);
+    await loaded;
+    expect(settled).toBe(true);
+
+    // The module really arrived: a render shows it without a second import.
+    const { container } = render(
+      createElement(Suspense, { fallback: 'x' }, createElement(Deferred))
+    );
+    expect(container.textContent).toBe('');
+    expect(importer).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('recoverableLazy startup accounting', () => {
   afterEach(cleanup);
 

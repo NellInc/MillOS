@@ -291,7 +291,10 @@ KNOWLEDGE_ENTRIES.push(
         return getHistoryNote(note.id)?.article ?? note.article;
       },
       relatedEntries: note.relatedEntries,
-      seeInAction: ['Mill Chronicle'],
+      // The workspace name, in the language the dock shows it in.
+      get seeInAction() {
+        return [translate(knowledgeStoreMessages, 'historySeeInAction')];
+      },
       unlockCondition: HISTORY_ENTRY_UNLOCK,
     })
   )
@@ -362,15 +365,18 @@ export const useKnowledgeStore = create<KnowledgeState>()(
       }),
       merge: (persisted, current) => {
         const state = sanitizeKnowledgeState(persisted);
+        const unlocked = (state.unlockedEntries ?? []).filter((id) => KNOWN_ENTRY_IDS.has(id));
+        const read = new Set(state.readEntries ?? []);
         return {
           ...current,
           // Always-available entries plus any history note a chronicle unlocked.
-          unlockedEntries: new Set([
-            ...ALWAYS_UNLOCKED,
-            ...(state.unlockedEntries ?? []).filter((id) => KNOWN_ENTRY_IDS.has(id)),
-          ]),
-          readEntries: new Set(state.readEntries ?? []),
-          newEntries: new Set<string>(),
+          unlockedEntries: new Set([...ALWAYS_UNLOCKED, ...unlocked]),
+          readEntries: read,
+          // NEW is "unlocked and not yet opened", so it is rebuilt from the two
+          // saved lists rather than lost on a reload.
+          newEntries: new Set(
+            unlocked.filter((id) => !ALWAYS_UNLOCKED.includes(id) && !read.has(id))
+          ),
           showTooltips: state.showTooltips ?? true,
           showLoadingQuotes: state.showLoadingQuotes ?? true,
           showAINarration: state.showAINarration ?? true,

@@ -30,8 +30,11 @@ export const FEATURE_FLAGS = {
   /** The Datalinks panel - browse all philosophy content (inspired by Alpha Centauri) */
   KNOWLEDGE_LIBRARY_ENABLED: true,
 
-  /** Contextual ? hints throughout the UI */
-  KNOWLEDGE_TOOLTIPS_ENABLED: true,
+  /**
+   * Contextual ? hints throughout the UI. Off: knowledge/KnowledgeTooltip.tsx,
+   * the only reader, has no live importer, so its Settings switch did nothing.
+   */
+  KNOWLEDGE_TOOLTIPS_ENABLED: false,
 
   /** Loading screen wisdom quotes */
   KNOWLEDGE_LOADING_QUOTES_ENABLED: true,
@@ -76,15 +79,21 @@ export const FEATURE_FLAGS = {
 
 /** Anonymous, locally rendered people inhabit the site. Autonomous testing was
  * the original constraint, never an instruction to remove simulated residents.
- * Vehicles remain autonomous; no real-person portraits, remote avatars or voices.
- * The workplace laboratory accepts only typed synthetic role inputs. Working if
- * local agreements are visible while the asset, voice and remote-person gates hold.
+ * Forklifts are crewed (2026-10-31, Nell's decision, reversing the v0.40
+ * uncrewed vehicles): each has an anonymous operator from the roster who boards
+ * at its crew point and steps down for breaks (src/simulation/forkliftCrew.ts).
+ * Trucks and the bus stay as they are. Still no real-person portraits or remote
+ * avatars. The PA speaks (2026-11-04, Nell's decision, D-025): a synthetic voice
+ * generated on the device (src/audio/paVoice.ts), never a host speech service;
+ * worker voices and radio chatter stay retired by name. The workplace
+ * laboratory accepts only typed synthetic role inputs. Working if local
+ * agreements are visible while the asset, voice and remote-person gates hold.
  */
 export const HUMAN_PRESENCE_POLICY = Object.freeze({
   personnelModels: true,
-  vehicleOperators: false,
+  vehicleOperators: true,
   remoteAvatars: false,
-  humanVoiceAudio: false,
+  humanVoiceAudio: true,
   workforceUI: true,
   syntheticWorkplaceOnly: true,
 } as const);

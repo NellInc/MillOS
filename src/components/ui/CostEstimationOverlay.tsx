@@ -5,11 +5,12 @@
  * The provider invoice is authoritative.
  */
 
-import React, { useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { DollarSign, Zap, Brain, TrendingUp, GripVertical } from 'lucide-react';
 import { getActiveCloudPricing, useAIConfigStore } from '../../stores/aiConfigStore';
 import { capitalizeIn, formatFixed, useLocale, useT } from '../../i18n';
+import { spendDigits } from '../../utils/spendBudget';
 import { costEstimationOverlayMessages } from './CostEstimationOverlay.messages';
 
 export const CostEstimationOverlay: React.FC = () => {
@@ -19,6 +20,7 @@ export const CostEstimationOverlay: React.FC = () => {
   const llmBackend = useAIConfigStore((state) => state.llmBackend);
   const connectedProviders = useAIConfigStore((state) => state.connectedProviders);
   const chatgptStatus = useAIConfigStore((state) => state.chatgptStatus);
+  const webgpuModelReady = useAIConfigStore((state) => state.webgpuModelReady);
   const isConnected =
     llmBackend === 'chatgpt'
       ? Boolean(
@@ -26,12 +28,23 @@ export const CostEstimationOverlay: React.FC = () => {
             (account) => account.id === chatgptStatus.activeId && account.signedIn && account.model
           )
         )
-      : llmBackend !== 'webgpu' && connectedProviders[llmBackend];
+      : llmBackend === 'webgpu'
+        ? webgpuModelReady
+        : connectedProviders[llmBackend];
   const aiMode = useAIConfigStore((state) => state.aiMode);
   const costTracking = useAIConfigStore((state) => state.costTracking);
   const spendCapUsd = useAIConfigStore((state) => state.spendCapUsd);
 
   const dragConstraintsRef = useRef<HTMLDivElement>(null);
+  // The overlay re-renders on a charge only, so the session length needs its
+  // own clock or it freezes between calls.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!showCostOverlay) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(timer);
+  }, [showCostOverlay]);
 
   if (!showCostOverlay) return null;
 
@@ -49,7 +62,7 @@ export const CostEstimationOverlay: React.FC = () => {
   } = costTracking;
 
   // Calculate session duration
-  const sessionDurationMs = Date.now() - sessionStartTime;
+  const sessionDurationMs = Math.max(0, Math.max(now, Date.now()) - sessionStartTime);
   const sessionMinutes = Math.floor(sessionDurationMs / 60000);
   const sessionHours = Math.floor(sessionMinutes / 60);
   const displayDuration =
@@ -84,7 +97,7 @@ export const CostEstimationOverlay: React.FC = () => {
         dragMomentum={false}
         dragElastic={0.1}
         dragConstraints={dragConstraintsRef}
-        className="absolute top-20 right-4 w-56 bg-slate-900/95 backdrop-blur-xl rounded-xl border border-cyan-500/30 shadow-xl pointer-events-auto"
+        className="absolute top-20 right-4 w-56 millos-glass millos-glass-thick rounded-xl border-cyan-500/30 pointer-events-auto"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-700/50 cursor-move select-none">
@@ -164,7 +177,13 @@ export const CostEstimationOverlay: React.FC = () => {
           <div className="mt-2 text-[10px] text-slate-400 text-center">
             {spendCapUsd === null ? t('noCap') : t('cap', { amount: formatFixed(spendCapUsd, 2) })}
             {reservedCost + uncertainCost > 0
-              ? t('inFlight', { amount: formatFixed(reservedCost + uncertainCost, 4) })
+              ? t('inFlight', {
+                  // A Jev advisory is about $0.00002: fixed digits would read it as zero.
+                  amount: formatFixed(
+                    reservedCost + uncertainCost,
+                    spendDigits(reservedCost + uncertainCost)
+                  ),
+                })
               : ''}
           </div>
         </div>

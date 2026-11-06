@@ -36,6 +36,7 @@ import { useGraphicsStore } from '../stores/graphicsStore';
 import { logger } from '../utils/logger';
 import { translate } from '../i18n';
 import { useSCADAMessages } from './useSCADA.messages';
+import { acknowledgeAlarmBellRows } from './alarmBell';
 
 /**
  * Identity recorded on acknowledgements that do not name one. SCADAPanel
@@ -49,6 +50,25 @@ const TAG_MACHINE_ID = new Map(MILL_TAGS.map((t) => [t.id, t.machineId]));
 
 /** Shelved, suppressed and out-of-service alarms stay listed but do not annunciate. */
 const isInService = (alarm: Alarm): boolean => (alarm.disposition ?? 'IN_SERVICE') === 'IN_SERVICE';
+
+const awaitsResponse = (alarm: Alarm): boolean =>
+  isInService(alarm) && (alarm.state === 'UNACK' || alarm.state === 'RTN_UNACK');
+
+/** Acknowledge every in-service alarm awaiting a response, and their bell rows. */
+function acknowledgeAllWithBell(controlSource: string, note?: string): void {
+  const service = getSCADAService();
+  const awaiting = service.getActiveAlarms().filter(awaitsResponse);
+  if (service.acknowledgeAllAlarms(controlSource, note) === 0) return;
+  const stillAwaiting = new Set(
+    service
+      .getActiveAlarms()
+      .filter(awaitsResponse)
+      .map((alarm) => alarm.id)
+  );
+  acknowledgeAlarmBellRows(
+    awaiting.map((alarm) => alarm.id).filter((id) => !stillAwaiting.has(id))
+  );
+}
 
 export function summarizeAlarms(alarms: Alarm[]): {
   total: number;
@@ -370,15 +390,24 @@ export function useSCADA(): UseSCADAReturn {
   // Use shared state via useSyncExternalStore for efficient updates
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-  const [activeFaults, setActiveFaults] = useState<ActiveFault[]>([]);
+  // The adapter owns the faults: a panel reopened while one runs, or a second
+  // surface, lists it from the first render rather than from its own presses.
+  const [activeFaults, setActiveFaults] = useState<ActiveFault[]>(
+    () => peekSCADAService()?.getActiveFaults() ?? []
+  );
 
-  // Timed faults expire inside the adapter; drop them from the list as the
-  // next sample arrives.
+  // Timed faults expire inside the adapter, and another instance may inject or
+  // clear one; follow the adapter's list as each sample arrives.
   useEffect(() => {
     setActiveFaults((prev) => {
-      if (prev.length === 0) return prev;
-      const next = getSCADAService().getActiveFaults();
-      return next.length === prev.length ? prev : next;
+      const next = getSCADAService().getActiveFaults() ?? [];
+      const same =
+        next.length === prev.length &&
+        next.every(
+          (fault, index) =>
+            fault.tagId === prev[index].tagId && fault.faultType === prev[index].faultType
+        );
+      return same ? prev : next;
     });
   }, [state.values]);
 
@@ -435,7 +464,8 @@ export function useSCADA(): UseSCADAReturn {
   const acknowledgeAlarm = useCallback(
     (alarmId: string) => {
       if (!state.isConnected) return;
-      getSCADAService().acknowledgeAlarm(alarmId, defaultControlSource());
+      if (getSCADAService().acknowledgeAlarm(alarmId, defaultControlSource()))
+        acknowledgeAlarmBellRows([alarmId]);
     },
     [state.isConnected]
   );
@@ -443,7 +473,7 @@ export function useSCADA(): UseSCADAReturn {
   // Acknowledge all alarms
   const acknowledgeAllAlarms = useCallback(() => {
     if (!state.isConnected) return;
-    getSCADAService().acknowledgeAllAlarms(defaultControlSource());
+    acknowledgeAllWithBell(defaultControlSource());
   }, [state.isConnected]);
 
   // Get history for a tag
@@ -682,14 +712,15 @@ export function useSCADAAlarms(): {
   const acknowledge = useCallback(
     (alarmId: string, controlSource = defaultControlSource(), note?: string) => {
       if (!sharedState.isConnected) return;
-      getSCADAService().acknowledgeAlarm(alarmId, controlSource, note);
+      if (getSCADAService().acknowledgeAlarm(alarmId, controlSource, note))
+        acknowledgeAlarmBellRows([alarmId]);
     },
     []
   );
 
   const acknowledgeAll = useCallback((controlSource = defaultControlSource(), note?: string) => {
     if (!sharedState.isConnected) return;
-    getSCADAService().acknowledgeAllAlarms(controlSource, note);
+    acknowledgeAllWithBell(controlSource, note);
   }, []);
 
   const refreshSuppressed = useCallback(() => {

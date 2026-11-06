@@ -5,12 +5,20 @@ import { useProductionStore } from '../../../stores/productionStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { spoutMachineKey } from '../../flow/spoutRoutes';
 import { positionRegistry } from '../../../utils/positionRegistry';
-import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import {
+  selectSafetyHoldActive,
+  useGameSimulationStore,
+} from '../../../stores/gameSimulationStore';
+import { useSafetyStore } from '../../../stores/safetyStore';
 import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import {
   logisticsControlHold,
+  logisticsControlHoldKey,
+  logisticsReasonText,
   useLogisticsLayoutStore,
+  type LogisticsApplyResult,
   type LogisticsObservation,
+  type LogisticsReasonKey,
 } from '../../../stores/logisticsLayoutStore';
 import {
   capturedPlanningObstacles,
@@ -34,13 +42,20 @@ import {
 import { MATERIAL_TRANSPORT_SPEEDS } from '../../../simulation/materialTransport';
 import {
   capitalizeIn,
+  createTranslator,
   formatFixed,
   formatGrouped,
+  LOCALES,
   translate,
   useLocale,
   useT,
 } from '../../../i18n';
+import { keyedText, registerAlertCatalog, type KeyedLine } from '../../../i18n/alertCopy';
+import { forkliftSystemMessages } from '../../ForkliftSystem.messages';
 import { layoutPlannerMessages } from './LayoutPlanner.messages';
+
+const FORKLIFT_SYSTEM_CATALOG = 'forkliftSystem';
+registerAlertCatalog(FORKLIFT_SYSTEM_CATALOG, forkliftSystemMessages);
 
 function captureLayout(): LayoutSnapshot {
   const flow = useMaterialFlowStore.getState();
@@ -77,25 +92,96 @@ function downloadBlob(blob: Blob, extension: string) {
   }, 1000);
 }
 
+/** Planner copy the status line shows; each takes no parameters. */
+type PlannerStatusKey =
+  | 'initialMessage'
+  | 'proposalUpdated'
+  | 'layoutCaptured'
+  | 'millPausedMessage'
+  | 'geometryRestored'
+  | 'layoutApplied'
+  | 'applyFailed'
+  | 'comparing'
+  | 'searchFailed'
+  | 'exportFailed'
+  | 'editUndone'
+  | 'editRestored'
+  | 'renderFailed'
+  | 'pngUnavailable'
+  | 'pngFailed';
+
+/**
+ * The status line holds what to say, not the words, and is translated at
+ * render. Only a reason from outside the planner's catalogues (a forklift
+ * controller's refusal, an unexpected export error) stays as text.
+ * Working if a language switch rewrites the line in the new language.
+ */
+type PlannerStatus =
+  | { kind: 'planner'; key: PlannerStatusKey }
+  | { kind: 'alternatives'; evaluations: number; improved: boolean }
+  | { kind: 'download'; format: string }
+  | { kind: 'reason'; key: LogisticsReasonKey }
+  | { kind: 'keyed'; line: KeyedLine; text: string }
+  | { kind: 'text'; text: string };
+
+const plannerStatus = (key: PlannerStatusKey): PlannerStatus => ({ kind: 'planner', key });
+
+/**
+ * The forklift controller's route-corner refusal arrives as words in the
+ * language active when it refused (the vehicle owner's contract is a string).
+ * Recognised in either language, it is kept as its key and forklift id, so
+ * the status line follows a later language switch; anything else stays text.
+ */
+const ROUTE_CORNER_REFUSALS = LOCALES.map((locale) => {
+  const template = createTranslator(forkliftSystemMessages, locale)('routeCornerAmbiguous', {
+    id: '\u0000',
+  });
+  const [before, after] = template.split('\u0000');
+  return { before, after };
+});
+const forkliftRefusalLine = (text: string): KeyedLine | undefined => {
+  for (const { before, after } of ROUTE_CORNER_REFUSALS) {
+    if (after === undefined || text.length <= before.length + after.length) continue;
+    if (!text.startsWith(before) || !text.endsWith(after)) continue;
+    const id = text.slice(before.length, text.length - after.length);
+    return { catalog: FORKLIFT_SYSTEM_CATALOG, key: 'routeCornerAmbiguous', params: { id } };
+  }
+  return undefined;
+};
+
+const refusalStatus = (result: LogisticsApplyResult): PlannerStatus => {
+  if (result.reasonKey) return { kind: 'reason', key: result.reasonKey };
+  if (!result.reason) return plannerStatus('applyFailed');
+  const line = forkliftRefusalLine(result.reason);
+  return line
+    ? { kind: 'keyed', line, text: result.reason }
+    : { kind: 'text', text: result.reason };
+};
+
+class PlannerExportError extends Error {
+  constructor(readonly key: 'renderFailed' | 'pngUnavailable' | 'pngFailed') {
+    super(translate(layoutPlannerMessages, key));
+  }
+}
+
 async function planPng(svg: string): Promise<Blob> {
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   try {
     const image = new Image();
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
-      image.onerror = () => reject(new Error(translate(layoutPlannerMessages, 'renderFailed')));
+      image.onerror = () => reject(new PlannerExportError('renderFailed'));
       image.src = url;
     });
     const canvas = document.createElement('canvas');
     canvas.width = 920;
     canvas.height = 1400;
     const context = canvas.getContext('2d');
-    if (!context) throw new Error(translate(layoutPlannerMessages, 'pngUnavailable'));
+    if (!context) throw new PlannerExportError('pngUnavailable');
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     return await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
-        (blob) =>
-          blob ? resolve(blob) : reject(new Error(translate(layoutPlannerMessages, 'pngFailed'))),
+        (blob) => (blob ? resolve(blob) : reject(new PlannerExportError('pngFailed'))),
         'image/png'
       )
     );
@@ -151,6 +237,11 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   // The shift clock is the one pause: at 0 the tick, trucks and forklifts all
   // stop, so the line setpoint is left as the operator set it.
   const paused = useGameSimulationStore((s) => s.gameSpeed === 0);
+  // The hold is read from several stores; subscribe to each so its note and
+  // the operate buttons follow a hold that starts while the planner is open.
+  useGameSimulationStore(selectSafetyHoldActive);
+  useSafetyStore((s) => s.forkliftEmergencyStop);
+  useProductionStore((s) => s.scadaLive);
   const hold = logisticsControlHold();
   const [baseline, setBaseline] = useState(() => structuredClone(applied.layout));
   const [history, setHistory] = useState<LogisticsProposal[]>(() => [
@@ -161,7 +252,23 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     structuredClone(DEFAULT_PLANNING_ASSUMPTIONS)
   );
   const [dock, setDock] = useState<Dock>('shipping');
-  const [message, setMessage] = useState(() => translate(layoutPlannerMessages, 'initialMessage'));
+  const [status, setStatus] = useState<PlannerStatus>(() => plannerStatus('initialMessage'));
+  const message =
+    status.kind === 'planner'
+      ? t(status.key)
+      : status.kind === 'alternatives'
+        ? t('alternativesChecked', {
+            count: formatGrouped(status.evaluations),
+            improved: status.improved,
+          })
+        : status.kind === 'download'
+          ? t('downloadStarted', { format: status.format })
+          : status.kind === 'reason'
+            ? logisticsReasonText(status.key)
+            : status.kind === 'keyed'
+              ? keyedText(status.line, status.text)
+              : status.text;
+  const setMessage = (key: PlannerStatusKey) => setStatus(plannerStatus(key));
   const [busy, setBusy] = useState(false);
   const [stale, setStale] = useState(false);
   const [liveQueues, setLiveQueues] = useState(true);
@@ -174,13 +281,15 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     };
   }, []);
   const proposal = history[historyIndex];
+  // The score words its clearance conflicts in the language active when it
+  // runs, so a language switch rescores. Working if the listed conflicts follow it.
   const currentScore = useMemo(
     () => scoreLogisticsLayout(baseline, assumptions, snapshot.obstacles),
-    [baseline, assumptions, snapshot.obstacles]
+    [baseline, assumptions, snapshot.obstacles, locale]
   );
   const proposalScore = useMemo(
     () => scoreLogisticsLayout(proposal, assumptions, snapshot.obstacles),
-    [proposal, assumptions, snapshot.obstacles]
+    [proposal, assumptions, snapshot.obstacles, locale]
   );
   const currentTitle = t('svgCurrentTitle');
   const proposedTitle = t('svgProposedTitle');
@@ -222,7 +331,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   const change = (next: LogisticsProposal) => {
     setHistory((prior) => [...prior.slice(0, historyIndex + 1), structuredClone(next)].slice(-40));
     setHistoryIndex(Math.min(historyIndex + 1, 39));
-    setMessage(translate(layoutPlannerMessages, 'proposalUpdated'));
+    setMessage('proposalUpdated');
   };
   const refresh = () => {
     const current = structuredClone(useLogisticsLayoutStore.getState().layout);
@@ -231,17 +340,23 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
     setHistory([structuredClone(current)]);
     setHistoryIndex(0);
     setStale(false);
-    setMessage(translate(layoutPlannerMessages, 'layoutCaptured'));
+    setMessage('layoutCaptured');
   };
   const pause = () => {
-    if (logisticsControlHold()) return;
+    // The button's disabled state is read at render, and a hold can start
+    // between renders: say why rather than doing nothing.
+    const reason = logisticsControlHoldKey();
+    if (reason) {
+      setStatus({ kind: 'reason', key: reason });
+      return;
+    }
     useGameSimulationStore.getState().holdClock('layout');
-    setMessage(translate(layoutPlannerMessages, 'millPausedMessage'));
+    setMessage('millPausedMessage');
   };
   const run = () => {
-    const reason = logisticsControlHold();
+    const reason = logisticsControlHoldKey();
     if (reason) {
-      setMessage(reason);
+      setStatus({ kind: 'reason', key: reason });
       return;
     }
     // Run is an explicit choice: release the planner's own hold, and if the
@@ -260,13 +375,9 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
       : live.apply(proposal, snapshot.layoutRevision ?? -1, key);
     if (result.changed) {
       refresh();
-      setMessage(
-        undo
-          ? translate(layoutPlannerMessages, 'geometryRestored')
-          : translate(layoutPlannerMessages, 'layoutApplied')
-      );
+      setMessage(undo ? 'geometryRestored' : 'layoutApplied');
     } else {
-      setMessage(result.reason ?? translate(layoutPlannerMessages, 'applyFailed'));
+      setStatus(refusalStatus(result));
       if (layoutChangedNow()) setStale(true);
     }
   };
@@ -276,20 +387,19 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
       return;
     }
     setBusy(true);
-    setMessage(translate(layoutPlannerMessages, 'comparing'));
+    setMessage('comparing');
     window.setTimeout(() => {
       if (!mounted.current) return;
       try {
         const result = optimizeLogisticsLayout(proposal, assumptions, snapshot.obstacles);
         if (result.improved) change(result.proposal);
-        setMessage(
-          translate(layoutPlannerMessages, 'alternativesChecked', {
-            count: formatGrouped(result.evaluations),
-            improved: result.improved,
-          })
-        );
+        setStatus({
+          kind: 'alternatives',
+          evaluations: result.evaluations,
+          improved: result.improved,
+        });
       } catch {
-        setMessage(translate(layoutPlannerMessages, 'searchFailed'));
+        setMessage('searchFailed');
       } finally {
         setBusy(false);
       }
@@ -323,14 +433,15 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               }
             );
       downloadBlob(blob, format);
-      if (mounted.current)
-        setMessage(
-          translate(layoutPlannerMessages, 'downloadStarted', { format: format.toUpperCase() })
-        );
+      if (mounted.current) setStatus({ kind: 'download', format: format.toUpperCase() });
     } catch (error) {
       if (mounted.current)
-        setMessage(
-          error instanceof Error ? error.message : translate(layoutPlannerMessages, 'exportFailed')
+        setStatus(
+          error instanceof PlannerExportError
+            ? plannerStatus(error.key)
+            : error instanceof Error
+              ? { kind: 'text', text: error.message }
+              : plannerStatus('exportFailed')
         );
     } finally {
       if (mounted.current) setBusy(false);
@@ -449,7 +560,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               disabled={busy || historyIndex === 0}
               onClick={() => {
                 setHistoryIndex(historyIndex - 1);
-                setMessage(t('editUndone'));
+                setMessage('editUndone');
               }}
             >
               <Undo2 size={16} className="inline mr-1" aria-hidden="true" />
@@ -460,7 +571,7 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
               disabled={busy || historyIndex === history.length - 1}
               onClick={() => {
                 setHistoryIndex(historyIndex + 1);
-                setMessage(t('editRestored'));
+                setMessage('editRestored');
               }}
             >
               <Redo2 size={16} className="inline mr-1" aria-hidden="true" />

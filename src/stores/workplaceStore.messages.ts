@@ -1,4 +1,4 @@
-import { defineMessages } from '../i18n';
+import { defineMessages, formatFixed } from '../i18n';
 
 /** Reasons the workplace store returns to the workplace panels. */
 export const workplaceStoreMessages = defineMessages({
@@ -29,6 +29,8 @@ export const workplaceStoreMessages = defineMessages({
     reviewChanged: 'The review changed. Read its current outcome first.',
     finishReplayFirst: 'Finish or forget the matched replay first.',
     completeThreeShifts: 'Complete all three shifts before archiving a review.',
+    resumePausedBeforeArchive:
+      'A reload paused the final shift before its end. Resume it, then finish or end it, before archiving.',
     settleBeforeArchive:
       'Deliver owed recovery and settle objections and reserved pay before archiving.',
     reviewNotValidated: 'This review could not be validated for the archive.',
@@ -43,6 +45,8 @@ export const workplaceStoreMessages = defineMessages({
       'Plant evidence or the intended pace changed. Hear a fresh adviser response, then confirm understanding and ballots again.',
     dispatchEvidenceRequired:
       'Current quality-qualified dispatch evidence is required before funding a trial.',
+    seasonLeft: (p: { shift: number }) =>
+      `Season left early at shift ${formatFixed(p.shift, 0)} of 3. Its pay, recovery and receipts are kept under Seasons left early.`,
   },
   'pt-BR': {
     useCurrentTurn:
@@ -73,6 +77,8 @@ export const workplaceStoreMessages = defineMessages({
     reviewChanged: 'A revisão mudou. Leia primeiro o resultado atual.',
     finishReplayFirst: 'Conclua ou descarte primeiro a reprodução pareada.',
     completeThreeShifts: 'Conclua os três turnos antes de arquivar uma revisão.',
+    resumePausedBeforeArchive:
+      'Uma recarga pausou o turno final antes do fim. Retome-o e depois conclua-o ou encerre-o antes de arquivar.',
     settleBeforeArchive:
       'Conceda o tempo de recuperação devido e resolva as objeções e a remuneração reservada antes de arquivar.',
     reviewNotValidated: 'Não foi possível validar esta revisão para o arquivo.',
@@ -87,5 +93,7 @@ export const workplaceStoreMessages = defineMessages({
       'A evidência da planta ou o ritmo pretendido mudou. Ouça uma nova resposta do conselheiro e depois confirme novamente o entendimento e os votos.',
     dispatchEvidenceRequired:
       'É necessária evidência atual de expedição qualificada pela qualidade antes de financiar um teste.',
+    seasonLeft: (p: { shift: number }) =>
+      `Temporada encerrada antes do fim no turno ${formatFixed(p.shift, 0)} de 3. A remuneração, a recuperação e os comprovantes ficam em Temporadas encerradas antes do fim.`,
   },
 });

@@ -7,6 +7,8 @@ import { AgentCockpit } from './AgentCockpit';
 import { WorkplaceLab } from './WorkplaceLab';
 import { formatFixed, useT } from '../../../i18n';
 import { autonomyPanelMessages } from './AutonomyPanel.messages';
+import { plantReadinessIndex } from '../../../simulation/plantReadiness';
+import { useRunningThroughput } from '../../../hooks/useRunningThroughput';
 
 const clampPercent = (value: number): number => Math.min(100, Math.max(0, value));
 
@@ -67,8 +69,15 @@ export const AutonomyPanel: React.FC = () => {
   const alarmedAssets = machines.filter(
     (machine) => machine.status === 'warning' || machine.status === 'critical'
   ).length;
+  // 0 while the clock is held: a paused plant packs nothing.
+  const shownThroughput = useRunningThroughput();
   const readiness = useMemo(
-    () => clampPercent((metrics.efficiency + metrics.uptime + metrics.quality) / 3),
+    () =>
+      plantReadinessIndex({
+        efficiency: metrics.efficiency,
+        uptime: metrics.uptime,
+        quality: metrics.quality,
+      }),
     [metrics.efficiency, metrics.quality, metrics.uptime]
   );
   const targetProgress = productionTarget
@@ -123,14 +132,14 @@ export const AutonomyPanel: React.FC = () => {
         />
         <MetricCard
           label={t('throughput')}
-          value={formatFixed(metrics.throughput, 0)}
+          value={formatFixed(shownThroughput, 0)}
           detail={t('throughputDetail')}
           icon={Gauge}
           accent="text-cyan-400"
         />
         <MetricCard
           label={t('target')}
-          value={`${formatFixed(targetProgress, 0)}%`}
+          value={`${formatFixed(targetProgress, 1)}%`}
           detail={t('targetDetail')}
           icon={Boxes}
           accent="text-violet-400"

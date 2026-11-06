@@ -1,4 +1,4 @@
-import { POLYGON_OFFSET } from '../../constants/renderLayers';
+import { POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { GeneratedSurfaceMesh } from '../models/GeneratedGeometrySurface';
 import { InstancedTreeField, type TreeInstance } from './InstancedFoliage';
 /**
@@ -453,6 +453,13 @@ function createMetricBox(width: number, height: number, depth: number): THREE.Bo
 export const ROAD_TUNNEL_BORE = { halfWidth: 6, height: 7 } as const;
 
 /**
+ * The tunnel's own carriageway: 10 m wide, laid from `lead` metres outside the
+ * portal back through the bore. The valley approach's edge lines taper onto it
+ * (`exterior/tunnelApproachMarkings.ts`).
+ */
+export const ROAD_TUNNEL_ROAD = { width: 10, lead: 10 } as const;
+
+/**
  * The spur that ties the hill back into the foothills.
  *
  * The 90 m hill used to end in a vertical face with open meadow behind it:
@@ -664,7 +671,8 @@ export function createRoadTunnelHillGeometry(depth = 90): THREE.BufferGeometry {
 }
 
 const ROAD_TUNNEL_DEPTH = 90;
-const ROAD_TUNNEL_HILL = createRoadTunnelHillGeometry(ROAD_TUNNEL_DEPTH);
+/** Shared by the road tunnels and the railway's tunnel mouths. */
+export const ROAD_TUNNEL_HILL = createRoadTunnelHillGeometry(ROAD_TUNNEL_DEPTH);
 // The hill's UVs are measured in metres. The shared lawn textures repeat
 // 20 times over a normalized plane, which made these banks tile every 5 cm.
 // Dedicated sampler transforms retain the same image and an 8 m feature period.
@@ -1004,7 +1012,7 @@ export const RoadTunnel: React.FC<{
   position: readonly [number, number, number];
   rotation?: number;
 }> = React.memo(({ position, rotation = 0 }) => {
-  const roadWidth = 10;
+  const roadWidth = ROAD_TUNNEL_ROAD.width;
   const roadLength = ROAD_TUNNEL_ROAD_LENGTH;
   const { halfWidth, height } = ROAD_TUNNEL_BORE;
 
@@ -1075,7 +1083,7 @@ export const RoadTunnel: React.FC<{
       <mesh
         geometry={CULVERT_WATER}
         material={ROAD_TUNNEL_ROAD_MATERIAL}
-        position={[0, 0.065, 10 - roadLength / 2]}
+        position={[0, 0.065, ROAD_TUNNEL_ROAD.lead - roadLength / 2]}
         rotation={[-Math.PI / 2, 0, 0]}
         scale={[roadWidth, roadLength, 1]}
         receiveShadow
@@ -1083,9 +1091,10 @@ export const RoadTunnel: React.FC<{
       <mesh
         geometry={CULVERT_WATER}
         material={ROAD_TUNNEL_LINE_MATERIAL}
-        position={[0, 0.09, 10 - roadLength / 2]}
+        position={[0, 0.09, ROAD_TUNNEL_ROAD.lead - roadLength / 2]}
         rotation={[-Math.PI / 2, 0, 0]}
         scale={[0.16, roadLength, 1]}
+        renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       />
       {[-1, 1].map((side) => (

@@ -103,7 +103,38 @@ describe('announcementsStore', () => {
     useAnnouncementsStore.getState().addAnnouncement(input);
     expect(useAnnouncementsStore.getState().announcements).toHaveLength(2);
 
+    useAnnouncementsStore
+      .getState()
+      .announcements.forEach((entry) =>
+        useAnnouncementsStore.getState().dismissAnnouncement(entry.id)
+      );
     useAnnouncementsStore.getState().clearTranscript();
     expect(useAnnouncementsStore.getState().announcements).toEqual([]);
+  });
+
+  // Clear transcript emptied the whole list and every cooldown, so a forklift
+  // E-STOP caption on screen vanished while the stop stood, and a line just
+  // held could repeat at once. Working if it clears the history only: what is
+  // still showing or queued stays, and so do the cooldowns.
+  it('clears the history, not a caption still showing or the cooldowns', () => {
+    const store = useAnnouncementsStore.getState();
+    const input = {
+      type: 'warning' as const,
+      message: 'Forklift emergency stop',
+      priority: 4,
+      channel: 'safety' as const,
+      cooldownMs: 30000,
+    };
+    store.addAnnouncement({ ...input, message: 'An earlier line' });
+    const earlier = useAnnouncementsStore.getState().announcements[0];
+    useAnnouncementsStore.getState().dismissAnnouncement(earlier.id);
+    useAnnouncementsStore.getState().addAnnouncement(input);
+
+    useAnnouncementsStore.getState().clearTranscript();
+    expect(useAnnouncementsStore.getState().announcements.map((a) => a.message)).toEqual([
+      'Forklift emergency stop',
+    ]);
+    useAnnouncementsStore.getState().addAnnouncement(input);
+    expect(useAnnouncementsStore.getState().announcements).toHaveLength(1);
   });
 });

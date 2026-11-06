@@ -25,6 +25,7 @@ export const knowledgeStoreMessages = defineMessages({
     authorLogistics: 'MillOS logistics principle',
     // Library labels
     alwaysAvailable: 'Available in the autonomous operations library',
+    historySeeInAction: 'Mill Chronicle',
     categoryPrinciples: 'Operating Principles',
     categoryPioneers: 'World and Process Lineage',
     categorySystems: 'Control Systems',
@@ -141,6 +142,7 @@ export const knowledgeStoreMessages = defineMessages({
     authorLogistics: 'Princípio de logística do MillOS',
     // Library labels
     alwaysAvailable: 'Disponível na biblioteca de operações autônomas',
+    historySeeInAction: 'Crônica do moinho',
     categoryPrinciples: 'Princípios de operação',
     categoryPioneers: 'Linhagem do mundo e do processo',
     categorySystems: 'Sistemas de controle',

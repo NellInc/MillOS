@@ -301,6 +301,36 @@ describe('compressor resource lifecycle', () => {
     );
   });
 
+  // The air compressor cycles with the plant, as the clanks and the hum do: a
+  // paused clock, an E-STOP, a drill or a 0% line starts no run, and stops one
+  // already pumping. PAAnnouncementSystem reports the line's motion.
+  it('starts no compressor run while the line stands, and resumes with it', async () => {
+    manager.setPlantMotion(false);
+    manager.startCompressorCycling();
+
+    await vi.advanceTimersByTimeAsync(5_000 + 15_000 * 2);
+    const context = MockAudioContext.instances[0];
+    expect(context.bufferSources).toHaveLength(0);
+    expect(vi.getTimerCount()).toBe(1);
+
+    manager.setPlantMotion(true);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(context.bufferSources).toHaveLength(1);
+    expect(context.bufferSources[0].start).toHaveBeenCalledOnce();
+  });
+
+  it('stops a compressor run when the line stops under it', async () => {
+    manager.startCompressorCycling();
+    await vi.advanceTimersByTimeAsync(5_000);
+    const source = MockAudioContext.instances[0].bufferSources[0];
+    expect(source.start).toHaveBeenCalledOnce();
+
+    manager.setPlantMotion(false);
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(source.stop).toHaveBeenCalledOnce();
+  });
+
   it('stops and disconnects both indefinite compressor sources', async () => {
     manager.startCompressorCycling();
     await vi.advanceTimersByTimeAsync(5_000);
@@ -418,6 +448,115 @@ describe('ambient one-shot schedulers', () => {
     expect(bell).toHaveBeenCalledOnce();
   });
 
+  // PA mode Off is the player's way to quiet the PA; the routine cycle bells
+  // and tones ride the PA chain, so they go quiet with it and resume after.
+  it('rings no routine PA bell or tone while PA mode is Off', async () => {
+    const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+    const bell = vi.spyOn(manager, 'playCycleBell').mockImplementation(() => undefined);
+    const tone = vi
+      .spyOn(manager as unknown as { playPATone: () => void }, 'playPATone')
+      .mockImplementation(() => undefined);
+    useAnnouncementsStore.setState({ mode: 'off' });
+    manager.startPASystem();
+
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 * 3);
+    expect(bell).not.toHaveBeenCalled();
+    expect(tone).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    useAnnouncementsStore.setState({ mode: 'focused' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bell).toHaveBeenCalledOnce();
+  });
+
+  // A drill, a facility or forklift stop, or a crisis is sounding its own alarm;
+  // a routine "cycle complete" bell over it says the plant is running normally.
+  // GameInterface marks them (and a standing critical alert) as safetyCritical.
+  it('rings no routine PA bell or tone while a safety state holds the plant', async () => {
+    const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+    const bell = vi.spyOn(manager, 'playCycleBell').mockImplementation(() => undefined);
+    const tone = vi
+      .spyOn(manager as unknown as { playPATone: () => void }, 'playPATone')
+      .mockImplementation(() => undefined);
+    useAnnouncementsStore.setState({ mode: 'focused' });
+    useAnnouncementsStore.getState().setContext({ safetyCritical: true });
+    manager.startPASystem();
+
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 * 3);
+    expect(bell).not.toHaveBeenCalled();
+    expect(tone).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    useAnnouncementsStore.getState().setContext({ safetyCritical: false });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bell).toHaveBeenCalledOnce();
+  });
+
+  // The PA marks its own safety states (the forklift stop among them) under a
+  // key of its own, so GameInterface's critical-alert writer cannot clear it.
+  it('rings no routine PA bell or tone while the PA holds for its own safety state', async () => {
+    const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+    const bell = vi.spyOn(manager, 'playCycleBell').mockImplementation(() => undefined);
+    const tone = vi
+      .spyOn(manager as unknown as { playPATone: () => void }, 'playPATone')
+      .mockImplementation(() => undefined);
+    useAnnouncementsStore.setState({ mode: 'focused' });
+    useAnnouncementsStore.getState().setContext({ safetyCritical: false, safetyHold: true });
+    manager.startPASystem();
+
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 * 3);
+    expect(bell).not.toHaveBeenCalled();
+    expect(tone).not.toHaveBeenCalled();
+
+    useAnnouncementsStore.getState().setContext({ safetyHold: false });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bell).toHaveBeenCalledOnce();
+  });
+
+  // A "cycle complete" bell while the plant is paused says it is cycling.
+  // PAAnnouncementSystem marks a paused plant as the PA's plantPaused context.
+  it('rings no routine PA bell or tone while the plant is paused', async () => {
+    const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+    const bell = vi.spyOn(manager, 'playCycleBell').mockImplementation(() => undefined);
+    const tone = vi
+      .spyOn(manager as unknown as { playPATone: () => void }, 'playPATone')
+      .mockImplementation(() => undefined);
+    useAnnouncementsStore.setState({ mode: 'focused' });
+    useAnnouncementsStore.getState().setContext({ plantPaused: true });
+    manager.startPASystem();
+
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 * 3);
+    expect(bell).not.toHaveBeenCalled();
+    expect(tone).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    useAnnouncementsStore.getState().setContext({ plantPaused: false });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bell).toHaveBeenCalledOnce();
+  });
+
+  // A 0% line rate is running clock and no hold, but nothing is cycling: a
+  // "cycle complete" bell would say otherwise, as the clanks and hum would.
+  it('rings no routine PA bell or tone while the line stands at 0%', async () => {
+    const { useAnnouncementsStore } = await import('../stores/announcementsStore');
+    const bell = vi.spyOn(manager, 'playCycleBell').mockImplementation(() => undefined);
+    const tone = vi
+      .spyOn(manager as unknown as { playPATone: () => void }, 'playPATone')
+      .mockImplementation(() => undefined);
+    useAnnouncementsStore.setState({ mode: 'focused' });
+    manager.setPlantMotion(false);
+    manager.startPASystem();
+
+    await vi.advanceTimersByTimeAsync(30_000 + 60_000 * 3);
+    expect(bell).not.toHaveBeenCalled();
+    expect(tone).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    manager.setPlantMotion(true);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bell).toHaveBeenCalledOnce();
+  });
+
   it('keeps the metal clanks scheduled after a tick fires while muted', async () => {
     const clank = vi
       .spyOn(manager as unknown as { playMetalClankHeavy: () => void }, 'playMetalClankHeavy')
@@ -430,6 +569,25 @@ describe('ambient one-shot schedulers', () => {
     expect(vi.getTimerCount()).toBe(1);
 
     manager.muted = false;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(clank).toHaveBeenCalledOnce();
+  });
+
+  // Tools dropping and chains rattling on the floor are plant activity, like
+  // the machinery hum: none while the line stands (a paused clock, an E-STOP,
+  // a drill or a 0% line). PAAnnouncementSystem reports the line's motion.
+  it('plays no metal clank while the line stands, and resumes with it', async () => {
+    const clank = vi
+      .spyOn(manager as unknown as { playMetalClankHeavy: () => void }, 'playMetalClankHeavy')
+      .mockImplementation(() => undefined);
+    manager.setPlantMotion(false);
+    manager.startMetalClanks();
+
+    await vi.advanceTimersByTimeAsync(8_000 + 10_000 * 3);
+    expect(clank).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(1);
+
+    manager.setPlantMotion(true);
     await vi.advanceTimersByTimeAsync(10_000);
     expect(clank).toHaveBeenCalledOnce();
   });
@@ -492,5 +650,75 @@ describe('muted-start audio gestures', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'o' }));
     expect(initialize).not.toHaveBeenCalled();
     expect(MockAudioContext.instances).toHaveLength(0);
+  });
+});
+
+describe('belt, spout and engine loops fade in from silence', () => {
+  let manager: typeof import('./audioManager').audioManager;
+
+  beforeEach(async () => {
+    vi.stubGlobal('AudioContext', MockAudioContext);
+    vi.stubGlobal('requestIdleCallback', vi.fn());
+    MockAudioContext.instances = [];
+    vi.resetModules();
+    manager = (await import('./audioManager')).audioManager;
+    manager.muted = false;
+    manager.volume = 0.5;
+    await manager.resume();
+  });
+
+  afterEach(() => {
+    manager.stopConveyorSound('belt-far');
+    manager.stopSpoutingSound('spout-far');
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const loopGain = () => MockAudioContext.instances[0].gains.at(-1)!;
+
+  it('a conveyor started out of earshot never sounds at its base level', () => {
+    manager.updateCameraPosition(0, 2, 200);
+    manager.startConveyorSound('belt-far', 0, 1, 0);
+    const gain = loopGain().gain;
+    // No instant jump to the base level before the position is known.
+    expect(gain.setValueAtTime).not.toHaveBeenCalledWith(0.015, expect.anything());
+    expect(gain.setValueAtTime).toHaveBeenCalledWith(0, expect.anything());
+    // And the first spatial target is the level for where it is: silence.
+    expect(gain.setTargetAtTime).toHaveBeenLastCalledWith(0, expect.anything(), 0.2);
+  });
+
+  // Engines start from an effect, before the frame loop has placed them; the
+  // first placement then ramps them in. A whole fleet at base level for that
+  // moment was a rumble from an overview camera 150 m away.
+  it('a vehicle engine stays silent until its position is known', () => {
+    manager.updateCameraPosition(0, 2, 200);
+    manager.startForkliftEngine('forklift-unplaced');
+    // The output gain; the tremolo stage's two gains are created after it.
+    const gain = MockAudioContext.instances[0].gains.at(-3)!.gain;
+    manager.updateForkliftEngine('forklift-unplaced', true, false);
+    expect(gain.setValueAtTime).toHaveBeenCalledWith(0, expect.anything());
+    expect(gain.setTargetAtTime).toHaveBeenLastCalledWith(0, expect.anything(), 0.3);
+
+    manager.startTruckEngine('truck-unplaced', true);
+    const truckGain = MockAudioContext.instances[0].gains.at(-3)!.gain;
+    manager.updateTruckEngine('truck-unplaced', true);
+    expect(truckGain.setValueAtTime).toHaveBeenCalledWith(0, expect.anything());
+    expect(truckGain.setTargetAtTime).toHaveBeenLastCalledWith(0, expect.anything(), 0.3);
+
+    // Placed, it ramps to the level for where it is.
+    manager.registerSoundPosition('forklift-unplaced', 0, 1, 198);
+    manager.updateForkliftSpatialVolume('forklift-unplaced');
+    expect(gain.setTargetAtTime).toHaveBeenLastCalledWith(0.035, expect.anything(), 0.3);
+    manager.stopForkliftEngine('forklift-unplaced');
+    manager.stopTruckEngine('truck-unplaced');
+  });
+
+  it('a spout started out of earshot never sounds at its base level', () => {
+    manager.updateCameraPosition(0, 2, 200);
+    manager.startSpoutingSound('spout-far', 0, 9, 0);
+    const gain = loopGain().gain;
+    expect(gain.setValueAtTime).not.toHaveBeenCalledWith(0.02, expect.anything());
+    expect(gain.setValueAtTime).toHaveBeenCalledWith(0, expect.anything());
+    expect(gain.setTargetAtTime).toHaveBeenLastCalledWith(0, expect.anything(), 0.2);
   });
 });

@@ -12,7 +12,10 @@ import {
   IDLE_ORBIT_DEFAULT,
   useCameraStore,
 } from './components/CameraController';
-import { FirstPersonController } from './components/FirstPersonController';
+import {
+  FirstPersonController,
+  useOrbitTargetAcrossWalk,
+} from './components/FirstPersonController';
 import ErrorBoundary, { RecoverableFeatureBoundary } from './components/ErrorBoundary';
 import { LoadingScreen } from './components/LoadingScreen';
 import { StartupReadiness } from './components/StartupReadiness';
@@ -28,6 +31,8 @@ import { RENDERER_TONE_MAPPING, TONE_EXPOSURE } from './constants/colorGrade';
 import { useUIStore } from './stores/uiStore';
 import { useGameSimulationStore } from './stores/gameSimulationStore';
 import { useProductionStore } from './stores/productionStore';
+import { useSafetyStore } from './stores/safetyStore';
+import { useMobileControlStore } from './stores/mobileControlStore';
 import { initializeSCADASync } from './store';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -44,6 +49,7 @@ if (import.meta.env.DEV) {
 }
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useMobileDetection } from './hooks/useMobileDetection';
+import { canvasDpr, useDevicePixelRatio } from './hooks/useDevicePixelRatio';
 import { TouchLookHandler } from './components/mobile/TouchLookHandler';
 import { MobileFirstPersonController } from './components/mobile/MobileFirstPersonController';
 import { useGeometryNaNDetector } from './components/SafeGeometry';
@@ -63,6 +69,7 @@ import { applyFirstVisitQuality } from './utils/firstVisitQuality';
 import { preloadStartupWorldAssets } from './utils/startupAssetPreload';
 import { afterSharedTextureBake, startSharedTextureBake } from './utils/sharedTextureBake';
 import { preloadAuthoredSite } from './components/millSceneDeferredLayers';
+import { startPlantClockAnchors } from './stores/historicalPlaybackStore';
 import { useT } from './i18n';
 import { appMessages } from './App.messages';
 
@@ -96,6 +103,10 @@ preloadStartupWorldAssets(useGraphicsStore.getState().graphics.quality);
 // bake and find every texture already cached. Never rejects; anything not
 // baked in time is generated on the main thread as before.
 void startSharedTextureBake();
+// History replay labels each SCADA sample with the plant clock sampled while it
+// was recorded. Started at the first replay use, every sample recorded before
+// that read on the wall clock. Idempotent; one subscription.
+startPlantClockAnchors();
 
 // The Canvas fallback renders inside the z-0 <main>, under the loading cover,
 // so a crash before readiness must also reach the cover as a startup error.
@@ -108,18 +119,22 @@ function ReportStartupCrash(): null {
 }
 
 // Both scene chunks evaluate `sharedMaterials.ts`; see `startSharedTextureBake` above.
-const PhysicsScene = recoverableLazy(
-  afterSharedTextureBake(() => import('./components/PhysicsScene'))
-);
+// The bake is awaited before the import budget starts, not inside it: it keeps
+// its own 20 s deadline, and counted against the chunk's 15 s a slow device
+// ended startup on 'Loading could not finish'.
+const PhysicsScene = recoverableLazy(() => import('./components/PhysicsScene'), {
+  awaitBefore: startSharedTextureBake,
+});
 const DeferredOrbitControls = recoverableLazy(() => import('./components/SceneOrbitControls'));
 // The scene's own lazy chunks start here too, in parallel with its chunk, so
 // its first render finds them landed or in flight rather than fetching them
 // one by one (see millSceneDeferredLayers.ts). Idempotent across retries.
 const AuthoredMillScene = recoverableLazy(
-  afterSharedTextureBake(() => {
+  () => {
     void preloadAuthoredSite();
     return import('./components/MillScene').then((module) => ({ default: module.MillScene }));
-  })
+  },
+  { awaitBefore: startSharedTextureBake }
 );
 const DeferredOperationalUI = recoverableLazy(() =>
   import('./components/DeferredOperationalUI').then((module) => ({
@@ -187,7 +202,7 @@ const StartupInterface: React.FC = () => {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed left-4 top-4 z-20 rounded-lg border border-white/15 bg-slate-950/80 px-4 py-3 text-slate-100 shadow-lg backdrop-blur-md"
+      className="pointer-events-none fixed left-4 top-4 z-20 millos-glass rounded-lg px-4 py-3 text-slate-100"
     >
       <div className="text-sm font-semibold tracking-[0.12em]">
         MILLOS {CURRENT_RELEASE_VERSION.replace(/^v/, '')}
@@ -300,21 +315,37 @@ const App: React.FC = () => {
   );
   // Quality changes update scene branches without remounting the Canvas.
   const canvasQuality = currentQuality;
+  // Follows browser zoom and a move to another screen; the Settings slider
+  // bounds its steps with the same clamp.
+  const screenPixelRatio = useDevicePixelRatio();
   const fpsMode = useUIStore((state) => state.fpsMode);
   const [showFpsInstructions, setShowFpsInstructions] = useState(false);
   const hasShownFpsInstructions = useRef(false);
   const orbitControlsRef = useRef<OrbitControlsImpl>(null);
+  // Leaving walk mode remounts the orbit rig; mount it on the target it had.
+  const orbitTarget = useOrbitTargetAcrossWalk(
+    orbitControlsRef,
+    SITE_LAYOUT.cameras.overview.target
+  );
   const glRef = useRef<THREE.WebGLRenderer | null>(null);
   const webglHandlersRef = useRef<{ lost: (event: Event) => void; restored: () => void } | null>(
     null
   );
 
   // Memoized callbacks
+  // The whole scene selection: the dock, I and the workspace event clear it as
+  // a panel opens, and a forklift card left behind sat over the panel's heading
+  // and Close. Working if opening a panel closes the forklift card, as Escape does.
   const handleCloseSelection = useCallback(() => {
     setSelectedMachine(null);
+    setSelectedForklift(null);
   }, []);
 
+  // One scene selection at a time: the forklift card (top right, above the
+  // sidebar) covered the machine inspector's header and close button.
+  // Working if picking either clears the other.
   const handleSelectMachine = useCallback((machine: MachineData) => {
+    setSelectedForklift(null);
     setSelectedMachine(machine);
   }, []);
   const handleFocusMachine = useCallback(
@@ -339,8 +370,19 @@ const App: React.FC = () => {
     },
     [handleSelectMachine, setFpsMode]
   );
-  const handleSelectForklift = useCallback(
-    (forklift: ForkliftData) => setSelectedForklift(forklift),
+  const handleSelectForklift = useCallback((forklift: ForkliftData) => {
+    setSelectedMachine(null);
+    setSelectedForklift(forklift);
+  }, []);
+  // The compact layout opens sheets, not the sidebar, and no sheet route runs
+  // the selection clear above. The forklift card (z-50 at the page root) sat
+  // over the sheet's z-30 layer: over its Close button in a narrow window.
+  // Working if opening any sheet closes the forklift card, as a panel does.
+  useEffect(
+    () =>
+      useMobileControlStore.subscribe((state, previous) => {
+        if (state.mobilePanelVisible && !previous.mobilePanelVisible) setSelectedForklift(null);
+      }),
     []
   );
   const handleLockChange = useCallback((locked: boolean) => {
@@ -370,7 +412,9 @@ const App: React.FC = () => {
     }
     if (!forcedMobileFpsRef.current) {
       forcedMobileFpsRef.current = true;
-      setFpsMode(true);
+      // An open guided delivery is written for the orbit view and is hidden in
+      // walk mode; a player mid-delivery keeps it after a reload or a turn.
+      if (!useUIStore.getState().journeyVisible) setFpsMode(true);
     }
   }, [isMobile, isLandscape, setFpsMode]);
 
@@ -444,6 +488,17 @@ const App: React.FC = () => {
           audioManager.startCompressorCycling(); // Industrial air compressor cycling
           audioManager.startMetalClanks(); // Random metal clanks from factory floor
           audioManager.startMusic(); // Background music (respects musicEnabled setting)
+          // A reload restores the Space-bar forklift stop but not its klaxon,
+          // which only the engaging keypress or button starts. A facility
+          // emergency holding the forklifts owns its own sound.
+          // Working if a reload mid-stop sounds the klaxon at the first gesture.
+          const sim = useGameSimulationStore.getState();
+          if (
+            useSafetyStore.getState().forkliftEmergencyStop &&
+            !sim.emergencyActive &&
+            !sim.emergencyDrillMode
+          )
+            audioManager.startEmergencyStopAlarm();
           setAudioInitialized(true);
         })
         .catch(() => {
@@ -756,10 +811,7 @@ const App: React.FC = () => {
               // Toggle in graphics settings if z-fighting persists despite proper polygon offset
               logarithmicDepthBuffer: enableLogarithmicDepth,
             }}
-            dpr={Math.max(
-              0.5,
-              Math.min(window.devicePixelRatio * resolutionScale, canvasQuality === 'low' ? 1 : 2)
-            )}
+            dpr={canvasDpr(screenPixelRatio, resolutionScale, canvasQuality)}
             onCreated={({ gl }) => {
               glRef.current = gl;
               gl.domElement.dataset.millosFpsEntry = 'true';
@@ -899,7 +951,7 @@ const App: React.FC = () => {
                         minPolarAngle={runtimeMode.benchmark ? 0 : ORBIT_POLAR_LIMITS.min}
                         minDistance={runtimeMode.benchmark ? 0.25 : 15}
                         maxDistance={runtimeMode.benchmark ? 1000 : 220}
-                        target={[...SITE_LAYOUT.cameras.overview.target]}
+                        target={orbitTarget}
                         enableDamping
                         dampingFactor={0.05}
                         // On mobile, disable rotate (TouchLookHandler handles single-touch rotation)

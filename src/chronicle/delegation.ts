@@ -14,12 +14,18 @@ export const DELEGATION_LEVELS: ReadonlyArray<{
   grants: string;
 }> = [
   { level: 0, label: 'Advise', grants: 'recommendations only' },
-  { level: 1, label: 'Routine', grants: 'answers routine events' },
+  // The fund share bounds its money only: two recommended routine answers cost
+  // know-how and no fund, so the grant says it spends know-how too.
+  {
+    level: 1,
+    label: 'Routine',
+    grants: 'answers routine events, spending know-how where the recommended answer asks for it',
+  },
   {
     level: 2,
     label: 'Forecasts',
     grants:
-      'also mitigates forecasts, suppresses fires and restores mitigated incidents, within 15% of the fund a shift',
+      'also mitigates forecasts within 15% of the fund a shift, restores mitigated incidents, and pays to suppress a duct fire',
   },
   { level: 3, label: 'Plans', grants: 'also starts planned installs, keeping 3 shifts of upkeep' },
 ];
