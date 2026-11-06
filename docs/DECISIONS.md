@@ -351,3 +351,46 @@ Source: Nell's "1 please." (2026-11-04, choosing the test); the bar is
 `scripts/local-router-tune/runs/prereg-severity-line.json`, the runs are
 `runs/browser-Qwen3.5-4B-q4f16_1-MLC-lane-healthy-severity-r{1..5}.json`, scored by
 `severity_score.py`; the wiring is `STRATEGIC_SEVERITY_LINE` in `src/utils/aiEngine.ts`.
+
+### D-029 · The loading bar counts every kind of startup work · [Nell] · 2026-11-06
+
+The loading bar is a weighted sum of four counted phases, and the status beside it names the
+phase that is holding the cover, with its count ("Compiling shaders · 92 of 184"):
+download (files fetched of those requested), building the world (startup tasks finished,
+plus scene sections committed, of those started or rendered), shaders (programs linked of
+those the startup prewarm submitted) and settling (frames within the 34 ms budget in the
+45-frame readiness window). The old bar filled from file downloads alone, reached 95% within
+two seconds and then sat there until readiness, for minutes on a slow device.
+The weights (download 10, build 45, shaders 35, settle 10) are each phase's measured share of
+a visitor's load (plain URL, 1280x800: 3%, 48%, 41% and 6% of 20.8 s). The bar never moves
+backwards and shows 100 only at readiness. The live region announces the phase name only;
+the count is visual. None of it gates readiness: `startupProgress.ts` only reads counts.
+Known limit: the world's scene sections commit together when their Suspense boundary
+resolves, so the bar can hold for about five seconds while they are built.
+Source: Nell's "try for honest total loading bars" (2026-11-05); the recordings are a
+visitor's load at normal speed and at 2x CPU throttle; the code is `src/utils/startupProgress.ts`,
+the counts in `src/utils/startupReadiness.ts`, `StartupReadiness.tsx` and `recoverableLazy.ts`.
+
+### D-030 · Exterior lamps are lights only while lit; their other state is prewarmed · [Nell] · 2026-11-06
+
+Every lamp driven by `ExteriorLampDriver` (the civic square, station canopy and door, lock
+gate, pub sign and the other `ExteriorPointLight` and `ExteriorDownlight` users) is hidden
+while the lamp level is off and has faded out, and shown the moment it rises. At noon on Low,
+35 of the scene's 38 punctual lights were these lamps at zero intensity: they added nothing to
+a pixel, yet each held a slot in every lit program and an upload every frame, about a quarter
+of a frame on a slow CPU. Hiding changes the light count in three's program key, so five
+seconds after readiness the other state is compiled once, in one synchronous task; three keeps
+every variant until a material is disposed, so dusk and dawn switch programs instead of
+compiling them.
+Measured: the lamps-on moment takes one 67 ms frame on Low and 83 ms on Medium with the
+prewarm, against 950-1,150 ms without it. Before and after captures at noon and 22:00 differ
+by under 1% of pixels (water and vehicle motion between captures). With the change the branch
+reached strict readiness at 2x CPU throttle where main could not (3 of 3 against 0 of 3;
+2 of 3 against 1 of 3 under a load average near 200).
+Not adopted: removing the lamp lights on Low, which darkened the night square, and a CI
+fallback through "Open loaded scene", which would break `validate-jev-browser.mjs`'s rule
+that normal startup is mandatory.
+Source: Nell's "FIX EVERYTHING USE YOUR BEST JUDGMENT" (2026-11-06) after choosing a cheaper
+Low tier (2026-11-06); the code is `ExteriorLampDriver` in
+`src/components/exterior/ExteriorLighting.tsx`, with `window.__MILLOS_LAMPS__` as the
+benchmark-only instrument used to measure the lamps-on moment.

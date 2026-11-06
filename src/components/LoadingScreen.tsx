@@ -14,8 +14,22 @@ import {
   selectInAppReducedMotion,
   useMotionPreferenceStore,
 } from '../stores/motionPreferenceStore';
-import { useT } from '../i18n';
+import { formatGrouped, useT } from '../i18n';
 import { loadingScreenMessages } from './LoadingScreen.messages';
+import { startupProgress, type StartupPhase } from '../utils/startupProgress';
+
+const PHASE_LABEL = {
+  download: 'phaseDownload',
+  build: 'phaseBuild',
+  shaders: 'phaseShaders',
+  settle: 'phaseSettle',
+} as const satisfies Record<StartupPhase, string>;
+const PHASE_COUNT = {
+  download: 'countFiles',
+  build: 'countParts',
+  shaders: 'countShaders',
+  settle: 'countFrames',
+} as const satisfies Record<StartupPhase, string>;
 
 // Decorative DOM content must never invalidate the 3D preparation window.
 // Working if a delayed or failed quote leaves scene task/error counts unchanged.
@@ -121,16 +135,15 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     return () => window.clearTimeout(hideTimer);
   }, [startup.ready, startup.opened, minimumTimePassed, reducedMotion]);
 
-  // The asset fraction falls whenever newly queued assets grow the total, so
-  // the bar shows the highest fraction reached this load and never runs back.
-  // Working if aria-valuenow never decreases before readiness sets 100.
-  const assetProgress = Math.min(
-    95,
-    startup.totalAssets > 0 ? (startup.loadedAssets / startup.totalAssets) * 95 : 0
-  );
+  // The bar is every kind of startup work, each by its own count
+  // (startupProgress). Totals grow as later work is discovered, so the bar
+  // shows the highest value reached this load and never runs back.
+  // Working if aria-valuenow never decreases before readiness sets 100, and the
+  // label names the work actually holding the cover.
+  const progress = startupProgress(startup);
   const [progressFloor, setProgressFloor] = useState(0);
-  if (assetProgress > progressFloor) setProgressFloor(assetProgress);
-  const safeProgress = startup.ready ? 100 : Math.max(progressFloor, assetProgress);
+  if (progress.percent > progressFloor) setProgressFloor(progress.percent);
+  const safeProgress = startup.ready ? 100 : Math.max(progressFloor, progress.percent);
 
   // `prepared` means every asset and task is done and the frame window is full
   // but still too slow: exactly what Low graphics fixes. Once that has held for
@@ -185,11 +198,22 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
   // immediately, while an error-free slow load keeps the original status.
   const hasStartupError = startup.errors > 0;
   const recoveryVisible = showRecovery || hasStartupError || slowWorldConfirmed;
+  // The live status names the phase only (a few announcements per load); the
+  // count beside it is visual, so a screen reader is not read every file.
   const progressText = startup.ready
     ? t('ready')
     : hasStartupError
       ? t('couldNotFinish')
-      : t('preparing');
+      : progress.phase
+        ? t(PHASE_LABEL[progress.phase])
+        : t('preparing');
+  const progressCount =
+    !startup.ready && !hasStartupError && progress.phase && progress.total > 0
+      ? t(PHASE_COUNT[progress.phase], {
+          done: formatGrouped(progress.done),
+          total: formatGrouped(progress.total),
+        })
+      : null;
 
   return (
     <>
@@ -241,6 +265,12 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             }}
           >
             {progressText}
+            {progressCount && (
+              <span aria-hidden="true" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {' · '}
+                {progressCount}
+              </span>
+            )}
           </div>
 
           {FEATURE_FLAGS.KNOWLEDGE_LOADING_QUOTES_ENABLED && showRecovery && (

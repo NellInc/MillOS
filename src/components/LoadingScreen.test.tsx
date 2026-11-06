@@ -13,16 +13,23 @@ const state = vi.hoisted(() => ({
   opened: false,
   ready: false,
   deferredShaders: false,
+  startedTasks: 0,
+  finishedTasks: 0,
+  shaderPrograms: 0,
+  shaderProgramsReady: 0,
+  settleFrames: 0,
 }));
 const beginTask = vi.hoisted(() =>
   vi.fn(() => {
     state.pendingTasks++;
+    state.startedTasks++;
     state.revision++;
     let finished = false;
     return (failed = false) => {
       if (finished) return;
       finished = true;
       state.pendingTasks--;
+      state.finishedTasks++;
       state.errors += Number(failed);
       state.revision++;
     };
@@ -72,6 +79,11 @@ beforeEach(() => {
   state.pendingTasks = 0;
   state.loadedAssets = 10;
   state.totalAssets = 10;
+  state.startedTasks = 0;
+  state.finishedTasks = 0;
+  state.shaderPrograms = 0;
+  state.shaderProgramsReady = 0;
+  state.settleFrames = 0;
   state.revision = 0;
   beginTask.mockClear();
   openPrepared.mockClear();
@@ -92,21 +104,40 @@ afterEach(() => {
 });
 
 describe('LoadingScreen final readiness', () => {
-  it('keeps one truthful status across late asset and preparation waves', async () => {
+  it('names the work holding the cover, and only the phase is announced', async () => {
     const view = render(<LoadingScreen />);
-    for (const next of [
-      { pendingAssets: 2, loadedAssets: 8, totalAssets: 10, pendingTasks: 0 },
-      { pendingAssets: 0, loadedAssets: 10, totalAssets: 10, pendingTasks: 1 },
-      { pendingAssets: 3, loadedAssets: 10, totalAssets: 13, pendingTasks: 0 },
-      { pendingAssets: 0, loadedAssets: 13, totalAssets: 13, pendingTasks: 0 },
-    ]) {
+    const live = () => screen.getByRole('progressbar').getAttribute('aria-valuetext');
+    for (const [next, phase, count] of [
+      [{ pendingAssets: 2, loadedAssets: 8, totalAssets: 10 }, 'Downloading', '8 of 10 files'],
+      [
+        { pendingAssets: 0, loadedAssets: 10, pendingTasks: 1, startedTasks: 3, finishedTasks: 2 },
+        'Building the world',
+        '2 of 3 parts',
+      ],
+      [
+        { pendingAssets: 3, loadedAssets: 10, totalAssets: 13, pendingTasks: 0, finishedTasks: 3 },
+        'Downloading',
+        '10 of 13 files',
+      ],
+      [
+        { pendingAssets: 0, loadedAssets: 13, shaderPrograms: 40, shaderProgramsReady: 12 },
+        'Compiling shaders',
+        '12 of 40',
+      ],
+      [
+        { shaderProgramsReady: 40, settleFrames: 20 },
+        'Settling the animation',
+        '20 of 45 frames on time',
+      ],
+    ] as const) {
       Object.assign(state, next);
       view.rerender(<LoadingScreen />);
-      expect(screen.getByText('Preparing the complete scene')).toBeVisible();
-      expect(screen.getByRole('progressbar')).toHaveAttribute(
-        'aria-valuetext',
-        'Preparing the complete scene'
-      );
+      expect(live()).toBe(phase);
+      // The count is visual: the live status holds the phase alone.
+      const status = screen.getByText(count, { exact: false });
+      expect(status).toHaveAttribute('aria-hidden', 'true');
+      expect(status.parentElement).toHaveAttribute('aria-live', 'polite');
+      expect(status.parentElement?.firstChild?.textContent).toBe(phase);
     }
     await act(async () => vi.advanceTimersByTimeAsync(60000));
     expect(screen.queryByRole('button', { name: 'Reload' })).toBeNull();
@@ -114,19 +145,24 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.getByRole('progressbar')).toBeVisible();
   });
 
-  it('never moves the progress bar backwards when later assets are queued', () => {
+  it('fills through every kind of startup work and never moves backwards', () => {
     const bar = () => Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'));
     Object.assign(state, { pendingAssets: 8, loadedAssets: 2, totalAssets: 10 });
     const view = render(<LoadingScreen />);
-    expect(bar()).toBe(19);
+    // Downloads are 10% of the bar (STARTUP_PHASE_WEIGHTS).
+    expect(bar()).toBe(2);
     // The held-asset run read 94, 92, 53, 94, 84, 95: each wave of newly
     // queued assets grew the total and pulled the bar back.
     for (const [next, shown] of [
-      [{ pendingAssets: 5, loadedAssets: 5, totalAssets: 10 }, 48],
-      [{ pendingAssets: 15, loadedAssets: 5, totalAssets: 20 }, 48],
-      [{ pendingAssets: 5, loadedAssets: 15, totalAssets: 20 }, 71],
-      [{ pendingAssets: 0, loadedAssets: 20, totalAssets: 20 }, 95],
-      [{ pendingAssets: 30, loadedAssets: 20, totalAssets: 50 }, 95],
+      [{ pendingAssets: 5, loadedAssets: 5, totalAssets: 10 }, 5],
+      [{ pendingAssets: 15, loadedAssets: 5, totalAssets: 20 }, 5],
+      [{ pendingAssets: 5, loadedAssets: 15, totalAssets: 20 }, 8],
+      [{ pendingAssets: 0, loadedAssets: 20, totalAssets: 20 }, 10],
+      [{ pendingAssets: 30, loadedAssets: 20, totalAssets: 50 }, 10],
+      // The old bar stopped at 95 here, whatever was still left to do.
+      [{ pendingAssets: 0, loadedAssets: 50, startedTasks: 4, finishedTasks: 4 }, 55],
+      [{ shaderPrograms: 100, shaderProgramsReady: 50 }, 73],
+      [{ shaderProgramsReady: 100, settleFrames: 45 }, 99],
     ] as const) {
       Object.assign(state, next);
       view.rerender(<LoadingScreen />);

@@ -344,6 +344,8 @@ it('uses the existing clock, optional gain lifecycle, shared lens/pool and exact
   expect(downlight).toContain('baseIntensity: intensity, gain');
   expect(downlight).toContain('pointLights.delete(registration)');
   expect(downlight).toContain('[intensity, gain]');
+  // A lamp registered mid-day or mid-night joins the driver's current state.
+  expect(downlight).toContain('light.visible = lampsShown;');
   expect(downlight).toContain('castShadow={false}');
   for (const h of [12, 18.25, 22]) expect(getExteriorLampLevel(h, 'clear')).toBe(h === 12 ? 0 : 1);
   const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8'),

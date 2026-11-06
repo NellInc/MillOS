@@ -11,6 +11,8 @@ import {
   markStartupReady,
   registerStartupDrawOwner,
   setStartupDeferredShaders,
+  setStartupSettleFrames,
+  setStartupShaderProgress,
   StartupFrameWindow,
   subscribeStartup,
 } from '../utils/startupReadiness';
@@ -153,6 +155,7 @@ export function StartupReadiness(): null {
       showDeferred(false);
       world = undefined;
       trucks = undefined;
+      setStartupShaderProgress(0, 0);
       beginTask();
     };
     const valid = (): boolean => {
@@ -280,8 +283,23 @@ export function StartupReadiness(): null {
         });
       });
     };
+    // Loading-bar counts: programs linked of those submitted, world then trucks.
+    const remainingBy = new Map<Configuration, Set<PreparedProgram>>();
+    const reportShaders = () => {
+      let total = 0;
+      let linked = 0;
+      for (const configuration of [world, trucks]) {
+        if (!configuration) continue;
+        total += configuration.programs.size;
+        linked +=
+          configuration.programs.size -
+          (configuration.ready ? 0 : (remainingBy.get(configuration)?.size ?? 0));
+      }
+      setStartupShaderProgress(linked, total);
+    };
     const poll = (configuration: Configuration, truck: boolean) => {
       const remaining = new Set(configuration.programs);
+      remainingBy.set(configuration, remaining);
       const check = () => {
         if (cancelled || failed || (truck ? trucks : world) !== configuration) return;
         try {
@@ -304,6 +322,7 @@ export function StartupReadiness(): null {
               throw new Error('Startup shader program is not runnable');
             remaining.delete(program);
           }
+          reportShaders();
           if (!remaining.size) {
             configuration.ready = true;
             // A succeeded attempt retires its window, so a later re-preparation
@@ -442,6 +461,7 @@ export function StartupReadiness(): null {
         markStartupReady();
         retireObserversRef.current();
       } else {
+        setStartupSettleFrames(windowRef.current.onTime);
         markStartupPrepared(
           windowRef.current.prepared,
           () =>

@@ -1,9 +1,12 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { CANAL_FOOTBRIDGE_ACCESS } from '../../constants/publicRealmLayout';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { getRuntimeMode } from '../../runtime/runtimeMode';
+import { getStartupSnapshot, startupDrawsOffscreen } from '../../utils/startupReadiness';
+import { logger } from '../../utils/logger';
 
 type ExteriorWeather = ReturnType<typeof useGameSimulationStore.getState>['weather'];
 
@@ -169,8 +172,44 @@ const pointLights = new Set<RegisteredPointLight>();
 /** Shared dimmer for building windows and lamp glass. No shader recompilation. */
 export const EXTERIOR_LAMP_LEVEL = { value: 0 };
 
+/**
+ * A lamp is a punctual light only while it could light anything. At zero
+ * intensity it adds nothing to a pixel, yet it is still a slot in every lit
+ * program and an upload every frame: at noon on Low, 35 of the 38 punctual
+ * lights were dark lamps, about a quarter of the frame on a slow CPU. So the
+ * driver hides them while the lamp level is off and has faded out, and shows
+ * them the moment it rises. Hiding changes the light count in three's program
+ * key, so the other state's programs are compiled once after startup
+ * (LAMP_PREWARM_DELAY_MS) and dusk switches programs instead of compiling them.
+ * Working if day and night look as before, and the lamps-on moment does not
+ * stall once the prewarm has run.
+ */
+let lampsShown = false;
+let lampLevelOverride: number | null = null;
+let lampVariantsPrewarmed = false;
+const LAMP_FADED_OUT = 0.001;
+const LAMP_PREWARM_DELAY_MS = 5000;
+const showLamps = (shown: boolean): void => {
+  lampsShown = shown;
+  pointLights.forEach(({ light }) => {
+    light.visible = shown;
+  });
+};
+
+interface LampInstrument {
+  setLevelOverride: (level: number | null) => void;
+  status: () => { shown: boolean; prewarmed: boolean; lamps: number };
+}
+declare global {
+  interface Window {
+    /** Benchmark only: drive the lamp level and read the lamp state. */
+    __MILLOS_LAMPS__?: LampInstrument;
+  }
+}
+
 /** One scalar driver for every exterior lens, pool, and real high-quality light. */
 export const ExteriorLampDriver: React.FC = () => {
+  const { gl, scene, camera } = useThree();
   const targetRef = useRef(
     getExteriorLampLevel(
       useGameSimulationStore.getState().gameTime,
@@ -187,14 +226,88 @@ export const ExteriorLampDriver: React.FC = () => {
     []
   );
 
+  // The starting state, before the first draw, so the startup prewarm compiles
+  // the lamps as they will be drawn.
+  useLayoutEffect(() => showLamps(targetRef.current > 0), []);
+
+  // Compile the other lamp state once, in one synchronous task, so no frame is
+  // drawn with it. Three keeps every variant a material has compiled until the
+  // material is disposed, so dusk and dawn then reuse these programs.
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let idle: number | undefined;
+    const run = () => {
+      if (cancelled || lampVariantsPrewarmed || pointLights.size === 0) return;
+      const shown = lampsShown;
+      const previous = gl.getRenderTarget();
+      const cubeFace = gl.getActiveCubeFace();
+      const mipLevel = gl.getActiveMipmapLevel();
+      // Any non-XR target keys programs alike, so a 1x1 stands in for the
+      // composer's beauty target without touching it.
+      const offscreen = startupDrawsOffscreen() ? new THREE.WebGLRenderTarget(1, 1) : null;
+      showLamps(!shown);
+      try {
+        gl.setRenderTarget(offscreen);
+        gl.compile(scene, camera);
+        lampVariantsPrewarmed = true;
+      } catch (error) {
+        logger.warn('Lamp shader prewarm failed; dusk will compile instead', error);
+      } finally {
+        gl.setRenderTarget(previous, cubeFace, mipLevel);
+        showLamps(shown);
+        offscreen?.dispose();
+      }
+    };
+    const schedule = () => {
+      timer = setTimeout(() => {
+        if (typeof window.requestIdleCallback === 'function')
+          idle = window.requestIdleCallback(run, { timeout: 5000 });
+        else run();
+      }, LAMP_PREWARM_DELAY_MS);
+    };
+    if (getStartupSnapshot().ready) schedule();
+    else window.addEventListener('millos:startup-ready', schedule, { once: true });
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      window.removeEventListener('millos:startup-ready', schedule);
+      if (idle !== undefined) window.cancelIdleCallback?.(idle);
+    };
+  }, [gl, scene, camera]);
+
+  useEffect(() => {
+    if (!getRuntimeMode().benchmark) return;
+    const instrument: LampInstrument = {
+      setLevelOverride: (level) => {
+        lampLevelOverride = level === null ? null : THREE.MathUtils.clamp(level, 0, 1);
+      },
+      status: () => ({
+        shown: lampsShown,
+        prewarmed: lampVariantsPrewarmed,
+        lamps: pointLights.size,
+      }),
+    };
+    window.__MILLOS_LAMPS__ = instrument;
+    return () => {
+      if (window.__MILLOS_LAMPS__ === instrument) delete window.__MILLOS_LAMPS__;
+      lampLevelOverride = null;
+    };
+  }, []);
+
   useFrame((_, delta) => {
+    const target = lampLevelOverride ?? targetRef.current;
     levelRef.current = THREE.MathUtils.damp(
       levelRef.current,
-      targetRef.current,
+      target,
       3.8,
       Math.min(Math.max(delta, 0), 0.1)
     );
     const level = levelRef.current;
+    // Shown as soon as the target rises; hidden only once it has faded out,
+    // so nothing pops off mid-fade. Written on change only.
+    const shown = target > 0 || level > LAMP_FADED_OUT;
+    if (shown !== lampsShown) showLamps(shown);
     EXTERIOR_LAMP_LEVEL.value = level;
     EXTERIOR_LAMP_LENS_MATERIAL.emissiveIntensity = 0.06 + level * 3.4;
     // Additive pools are deliberately restrained. At full night they should
@@ -242,6 +355,7 @@ export const ExteriorPointLight: React.FC<{
     if (!light) return undefined;
     const registration = { light, baseIntensity: intensity, gain };
     pointLights.add(registration);
+    light.visible = lampsShown;
     return () => {
       pointLights.delete(registration);
     };
@@ -277,6 +391,7 @@ export const ExteriorDownlight: React.FC<{
     if (!light) return;
     const registration = { light, baseIntensity: intensity, gain };
     pointLights.add(registration);
+    light.visible = lampsShown;
     return () => {
       pointLights.delete(registration);
     };

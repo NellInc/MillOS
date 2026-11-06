@@ -1,4 +1,8 @@
-import { beginStartupTask } from './startupReadiness';
+import {
+  beginStartupTask,
+  noteStartupSectionBuilt,
+  noteStartupSectionRequested,
+} from './startupReadiness';
 import { formatFixed, translate } from '../i18n';
 import { recoverableLazyMessages } from './recoverableLazy.messages';
 import {
@@ -6,6 +10,7 @@ import {
   createElement,
   lazy,
   useContext,
+  useLayoutEffect,
   type ComponentProps,
   type ComponentType,
   type LazyExoticComponent,
@@ -153,6 +158,11 @@ export function recoverableLazy<T extends ComponentType<any>>(
 
   const RecoverableLazyComponent = (props: ComponentProps<T>) => {
     const recoveryGeneration = useContext(LazyRecoveryContext);
+    // Loading-bar count only (startupReadiness): constructing a section is
+    // work even when its module was preloaded. This layout effect runs after
+    // the whole lazy subtree commits.
+    noteStartupSectionRequested(RecoverableLazyComponent);
+    useLayoutEffect(() => noteStartupSectionBuilt(RecoverableLazyComponent), []);
     let LazyComponent = payloadsByGeneration.get(recoveryGeneration);
     if (!LazyComponent) {
       LazyComponent = lazy(() => {

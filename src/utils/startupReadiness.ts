@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { STARTUP_SETTLE_FRAMES } from './startupProgress';
 
 export interface StartupSnapshot {
   pendingAssets: number;
@@ -12,7 +13,23 @@ export interface StartupSnapshot {
   ready: boolean;
   /** A shader prewarm outlived its window and was deferred, not failed. */
   deferredShaders: boolean;
+  /**
+   * Work counts for the loading bar only; none of them grants readiness.
+   * Tasks: lazy modules, static batches and the app's own startup work.
+   * Shader programs: submitted and linked by the startup prewarm (world, then
+   * trucks). Settle frames: smooth frames held of the readiness window's 45.
+   */
+  startedTasks: number;
+  finishedTasks: number;
+  shaderPrograms: number;
+  shaderProgramsReady: number;
+  settleFrames: number;
+  /** Lazy scene sections rendered while the cover is up, and those that have committed. */
+  sectionsRequested: number;
+  sectionsBuilt: number;
 }
+
+export { STARTUP_SETTLE_FRAMES } from './startupProgress';
 
 let snapshot: StartupSnapshot = {
   pendingAssets: 0,
@@ -25,6 +42,13 @@ let snapshot: StartupSnapshot = {
   opened: false,
   ready: false,
   deferredShaders: false,
+  startedTasks: 0,
+  finishedTasks: 0,
+  shaderPrograms: 0,
+  shaderProgramsReady: 0,
+  settleFrames: 0,
+  sectionsRequested: 0,
+  sectionsBuilt: 0,
 };
 /** Caller-owned startup admission. No renderer method or scene flag is replaced.
  * Working if blocked CPU ticks never certify a draw, and throws never increment it.
@@ -45,10 +69,19 @@ export function registerStartupDrawOwner(owner: StartupDrawOwner): () => void {
 
 export const getStartupDrawSerial = (): number => completedStartupDraws;
 
+let startupDrewOffscreen = false;
+/**
+ * Whether the startup draws went to an offscreen beauty target (a composer)
+ * rather than the canvas. Three's program key differs between the two, so a
+ * later prewarm must compile against the same kind of target to be reused.
+ */
+export const startupDrawsOffscreen = (): boolean => startupDrewOffscreen;
+
 export function drawStartupFrame(
   target: THREE.WebGLRenderTarget | null,
   draw: () => void
 ): boolean {
+  startupDrewOffscreen = target !== null;
   const owner = drawOwner;
   // Working if an explicitly opened slow session draws every tick (preparation
   // still runs) yet only admitted draws certify, so strict readiness is unchanged.
@@ -106,13 +139,68 @@ export const subscribeStartup = (listener: () => void): (() => void) => {
 
 /** Every started unit of work must release its token, including failed work. */
 export function beginStartupTask(): (failed?: boolean) => void {
-  update({ pendingTasks: snapshot.pendingTasks + 1 });
+  update({ pendingTasks: snapshot.pendingTasks + 1, startedTasks: snapshot.startedTasks + 1 });
   let finished = false;
   return (failed = false) => {
     if (finished) return;
     finished = true;
-    update({ pendingTasks: snapshot.pendingTasks - 1, errors: snapshot.errors + Number(failed) });
+    update({
+      pendingTasks: snapshot.pendingTasks - 1,
+      finishedTasks: snapshot.finishedTasks + 1,
+      errors: snapshot.errors + Number(failed),
+    });
   };
+}
+
+/** Loading-bar count only: never a resource change, never readiness. */
+export function setStartupShaderProgress(ready: number, total: number): void {
+  if (snapshot.shaderProgramsReady === ready && snapshot.shaderPrograms === total) return;
+  update({ shaderProgramsReady: ready, shaderPrograms: total }, false);
+}
+
+/**
+ * Loading-bar counts of scene sections, never readiness: a preloaded lazy
+ * section registers no task (its module is already here), yet constructing it
+ * is most of "Building the world". A section is requested when it first renders
+ * under the cover and built when it first commits, once per component type.
+ * The render-time note only records the type; the count is published in a
+ * microtask, so no store changes during a render.
+ */
+const requestedSections = new WeakSet<object>();
+const builtSections = new WeakSet<object>();
+let sectionsRequested = 0;
+let sectionsBuilt = 0;
+let sectionPublishQueued = false;
+const publishSections = (): void => {
+  sectionPublishQueued = false;
+  if (snapshot.sectionsRequested === sectionsRequested && snapshot.sectionsBuilt === sectionsBuilt)
+    return;
+  update({ sectionsRequested, sectionsBuilt }, false);
+};
+
+export function noteStartupSectionRequested(type: object): void {
+  if (snapshot.ready || requestedSections.has(type)) return;
+  requestedSections.add(type);
+  sectionsRequested++;
+  if (sectionPublishQueued) return;
+  sectionPublishQueued = true;
+  queueMicrotask(publishSections);
+}
+
+export function noteStartupSectionBuilt(type: object): void {
+  if (!requestedSections.has(type) || builtSections.has(type)) return;
+  builtSections.add(type);
+  sectionsBuilt++;
+  publishSections();
+}
+
+/**
+ * Loading-bar count only. Published in steps of five so a 60 Hz window wakes
+ * the cover nine times, not every frame, while the frames are being timed.
+ */
+export function setStartupSettleFrames(frames: number): void {
+  const step = frames >= STARTUP_SETTLE_FRAMES ? STARTUP_SETTLE_FRAMES : frames - (frames % 5);
+  if (snapshot.settleFrames !== step) update({ settleFrames: step }, false);
 }
 
 /**
@@ -208,7 +296,18 @@ export class StartupFrameWindow {
   private frames: number[] = [];
 
   get prepared(): boolean {
-    return this.frames.length === 45;
+    return this.frames.length === STARTUP_SETTLE_FRAMES;
+  }
+
+  /**
+   * Frames in the window that met the 34 ms budget. Readiness needs 41 of 45
+   * (the 90th percentile) and the mean within it, so this, not the window's
+   * length, says how close a slow device is. A loop: this runs every frame.
+   */
+  get onTime(): number {
+    let count = 0;
+    for (const frame of this.frames) if (frame <= 34) count++;
+    return count;
   }
 
   sample({ now, prerequisitesReady, revision }: StartupFrame): boolean {
