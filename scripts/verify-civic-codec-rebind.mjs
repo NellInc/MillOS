@@ -74,7 +74,24 @@ async function contract(document) {
 const metadataPath = 'public/textures/civic-square-lamp-depth.json';
 const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
 const entries = metadata.codecEquivalence;
-assert.equal(entries?.length, 1, 'Expected the one reviewed townhall codec substitution');
+if (entries === undefined) {
+  // A full rebake replaces any codec substitution: there is nothing to rebind.
+  // Its custody is the caster pins, so check each against the delivered bytes.
+  for (const [asset, pinned] of Object.entries(metadata.casterPins.glb)) {
+    assert.equal(hash(await readFile(asset)), pinned, `${asset} changed since the bake; rebake`);
+  }
+  assert.equal(
+    hash(await readFile('public/textures/civic-square-lamp-depth.png')),
+    metadata.atlasSha256
+  );
+  console.log(
+    'CIVIC_CODEC_EQUIVALENCE_NOT_APPLICABLE full bake;',
+    Object.keys(metadata.casterPins.glb).length,
+    'caster pins match'
+  );
+  process.exit(0);
+}
+assert.equal(entries.length, 1, 'Expected the one reviewed townhall codec substitution');
 const record = entries[0];
 assert.equal(record.asset, 'public/models/village/townhall.glb');
 assert.equal(record.algorithm, 'meshopt-trial-decoded-contract-v1');

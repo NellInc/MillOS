@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { withChromeLeakGuard } from '../lib/chrome-launch-args.mjs';
 import { createServer } from 'vite';
 import { acquireCaptureLock } from '../lib/capture-lock.mjs';
 
@@ -20,7 +21,11 @@ const server = await createServer({
   server: { port: PORT, strictPort: true, host: '127.0.0.1', hmr: false, watch: null },
 });
 await server.listen();
-const browser = await chromium.launch({ channel: 'chrome', headless: false });
+const browser = await chromium.launch({
+  channel: 'chrome',
+  headless: false,
+  args: withChromeLeakGuard(),
+});
 try {
   const out = {};
   for (const lang of ['en', 'pt-BR']) {

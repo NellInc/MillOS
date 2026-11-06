@@ -24,6 +24,12 @@ export type BenchmarkScene =
   | 'forecourt'
   | 'carpark'
   | 'picnic-shelter'
+  | 'cars'
+  | 'caravan'
+  | 'forge'
+  | 'forklift-close'
+  | 'windmill'
+  | 'station-shop'
   | 'river'
   | 'railway'
   | 'huts'
@@ -101,6 +107,19 @@ const BENCHMARK_SCENES: ReadonlySet<string> = new Set<BenchmarkScene>([
   'forecourt',
   'carpark',
   'picnic-shelter',
+  // Close review cameras for the asset loop (2026-11-06): the parked cars at
+  // paint distance, the caravan behind the gas station, and the village forge,
+  // none of which any other camera resolved (asset-accepted-20261105).
+  'cars',
+  'caravan',
+  'forge',
+  // Close review cameras (2026-11-06 runtime triage): the forklift at eye
+  // height off the shipping lane, the sail face of the farm windmill (the
+  // farm camera sees only the back of its cap), and the station shop counter
+  // through the glazing, none of which another camera resolves.
+  'forklift-close',
+  'windmill',
+  'station-shop',
   'river',
   // Sweep cameras (2026-09-02) for exterior features no benchmark camera had
   // ever framed: the Nissen huts, the office block, the canal with its boat

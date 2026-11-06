@@ -126,7 +126,11 @@ export const HEMISPHERE_INTENSITY = 0.22;
  * A civil-twilight shoulder keeps shaded stone readable as the direct sun fades.
  * Working if dusk gains separation while noon and deep-night endpoints stay exact.
  */
-export function hemisphereFillIntensity(daylight: number, sunAboveHorizon = 0): number {
+export function hemisphereFillIntensity(
+  daylight: number,
+  sunAboveHorizon = 0,
+  blueHour = 0
+): number {
   const t = THREE.MathUtils.clamp(daylight, 0, 1);
   const night = 1 - t * t * (3 - 2 * t);
   const dusk = 16 * t * t * (1 - t) * (1 - t);
@@ -134,7 +138,39 @@ export function hemisphereFillIntensity(daylight: number, sunAboveHorizon = 0): 
   // With the sun still on the horizon it swamped the low key 2.5 to 1 and took
   // every long dawn shadow with it (base-med-06: hall and silo shadows absent).
   const sunUp = Number.isFinite(sunAboveHorizon) ? THREE.MathUtils.clamp(sunAboveHorizon, 0, 1) : 0;
-  return HEMISPHERE_INTENSITY + 1.38 * night + 1.6 * dusk * (1 - 0.45 * sunUp);
+  const shoulder = HEMISPHERE_INTENSITY + 1.38 * night + 1.6 * dusk * (1 - 0.45 * sunUp);
+  const sky = Number.isFinite(blueHour) ? THREE.MathUtils.clamp(blueHour, 0, 1) : 0;
+  return Math.max(shoulder, BLUE_HOUR_FILL_INTENSITY * sky);
+}
+
+/**
+ * Hemisphere intensity the blue-hour sky holds as a floor.
+ *
+ * The dusk shoulder above is keyed on `daylight`, a smoothstep of solar
+ * elevation that is 0.05 by 19:00 (sun 15 degrees down), so it peaks at sunset
+ * and is gone an hour later. The sky's blue hour is keyed on elevation itself
+ * and peaks at 19:00 (weight 0.73, horizon still #7186ad-bright): the sky glowed
+ * while the ground took night fill, and the 19:00 captures read ground 15-34/255
+ * against 11-28 at 22:00 under a sky three times brighter (maps2-dusk-base-med).
+ * Taking the larger of the two lets the ground follow the sky that is still lit.
+ * At 3.9 the 19:00 fill is 2.8 (shoulder 1.64): about 1.5x the ground light,
+ * between 17:30 and night on screen. 18:30 keeps its larger shoulder, so the
+ * curve stays monotonic; noon and full night have zero blue hour and are exact.
+ */
+export const BLUE_HOUR_FILL_INTENSITY = 3.9;
+
+/**
+ * The sky's blue-hour weight, restated from `getSkyBlueHourWeight` in
+ * `OptimizedSkySystem` (which imports this module, so importing it back would
+ * make a cycle). `SceneEnvironmentIBL.test.ts` pins the two to each other.
+ */
+export function blueHourFillWeight(solarElevation: number, twilight: number): number {
+  if (!Number.isFinite(solarElevation) || !Number.isFinite(twilight)) return 0;
+  return (
+    twilight *
+    (1 - THREE.MathUtils.smoothstep(solarElevation, -0.24, -0.02)) *
+    THREE.MathUtils.smoothstep(solarElevation, -0.52, -0.24)
+  );
 }
 
 /** How much of the night fill's colour is pulled to neutral at full dark. */
@@ -159,8 +195,26 @@ export function neutraliseNightFill(target: THREE.Color, daylight: number): THRE
   return target.lerp(_neutral.setRGB(luminance, luminance, luminance), weight);
 }
 
-/** How much of the daylight fill's colour is pulled to neutral at full day. */
-export const DAYLIGHT_FILL_NEUTRALISE = 0.55;
+/**
+ * How much of the daylight fill's colour is pulled to neutral at full day.
+ *
+ * 0.65, from 0.55 (2026-11-06): the Neutral tone map subtracts one black offset,
+ * set by a pixel's smallest channel, from all three, so a dark pixel's chroma is
+ * multiplied on the way to the screen. Shade lit by fill alone came out navy:
+ * receiving's dock-canopy tarmac read sRGB (28, 45, 55) beside (107, 105, 94) in
+ * sun, from a scene colour whose red/blue was a mild 0.64. The ambient and the
+ * hemisphere sky read this colour; the zenith band takes its own, stronger,
+ * `DAYLIGHT_ZENITH_FILL_NEUTRALISE`. Luminance and every intensity are unchanged.
+ */
+export const DAYLIGHT_FILL_NEUTRALISE = 0.65;
+
+/**
+ * The same pull for the environment's zenith band, the raw sky top (#70aed8,
+ * red/blue 0.24 linear against the horizon's 0.48). On an up-facing surface it
+ * is about a third of the fill and the bluest part of it. At 0.9 blue is still
+ * its largest channel; the rendered sky keeps its own colour (fx-ab3-noon, fx-ab3-dusk).
+ */
+export const DAYLIGHT_ZENITH_FILL_NEUTRALISE = 0.9;
 
 /**
  * Paired rendered control for `neutraliseDaylightFill`, never a cache key.
@@ -178,22 +232,27 @@ export const DAYLIGHT_FILL_NEUTRALISE_STRENGTH = { value: 1 };
  * neutral (93, 99, 96), tree shadows on grass turned teal, and the near door
  * columns lost their red channel entirely (final-med-12: a fifth of the
  * interior frame at red <= 5). Skylight is bluer than the sun, not cyan-tinted
- * paint: after this the fill keeps blue as its largest channel at about half
- * the chroma, with its luminance exact, so shadows stay cool and lit.
+ * paint: after this the fill keeps blue as its largest channel at about a
+ * third of the chroma (`amount` 0.65), with its luminance exact, so shadows
+ * stay cool and lit.
  *
  * Takes over from `neutraliseNightFill` where that one ends (daylight 0.35) so
  * the two together never step; exactly inert below it.
  * Working if shaded floors and shadowed grass lose the teal cast at noon while
  * night captures are unchanged.
  */
-export function neutraliseDaylightFill(target: THREE.Color, daylight: number): THREE.Color {
+export function neutraliseDaylightFill(
+  target: THREE.Color,
+  daylight: number,
+  amount: number = DAYLIGHT_FILL_NEUTRALISE
+): THREE.Color {
   const d = Number.isFinite(daylight) ? daylight : 1;
   const t = THREE.MathUtils.clamp((d - 0.35) / 0.45, 0, 1);
   const weight =
     t *
     t *
     (3 - 2 * t) *
-    DAYLIGHT_FILL_NEUTRALISE *
+    THREE.MathUtils.clamp(amount, 0, 1) *
     THREE.MathUtils.clamp(DAYLIGHT_FILL_NEUTRALISE_STRENGTH.value, 0, 1);
   if (weight <= 0) return target;
   const luminance = 0.2126 * target.r + 0.7152 * target.g + 0.0722 * target.b;
@@ -667,7 +726,11 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
       const sunAboveHorizon = THREE.MathUtils.smoothstep(atmosphere.solarElevation, -0.1, 0.04);
       hemisphere.intensity = referenceLighting
         ? HEMISPHERE_INTENSITY
-        : hemisphereFillIntensity(atmosphere.daylight, sunAboveHorizon);
+        : hemisphereFillIntensity(
+            atmosphere.daylight,
+            sunAboveHorizon,
+            blueHourFillWeight(atmosphere.solarElevation, atmosphere.twilight)
+          );
       hemisphere.color.copy(_horizon);
       if (!referenceLighting) neutraliseNightFill(hemisphere.color, atmosphere.daylight);
       if (!referenceLighting) neutraliseTwilightFill(hemisphere.color, atmosphere.solarElevation);
@@ -690,7 +753,7 @@ export function SceneEnvironmentIBL(): React.JSX.Element {
       neutraliseNightFill(_horizon, atmosphere.daylight);
       // The horizon arrives already day-neutralised from the ambient
       // (`applySkyAmbientPalette`); the zenith band is the raw sky top.
-      neutraliseDaylightFill(_top, atmosphere.daylight);
+      neutraliseDaylightFill(_top, atmosphere.daylight, DAYLIGHT_ZENITH_FILL_NEUTRALISE);
     }
 
     const now = performance.now();

@@ -11,6 +11,7 @@ import {
   walkingBlocks,
   isDryWalkingGround,
 } from '../utils/castleNavigation';
+import { walkingObstacleBlocks } from '../utils/walkingObstacles';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import {
@@ -56,6 +57,8 @@ const COLLISION_BOXES = [
 const collides = (x: number, z: number): boolean => {
   // Valley boundary plus the shared, bounded castle approach.
   if (!isWithinWalkingDomain(x, z, PLAYER_RADIUS)) return true;
+  // Cottages, garden walls, the perimeter fence and the station shop.
+  if (walkingObstacleBlocks(x, z, PLAYER_RADIUS)) return true;
   for (const box of COLLISION_BOXES) {
     if (
       x + PLAYER_RADIUS > box.minX &&

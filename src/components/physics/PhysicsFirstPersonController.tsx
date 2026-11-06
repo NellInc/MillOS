@@ -22,6 +22,7 @@ import {
   isDryWalkingGround,
   moveWalkingPosition,
 } from '../../utils/castleNavigation';
+import { walkingObstacleBlocks } from '../../utils/walkingObstacles';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import {
   PHYSICS_CONFIG,
@@ -95,6 +96,7 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
     const segments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
     if (
       !isDryWalkingGround(spawnX, spawnZ, segments) ||
+      walkingObstacleBlocks(spawnX, spawnZ, PLAYER_RADIUS) ||
       walkingBlocks(spawnX, spawnZ, sampleWalkingGroundHeight(spawnX, spawnZ, segments))
     ) {
       search: for (let radius = 1; radius <= 64; radius++) {
@@ -103,6 +105,7 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
           const z = spawnZ + radius * Math.sin((i * Math.PI) / 8);
           if (
             isWithinWalkingDomain(x, z, PLAYER_RADIUS) &&
+            !walkingObstacleBlocks(x, z, PLAYER_RADIUS) &&
             isDryWalkingGround(x, z, segments) &&
             !walkingBlocks(x, z, sampleWalkingGroundHeight(x, z, segments))
           ) {
@@ -314,7 +317,9 @@ export const PhysicsFirstPersonController: React.FC<PhysicsFirstPersonController
       segments,
       grounded,
       MIN_BODY_HEIGHT,
-      () => false,
+      // Cottages, garden walls, the perimeter fence and the station shop:
+      // the same solids the default and mobile controllers refuse.
+      (x, z) => walkingObstacleBlocks(x, z, PLAYER_RADIUS),
       INSPECTION_BODY_HEIGHT
     );
     if (resolved.y !== incoming.y && !grounded) rb.setLinvel({ ...rb.linvel(), y: 0 }, true);

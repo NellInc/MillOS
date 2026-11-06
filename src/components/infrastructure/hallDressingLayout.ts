@@ -266,6 +266,15 @@ export const HALL_SACK_STACKS: readonly HallSackStack[] = [
   // Bran and offal sacks waiting by the gallery's south side.
   { id: 'sacks-bran-1', x: 7.2, z: 10.6, rotation: 0, baseY: 0, courses: 5 },
   { id: 'sacks-bran-2', x: 8.7, z: 10.6, rotation: 0, baseY: 0, courses: 3 },
+  // runtime-triage-20261106 packing: the near floor right of the pad (world
+  // x -16..-4, z 1..6) was still bare slab. A second staging lane, filling
+  // from the west, north of the packers' walking circuits at z -5.2/-6.4.
+  { id: 'sacks-lane-1', x: -14.2, z: 3, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-lane-2', x: -12.7, z: 3, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-lane-3', x: -11.2, z: 3, rotation: 0, baseY: 0, courses: 5 },
+  { id: 'sacks-lane-4', x: -14.2, z: 4.4, rotation: 0, baseY: 0, courses: 6 },
+  { id: 'sacks-lane-5', x: -12.7, z: 4.4, rotation: 0, baseY: 0, courses: 3 },
+  { id: 'sacks-line-2', x: 0.3, z: 2.9, rotation: -0.06, baseY: 0, courses: 4 },
 ];
 
 /** Empty pallets waiting beside each bay. */
@@ -277,6 +286,7 @@ export const HALL_PALLET_PILES: readonly HallPalletPile[] = [
   { id: 'pallets-wrapper', x: 13.6, z: -3.9, rotation: -0.05, baseY: 0, count: 8 },
   { id: 'pallets-hold', x: -3.8, z: -2.6, rotation: 0.04, baseY: 0, count: 6 },
   { id: 'pallets-line', x: -1.2, z: 1.2, rotation: -0.1, baseY: 0, count: 3 },
+  { id: 'pallets-lane', x: -9.5, z: 3.4, rotation: 0.06, baseY: 0, count: 5 },
 ];
 
 /**
@@ -314,6 +324,11 @@ export const HALL_PROPS: readonly HallProp[] = [
   { id: 'spill-kit-packing', kind: 'spillKit', x: -6, z: 6.8, rotation: 0, baseY: 0 },
   { id: 'cart-packing', kind: 'cart', x: -9.4, z: 8.4, rotation: 0.3, baseY: 0 },
   { id: 'pallet-jack-hold', kind: 'palletJack', x: -10.4, z: -1.6, rotation: 0.2, baseY: 0 },
+  // The staging lane's jack, left between loads, and the line's spares rack
+  // and a cart by the packers' walkway.
+  { id: 'pallet-jack-lane', kind: 'palletJack', x: -6.6, z: 3.2, rotation: 0.5, baseY: 0 },
+  { id: 'parts-rack-packing', kind: 'partsRack', x: -16.6, z: -3.4, rotation: 0, baseY: 0 },
+  { id: 'cart-packing-east', kind: 'cart', x: 5.4, z: -3.4, rotation: -0.2, baseY: 0 },
   /**
    * Motor-control centres. The milling floor's stands against the gallery's
    * north post row (post faces at z 24.98) between the posts at x -20 and

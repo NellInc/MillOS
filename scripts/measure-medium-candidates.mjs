@@ -26,6 +26,7 @@ import process from 'node:process';
 import console from 'node:console';
 import { setTimeout, clearTimeout } from 'node:timers';
 import { chromium } from '@playwright/test';
+import { withChromeLeakGuard } from './lib/chrome-launch-args.mjs';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 
 const REPO = process.cwd();
@@ -85,7 +86,11 @@ const browser = await chromium.launch({
   channel: 'chrome',
   chromiumSandbox: true,
   headless: true,
-  args: ['--disable-gpu-vsync', '--disable-frame-rate-limit', '--force-color-profile=srgb'],
+  args: withChromeLeakGuard([
+    '--disable-gpu-vsync',
+    '--disable-frame-rate-limit',
+    '--force-color-profile=srgb',
+  ]),
 });
 const results = { quality, time, cycles, settleMs, sampleMs, scenes: {} };
 try {

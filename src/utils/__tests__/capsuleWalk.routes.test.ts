@@ -5,16 +5,18 @@
  *
  * The mover is the real `moveWalkingPosition`; the `blocked` predicate is the
  * first-person controller's `collides` (module-private, so it is rebuilt here
- * from the same three obstacle sources and radius). Every start and end point
- * is derived from the layout modules, so the walks follow the layout.
+ * from the same obstacle sources and radius). Every start and end point is
+ * derived from the layout modules, so the walks follow the layout.
  *
  * What a green walk certifies: walking domain, water, the factory machine,
  * conveyor and dock boxes, the castle, bus-shelter and railway-station solids,
+ * the cottages, garden walls, allotment fence, the village's civic buildings
+ * (church, town hall, pub, school, forge, the three shops), every clipped
+ * hedge, the mill perimeter fence and gas-station shop (`walkingObstacles.ts`),
  * and the 0.23 m step rule near the castle, both footbridges and the station.
- * It certifies nothing about geometry that no walking predicate knows: village
- * houses, garden walls and gates, hedges, the mill perimeter fence and the
- * gas-station shop walls are all absent from the walking model, so a capsule
- * walks straight through them (see the last describe block).
+ * It certifies nothing about geometry no walking predicate knows: the town
+ * hall's porticos and the forge's open bay are left walkable by design, and
+ * props (benches, stalls, lamps, the fountain) are not solid.
  */
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
@@ -65,6 +67,9 @@ import {
   VILLAGE_HOME_PLOTS,
 } from '../../constants/siteLayout';
 import { VILLAGE_HOMES } from '../../components/scenery/VillageGardens';
+import { CANAL_WEST_PATH, LAKE_APPROACH_PATH } from '../../components/FactoryExterior';
+import { readFileSync } from 'node:fs';
+import { PERIMETER_FENCE, STATION_SHOP_LOCAL, walkingObstacleAt } from '../walkingObstacles';
 
 vi.mock('../critterAudio', () => ({ playCritterSound: vi.fn() }));
 
@@ -92,6 +97,8 @@ const COLLISION_BOXES = [
 ];
 function collidingBox(x: number, z: number): string | null {
   if (!isWithinWalkingDomain(x, z, PLAYER_RADIUS)) return 'walking domain edge';
+  const solid = walkingObstacleAt(x, z, PLAYER_RADIUS);
+  if (solid) return `solid ${solid.id}`;
   for (const box of COLLISION_BOXES)
     if (
       x + PLAYER_RADIUS > box.minX &&
@@ -288,20 +295,11 @@ function expectWalkable(route: Route, segments: number, stride: number) {
  * Cases a walk is known to fail, keyed by `${route} @${segments} x${stride}`.
  * Each value names the measured blocker. These run as `it.fails`, so a layout
  * change that fixes one turns the suite red until the entry is removed.
+ * Empty since 2026-11-06: world walk 4 used to start on tread 5 of the canal
+ * footbridge's east flight, a 0.968 m side drop at z -48.88 against the 0.23 m
+ * step rule. It now starts clear of the flight and has its own leg to the foot.
  */
 const KNOWN_BLOCKED: Record<string, string> = {};
-// Measured 2026-11-04 at every tier and stride. The walk's declared start,
-// (-137, -50), is on the canal footbridge's east flight (tread 5, top 0.948 m,
-// CANAL_BRIDGE_STEPS). Leaving it north over the flight's side, at z -48.88
-// (walking width ends at |z - bridge.z| = halfWidth - 0.18), is a 0.968 m drop
-// to terrain at -0.020 m, which the 0.23 m step rule near the bridge refuses
-// (moveWalkingPosition, nearCanalBridge). Coming the other way it is the same
-// 0.968 m climb. The detour probe below shows the bridge is still reachable
-// from this walk through the flight's foot.
-for (const segments of SEGMENTS)
-  for (const stride of STRIDES)
-    KNOWN_BLOCKED[`world walk 4 [-137,-50] -> [-137,48.8] @${segments} x${stride}`] =
-      'starts on the canal footbridge east flight; 0.968 m side drop at z -48.88 vs 0.23 m step rule';
 
 function walkCases(routes: readonly Route[]) {
   for (const route of routes)
@@ -441,11 +439,30 @@ const ALLOTMENT_ROUTE: Route = {
   ],
 };
 
+/**
+ * A walk paved onto a closed door's threshold is walked to the door approach:
+ * its end is pulled back along the walk until a body there clears every
+ * walking solid, plus 5 cm, as the booking-hall landing route does. Each
+ * pulled-back walk is recorded so the set can be checked (only the shop's).
+ */
+const DOOR_ENDED_WALKS: { name: string; end: XZ }[] = [];
+function toDoorApproach(name: string, [start, end]: XZ[]): XZ[] {
+  if (!walkingObstacleAt(end[0], end[1], PLAYER_RADIUS)) return [start, end];
+  const length = Math.hypot(end[0] - start[0], end[1] - start[1]);
+  const at = (back: number): XZ => [
+    end[0] + ((start[0] - end[0]) * back) / length,
+    end[1] + ((start[1] - end[1]) * back) / length,
+  ];
+  let back = 0;
+  while (back < length && walkingObstacleAt(...at(back), PLAYER_RADIUS)) back += 0.01;
+  DOOR_ENDED_WALKS.push({ name, end });
+  return [start, at(back + 0.05)];
+}
 const realmRoutes: Route[] = [
-  ...WORLD_REALM_PATHS.map((p, i) => ({
-    name: `world walk ${i} [${p.start}] -> [${p.end}]`,
-    points: pathPoints(p),
-  })),
+  ...WORLD_REALM_PATHS.map((p, i) => {
+    const name = `world walk ${i} [${p.start}] -> [${p.end}]`;
+    return { name, points: toDoorApproach(name, pathPoints(p)) };
+  }),
   ...VILLAGE_REALM_PATHS.map((p, i) => ({
     name: `village walk ${i} [${p.start}] -> [${p.end}] (village frame)`,
     points: pathPoints(p).map(village),
@@ -485,23 +502,31 @@ const MILL_GATE_ROUTE: Route = {
   points: [westApproach.start, westApproach.end, millFootway.start, millFootway.end],
 };
 
-/** The east canal walk whose declared start sits on the footbridge's east
- * flight (world walk 4). Not a declared route: the detour leaves the walk
- * just clear of the bridge's walking width, goes round to the mill footway's
- * start at the flight's foot and crosses. It shows whether the bridge is
- * reachable from that walk. */
-const eastFlightWalk = requiredPath(
-  'the east canal walk starting on the footbridge east flight',
+/** The east canal walk (world walk 4) runs north from beside the footbridge's
+ * east flight; its link leg runs east along the flight's side to the foot,
+ * where the mill footway starts. Both are found from the bridge datum. */
+const eastCanalWalk = requiredPath(
+  'the east canal walk starting beside the footbridge east flight',
   (p) =>
-    p.start[1] === bridge.z && p.start[0] > bridge.maxX && p.start[0] < bridge.maxX + bridgeReach
+    p.start[0] === p.end[0] &&
+    p.start[0] > bridge.maxX &&
+    p.start[0] < bridge.maxX + bridgeReach &&
+    p.start[1] !== bridge.z &&
+    Math.abs(p.start[1] - bridge.z) < bridge.halfWidth + 1
 );
-const clearZ = bridge.z + Math.sign(eastFlightWalk.end[1] - bridge.z) * bridge.halfWidth;
-const EAST_WALK_DETOUR: Route = {
-  name: 'east canal walk to the footbridge via the mill footway start (detour probe)',
+const flightFootLink = requiredPath(
+  'the link from the east canal walk to the footbridge east flight foot',
+  (p) =>
+    same(p.start, eastCanalWalk.start) &&
+    p.end[1] === p.start[1] &&
+    Math.abs(p.end[0] - (bridge.maxX + bridgeReach)) < 0.5
+);
+const EAST_WALK_TO_BRIDGE: Route = {
+  name: 'east canal walk, link leg to the flight foot, over the footbridge',
   points: [
-    eastFlightWalk.end,
-    [eastFlightWalk.start[0], clearZ],
-    [millFootway.start[0], clearZ],
+    eastCanalWalk.end,
+    eastCanalWalk.start,
+    flightFootLink.end,
     millFootway.start,
     [bridge.minX - bridgeReach - 1, bridge.z],
   ],
@@ -509,9 +534,14 @@ const EAST_WALK_DETOUR: Route = {
 };
 
 /** The station shop approach: the walk network chained to the endpoint that
- * meets the gas-station shop's side door. The door's local offset [-12, 5]
- * is a JSX literal in GasStationInstanced.tsx, not an exported datum. */
-const SHOP_DOOR_LOCAL: XZ = [-12, 5];
+ * meets the gas-station shop's side door. The door is the centre of its
+ * surround on the shop's side wall (walkingObstacles.ts, held to the JSX by
+ * walkingObstacles.test.ts). */
+const shopSurround = STATION_SHOP_LOCAL.doorSurround;
+const SHOP_DOOR_LOCAL: XZ = [
+  (shopSurround.minX + shopSurround.maxX) / 2,
+  STATION_SHOP_LOCAL.shell.maxZ,
+];
 const shopDoor: XZ = [
   GAS_STATION_SITE.position[0] + SHOP_DOOR_LOCAL[0],
   GAS_STATION_SITE.position[2] + SHOP_DOOR_LOCAL[1],
@@ -551,9 +581,75 @@ const shopEnd = WORLD_REALM_PATHS.flatMap((p) => [p.start, p.end]).reduce((a, b)
     ? b
     : a
 );
+// The paving runs onto the threshold; the door is closed, so the walk ends a
+// body's radius and 5 cm short of its surround, like the booking-hall landing.
+const shopApproach: XZ = [
+  shopEnd[0],
+  Math.max(shopEnd[1], GAS_STATION_SITE.position[2] + shopSurround.maxZ + PLAYER_RADIUS + 0.05),
+];
 const SHOP_ROUTE: Route = {
   name: 'gas-station shop approach, walk network to the side door',
-  points: longestChainTo(shopEnd, WORLD_REALM_PATHS),
+  points: [...longestChainTo(shopEnd, WORLD_REALM_PATHS).slice(0, -1), shopApproach],
+};
+
+/**
+ * The main path and the lake path are paved from the mill's north-west and
+ * north-east fence corners outwards (`FactoryExterior.tsx`): the paving meets
+ * the corner post, and the fence is closed there (no gate geometry at either
+ * corner; the way into the site is the front vehicle gate). A body cannot
+ * stand on the post, so each walk starts at the first point along its paving
+ * where a body clears the fence, plus 5 cm, outside the fence. Each start
+ * moved is recorded so the set can be checked.
+ */
+const exteriorSource = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
+const mainPathMatch = exteriorSource.match(
+  /\{\/\* Main path from factory front gate to canal towpath\.[\s\S]*?\*\/\}\s*<GravelPath start=\{\[(-?[\d.]+), 0, (-?[\d.]+)\]\} end=\{\[(-?[\d.]+), 0, (-?[\d.]+)\]\}/
+);
+if (!mainPathMatch) throw new Error('capsule walk: the main path GravelPath was not found');
+const MAIN_PATH = {
+  start: [Number(mainPathMatch[1]), Number(mainPathMatch[2])] as XZ,
+  end: [Number(mainPathMatch[3]), Number(mainPathMatch[4])] as XZ,
+};
+const FENCE_CORNER_STARTS: { name: string; start: XZ }[] = [];
+function offFenceCorner(name: string, start: XZ, toward: XZ): XZ {
+  if (!walkingObstacleAt(start[0], start[1], PLAYER_RADIUS)) return start;
+  const length = Math.hypot(toward[0] - start[0], toward[1] - start[1]);
+  const at = (d: number): XZ => [
+    start[0] + ((toward[0] - start[0]) * d) / length,
+    start[1] + ((toward[1] - start[1]) * d) / length,
+  ];
+  let d = 0;
+  while (d < length && walkingObstacleAt(...at(d), PLAYER_RADIUS)) d += 0.01;
+  FENCE_CORNER_STARTS.push({ name, start });
+  return at(d + 0.05);
+}
+const canalWest: XZ[] = [CANAL_WEST_PATH.start, CANAL_WEST_PATH.end].map(([x, , z]) => [x, z]);
+const canalLink = requiredPath(
+  'the canal walk link meeting the canal west path',
+  (p) => p.end[0] === CANAL_WEST_PATH.start[0] + CANAL_WEST_PATH.width / 2
+);
+const MAIN_PATH_ROUTE: Route = {
+  // Along the paving to the canal west path's line, down it, and onto the
+  // canal walk by its link.
+  name: 'main path, north-west fence corner to the canal walk',
+  points: [
+    offFenceCorner('main path', MAIN_PATH.start, MAIN_PATH.end),
+    [canalWest[0][0], MAIN_PATH.end[1]],
+    [canalWest[1][0], canalLink.end[1]],
+    canalLink.start,
+  ],
+};
+const lakeEnd: XZ = [LAKE_APPROACH_PATH.end[0], LAKE_APPROACH_PATH.end[2]];
+const LAKE_PATH_ROUTE: Route = {
+  name: 'lake path, north-east fence corner to the lakeside turn',
+  points: [
+    offFenceCorner(
+      'lake path',
+      [LAKE_APPROACH_PATH.start[0], LAKE_APPROACH_PATH.start[2]],
+      lakeEnd
+    ),
+    lakeEnd,
+  ],
 };
 
 // Sanity controls: already walked by castleNavigation.test.ts with a no-op
@@ -583,11 +679,17 @@ describe('capsule walk: route datums resolve', () => {
   it('finds the mill footway, the west canal approach and the shop endpoint', () => {
     expect(westApproach).toBeDefined();
     expect(millFootway).toBeDefined();
-    // The footway spans the perimeter fence gap (x -95, a JSX literal).
-    expect(millFootway.start[0]).toBeLessThan(-95);
-    expect(millFootway.end[0]).toBeGreaterThan(-95);
+    // The footway spans the perimeter fence's canal pedestrian gate.
+    expect(millFootway.start[0]).toBeLessThan(SITE_LAYOUT.perimeter.minX);
+    expect(millFootway.end[0]).toBeGreaterThan(SITE_LAYOUT.perimeter.minX);
+    expect(Math.abs(millFootway.start[1] - PERIMETER_FENCE.pedestrianGate.z)).toBeLessThan(
+      PERIMETER_FENCE.pedestrianGate.halfWidth - PERIMETER_FENCE.postHalfWidth - PLAYER_RADIUS
+    );
     expect(Math.hypot(shopEnd[0] - shopDoor[0], shopEnd[1] - shopDoor[1])).toBeLessThan(0.5);
     expect(SHOP_ROUTE.points.length).toBeGreaterThan(3);
+  });
+  it('pulls back only the walk paved onto the closed shop door', () => {
+    expect(DOOR_ENDED_WALKS.map((w) => w.end)).toEqual([shopEnd]);
   });
   it('puts each plot door approach inside its garden and the gate start outside it', () => {
     expect(SITE_LAYOUT.landmarks.village.rotation[1]).toBe(0);
@@ -616,43 +718,204 @@ describe('capsule walk: village gardens and allotment', () =>
 describe('capsule walk: public-realm walks', () => walkCases(realmRoutes));
 describe('capsule walk: mill pedestrian gate and station shop approach', () =>
   walkCases([MILL_GATE_ROUTE, SHOP_ROUTE]));
-describe('capsule walk: east canal walk detour probe', () => {
-  walkCases([EAST_WALK_DETOUR]);
-  // Paving is not part of the walking model; this measures whether the paved
-  // network joins walk 4 to the flight's foot. Measured 2026-11-04: along the
-  // line just clear of the bridge (z -48.75), walk 4's paving ends at x -135.8
-  // and the mill footway's rounded end begins at x -134.36, leaving about
-  // 1.44 m of grass. Walk 4's paving reaches the bridge only at the flight's
-  // side, where the 0.968 m drop stops the walker.
-  it.fails('joins walk 4 to the east flight foot on paving [gap: ~1.44 m of grass]', () => {
-    const [a, b] = [EAST_WALK_DETOUR.points[1], EAST_WALK_DETOUR.points[2]];
-    const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
-    let unpaved = 0;
-    for (let i = 0; i < Math.ceil(length / 0.01); i++) {
-      const t = (i + 0.5) / Math.ceil(length / 0.01);
-      if (!onRealmWalk(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)) unpaved += 0.01;
-    }
-    expect(unpaved, `unpaved ${f3(unpaved)} m between [${a}] and [${b}]`).toBe(0);
+describe('capsule walk: east canal walk to the footbridge', () => {
+  walkCases([EAST_WALK_TO_BRIDGE]);
+  it('starts the east canal walk a body clear of the flight', () => {
+    expect(Math.abs(eastCanalWalk.start[1] - bridge.z)).toBeGreaterThanOrEqual(
+      bridge.halfWidth + PLAYER_RADIUS - 1e-9
+    );
   });
+  // Paving is not part of the walking model; this measures whether the paved
+  // network joins walk 4 to the flight's foot. Until 2026-11-06, along the line
+  // just clear of the bridge (z -48.75), walk 4's paving ended at x -135.8 and
+  // the mill footway's rounded end began at x -134.36: about 1.44 m of grass.
+  it('joins walk 4 to the east flight foot on paving', () => {
+    const clearZ = bridge.z + Math.sign(eastCanalWalk.end[1] - bridge.z) * bridge.halfWidth;
+    const lines: [XZ, XZ][] = [
+      [
+        [eastCanalWalk.start[0], clearZ],
+        [millFootway.start[0], clearZ],
+      ],
+      [eastCanalWalk.start, flightFootLink.end],
+      [flightFootLink.end, millFootway.start],
+    ];
+    for (const [a, b] of lines) {
+      const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      let unpaved = 0;
+      for (let i = 0; i < Math.ceil(length / 0.01); i++) {
+        const t = (i + 0.5) / Math.ceil(length / 0.01);
+        if (!onRealmWalk(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)) unpaved += 0.01;
+      }
+      expect(unpaved, `unpaved ${f3(unpaved)} m between [${a}] and [${b}]`).toBe(0);
+    }
+  });
+});
+describe('capsule walk: main path and lake path', () => {
+  it('starts both off the closed fence corners their paving meets, and no other walk', () => {
+    const { minX, maxX, maxZ } = SITE_LAYOUT.perimeter;
+    expect(FENCE_CORNER_STARTS).toEqual([
+      { name: 'main path', start: [minX, maxZ] },
+      { name: 'lake path', start: [maxX, maxZ] },
+    ]);
+    for (const route of [MAIN_PATH_ROUTE, LAKE_PATH_ROUTE]) {
+      const [x, z] = route.points[0];
+      expect(walkingObstacleAt(x, z, PLAYER_RADIUS), route.name).toBeNull();
+      // Outside the fence, within 0.6 m of the corner.
+      expect(x < minX || x > maxX || z > maxZ, route.name).toBe(true);
+    }
+    expect(
+      Math.hypot(MAIN_PATH_ROUTE.points[0][0] - minX, MAIN_PATH_ROUTE.points[0][1] - maxZ)
+    ).toBeLessThan(0.6);
+    expect(
+      Math.hypot(LAKE_PATH_ROUTE.points[0][0] - maxX, LAKE_PATH_ROUTE.points[0][1] - maxZ)
+    ).toBeLessThan(0.6);
+  });
+  walkCases([MAIN_PATH_ROUTE, LAKE_PATH_ROUTE]);
 });
 describe('capsule walk: sanity controls', () => walkCases(CONTROL_ROUTES));
 
-describe('capsule walk: what the walking model cannot see', () => {
-  // Documented gaps: no walking predicate knows these surfaces, so the capsule
-  // is never stopped. Each `it.fails` states the behaviour a solid wall would
-  // give; it turns red the day a collider makes it true. Until then a capsule
-  // walk over the village or the shop cannot catch a blocked door.
-  it.fails('stops a capsule at a cottage front wall [gap: no village house collider]', () => {
-    const plot = VILLAGE_HOME_PLOTS[0];
-    const r = walkRoute(
-      [plotRoutes[0].points[1], village([plot.position[0], plot.position[2]])],
-      128,
-      0.2
-    );
-    expect(r.arrival).toBeGreaterThan(1);
+/** A point in plot `index`'s own frame (door toward +z), in the world. */
+function plotWorld(index: number, x: number, z: number): XZ {
+  const plot = VILLAGE_HOME_PLOTS[index];
+  const [px, py, pz] = plot.position;
+  const v = new THREE.Vector3(x, 0, z).applyMatrix4(
+    new THREE.Matrix4().makeRotationY(plot.rotation).setPosition(px, py, pz)
+  );
+  return village([v.x, v.z]);
+}
+function stops(points: readonly XZ[], solid: string) {
+  const r = walkRoute(points, 128, 0.2);
+  expect(r.arrival, solid).toBeGreaterThan(1);
+  expect(r.blockers[0] ?? 'no stall', solid).toContain(`solid ${solid}`);
+}
+
+describe('capsule walk: solids that stop a walker', () => {
+  it('stops a capsule at every cottage front wall', () => {
+    VILLAGE_HOME_PLOTS.forEach((plot, index) => {
+      const r = walkRoute(
+        [plotRoutes[index].points[1], village([plot.position[0], plot.position[2]])],
+        128,
+        0.2
+      );
+      expect(r.arrival, plot.name).toBeGreaterThan(1);
+      expect(r.blockers.join(' '), plot.name).toContain(`solid village-${plot.name}-home`);
+    });
   });
-  it.fails('stops a capsule at the closed gas-station shop door [gap: no shop collider]', () => {
-    const r = walkRoute([shopEnd, [shopDoor[0], shopDoor[1] - 3]], 128, 0.2);
+  // From the garden side: outside, the cottage hedge stands 0.13 m off the
+  // front wall and a body's width off the side walls, so it stops a capsule first.
+  it('stops a capsule at every garden front wall beside the gate', () => {
+    VILLAGE_HOME_PLOTS.forEach((plot, index) => {
+      for (const [x, side] of [
+        [-3.05, 'left'],
+        [3.05, 'right'],
+      ] as const)
+        stops(
+          [plotWorld(index, x, 4), plotWorld(index, x, 9)],
+          `village-${plot.name}-garden-front-wall-${side}`
+        );
+    });
+  });
+  it('stops a capsule at a garden side wall', () => {
+    const plot = VILLAGE_HOME_PLOTS[0].name;
+    stops([plotWorld(0, 3.5, 3.5), plotWorld(0, 7, 3.5)], `village-${plot}-garden-side-wall-right`);
+    stops(
+      [plotWorld(0, -3.5, 3.5), plotWorld(0, -7, 3.5)],
+      `village-${plot}-garden-side-wall-left`
+    );
+  });
+  it('stops a capsule at the cottage garden hedge from the street', () => {
+    VILLAGE_HOME_PLOTS.forEach((_, index) =>
+      stops([plotWorld(index, 3.05, 10), plotWorld(index, 3.05, 4)], 'hedge-landscape-')
+    );
+  });
+  it('stops a capsule at every civic building wall, its doors included', () => {
+    // The church walk ends on the porch path; on into the west door.
+    const churchWalk = VILLAGE_REALM_PATHS[0];
+    stops([village(churchWalk.start), village([0, -40])], 'village-church-nave');
+    // Village walk 4 runs past the general store's frontage; turn into it.
+    const storeWalk = VILLAGE_REALM_PATHS[4];
+    stops([village(storeWalk.start), village([-20, 30])], 'village-general-store-walls');
+    // Across the square into the town hall's front door, up its stairs.
+    stops([village([0, 8]), village([0, 20])], 'village-town-hall-walls');
+    for (const [name, [x, z], from] of [
+      ['pub', [-25, -15], [-15, -15]],
+      ['school', [22, 40], [12, 40]],
+      ['forge', [-22, -55], [-10, -55]],
+      ['baker', [20, 5], [15, 5]],
+      ['butcher', [20, -10], [15, -10]],
+    ] as const)
+      stops([village(from), village([x, z])], `village-${name}-`);
+  });
+  it('stops a capsule at the allotment fence beside its east gate', () => {
+    const east = VILLAGE_ALLOTMENT.x + VILLAGE_ALLOTMENT.halfX + 1;
+    stops(
+      [
+        village([east, VILLAGE_ALLOTMENT.z + 3]),
+        village([VILLAGE_ALLOTMENT.x, VILLAGE_ALLOTMENT.z + 3]),
+      ],
+      'village-allotment-end-east'
+    );
+  });
+  it('stops a capsule at the perimeter fence away from its gates', () => {
+    const { minX, maxX, minZ, maxZ } = SITE_LAYOUT.perimeter;
+    stops(
+      [
+        [minX + 5, 0],
+        [minX - 5, 0],
+      ],
+      'perimeter-fence-5'
+    );
+    stops(
+      [
+        [maxX - 5, 0],
+        [maxX + 5, 0],
+      ],
+      'perimeter-fence-6'
+    );
+    stops(
+      [
+        [-60, maxZ - 5],
+        [-60, maxZ + 5],
+      ],
+      'perimeter-fence-0'
+    );
+    stops(
+      [
+        [60, minZ + 5],
+        [60, minZ - 5],
+      ],
+      'perimeter-fence-3'
+    );
+  });
+  it('lets a capsule through the front and back vehicle gates', () => {
+    const { minZ, maxZ } = SITE_LAYOUT.perimeter;
+    for (const x of [-20, 20])
+      for (const z of [minZ, maxZ])
+        expectWalkable(
+          {
+            name: `vehicle gate at x ${x}, z ${z}`,
+            points: [
+              [x, z - Math.sign(z) * 3],
+              [x, z + Math.sign(z) * 3],
+            ],
+          },
+          128,
+          0.2
+        );
+  });
+  it('stops a capsule at the closed gas-station shop door', () => {
+    const r = walkRoute([shopApproach, [shopDoor[0], shopDoor[1] - 3]], 128, 0.2);
     expect(r.arrival).toBeGreaterThan(1);
+    expect(r.blockers.join(' ')).toContain('solid station-shop');
+  });
+  it('stops a capsule at the shop glazing from the forecourt', () => {
+    const [sx, , sz] = GAS_STATION_SITE.position;
+    stops(
+      [
+        [sx + STATION_SHOP_LOCAL.shell.maxX + 3, sz],
+        [sx + STATION_SHOP_LOCAL.shell.maxX - 3, sz],
+      ],
+      'station-shop'
+    );
   });
 });

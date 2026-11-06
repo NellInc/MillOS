@@ -24,6 +24,7 @@ import {
   HALL_HOSES,
   HALL_MCC_CONDUITS,
   HALL_PALLET_PILES,
+  HALL_PROP_SIZE,
   HALL_PROPS,
   HALL_SACK_STACKS,
   type HallCableTray,
@@ -1229,6 +1230,121 @@ const HallDust: React.FC = () => {
 };
 
 // ---------------------------------------------------------------------------
+// Contact shadow under loads
+// ---------------------------------------------------------------------------
+
+/** Metres the soft footprint spreads past a load's own plan on every side. */
+export const HALL_CONTACT_SPREAD = 0.22;
+const CONTACT_TEXTURE_SIZE = 64;
+
+/**
+ * Occlusion falloff for a unit footprint: opaque over the inner rectangle the
+ * load stands on, easing to nothing at the quad's edge. The quad is the plan
+ * grown by HALL_CONTACT_SPREAD, so `inner` is the plan's share of it.
+ */
+function createContactMask(size: number, innerX: number, innerZ: number): Uint8Array {
+  const data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const u = Math.abs((x + 0.5) / size - 0.5) * 2;
+      const v = Math.abs((y + 0.5) / size - 0.5) * 2;
+      const dx = Math.max(0, (u - innerX) / Math.max(1e-3, 1 - innerX));
+      const dz = Math.max(0, (v - innerZ) / Math.max(1e-3, 1 - innerZ));
+      const t = Math.min(1, Math.hypot(dx, dz));
+      // Darkest at the contact line, most of it gone within a third of the
+      // spread: occlusion, not a mat laid under the load (groupA-after3).
+      const falloff = (1 - t) * (1 - t) * (1 - t);
+      const i = (y * size + x) * 4;
+      // three reads `alphaMap.g`, as for the dust mask: the value goes in RGB
+      // (a linear texture, so no transfer function bends the falloff).
+      const value = Math.round(255 * falloff);
+      data[i] = value;
+      data[i + 1] = value;
+      data[i + 2] = value;
+      data[i + 3] = 255;
+    }
+  }
+  return data;
+}
+
+/**
+ * runtime-triage-20261106 / groupA-after2 packing: the pallet stacks "sit on
+ * the slab with little or no AO footprint, so they read as scattered stickers".
+ * The sun shadow falls to one side and the medium tier runs no SSAO, so the
+ * ground under and around a load stayed as bright as open floor.
+ *
+ * A shadow blob is absence of light, not paint, so it stays unlit (CLAUDE.md:
+ * light sources and shadow blobs are basic materials). Never written to depth,
+ * one instanced draw for every pallet footprint in the hall, ordered with the
+ * settled flour it may meet.
+ */
+const contactMaskTexture = (() => {
+  const pallet = HALL_PROP_SIZE.pallet;
+  const texture = createLinearDataTexture(
+    createContactMask(
+      CONTACT_TEXTURE_SIZE,
+      pallet.halfX / (pallet.halfX + HALL_CONTACT_SPREAD),
+      pallet.halfZ / (pallet.halfZ + HALL_CONTACT_SPREAD)
+    ),
+    CONTACT_TEXTURE_SIZE,
+    CONTACT_TEXTURE_SIZE
+  );
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  return texture;
+})();
+
+export const HALL_CONTACT_MATERIAL = new THREE.MeshBasicMaterial({
+  name: 'hall-contact-shadow',
+  color: '#000000',
+  alphaMap: contactMaskTexture,
+  transparent: true,
+  opacity: 0.34,
+  depthWrite: false,
+  polygonOffset: true,
+  polygonOffsetFactor: POLYGON_OFFSET.standard.factor,
+  polygonOffsetUnits: POLYGON_OFFSET.standard.units,
+});
+
+/** Every pallet footprint on the floor: loaded stacks and empty piles. */
+export function hallContactShadowMatrices(): THREE.Matrix4[] {
+  const pallet = HALL_PROP_SIZE.pallet;
+  const up = new THREE.Vector3(0, 1, 0);
+  return [...HALL_SACK_STACKS, ...HALL_PALLET_PILES].map((load) =>
+    new THREE.Matrix4().compose(
+      new THREE.Vector3(load.x, load.baseY + FLOOR_LAYERS.puddle, load.z),
+      new THREE.Quaternion().setFromAxisAngle(up, load.rotation),
+      new THREE.Vector3(
+        2 * (pallet.halfX + HALL_CONTACT_SPREAD),
+        1,
+        2 * (pallet.halfZ + HALL_CONTACT_SPREAD)
+      )
+    )
+  );
+}
+
+const HallContactShadows: React.FC = () => {
+  const matrices = useMemo(hallContactShadowMatrices, []);
+  const ref = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const mesh = ref.current;
+    if (!mesh) return;
+    matrices.forEach((matrix, i) => mesh.setMatrixAt(i, matrix));
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [matrices]);
+  return (
+    <instancedMesh
+      ref={ref}
+      name="hall-contact-shadows"
+      args={[FLAT_PLANE, HALL_CONTACT_MATERIAL, matrices.length]}
+      matrixAutoUpdate={false}
+      renderOrder={HALL_DUST_RENDER_ORDER}
+    />
+  );
+};
+
+// ---------------------------------------------------------------------------
 
 export const HallDressing: React.FC<{ revision: string | number | boolean }> = ({ revision }) => (
   <group name="hall-dressing">
@@ -1255,6 +1371,7 @@ export const HallDressing: React.FC<{ revision: string | number | boolean }> = (
       </group>
     </StaticMeshBatch>
     <HallSackStacks />
+    <HallContactShadows />
     <HallDust />
   </group>
 );

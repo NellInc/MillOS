@@ -18,7 +18,7 @@ import { useIncidentReplayStore } from '../stores/incidentReplayStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
 import { useAnnouncementsStore } from '../stores/announcementsStore';
 import { getRuntimeMode, type BenchmarkScene, type RuntimeMode } from '../runtime/runtimeMode';
-import { SITE_LAYOUT, type Vec3Tuple } from '../constants/siteLayout';
+import { SITE_LAYOUT, landmarkLocalToWorld, type Vec3Tuple } from '../constants/siteLayout';
 import { RAILWAY_STATION } from '../constants/railwayLayout';
 import { inspectWorldIntegrity, type WorldIntegrityReport } from '../constants/worldContract';
 import { inspectCommunityPresence } from '../simulation/communityLife';
@@ -653,6 +653,42 @@ const BENCHMARK_CAMERAS: Record<BenchmarkScene, BenchmarkCameraPose> = {
     target: [RAILWAY_STATION.shelter.position[0], 1.45, RAILWAY_STATION.shelter.position[2] - 2],
     fov: 50,
   },
+  // Asset-loop close views (2026-11-06), defined here so the pinned site
+  // layout keeps its bytes. `cars`: from the employee lot aisle onto the
+  // charcoal car in row 0, bay 3 (ParkingLot at (120, 0, 50): row 0 centre
+  // z 44.5, bay 3 centre x 121.75) with its red and amber neighbours.
+  cars: { position: [116.5, 2.4, 50.5], target: [121.75, 0.6, 44.5], fov: 45 },
+  // The caravan parked behind the gas station at (-100, 0, 125), rotation 0.3:
+  // its door side faces world (0.955, -0.296). Seen square to that side at eye
+  // height, 8.5 m out. The former south-east pose put the shop's blank south
+  // wall (world x -101.5..-92.5, z 134.5, 5.4 m tall) across the left third of
+  // the frame (maps-after-2 caravan); from here its nearest corner is 41
+  // degrees off-axis, outside the 36-degree half field.
+  caravan: { position: [-91.9, 1.7, 122.5], target: [-100.3, 1.2, 124.05], fov: 45 },
+  // The forge at village-local (-22, 0, -55), turned a quarter so its yard
+  // (hitching rail, bucket) faces village-local +X; seen from that yard.
+  forge: {
+    position: landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [-9, 3.5, -50]),
+    target: landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [-22, 2.2, -55]),
+    fov: 50,
+  },
+  // Runtime-triage close views (2026-11-06). `forklift-close`: eye height on
+  // the bench side of the shipping lane (z 42), three-quarter onto the span
+  // x -14..-6 that FLT01 works during a capture, so the cab, guard and mast
+  // are not hidden behind the carried stack as they are head-on.
+  'forklift-close': { position: [-4, 1.7, 46.8], target: [-10, 1, 42], fov: 45 },
+  // The farm windmill at farm-local (15, 0, -15), scale 1.5. The farm turns a
+  // half turn, so its sails face world -X and the `farm` camera sees the back
+  // of the cap; this one stands on the sail side, a quarter off the shaft.
+  windmill: {
+    position: landmarkLocalToWorld(SITE_LAYOUT.landmarks.farm, [29, 3.5, -23]),
+    target: landmarkLocalToWorld(SITE_LAYOUT.landmarks.farm, [17.5, 5.2, -15]),
+    fov: 45,
+  },
+  // The gas station shop counter (station at (-85, 0, 140), interior group at
+  // station-local x -12): from the forecourt side of the glazing (x -93.1) at
+  // eye height onto the roller grill, slushie and coffee machine.
+  'station-shop': { position: [-90.2, 1.65, 140.2], target: [-95.2, 1.05, 138.4], fov: 50 },
   river: SITE_LAYOUT.cameras.river,
   railway: SITE_LAYOUT.cameras.railway,
   huts: SITE_LAYOUT.cameras.huts,

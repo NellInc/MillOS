@@ -4,8 +4,11 @@ import { sampleTerrainGroundHeight } from '../terrain/splatMapGenerator';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { readFileSync } from 'node:fs';
 import {
+  NEAR_CITY_AERIAL_CACHE_KEY,
   buildNearCitySpecs,
+  buildNearCityTrees,
   buildNearCityWindows,
+  nearCityChimneys,
   createNearCityPitchedRoof,
   nearCityBodyColour,
   nearCityFootprint,
@@ -216,6 +219,60 @@ describe('near horizon city layout', () => {
       expect(
         Math.hypot(building.x - castle.position[0], building.z - castle.position[2])
       ).toBeGreaterThan(castleClearance);
+    });
+  });
+
+  // packing top centre, receiving top left (runtime-triage-20261106): the town
+  // read as a pale strip of boxes over its hill, under scene fog at about 0.42
+  // while the hill itself carried the anchored ridge haze of 0.1-0.2.
+  describe('seated in its hillside', () => {
+    it('takes the anchored ridge haze in place of scene fog, on every city material', () => {
+      const source = readFileSync('src/components/environment/NearHorizonCity.tsx', 'utf8');
+      expect(source).toContain("'#include <fog_fragment>'");
+      expect(source).toContain('shader.uniforms.uCityAerial = RIDGE_ANCHORED_AERIAL_SPAN');
+      expect(source).toContain('vec3(0.80, 1.00, 1.20)');
+      for (const material of [
+        'CITY_BODY_MATERIAL',
+        'CITY_PLINTH_MATERIAL',
+        'CITY_ROOF_MATERIAL',
+        'CITY_PITCHED_ROOF_MATERIAL',
+        'CITY_WINDOW_MATERIAL',
+        'CITY_MECHANICAL_MATERIAL',
+        'CITY_STACK_MATERIAL',
+        'CITY_TREE_MATERIAL',
+      ])
+        expect(source).toMatch(new RegExp(`applyNearCityAerial\\(${material}, (true|false)\\)`));
+      expect(NEAR_CITY_AERIAL_CACHE_KEY).toMatch(/^millos-near-city-aerial-v\d+$/);
+    });
+
+    it('roots every tree crown below the ground it stands on', () => {
+      const trees = buildNearCityTrees(buildNearCitySpecs());
+      expect(trees.length).toBeGreaterThan(30);
+      for (const tree of trees) {
+        const ground = sampleFoothillGroundHeight(tree.x, tree.z);
+        expect(tree.y - tree.height).toBeLessThan(ground);
+        expect(tree.y).toBeGreaterThan(ground);
+        expect(Math.hypot(tree.x, tree.z)).toBeGreaterThan(SITE_LAYOUT.world.radius + 16);
+      }
+    });
+
+    it('breaks the pitched roofline with chimneys that clear the ridge', () => {
+      const buildings = buildNearCitySpecs();
+      const chimneys = nearCityChimneys(buildings);
+      const pitched = buildings.filter((b) => b.roofStyle !== 2);
+      expect(chimneys.length).toBeGreaterThan(pitched.length * 0.3);
+      expect(chimneys.length).toBeLessThan(pitched.length);
+      for (const chimney of chimneys) {
+        const owner = [...pitched].sort(
+          (a, b) =>
+            Math.hypot(a.x - chimney.x, a.z - chimney.z) -
+            Math.hypot(b.x - chimney.x, b.z - chimney.z)
+        )[0];
+        expect(owner).toBeDefined();
+        const ridge = owner.baseY + owner.height - 0.85 + nearCityRoofRise(owner);
+        expect(chimney.y + chimney.height / 2).toBeGreaterThan(ridge + 0.9);
+        expect(chimney.y - chimney.height / 2).toBeLessThan(ridge);
+      }
     });
   });
 });

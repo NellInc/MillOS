@@ -10,7 +10,7 @@ import { COMMUNITY_ROSTER } from '../../simulation/communityLife';
 import { FORKLIFT_ROUTES, WALKWAY_LANES } from '../../textures/factoryFloorMacro';
 import { MachineType, type MachineData } from '../../types';
 import { buildSpoutRoutes, SPOUT_PIPE_RADIUS } from '../flow/spoutRoutes';
-import { PIPE_SUPPORT_SEGMENTS } from '../SpoutingSystem';
+import { PIPE_SUPPORT_SEGMENTS, buildSpoutHangers, spoutRouteRadii } from '../SpoutingSystem';
 import { END_OF_LINE_FOOTPRINTS } from '../conveyors/endOfLineLayout';
 import {
   buildProcessGallery,
@@ -337,7 +337,13 @@ describe('hall dressing: a working flour-mill floor', () => {
             hits.add(`${route.fromMachineId}->${route.toMachineId} / ${item.id}`);
       }
     }
-    const segments = [...PIPE_SUPPORT_SEGMENTS.beams, ...PIPE_SUPPORT_SEGMENTS.braces];
+    const hangers = buildSpoutHangers(pipes, spoutRouteRadii(pipes));
+    const segments = [
+      ...PIPE_SUPPORT_SEGMENTS.beams,
+      ...PIPE_SUPPORT_SEGMENTS.braces,
+      ...hangers.beams,
+      ...hangers.rods,
+    ];
     for (const { start, end } of segments)
       for (let s = 0; s <= 40; s += 1) {
         const p = new THREE.Vector3(...start).lerp(new THREE.Vector3(...end), s / 40);

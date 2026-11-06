@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import process from 'node:process';
 import {
   getBounds,
+  ImageUtils,
   NodeIO,
   PropertyType,
   VERSION as GLTF_TRANSFORM_VERSION,
@@ -447,7 +448,36 @@ async function normalizeForklift(io, source, output) {
  * already required. It is a field rather than an assumption because nothing
  * enforces that on the generator's side.
  */
-const GENERATED_ASSET_ATTRIBUTION = 'Generated with Tripo3D for MillOS under an API plan';
+export const GENERATED_ASSET_ATTRIBUTION = 'Generated with Tripo3D for MillOS under an API plan';
+
+/**
+ * Runtime credit for the asset-loop rows rebuilt from scratch by
+ * `scripts/blender/authored/<slug>.py` (preparedSource `<slug>-authored-v2.glb`).
+ * Checked 2026-11-06 against every preserved `<slug>-*.glb` beside them: no
+ * image hash and no provider vertex survives, so these derivatives carry no
+ * Tripo3D bytes. The source pack (`license`/`attribution`, unset here) is still
+ * the preserved Tripo original, which is why only the runtime fields change.
+ * The fuel-pump shell is the exception: its geometry is authored but both atlas
+ * images are byte-identical to `fuel-pump-shell-atlas-e24d2734.glb`, the earlier
+ * Tripo-textured delivery, so its credit keeps Tripo3D.
+ */
+const AUTHORED_RUNTIME_LICENSE = 'MillOS project-authored geometry and textures';
+const AUTHORED_UNTEXTURED_RUNTIME_LICENSE = 'MillOS project-authored geometry';
+const AUTHORED_RUNTIME_ATTRIBUTION =
+  'Authored for MillOS; original Tripo reference retained in source provenance';
+const AUTHORED_PUMP_RUNTIME_LICENSE =
+  'MillOS project-authored geometry; Tripo3D API-plan normal/ORM atlas images';
+const AUTHORED_PUMP_RUNTIME_ATTRIBUTION =
+  'Authored MillOS geometry; normal/ORM atlas images from the earlier Tripo3D-textured delivery';
+
+/**
+ * Ids whose committed GLB still carries the old provider credit in its glTF
+ * `asset.copyright`, because the credit above changed after it was delivered.
+ * The next `--only=` normalize of these ids writes the new credit; then remove
+ * them here. The header test accepts the old credit only for ids listed here and
+ * fails once a listed delivery no longer carries it, so the list cannot go stale.
+ */
+export const AUTHORED_CREDIT_PENDING_RENORMALIZE = Object.freeze(new Set());
 
 /**
  * Exported so `scripts/write-model-provenance.mjs` can read the size decisions
@@ -1392,22 +1422,22 @@ export const GENERATED_ASSETS = [
     id: 'world-dock-leveler-lip',
     slug: 'dock-leveler-lip',
     area: 'world',
-    target: 0.10000000521540642,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 0.10000000149011612,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'dock-leveler-lip-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'dock-leveler-lip-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/dock-leveler-lip.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Directional fine industrial machining with subdued crossing polish. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: {
-      normalScale: 0.2,
-      doubleSided: false,
-    },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/dock-leveler-lip.py',
     ],
     taskId: '0a8f3d79-d06a-421e-b10c-f66a7f4a4ea1',
     retrievedAt: '2026-09-08',
@@ -1440,22 +1470,22 @@ export const GENERATED_ASSETS = [
     id: 'world-dock-door-frame',
     slug: 'dock-door-frame',
     area: 'world',
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
     target: 5.25,
     axis: 'y',
-    texture: 512,
+    texture: 1024,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'dock-door-frame-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'dock-door-frame-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/dock-door-frame.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: {
-      normalScale: 0.2,
-      doubleSided: false,
-    },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/dock-door-frame.py',
     ],
     taskId: 'c48a6490-0b77-4835-a582-440c8108826a',
     retrievedAt: '2026-09-08',
@@ -1560,22 +1590,22 @@ export const GENERATED_ASSETS = [
     id: 'world-wheel-chock-body',
     slug: 'wheel-chock-body',
     area: 'world',
-    target: 0.2750000041723252,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 0.2750000059604645,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'wheel-chock-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'wheel-chock-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/wheel-chock-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Moulded elastomer grain; preserve the existing tyre tread geometry and rubber identity. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: {
-      normalScale: 0.2,
-      doubleSided: false,
-    },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/wheel-chock-body.py',
     ],
     taskId: '28445681-8a76-49bc-8d5b-ce4cbd243317',
     retrievedAt: '2026-09-08',
@@ -1608,22 +1638,22 @@ export const GENERATED_ASSETS = [
     id: 'world-cupid-authored-body',
     slug: 'cupid-authored-body',
     area: 'world',
-    target: 2.330000028014183,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 2.2792000770568848,
     axis: 'y',
-    texture: 512,
+    texture: 1024,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'cupid-authored-body-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'cupid-authored-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/cupid-authored-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Exact source triangles, palette, corner normals and per-part shadow flags retained with Tripo normal/roughness; dynamic nodes, glass, light faces and text remain live.',
-    surface: {
-      normalScale: 0.2,
-      doubleSided: true,
-    },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/cupid-authored-body.py',
     ],
     taskId: 'cdfcffae-8363-4395-a402-9b59aeaaac6e',
     retrievedAt: '2026-09-08',
@@ -1656,19 +1686,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-access-node-body',
     slug: 'yard-access-node-body',
     area: 'world',
-    target: 1.0999999642372131,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 1.100000023841858,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-access-node-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-access-node-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-access-node-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-access-node-body.py',
     ],
     taskId: '4272c639-c53a-45e9-b625-0ecfef614b81',
     retrievedAt: '2026-09-08',
@@ -1719,19 +1752,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-compactor-body',
     slug: 'yard-compactor-body',
     area: 'world',
-    target: 2.650000143051148,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 2.650000047367431,
     axis: 'y',
-    texture: 512,
+    texture: 576,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-compactor-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-compactor-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-compactor-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-compactor-body.py',
     ],
     taskId: 'f78c30a6-28de-419e-b3ca-c52eda775ac1',
     retrievedAt: '2026-09-08',
@@ -1740,19 +1776,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-crane-body',
     slug: 'yard-crane-body',
     area: 'world',
-    target: 0.9500000178813934,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 0.949999988079071,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-crane-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-crane-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-crane-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-crane-body.py',
     ],
     taskId: 'd21e7b3b-f29e-4bd9-b8fa-63e7c3f50783',
     retrievedAt: '2026-09-08',
@@ -1782,19 +1821,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-dumpster-body',
     slug: 'yard-dumpster-body',
     area: 'world',
-    target: 2.6072733461856843,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 2.607300043106079,
     axis: 'y',
-    texture: 512,
+    texture: 1024,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-dumpster-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-dumpster-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-dumpster-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-dumpster-body.py',
     ],
     taskId: '2abc993f-f425-41f8-bf8f-834e33d41002',
     retrievedAt: '2026-09-08',
@@ -1803,19 +1845,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-extinguisher-body',
     slug: 'yard-extinguisher-body',
     area: 'world',
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
     target: 1.024999976158142,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-extinguisher-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-extinguisher-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-extinguisher-body.py',
+    runtimeLicense: AUTHORED_UNTEXTURED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and vertex colours built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-extinguisher-body.py',
     ],
     taskId: '3b0a180a-62c8-49c6-ba2c-d42420f13d51',
     retrievedAt: '2026-09-08',
@@ -1824,19 +1869,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-fuel-island-body',
     slug: 'yard-fuel-island-body',
     area: 'world',
-    target: 6.250000005960464,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 6.25,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-fuel-island-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-fuel-island-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-fuel-island-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-fuel-island-body.py',
     ],
     taskId: '36d6cd78-3ed8-480b-8ab8-a77a50cdc10d',
     retrievedAt: '2026-09-08',
@@ -1845,19 +1893,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-guard-shack-body',
     slug: 'yard-guard-shack-body',
     area: 'world',
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
     target: 3.0999999046325684,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-guard-shack-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-guard-shack-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-guard-shack-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-guard-shack-body.py',
     ],
     taskId: 'b2054150-5d2c-46aa-b9af-deebf12112b8',
     retrievedAt: '2026-09-08',
@@ -1887,19 +1938,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-jockey-body',
     slug: 'yard-jockey-body',
     area: 'world',
-    target: 2.099999910593033,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 2.0999999046325684,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-jockey-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-jockey-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-jockey-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-jockey-body.py',
     ],
     taskId: '4b05b0a4-9e5a-4780-8b2a-a94f97cda731',
     retrievedAt: '2026-09-08',
@@ -1908,19 +1962,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-maintenance-body',
     slug: 'yard-maintenance-body',
     area: 'world',
-    target: 8.090000182390213,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 8.09000015258789,
     axis: 'y',
-    texture: 512,
+    texture: 1024,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-maintenance-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-maintenance-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-maintenance-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-maintenance-body.py',
     ],
     taskId: '80a3d61c-a89c-42c7-ba95-9cc3f26433e2',
     retrievedAt: '2026-09-08',
@@ -1929,19 +1986,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-manifest-body',
     slug: 'yard-manifest-body',
     area: 'world',
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
     target: 0.699999988079071,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-manifest-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-manifest-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-manifest-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-manifest-body.py',
     ],
     taskId: '931161b3-1679-4336-84bb-470c8d330472',
     retrievedAt: '2026-09-08',
@@ -1950,19 +2010,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-pallet-charger-body',
     slug: 'yard-pallet-charger-body',
     area: 'world',
-    target: 1.5000000119209291,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 1.5,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-pallet-charger-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-pallet-charger-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-pallet-charger-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-pallet-charger-body.py',
     ],
     taskId: 'bee7ab69-a97d-4a48-bc94-a7d42c2eae72',
     retrievedAt: '2026-09-08',
@@ -1992,19 +2055,23 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-scale-kiosk-body',
     slug: 'yard-scale-kiosk-body',
     area: 'world',
-    target: 1.9499999284744263,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 1.9500000476837158,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-scale-kiosk-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-scale-kiosk-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-scale-kiosk-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
+    surface: { metalness: 1 },
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-scale-kiosk-body.py',
     ],
     taskId: 'aca88291-568a-431b-bd5e-15e6a272ec2d',
     retrievedAt: '2026-09-08',
@@ -2013,19 +2080,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-stretch-wrap-body',
     slug: 'yard-stretch-wrap-body',
     area: 'world',
-    target: 3.0000000007450582,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 3,
     axis: 'y',
-    texture: 512,
+    texture: 384,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-stretch-wrap-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-stretch-wrap-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-stretch-wrap-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-stretch-wrap-body.py',
     ],
     taskId: 'c8555e16-69ac-407d-9dd6-5e793d54b62c',
     retrievedAt: '2026-09-08',
@@ -2097,19 +2167,22 @@ export const GENERATED_ASSETS = [
     id: 'world-yard-weight-scale-body',
     slug: 'yard-weight-scale-body',
     area: 'world',
-    target: 3.274500332772732,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 3.2745003700256348,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'yard-weight-scale-body-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'yard-weight-scale-body-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/yard-weight-scale-body.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: { doubleSided: false, normalScale: 0.2 },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/yard-weight-scale-body.py',
     ],
     taskId: '13e42070-6b9f-4a24-9b2e-ed0c78e4c4d3',
     retrievedAt: '2026-09-08',
@@ -2295,21 +2368,22 @@ export const GENERATED_ASSETS = [
     id: 'world-wooden-bollard',
     slug: 'wooden-bollard',
     area: 'world',
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
     target: 0.800000011920929,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'wooden-bollard-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'wooden-bollard-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/wooden-bollard.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Exact source geometry, palette and corner normals retained with Tripo normal/roughness; utility seams split without changing ordered triangles; light faces remain runtime authored.',
-    surface: {
-      normalScale: 0.2,
-    },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/wooden-bollard.py',
     ],
     taskId: '0287dced-4279-4fc2-b99e-4a632b9cecc9',
     retrievedAt: '2026-09-08',
@@ -2318,21 +2392,24 @@ export const GENERATED_ASSETS = [
     id: 'world-metal-bollard',
     slug: 'metal-bollard',
     area: 'world',
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
     target: 0.800000011920929,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'metal-bollard-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'metal-bollard-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/metal-bollard.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: {
-      normalScale: 0.2,
-    },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script within the D-036 index budget (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
+    // The authored satin paint's metalness, as judged; the default would zero it.
+    surface: { metalness: 0.06 },
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/metal-bollard.py',
     ],
     taskId: 'b6a3c11d-24b1-48c2-8dfe-5de5fc60de61',
     retrievedAt: '2026-09-08',
@@ -2341,21 +2418,22 @@ export const GENERATED_ASSETS = [
     id: 'world-wooden-footbridge',
     slug: 'wooden-footbridge',
     area: 'world',
-    target: 2.0499999761581424,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 2.050000011715454,
     axis: 'y',
-    texture: 512,
+    texture: 1024,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'wooden-footbridge-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'wooden-footbridge-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/wooden-footbridge.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Lengthwise wood fibre with irregular growth bands, without changing authored timber palette. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: {
-      normalScale: 0.2,
-    },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/wooden-footbridge.py',
     ],
     taskId: '646c4bb0-323c-4212-9244-3635ab389a2d',
     retrievedAt: '2026-09-08',
@@ -2387,21 +2465,22 @@ export const GENERATED_ASSETS = [
     id: 'world-dock-canopy-structure',
     slug: 'dock-canopy-structure',
     area: 'world',
-    target: 6.199999809265137,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
+    target: 6.200000196695328,
     axis: 'y',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'dock-canopy-structure-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'dock-canopy-structure-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/dock-canopy-structure.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
-    surface: {
-      normalScale: 0.2,
-    },
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/dock-canopy-structure.py',
     ],
     taskId: '3298deec-527b-44e6-baf1-96057d30ba27',
     retrievedAt: '2026-09-08',
@@ -2410,18 +2489,22 @@ export const GENERATED_ASSETS = [
     id: 'world-station-counter',
     slug: 'station-counter',
     area: 'world',
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
     target: 1.0449999570846558,
     axis: 'y',
-    texture: 256,
+    texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'station-counter-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'station-counter-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/station-counter.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (kept as improved: preferred to the previous delivery in a blind A/B, D-031); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/station-counter.py',
     ],
     taskId: 'cd0777eb-5aef-41c3-963e-c027bd351897',
     retrievedAt: '2026-09-08',
@@ -2470,18 +2553,22 @@ export const GENERATED_ASSETS = [
     id: 'world-station-shelving',
     slug: 'station-shelving',
     area: 'world',
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact.
     target: 4,
     axis: 'y',
-    texture: 256,
+    texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'station-shelving-authored-vertex-colour-tripo-finish.glb',
-    preparationScript: 'scripts/restore-authored-asset-attributes.mjs',
+    preparedSource: 'station-shelving-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/station-shelving.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Exact authored geometry, source normals and linear vertex colours. Tripo normal and roughness maps retained.',
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/station-shelving.py',
     ],
     taskId: '61236a73-25c7-4700-884b-becb7b973e79',
     retrievedAt: '2026-09-08',
@@ -2590,18 +2677,23 @@ export const GENERATED_ASSETS = [
     id: 'world-fuel-pump-shell',
     slug: 'fuel-pump-shell',
     area: 'world',
+    // Built at delivered scale by its authoring script: target is its own
+    // measured height (scale 1) and its encoded atlas ships byte-exact. The
+    // source node already carries the quarter turn, so no yaw is applied here.
     target: 1.8,
     axis: 'y',
     texture: 256,
-    yaw: Math.PI / 2,
-    preparedSource: 'fuel-pump-shell-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    authoredTextures: true,
+    yaw: 0,
+    preparedSource: 'fuel-pump-shell-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/fuel-pump-shell.py',
+    runtimeLicense: AUTHORED_PUMP_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_PUMP_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
+      'Asset-loop 2026-11-06: new geometry built from scratch at delivered scale by the authoring script (accepted by two blind judges), reusing the normal/ORM atlas images of the previous delivery, preserved as fuel-pump-shell-atlas-e24d2734.glb and passed as the script atlas-source argument.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute restoration',
+      'Original Tripo model retained as historical source only',
+      'Authored geometry: scripts/blender/authored/fuel-pump-shell.py; atlas images from the previous Tripo-finished delivery',
     ],
     taskId: '4bdb2403-19c1-4414-a945-beb3b4f8e736',
     retrievedAt: '2026-09-08',
@@ -2630,18 +2722,22 @@ export const GENERATED_ASSETS = [
     id: 'world-checkpoint-booth',
     slug: 'checkpoint-booth',
     area: 'world',
-    target: 4.3,
+    // Built at delivered scale by its authoring script: target is its own
+    // measured width (scale 1) and its encoded atlas ships byte-exact.
+    target: 4.300000190734863,
     axis: 'x',
     texture: 512,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'checkpoint-booth-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'checkpoint-booth-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/checkpoint-booth.py',
+    runtimeLicense: AUTHORED_RUNTIME_LICENSE,
+    runtimeAttribution: AUTHORED_RUNTIME_ATTRIBUTION,
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
+      'Asset-loop 2026-11-06: new geometry and atlas built from scratch at delivered scale by the authoring script (accepted by two blind judges); no provider geometry or texture.',
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute restoration',
+      'Original Tripo model retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/checkpoint-booth.py',
     ],
     taskId: '3131e52d-c089-4c2d-a00e-1ffa098550c4',
     retrievedAt: '2026-09-08',
@@ -3674,12 +3770,23 @@ export async function normalizeGeneratedAsset(io, spec, precisionCandidate) {
     meshNode.getMesh()?.setName(`${spec.slug}-mesh`);
     meshNode.setName(bodyName);
   }
+  // Named by the material slot that samples the texture. The source name is a
+  // fallback only: matched against /orm|rough|metal/ it called the metal
+  // bollard's colour atlas "orm" and the checkpoint booth's ORM map "albedo".
+  const materials = root.listMaterials();
   root.listTextures().forEach((texture) => {
-    const slot = /normal/i.test(texture.getName() ?? '')
+    const usedAs = (get) => materials.some((material) => get(material) === texture);
+    const slot = usedAs((m) => m.getNormalTexture())
       ? 'normal'
-      : /orm|rough|metal/i.test(texture.getName() ?? '')
+      : usedAs((m) => m.getMetallicRoughnessTexture()) || usedAs((m) => m.getOcclusionTexture())
         ? 'orm'
-        : 'albedo';
+        : usedAs((m) => m.getBaseColorTexture()) || usedAs((m) => m.getEmissiveTexture())
+          ? 'albedo'
+          : /normal/i.test(texture.getName() ?? '')
+            ? 'normal'
+            : /orm|rough|metal/i.test(texture.getName() ?? '')
+              ? 'orm'
+              : 'albedo';
     texture.setName(`${spec.slug}-${slot}`);
   });
 
@@ -3694,9 +3801,21 @@ export async function normalizeGeneratedAsset(io, spec, precisionCandidate) {
   // the barn under-resolved by nearly 5x - so a single global number is wrong in
   // both directions and only the starved assets are raised.
   const textureSize = spec.texture ?? 512;
-  await document.transform(
-    textureCompress({ targetFormat: 'jpeg', resize: [textureSize, textureSize] })
-  );
+  if (spec.authoredTextures) {
+    // The authoring script already encoded its atlases at the size the judges
+    // passed. A second lossy pass measurably flattened the normal relief
+    // (dock canopy, blind A/B 2026-11-06), so these images ship byte-exact;
+    // the size cap still holds.
+    for (const texture of root.listTextures()) {
+      const size = ImageUtils.getSize(texture.getImage(), texture.getMimeType());
+      if (!size || size[0] > textureSize || size[1] > textureSize)
+        throw new Error(`${spec.id}: authored texture exceeds ${textureSize} px`);
+    }
+  } else {
+    await document.transform(
+      textureCompress({ targetFormat: 'jpeg', resize: [textureSize, textureSize] })
+    );
+  }
 
   scene.setName(`MillOS_${titleCase(spec.area)}_${titleCase(spec.slug)}`);
   Object.assign(root.getAsset(), generatedAssetHeader(spec));

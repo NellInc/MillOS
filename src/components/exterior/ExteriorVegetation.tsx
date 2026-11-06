@@ -293,23 +293,29 @@ export const SHARED_TREE_TRUNK = TREE_GEOMETRIES.trunk;
  * Working if every crown has a woody connection, including in the low tier.
  */
 function createTreeBranches(): THREE.BufferGeometry {
+  // The leader starts 10 cm inside the bole's flat top (radius 0.3 at y 3.0)
+  // on eight sides, so its section at 3.0 contains the bole's twelve-sided cap
+  // to within 1.6 cm. Six sides at 2.6 / 0.29 left 13 cm of that cap showing
+  // as a ledge at the fork; the octagon costs 12 triangles. The last limb's
+  // foot sits on the leader's axis at 4.25 m, not 3.6 cm proud of its surface
+  // (fx-ab1, forge).
   const forks = [
-    [[0, 2.6, 0], [0.14, 5.2, -0.08], 0.29, 0.07],
-    [[0, 3.05, 0], [-1.45, 4.8, 0.3], 0.15, 0.03],
-    [[0.08, 3.45, 0], [1.45, 5.1, -0.35], 0.14, 0.025],
-    [[0.08, 3.6, 0], [0.15, 5.65, 1.3], 0.13, 0.025],
-    [[0.1, 4.25, -0.1], [-0.65, 5.6, -1.25], 0.11, 0.02],
+    [[0, 2.9, 0], [0.14, 5.2, -0.08], 0.33, 0.07, 8],
+    [[0, 3.05, 0], [-1.45, 4.8, 0.3], 0.15, 0.03, 6],
+    [[0.08, 3.45, 0], [1.45, 5.1, -0.35], 0.14, 0.025, 6],
+    [[0.08, 3.6, 0], [0.15, 5.65, 1.3], 0.13, 0.025, 6],
+    [[0.14, 4.25, -0.05], [-0.65, 5.6, -1.25], 0.11, 0.02, 6],
   ] as const;
   const up = new THREE.Vector3(0, 1, 0);
-  const parts = forks.map(([from, to, base, tip], index) => {
+  const parts = forks.map(([from, to, base, tip, sides], index) => {
     const start = new THREE.Vector3(...from);
     const end = new THREE.Vector3(...to);
     const direction = end.clone().sub(start);
     // A middle ring buys a gentle elbow instead of five ruler-straight rods.
-    // Six radial sides keep the whole scaffold at 180 triangles (formerly
-    // 160), in the same single instanced draw and inside the retained crown.
+    // Six radial sides (eight on the leader) keep the whole scaffold at 192
+    // triangles, in the same single instanced draw and inside the retained crown.
     const length = direction.length();
-    const geometry = new THREE.CylinderGeometry(tip, base, length, 6, 2);
+    const geometry = new THREE.CylinderGeometry(tip, base, length, sides, 2);
     const positions = geometry.getAttribute('position');
     for (let i = 0; i < positions.count; i++) {
       const t = (positions.getY(i) + length / 2) / length;

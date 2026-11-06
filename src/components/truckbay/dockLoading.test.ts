@@ -148,7 +148,7 @@ describe('dock loading geometry', () => {
 
       for (const [tier, footprint] of Object.entries(FORKLIFT_TIER_FOOTPRINTS)) {
         const label = `${dock} ${tier}`;
-        // Rests at bed height (the tiers' carrier datums differ by 2.5 cm).
+        // Rests at bed height (both tiers share one carrier datum).
         const palletBottom =
           footprint.palletRestY + palletUnderside + restingFork(spec.action, surface);
         expect(

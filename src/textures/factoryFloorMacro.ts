@@ -20,6 +20,14 @@ export const FLOOR_JOINT_TILES_X = FLOOR_WIDTH / FLOOR_JOINT_PITCH;
 export const FLOOR_JOINT_TILES_Z = FLOOR_DEPTH / FLOOR_JOINT_PITCH;
 
 /**
+ * Saw-cut contraction joints halve each expansion bay: a slab poured in
+ * 10 m bays is cut at about 5 m so it cracks in the cut, not across the
+ * panel. runtime-triage-20261106 read the 10 m grid alone as "a soft mottled
+ * blob with no joints" from milling and packing.
+ */
+export const FLOOR_CONTRACTION_PITCH = FLOOR_JOINT_PITCH / 2;
+
+/**
  * Macro map resolution.
  *
  * 1024 over 80 x 100 m is 12.8 x 10.2 texel/m. That is deliberately a MACRO budget:
@@ -234,6 +242,20 @@ function floorMacroInto(
   roughness = mix(roughness, 0.26, oil);
   ao = mix(ao, 0.78, oil);
 
+  // Each cut panel cured and wore on its own: a small hashed step in tone and
+  // finish that stops at the joints. This is what reads as a poured slab from
+  // across the hall, where the aggregate and the fields are long gone. Traffic
+  // polish and soaked oil level it out, as they do on a real floor.
+  const panel =
+    (hash(
+      Math.floor(worldX / FLOOR_CONTRACTION_PITCH) + 71,
+      Math.floor(worldZ / FLOOR_CONTRACTION_PITCH) + 19
+    ) -
+      0.5) *
+    (1 - Math.max(polish, oil));
+  tone += panel * 0.04;
+  roughness += panel * 0.05;
+
   let dust = 0;
   for (const source of DUST_SOURCES) {
     dust = Math.max(dust, radialMask(worldX - source.x, worldZ - source.z, 4.6, 3.8));
@@ -258,6 +280,20 @@ function floorMacroInto(
   tone -= 0.065 * joint;
   roughness = mix(roughness, 0.96, joint);
   ao = mix(ao, 0.82, joint);
+
+  // Contraction cuts between them: narrower and lighter, still ~1.5 texels so
+  // they do not crawl. Then the dirt both kinds collect: a soft dark margin a
+  // third of a metre either side, which also keeps a cut legible a mip down.
+  const cutPitch = FLOOR_CONTRACTION_PITCH;
+  const cutX = Math.abs(worldX - Math.round(worldX / cutPitch) * cutPitch);
+  const cutZ = Math.abs(worldZ - Math.round(worldZ / cutPitch) * cutPitch);
+  const cut = Math.max(1 - smoothstep(0.025, 0.07, cutX), 1 - smoothstep(0.025, 0.07, cutZ));
+  const contraction = cut * (1 - joint);
+  tone -= 0.045 * contraction;
+  roughness = mix(roughness, 0.94, contraction);
+  ao = mix(ao, 0.88, contraction);
+  const margin = Math.max(1 - smoothstep(0.06, 0.35, cutX), 1 - smoothstep(0.06, 0.35, cutZ));
+  tone -= 0.018 * margin * (0.5 + wear * 0.5) * (1 - Math.max(joint, contraction));
 
   out.tone = clamp01(tone);
   out.roughness = clamp01(roughness);
@@ -369,7 +405,7 @@ export function buildFloorMacroMaps(size: number = FLOOR_MACRO_SIZE): FloorMacro
 export function getFloorMacroMaps(size: number = FLOOR_MACRO_SIZE): FloorMacroMaps {
   let built: FloorMacroMaps | null = null;
   const build = () => (built ??= buildFloorMacroMaps(size));
-  const albedo = getTexture(`factory-floor-macro-albedo-v1-${size}`, () => build().albedo);
-  const surface = getTexture(`factory-floor-macro-surface-v1-${size}`, () => build().surface);
+  const albedo = getTexture(`factory-floor-macro-albedo-v2-${size}`, () => build().albedo);
+  const surface = getTexture(`factory-floor-macro-surface-v2-${size}`, () => build().surface);
   return { albedo, surface };
 }

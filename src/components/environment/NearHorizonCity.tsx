@@ -5,8 +5,16 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RENDER_ORDER } from '../../constants/renderLayers';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { getExteriorLampLevel } from '../exterior/ExteriorLighting';
+import { sampleAtmosphere } from '../../simulation/atmosphere';
 import { sampleFoothillGroundHeight } from './foothillGround';
+import {
+  RIDGE_ALPINE_PROFILE,
+  RIDGE_ANCHORED_AERIAL,
+  RIDGE_ANCHORED_AERIAL_SPAN,
+  getRidgeClearAir,
+} from './OptimizedSkySystem';
 
 export interface NearCityBuildingSpec {
   readonly x: number;
@@ -193,8 +201,11 @@ const CITY_BODY_MATERIAL = new THREE.MeshStandardMaterial({
   vertexColors: false,
 });
 // Dressed stone under each building, taking the slope (buildNearCitySpecs).
+// '#857d70' was 0.23 linear, four times the pasture and woodland around it, so
+// every plinth drew a pale rule along the hill under its building (receiving,
+// runtime-triage-20261106). Weathered, earth-stained stone sits in the slope.
 const CITY_PLINTH_MATERIAL = new THREE.MeshStandardMaterial({
-  color: '#857d70',
+  color: '#6c6858',
   roughness: 0.95,
   metalness: 0,
 });
@@ -246,6 +257,182 @@ const CITY_BODY_COLOURS = [
   new THREE.Color('#bba98a'),
   new THREE.Color('#c0bdb4'),
 ] as const;
+
+// Street trees and garden groves among the lots and along the town's foot.
+const CITY_TREE_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#ffffff',
+  roughness: 1,
+  metalness: 0,
+});
+const CITY_TREE_COLOURS = [
+  new THREE.Color('#3c5532'),
+  new THREE.Color('#465e36'),
+  new THREE.Color('#34492f'),
+  new THREE.Color('#4d5f3a'),
+] as const;
+
+/**
+ * ATMOSPHERE FROM THE HILL THE TOWN STANDS ON.
+ *
+ * The town sat under the scene's FogExp2 (density 0.002 in clear air), about
+ * 1 - exp(-(0.002 * 370)^2) = 0.42 of fog colour at 370 m. The foothill it is
+ * built on is the anchored ridge shader, which ignores scene fog and takes
+ * `RIDGE_ANCHORED_AERIAL` instead: 0.1 to 0.2 over 250-390 m, capped in clear
+ * air at the far range's lower band (0.32 x 0.55 = 0.18). So every building
+ * carried more than twice its own hillside's air and read as a pale paper strip
+ * hovering over a darker, clearer hill (packing top centre, receiving top left,
+ * runtime-triage-20261106). The town now takes the hill's own per-channel term
+ * from the same shared uniforms, against the same colour (fog.color is lerped
+ * to the ridge inscatter each frame), and its walls darken toward their foot so
+ * they meet the slope instead of standing on a lit edge.
+ * Working if, in one frame, a wall's haze matches the hill beside it.
+ */
+export const NEAR_CITY_AERIAL = {
+  /** Albedo kept at the very foot of a wall or plinth (contact shade). */
+  contactShade: 0.5,
+  /** Metres above the instance's lowest face over which the shade recovers. */
+  contactMetres: [0.6, 3.4],
+} as const;
+export const NEAR_CITY_AERIAL_CACHE_KEY = 'millos-near-city-aerial-v1';
+const CITY_CLEAR_AIR = { value: 1 };
+const nearCityClearAir = (weather: Parameters<typeof sampleAtmosphere>[2]): number =>
+  getRidgeClearAir(sampleAtmosphere(0, 12, weather).cloudCoverage);
+
+function applyNearCityAerial(material: THREE.MeshStandardMaterial, contact: boolean): void {
+  const contactStrength = { value: contact ? 1 : 0 };
+  const [run0, run1] = RIDGE_ANCHORED_AERIAL.run;
+  const [d0, d1] = RIDGE_ANCHORED_AERIAL.distances;
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uCityAerial = RIDGE_ANCHORED_AERIAL_SPAN;
+    shader.uniforms.uCityClearAir = CITY_CLEAR_AIR;
+    shader.uniforms.uCityContact = contactStrength;
+    shader.vertexShader = `varying float vCityLift;\n${shader.vertexShader}`.replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+        // Metres above the instance's lowest face (unit box, y -0.5 to 0.5).
+        vCityLift = (position.y + 0.5) * length(instanceMatrix[1].xyz);
+      #else
+        vCityLift = 1000.0;
+      #endif`
+    );
+    shader.fragmentShader = `uniform vec3 uCityAerial;
+      uniform float uCityClearAir;
+      uniform float uCityContact;
+      varying float vCityLift;\n${shader.fragmentShader}`
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        diffuseColor.rgb *= mix(1.0, mix(${NEAR_CITY_AERIAL.contactShade.toFixed(2)}, 1.0,
+          smoothstep(${NEAR_CITY_AERIAL.contactMetres[0].toFixed(2)}, ${NEAR_CITY_AERIAL.contactMetres[1].toFixed(2)}, vCityLift)),
+          uCityContact);`
+      )
+      .replace(
+        '#include <fog_fragment>',
+        `#ifdef USE_FOG
+        // The anchored ridge's distance haze (OptimizedSkySystem ridge shader).
+        // Radial view distance from atmosphericFog's varying, as the ridge's
+        // vRidgeDistance is (three's vFogDepth is replaced there).
+        float cityRun = clamp((length(vFogViewPosition) - ${d0.toFixed(1)}) / ${(d1 - d0).toFixed(1)},
+          ${run0.toFixed(2)}, ${run1.toFixed(2)});
+        float cityAerial = min(uCityAerial.z * mix(${RIDGE_ALPINE_PROFILE.lowBandAerial.toFixed(2)}, 1.0, 1.0 - uCityClearAir),
+          max(0.0, mix(uCityAerial.x, uCityAerial.y, cityRun)));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor,
+          clamp(cityAerial * vec3(0.80, 1.00, 1.20), 0.0, 1.0));
+        #endif`
+      );
+  };
+  material.customProgramCacheKey = () => NEAR_CITY_AERIAL_CACHE_KEY;
+}
+applyNearCityAerial(CITY_BODY_MATERIAL, true);
+applyNearCityAerial(CITY_PLINTH_MATERIAL, true);
+applyNearCityAerial(CITY_ROOF_MATERIAL, false);
+applyNearCityAerial(CITY_PITCHED_ROOF_MATERIAL, false);
+applyNearCityAerial(CITY_WINDOW_MATERIAL, false);
+applyNearCityAerial(CITY_MECHANICAL_MATERIAL, false);
+applyNearCityAerial(CITY_STACK_MATERIAL, false);
+applyNearCityAerial(CITY_TREE_MATERIAL, false);
+
+/** A low-poly crown with shared vertices, so it shades round rather than faceted. */
+function createNearCityTreeCrown(): THREE.BufferGeometry {
+  const ico = new THREE.IcosahedronGeometry(1, 1);
+  ico.deleteAttribute('uv');
+  ico.deleteAttribute('normal');
+  const crown = mergeVertices(ico, 1e-4);
+  ico.dispose();
+  crown.computeVertexNormals();
+  crown.computeBoundingSphere();
+  return crown;
+}
+const UNIT_TREE_CROWN = createNearCityTreeCrown();
+
+export interface NearCityTreeSpec {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly radius: number;
+  readonly height: number;
+  readonly tone: number;
+}
+
+/**
+ * Trees at the town's foot and in the gaps between lots. A row of walls meeting
+ * a bare slope is what made the town read as a cut-out: the groves hide the
+ * plinth line from the site, step the skyline between roofs, and put the hill's
+ * own green in among the buildings. Each crown is seated on the lowest ground
+ * under it, so none floats. Working if the town's foot is broken by trees.
+ */
+export function buildNearCityTrees(
+  buildings: readonly NearCityBuildingSpec[],
+  groundAt: (x: number, z: number) => number = sampleFoothillGroundHeight
+): NearCityTreeSpec[] {
+  const trees: NearCityTreeSpec[] = [];
+  const place = (x: number, z: number, radius: number, height: number, tone: number) => {
+    const ground = Math.min(
+      groundAt(x, z),
+      groundAt(x + radius * 0.7, z),
+      groundAt(x - radius * 0.7, z),
+      groundAt(x, z + radius * 0.7),
+      groundAt(x, z - radius * 0.7)
+    );
+    // The crown's lower fifth is buried, so a slope never shows sky under it.
+    trees.push({ x, y: ground + height * 0.8, z, radius, height, tone });
+  };
+  buildings.forEach((building, index) => {
+    const radial = Math.hypot(building.x, building.z);
+    const inwardX = -building.x / radial,
+      inwardZ = -building.z / radial;
+    const tangentX = -inwardZ,
+      tangentZ = inwardX;
+    // In front of the street: the front band always, the others where a gap opens.
+    if (building.districtBand === 0 || deterministicNoise(index, 21) < 0.35) {
+      const reach = building.depth / 2 + 3 + deterministicNoise(index, 22) * 3;
+      const across = (deterministicNoise(index, 23) - 0.5) * building.width * 0.9;
+      const radius = 2.4 + deterministicNoise(index, 24) * 1.6;
+      place(
+        building.x + inwardX * reach + tangentX * across,
+        building.z + inwardZ * reach + tangentZ * across,
+        radius,
+        radius * (1.15 + deterministicNoise(index, 25) * 0.45),
+        deterministicNoise(index, 26)
+      );
+    }
+    // Between lots: a taller tree beside the building, rising over the eaves.
+    if (deterministicNoise(index, 27) < 0.55) {
+      const side = deterministicNoise(index, 28) < 0.5 ? -1 : 1;
+      const offset = building.width / 2 + 2.2 + deterministicNoise(index, 29) * 1.5;
+      const radius = 2.8 + deterministicNoise(index, 30) * 1.6;
+      place(
+        building.x + tangentX * offset * side + inwardX * building.depth * 0.25,
+        building.z + tangentZ * offset * side + inwardZ * building.depth * 0.25,
+        radius,
+        radius * (1.6 + deterministicNoise(index, 31) * 0.6),
+        deterministicNoise(index, 32)
+      );
+    }
+  });
+  return trees;
+}
 
 export const nearCityBodyColour = (building: NearCityBuildingSpec): THREE.Color =>
   CITY_BODY_COLOURS[
@@ -334,6 +521,34 @@ export function buildNearCityWindows(
   return result;
 }
 
+/** Brick stacks rising through the ridge of about three in five pitched roofs. */
+export function nearCityChimneys(buildings: readonly NearCityBuildingSpec[]): RooftopSpec[] {
+  const result: RooftopSpec[] = [];
+  buildings.forEach((building, index) => {
+    if (building.roofStyle === 2 || deterministicNoise(index, 33) > 0.6) return;
+    const along = building.ridgeAxis === 1;
+    const ridgeYaw = building.yaw + (along ? Math.PI / 2 : 0);
+    const ridgeLength = along ? building.width : building.depth;
+    const offset = (deterministicNoise(index, 34) - 0.5) * ridgeLength * 0.6;
+    const roofBase = building.baseY + building.height - 0.85;
+    const rise = nearCityRoofRise(building);
+    // From inside the roof volume to 1-1.8 m over the ridge.
+    const bottom = roofBase + rise * 0.55;
+    const top = roofBase + rise + 1 + deterministicNoise(index, 35) * 0.8;
+    const size = 0.7 + deterministicNoise(index, 36) * 0.3;
+    result.push({
+      x: building.x + Math.sin(ridgeYaw) * offset,
+      y: (bottom + top) / 2,
+      z: building.z + Math.cos(ridgeYaw) * offset,
+      width: size,
+      height: top - bottom,
+      depth: size * 0.8,
+      yaw: building.yaw,
+    });
+  });
+  return result;
+}
+
 export const NearHorizonCity: React.FC = () => {
   const buildings = useMemo(() => buildNearCitySpecs(), []);
   const pitchedBuildings = useMemo(() => buildings.filter((b) => b.roofStyle !== 2), [buildings]);
@@ -354,9 +569,10 @@ export const NearHorizonCity: React.FC = () => {
         })),
     [buildings]
   );
+  const trees = useMemo(() => buildNearCityTrees(buildings), [buildings]);
   const stacks = useMemo<RooftopSpec[]>(
-    () =>
-      buildings
+    () => [
+      ...buildings
         .filter((building) => building.roofStyle === 2)
         .map((building, index) => {
           const radialLength = Math.hypot(building.x, building.z);
@@ -376,6 +592,10 @@ export const NearHorizonCity: React.FC = () => {
             yaw: building.yaw,
           };
         }),
+      // Chimney stacks through the pitched roofs, so the roofline steps and
+      // breaks instead of running as one clean run of ridges.
+      ...nearCityChimneys(buildings),
+    ],
     [buildings]
   );
   const bodiesRef = useRef<THREE.InstancedMesh>(null);
@@ -385,6 +605,7 @@ export const NearHorizonCity: React.FC = () => {
   const windowsRef = useRef<THREE.InstancedMesh>(null);
   const equipmentRef = useRef<THREE.InstancedMesh>(null);
   const stacksRef = useRef<THREE.InstancedMesh>(null);
+  const treesRef = useRef<THREE.InstancedMesh>(null);
   const initialLightLevel = getExteriorLampLevel(
     useGameSimulationStore.getState().gameTime,
     useGameSimulationStore.getState().weather
@@ -400,9 +621,11 @@ export const NearHorizonCity: React.FC = () => {
     const equipmentMesh = equipmentRef.current;
     const stackMesh = stacksRef.current;
     const plinths = plinthsRef.current;
+    const treeMesh = treesRef.current;
     if (
       !bodies ||
       !plinths ||
+      !treeMesh ||
       !roofs ||
       !pitchedRoofs ||
       !windowMesh ||
@@ -471,6 +694,21 @@ export const NearHorizonCity: React.FC = () => {
       scale.set(stack.width, stack.height, stack.depth);
       stackMesh.setMatrixAt(index, matrix.compose(position, rotation, scale));
     });
+    trees.forEach((tree, index) => {
+      position.set(tree.x, tree.y, tree.z);
+      rotation.setFromEuler(euler.set(0, tree.tone * Math.PI * 2, 0));
+      scale.set(tree.radius, tree.height, tree.radius);
+      treeMesh.setMatrixAt(index, matrix.compose(position, rotation, scale));
+      treeMesh.setColorAt(
+        index,
+        CITY_TREE_COLOURS[
+          Math.floor(tree.tone * CITY_TREE_COLOURS.length) % CITY_TREE_COLOURS.length
+        ]
+      );
+    });
+    treeMesh.instanceMatrix.needsUpdate = true;
+    if (treeMesh.instanceColor) treeMesh.instanceColor.needsUpdate = true;
+    treeMesh.computeBoundingSphere();
     bodies.instanceMatrix.needsUpdate = true;
     plinths.instanceMatrix.needsUpdate = true;
     plinths.computeBoundingSphere();
@@ -487,15 +725,15 @@ export const NearHorizonCity: React.FC = () => {
     windowMesh.computeBoundingSphere();
     equipmentMesh.computeBoundingSphere();
     stackMesh.computeBoundingSphere();
-  }, [buildings, flatBuildings, pitchedBuildings, rooftopEquipment, stacks, windows]);
+  }, [buildings, flatBuildings, pitchedBuildings, rooftopEquipment, stacks, trees, windows]);
 
-  useEffect(
-    () =>
-      useGameSimulationStore.subscribe((state) => {
-        lightTargetRef.current = getExteriorLampLevel(state.gameTime, state.weather);
-      }),
-    []
-  );
+  useEffect(() => {
+    CITY_CLEAR_AIR.value = nearCityClearAir(useGameSimulationStore.getState().weather);
+    return useGameSimulationStore.subscribe((state) => {
+      lightTargetRef.current = getExteriorLampLevel(state.gameTime, state.weather);
+      CITY_CLEAR_AIR.value = nearCityClearAir(state.weather);
+    });
+  }, []);
 
   useFrame((_, delta) => {
     lightLevelRef.current = THREE.MathUtils.damp(
@@ -572,6 +810,12 @@ export const NearHorizonCity: React.FC = () => {
           />
         </GeneratedBoundary>
       </instancedMesh>
+      <instancedMesh
+        ref={treesRef}
+        name="near-city-trees"
+        args={[UNIT_TREE_CROWN, CITY_TREE_MATERIAL, trees.length]}
+        renderOrder={RENDER_ORDER.cityNear}
+      />
       <instancedMesh
         ref={stacksRef}
         name="near-city-stacks"

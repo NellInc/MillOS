@@ -224,6 +224,22 @@ it('seats the drainage straps, wall clips and outlets against the actual deliver
     fittings = new THREE.Mesh(CASTLE_DRAINAGE_GEOMETRY, material);
   try {
     for (const r of CASTLE_DRAIN_RUNS) {
+      // The west risalit rises through the eave as a cross gable: the gutter
+      // runs into its side walls under the gable roof and is housed inside it.
+      const housing = new THREE.Raycaster(
+        new THREE.Vector3(r.gutterX, 24.9, r.startZ),
+        new THREE.Vector3(0, 0, 1),
+        0,
+        r.endZ - r.startZ
+      )
+        .intersectObject(body)
+        .map((hit) => hit.point.z);
+      expect(housing).toHaveLength(r.side < 0 ? 2 : 0);
+      if (r.side < 0) {
+        expect(housing[0]).toBeCloseTo(-6, 4);
+        expect(housing[1]).toBeCloseTo(-2.8, 4);
+      }
+      const housed = (z: number) => housing.length === 2 && z > housing[0] && z < housing[1];
       for (const [z, direction] of [
         [r.startZ - 0.1, 1],
         [r.endZ + 0.1, -1],
@@ -247,6 +263,11 @@ it('seats the drainage straps, wall clips and outlets against the actual deliver
         );
         const roof = ray.intersectObject(body)[0],
           strap = ray.intersectObject(fittings)[0];
+        if (housed(z)) {
+          // Hidden under the gable roof, clear of the gutter's 24.99 m top.
+          expect(roof.point.y).toBeGreaterThan(25);
+          continue;
+        }
         expect(strap.point.y).toBeGreaterThan(roof.point.y);
         expect(strap.point.y - roof.point.y).toBeLessThan(0.1);
       }
@@ -261,8 +282,8 @@ it('seats the drainage straps, wall clips and outlets against the actual deliver
           strap = ray.intersectObject(fittings)[0];
         expect(roof).toBeDefined();
         expect(strap).toBeDefined();
-        expect(roof.point.y).toBeGreaterThan(24.99);
-        expect(roof.point.y).toBeLessThan(25.12);
+        expect(roof.point.y).toBeGreaterThan(housed(z) ? 25 : 24.99);
+        if (!housed(z)) expect(roof.point.y).toBeLessThan(25.12);
       }
       for (const y of [5.2, 10, 14.8, 19.6, 23.7]) {
         const ray = new THREE.Raycaster(

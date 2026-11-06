@@ -27,8 +27,11 @@ export const PRECISION_FARM_MODELS = {
     prepared: 'assets/source/models/farm/coop-crafted.glb',
     preparedSHA256: 'b6c1f13bbb3e2b0b06d503bd452a130902c5ce5fc3f09d9eaa3d270730fad5f5',
     builder: 'scripts/craft-precise-coop.mjs',
-    builderSHA256: '6fc3f9a33f0e9032b0bf43a045f90aa35d19b00f80c472d9d0fe936128baf424',
-    outputSHA256: '577e172d9c9356ad02e26dc3712e4e0abaf0f4310e65e622bb48cb9880365880',
+    builderSHA256: '916a6f6aa7f0d3ffaab93adec3ebc145e064b461da309329a7a08ddc5b9ea84d',
+    outputSHA256: 'a0db36f09bc66cce2aaa6b44ff6eed472dd7f2e63bf88d700ff5134255b0ea87',
+    // Asset loop 2026-11-06 (D-031, kept as improved): the rebuilt coop replaces
+    // this reviewed delivery, the only other output it may overwrite.
+    previousOutputSHA256: '577e172d9c9356ad02e26dc3712e4e0abaf0f4310e65e622bb48cb9880365880',
     manifestSHA256: '180e97c7e0a505a23020cce278c54a3103f098b497b37c45248f8bbe6fb16a78',
     scaleFactor: 2.99982,
   },
@@ -222,7 +225,9 @@ export function assertPrecisionCurrentOutput(id, currentBytes) {
   const entry = PRECISION_FARM_MODELS[id];
   assert(entry, 'Unknown precision farm model');
   assert(
-    [entry.parentSHA256, entry.outputSHA256].includes(hashPrecision(currentBytes)),
+    [entry.parentSHA256, entry.previousOutputSHA256, entry.outputSHA256]
+      .filter(Boolean)
+      .includes(hashPrecision(currentBytes)),
     'Unknown current precision asset'
   );
 }

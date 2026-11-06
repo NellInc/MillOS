@@ -85,7 +85,10 @@ describe('instanced station finish', () => {
   }
 
   it('uses two finite shared-cube batches inside the existing station envelope', () => {
-    expect(STATION_DETAIL_LAYOUT.opaque).toHaveLength(170);
+    // 170 plus 20 south-wall parts (notice board 8, ice chest 5, vending
+    // machine 7): the shop's z -5 face, which a player at the caravan door
+    // faces, was a blank 8 m wall.
+    expect(STATION_DETAIL_LAYOUT.opaque).toHaveLength(190);
     expect(STATION_DETAIL_LAYOUT.emitters).toHaveLength(159);
     for (const layout of [STATION_DETAIL_LAYOUT.opaque, STATION_DETAIL_LAYOUT.emitters]) {
       const mesh = instances(layout);
@@ -130,6 +133,24 @@ describe('instanced station finish', () => {
       expect(pipe.intersectsBox(parts('roof-pipe-shoe')[i])).toBe(true);
       expect(parts('roof-pipe-shoe')[i].intersectsBox(parts('roof-pipe-outlet')[i])).toBe(true);
       expect(pipe.max.x).toBeLessThan(-15.7); // Rear corner, far from the -12m door.
+    }
+    dispose(mesh);
+  });
+
+  it('dresses the south wall against its face, clear of the downpipe, drain and corner bin', () => {
+    const mesh = instances(STATION_DETAIL_LAYOUT.opaque);
+    const dressing = STATION_DETAIL_LAYOUT.opaque.flatMap((detail, index) =>
+      detail.part.startsWith('south-') ? [instanceBounds(mesh, index)] : []
+    );
+    expect(dressing).toHaveLength(20);
+    for (const box of dressing) {
+      // Wall outer face z -5.0; nothing enters the shop past its 0.2 m wall.
+      expect(box.max.z).toBeLessThanOrEqual(-4.995 + 1e-6);
+      expect(box.min.z).toBeGreaterThan(-5.85);
+      expect(box.min.y).toBeGreaterThanOrEqual(0);
+      // Downpipe and drain grate end at x -15.66; the travel-stop bin starts at -7.5.
+      expect(box.min.x).toBeGreaterThan(-15.4);
+      expect(box.max.x).toBeLessThan(-8.5);
     }
     dispose(mesh);
   });
@@ -598,7 +619,9 @@ describe('station retail contents and sightlines', () => {
       new THREE.Raycaster(new THREE.Vector3(1, y, 0), new THREE.Vector3(-1, 0, 0)).intersectObject(
         body
       )[0].point.x;
-    expect(hit(0.7)).toBeCloseTo(0.33, 4);
+    // The dispensing bay is 30 cm deep behind the 0.40 face; the runtime spouts,
+    // fascia and cup platform (StationRetailDetails) all stand in front of it.
+    expect(hit(0.7)).toBeCloseTo(0.1, 4);
     expect(hit(1.5)).toBeCloseTo(0.4, 4);
     expect(hit(2.19)).toBeLessThan(0.38);
     expect(new THREE.Box3().setFromObject(body).getSize(new THREE.Vector3()).toArray()).toEqual([
@@ -880,7 +903,45 @@ describe('poster-matched live station bodies', () => {
         new THREE.Float32BufferAttribute(a.getArray()!, a.getElementSize())
       );
     }
+    // The delivered shell is welded (indexed), so its triangles come from the
+    // index. Without it the projection read the vertex list in triplets and
+    // sampled the atlas from arbitrary, non-existent triangles.
+    source.setIndex(Array.from(p.getIndices()!.getArray()!));
     const result = createPosterStationGeometry(source, 'fuelPumpShell');
+    // Every projected coordinate interpolates inside one real delivered
+    // triangle's atlas chart, iterated through that index.
+    const sourceIndex = source.index!.array,
+      sourceUv = source.getAttribute('uv');
+    const charts = Array.from(
+      { length: sourceIndex.length / 3 },
+      (_, t) =>
+        new THREE.Triangle(
+          ...([0, 1, 2].map(
+            (k) =>
+              new THREE.Vector3(
+                sourceUv.getX(sourceIndex[t * 3 + k]),
+                sourceUv.getY(sourceIndex[t * 3 + k]),
+                0
+              )
+          ) as [THREE.Vector3, THREE.Vector3, THREE.Vector3])
+        )
+    );
+    const projected = result.getAttribute('uv'),
+      chartPoint = new THREE.Vector3(),
+      chartBary = new THREE.Vector3();
+    const offChart: number[] = [];
+    for (let i = 0; i < projected.count; i++) {
+      chartPoint.set(projected.getX(i), projected.getY(i), 0);
+      if (
+        !charts.some(
+          (chart) =>
+            chart.getBarycoord(chartPoint, chartBary) !== null &&
+            Math.min(chartBary.x, chartBary.y, chartBary.z) >= -1e-4
+        )
+      )
+        offChart.push(i);
+    }
+    expect(offChart).toEqual([]);
     const node = (await new NodeIO().read('public/models/world/fuel-pump-shell.glb'))
       .getRoot()
       .listNodes()[0];

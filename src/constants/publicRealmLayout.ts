@@ -232,7 +232,15 @@ export const WORLD_REALM_PATHS: readonly RealmPath[] = [
   // The east leg meets the canal west path's gravel (x -131.25..-128.75,
   // ending at z 50) across its whole width: it ran along z 48 to x -130,
   // leaving 0.9 m of grass and half the walk's width unmet.
-  { start: [-137, -50], end: [-137, 48.8], width: 2.4 },
+  // It starts north of the canal footbridge, a body's radius (0.4 m) clear of
+  // the east flight's side (z -48.75), and turns east along that line to the
+  // flight's foot, where its paving meets the mill footway's. The link stops at
+  // x -135 and is 2 m wide so it keeps 0.6 m clear of the east crossing lamp
+  // (-133.24, -48). The walk used to start at (-137, -50), on tread 5 of the
+  // flight: leaving it north was a 0.968 m drop, and 1.44 m of grass lay
+  // between its paving and the foot.
+  { start: [-137, -48.35], end: [-137, 48.8], width: 2.4 },
+  { start: [-137, -48.35], end: [-135, -48.35], width: 2 },
   { start: [-137, 48.8], end: [-128.75, 48.8], width: 2.4 },
   { start: [-78, 125.5], end: [-78, 121], width: 2.4 },
   // On to the office block's doors (face z 101, between canopy columns at
@@ -296,6 +304,8 @@ export const WORLD_REALM_PATCHES: readonly RealmPatch[] = [
   // Squares the canal walk's L at (-137, 48.8): two capsule legs round off
   // its outer corner, which read as a bite out of the paving.
   { x: -137, z: 48.8, halfX: 1.2, halfZ: 1.2 },
+  // And its south L, where it turns east to the footbridge's east flight foot.
+  { x: -137, z: -48.35, halfX: 1.2, halfZ: 1.2 },
 ];
 /**
  * Metres between the cereal field's furrow ridges. The soil carries them as

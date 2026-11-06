@@ -246,7 +246,11 @@ it('volumes the delivered five goods while preserving the building, anchors and 
     );
     if (trade !== 'general') {
       expect(q.count).toBe(p.count);
-      expect(variant.index!.count).toBe(10380);
+      // The kept asset-loop shop (2026-11-06, won its in-game blind A/B) has
+      // 24528 indices where the earlier delivery had 10380; the variant still
+      // adds none of its own.
+      expect(source.index!.count).toBe(24528);
+      expect(variant.index!.count).toBe(source.index!.count);
     }
     const sourceNormal = source.getAttribute('normal');
     const band = (x: number) =>
@@ -338,7 +342,9 @@ it('volumes the delivered five goods while preserving the building, anchors and 
       expect(stems).toBe(
         15 * new THREE.CylinderGeometry(0.0035, 0.005, 0.027, 4).getAttribute('position').count
       );
-      expect(variant.index!.count).toBe(14700);
+      // Source indices plus 4320 for the added fruit and stalks (10380 + 4320 = 14700 before
+      // the kept 2026-11-06 shop).
+      expect(variant.index!.count).toBe(source.index!.count + 4320);
       expect(Math.max(...variant.index!.array)).toBeLessThan(q.count);
       // The green middle-layer fruit is a taller, tapered pear. The upper fruit stays round.
       const pear = extra
@@ -404,7 +410,10 @@ it('keeps real loader-style interleaved produce attributes aligned in the owned 
     const p = variant.getAttribute('position'),
       n = variant.getAttribute('normal'),
       u = variant.getAttribute('uv');
-    expect(p.count).toBe(7074); // 6034 retained, 620 fruit vertices, 420 stalk vertices.
+    // Every retained vertex of the kept 2026-11-06 shop, plus 620 fruit and 420 stalk
+    // vertices (the earlier delivery retained 6034, for 7074).
+    expect(count).toBe(10320);
+    expect(p.count).toBe(count + 620 + 420);
     expect(n.count).toBe(p.count);
     expect(u.count).toBe(p.count);
     expect(Array.from(p.array).every(Number.isFinite)).toBe(true);

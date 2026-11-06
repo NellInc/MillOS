@@ -14,6 +14,7 @@ import { useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { shouldRunThisFrame } from '../utils/frameThrottle';
 import { createColorDataTexture, createLinearDataTexture } from '../utils/textureGenerator';
+import { getRailwaySteamPuffMap } from '../textures/railwayStationTiles';
 import { SceneText as Text } from './shared/SceneText';
 import { BusinessBrandMark } from './scenery/HeritageSignage';
 import * as THREE from 'three';
@@ -324,8 +325,13 @@ const SM = {
   }),
   // Smoke is particulate matter, not a light source: lit, so it greys into the
   // night sky instead of glowing against it.
+  // The soft puff map is the railway engine's steam billboard (baked at
+  // startup); the grey colour makes it wood smoke rather than steam.
   smoke: new THREE.MeshStandardMaterial({
-    color: '#9ca3af',
+    color: '#c3c7cb',
+    map: getRailwaySteamPuffMap(),
+    emissive: '#8a8f94',
+    emissiveIntensity: 0.45,
     roughness: 1,
     metalness: 0,
     transparent: true,
@@ -505,8 +511,29 @@ const SCHOOL_BELL_CAP = createSchoolBellCapGeometry();
 // Shared geometry; the materials are per-chimney because opacity is animated
 // per puff and a module-level singleton would make every chimney in the
 // village pulse in lockstep.
-const smokePuffGeometry = new THREE.SphereGeometry(0.3, 8, 6);
+//
+// Camera-facing soft quads, not spheres. A lit sphere shows a rim and a
+// terminator however translucent it is, so the forge's puffs read as two
+// floating balls detached from the stack (maps-after-2 forge); the railway
+// engine's steam already made the same change. Each puff now starts small and
+// clear at the pot, swells and climbs while it fades in, and dissolves before
+// the top of its rise, overlapping the next one so the column stays joined.
+// Two triangles per puff instead of 96, same three draws per chimney.
+const smokePuffGeometry = new THREE.PlaneGeometry(1, 1);
 const _smokeQ = new THREE.Quaternion();
+const _smokeSpin = new THREE.Quaternion();
+const _smokeAxis = new THREE.Vector3(0, 0, 1);
+/** Metres a puff climbs over its life, and its quad size at birth and at death. */
+const SMOKE_RISE = 1.8;
+const SMOKE_SIZE: readonly [number, number] = [0.5, 1.9];
+const SMOKE_PEAK_OPACITY = 0.5;
+/**
+ * Scattering lift by day, off by dark (the steam's `STEAM_DAY_LIFT` pattern).
+ * A lit quad facing a camera that looks toward the sun's side shades its back
+ * face, and the plume read as soot-dark blobs against the noon sky
+ * (maps2-after-1 forge). Thin smoke forward-scatters the sun instead.
+ */
+const SMOKE_DAY_LIFT = 0.45;
 
 /**
  * Three rising puffs per chimney.
@@ -528,36 +555,49 @@ const ChimneySmoke: React.FC<{
   // plumes on the two sides of the street in opposite directions.
   const driftRef = useRef<THREE.Vector3 | null>(null);
   const driftVector = useMemo(() => new THREE.Vector3(), []);
+  // The inverse of this chimney's world rotation, so a puff can face the camera
+  // from inside a yawed building group. The chimney never moves after mount.
+  const inverseWorld = useMemo(() => new THREE.Quaternion(), []);
   const materials = useMemo(() => [SM.smoke.clone(), SM.smoke.clone(), SM.smoke.clone()], []);
 
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
 
-  useFrame(() => {
+  useFrame((state) => {
     if (!shouldRunThisFrame(3)) return;
     if (!driftRef.current && groupRef.current) {
       // getWorldQuaternion updates the ancestor matrices itself, so this is
-      // correct on the first frame. The chimney never moves after mount.
-      groupRef.current.getWorldQuaternion(_smokeQ).invert();
+      // correct on the first frame.
+      groupRef.current.getWorldQuaternion(inverseWorld).invert();
       const { value: windDir } = WIND_UNIFORMS.uWindDir;
-      driftRef.current = driftVector.set(windDir.x, 0, windDir.y).applyQuaternion(_smokeQ);
+      driftRef.current = driftVector.set(windDir.x, 0, windDir.y).applyQuaternion(inverseWorld);
     }
     const drift = driftRef.current;
     const game = useGameSimulationStore.getState();
     const level = communityChimneyLevel(game.gameTime, offset, kind);
     if (kind === 'forge') FORGE_HEAT_LEVEL.value = level;
     if (groupRef.current) groupRef.current.visible = level > 0.001;
+    _smokeQ.copy(inverseWorld).multiply(state.camera.quaternion);
     const time = (game.gameDay * 24 + game.gameTime) * 20 + offset;
     for (let i = 0; i < smokeRefs.current.length; i++) {
       const mesh = smokeRefs.current[i];
       if (!mesh) continue;
-      const phase = (time * 0.5 + i * 0.67) % 2;
-      mesh.position.y = phase * 2;
+      // Life 0..1; the three puffs are a third of a life apart.
+      const life = (((time * 0.25 + i / 3) % 1) + 1) % 1;
+      mesh.position.y = 0.05 + life * SMOKE_RISE;
       // Drift downwind (the foliage's WIND_UNIFORMS direction) as it rises.
-      const d = phase * phase * 0.35;
+      const d = life * life * 0.9;
       mesh.position.x = drift ? d * drift.x : d;
       mesh.position.z = drift ? d * drift.z : 0;
-      mesh.scale.setScalar(0.3 + phase * 0.45);
-      materials[i].opacity = Math.max(0, 0.42 - phase * 0.21) * level;
+      mesh.scale.setScalar(THREE.MathUtils.lerp(SMOKE_SIZE[0], SMOKE_SIZE[1], Math.sqrt(life)));
+      // Face the camera, turned about the view axis so the puffs' lumps differ.
+      mesh.quaternion
+        .copy(_smokeQ)
+        .multiply(_smokeSpin.setFromAxisAngle(_smokeAxis, i * 2.1 + life * 1.3));
+      // Fade in off the pot, dissolve by the top of the rise.
+      const envelope =
+        THREE.MathUtils.smoothstep(life, 0, 0.08) * (1 - THREE.MathUtils.smoothstep(life, 0.5, 1));
+      materials[i].opacity = SMOKE_PEAK_OPACITY * envelope * level;
+      materials[i].emissiveIntensity = SMOKE_DAY_LIFT * (1 - EXTERIOR_LAMP_LEVEL.value);
     }
   });
 

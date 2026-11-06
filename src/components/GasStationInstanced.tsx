@@ -624,6 +624,51 @@ export function createStationDetailLayout() {
     [0.7, 0.1, 0.5],
     '#e65100'
   );
+
+  // South wall (outer face z -5.0), the face a player at the caravan door
+  // looks at across the yard. It was a blank 8 m panel. A notice board, an ice
+  // chest and a vending machine stand against it, from the same cube batch:
+  // clear of the rear downpipe and drain (x -15.86) and of the litter bin at
+  // the glazed corner (x -7.31). Board backs enter the wall by 3-5 mm.
+  add('south-notice-board', [-11.2, 1.6, -5.012], [1.2, 0.85, 0.03], '#b99363');
+  for (const x of [-11.825, -10.575]) {
+    add('south-notice-frame', [x, 1.6, -5.0175], [0.05, 0.95, 0.045], STATION_POSTER_PALETTE.green);
+  }
+  for (const y of [1.15, 2.05]) {
+    add(
+      'south-notice-frame',
+      [-11.2, y, -5.0175],
+      [1.2, 0.05, 0.045],
+      STATION_POSTER_PALETTE.green
+    );
+  }
+  for (const [x, y, w, h] of [
+    [-11.55, 1.62, 0.3, 0.4],
+    [-11.2, 1.55, 0.28, 0.32],
+    [-10.85, 1.66, 0.3, 0.36],
+  ]) {
+    add('south-notice-sheet', [x, y, -5.028], [w, h, 0.006], cream);
+  }
+  // Freestanding ice chest, 2 cm off the wall.
+  add('south-ice-chest-plinth', [-13.75, 0.04, -5.37], [1.26, 0.08, 0.66], charcoal);
+  add('south-ice-chest', [-13.75, 0.47, -5.37], [1.3, 0.78, 0.7], cream);
+  add(
+    'south-ice-chest-lid',
+    [-13.75, 0.895, -5.37],
+    [1.32, 0.07, 0.72],
+    STATION_POSTER_PALETTE.green
+  );
+  add('south-ice-chest-band', [-13.75, 0.62, -5.72], [1.1, 0.14, 0.01], orange);
+  add('south-ice-chest-handle', [-13.75, 0.875, -5.74], [0.36, 0.035, 0.04], charcoal);
+  // Vending machine, 3 cm off the wall: glazed product window, selection
+  // panel, coin slot and delivery hatch on its yard face. No lights added.
+  add('south-vending-kick', [-9.55, 0.03, -5.42], [0.91, 0.06, 0.74], charcoal);
+  add('south-vending-body', [-9.55, 0.98, -5.42], [0.95, 1.84, 0.78], orange);
+  add('south-vending-top', [-9.55, 1.925, -5.42], [0.97, 0.05, 0.8], STATION_POSTER_PALETTE.green);
+  add('south-vending-window', [-9.67, 1.2, -5.81], [0.56, 1.05, 0.01], '#171f21');
+  add('south-vending-panel', [-9.24, 1.35, -5.81], [0.22, 0.6, 0.012], charcoal);
+  add('south-vending-slot', [-9.24, 0.95, -5.81], [0.08, 0.02, 0.01], cream);
+  add('south-vending-hatch', [-9.67, 0.38, -5.81], [0.6, 0.2, 0.014], charcoal);
   return { opaque, emitters };
 }
 

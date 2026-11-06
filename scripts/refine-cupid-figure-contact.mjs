@@ -1,5 +1,8 @@
 /** Fixed final-stage derivative; no IO and no caller-selected transform or face list.
  * Apply only after the unchanged baseline normalization and indexing steps.
+ * RETIRED 2026-11-06 (D-034): no longer applied. The delivered figure is authored
+ * by scripts/blender/authored/cupid-authored-body.py; this file records the
+ * superseded seating of the old primitive figure (output 38382051...).
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

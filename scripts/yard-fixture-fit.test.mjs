@@ -135,13 +135,22 @@ for (const [key, spec] of Object.entries(FIXTURES)) {
     assert(a.bytes.equals(b.bytes));
     assert(a.bytes.equals(bytes('public/models/world/' + spec.slug + '.glb')));
     assert.equal(hash(a.bytes), spec.output);
-    assert.equal(a.bytes.length, baseline.length);
-    assert.equal(a.receipt.selectedTriangles, 12);
-    assert.equal(a.receipt.changedTriangles, key === 'intercom' ? 10 : 12);
-    assert.equal(a.receipt.changedVertices.length, key === 'intercom' ? 12 : 24);
-    assert.equal(a.receipt.allOtherFileBytesExact, true);
+    assert.equal(a.bytes.length, spec.fileBytes);
+    // The v1 fit is still produced (byte-checked inside derive), then rebuilt.
+    const fit = a.receipt[key === 'intercom' ? 'casingFit' : 'boardFit'];
+    assert.equal(fit.outputSha256, spec.fitOutput);
+    assert.equal(fit.bytesBefore, baseline.length);
+    assert.equal(fit.bytesAfter, baseline.length);
+    assert.equal(fit.selectedTriangles, 12);
+    assert.equal(fit.changedTriangles, key === 'intercom' ? 10 : 12);
+    assert.equal(fit.changedVertices.length, key === 'intercom' ? 12 : 24);
+    assert.equal(fit.allOtherFileBytesExact, true);
+    assert.equal(fit.unchangedEnvelope, true);
     assert.equal(a.receipt.unchangedEnvelope, true);
-    assert.deepEqual(inspect(a.bytes, key).j, inspect(baseline, key).j);
+    // The rebuild replaces geometry only: nodes, material, maps and samplers stay exact.
+    const json = (b) => JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)));
+    for (const k of ['asset', 'scenes', 'nodes', 'materials', 'images', 'textures', 'samplers'])
+      assert.deepEqual(json(a.bytes)[k], json(baseline)[k], k);
     assertCurrentOutput(key, baseline, a.bytes);
     assertCurrentOutput(key, a.bytes, a.bytes);
   });
@@ -177,7 +186,11 @@ test('actual intercom fallback and loaded casing enclose the unchanged centered 
   assert(casing);
   for (let s = 0; s < 2; s++)
     for (let a = 0; a < 3; a++)
-      assert(near(casing.bounds[s][a], loaded.afterBox[s ? 'max' : 'min'][a]));
+      assert(near(casing.bounds[s][a], loaded.casingFit.afterBox[s ? 'max' : 'min'][a]));
+  // The rebuilt head keeps the fitted casing's width, foot and back.
+  assert(near(loaded.head.x, casing.bounds[1][0]));
+  assert(near(loaded.head.bottom, casing.bounds[0][1]));
+  assert(near(loaded.head.back, casing.bounds[0][2]));
   assert(near(casing.bounds[0][1], 1.0325));
   assert(near(casing.bounds[1][1], 1.5));
   assert(near(casing.bounds[0][2], 0.005));
@@ -206,13 +219,17 @@ test('actual intercom fallback and loaded casing enclose the unchanged centered 
   assert.equal(f.texts[0].text, 'CALL FOR ENTRY');
   assert.deepEqual(f.texts[0].props.position, [0, 1.52, 0.17]);
   assert(
-    !inspect(bytes('public/models/world/yard-intercom-body.glb'), 'intercom').j.materials[0]
-      .pbrMetallicRoughness.baseColorTexture
+    !inspect(bytes('public/models/world/yard-intercom-body.glb'), 'intercom', {
+      vertices: loaded.indexedVertices,
+      triangles: loaded.triangles,
+    }).j.materials[0].pbrMetallicRoughness.baseColorTexture
   );
   const button = f.meshes.find((m) => m.material.color === '#ef4444');
   assert(button);
   assert(near(button.matrix[13], 1.2));
   assert(near(button.matrix[14], 0.16));
+  // The always-drawn call button's back seats on the delivered head's face.
+  assert(near(button.bounds[0][2], loaded.head.face));
   const speaker = f.meshes.find(
     (m) => m.kind === 'circleGeometry' && JSON.stringify(m.args) === '[0.08,16]'
   );
@@ -241,7 +258,7 @@ test('actual tire fallback, fixed post and both text planes preserve the mounted
   assert(pole);
   for (let s = 0; s < 2; s++)
     for (let a = 0; a < 3; a++)
-      assert(near(board.bounds[s][a], loaded.afterBox[s ? 'max' : 'min'][a]));
+      assert(near(board.bounds[s][a], loaded.boardFit.afterBox[s ? 'max' : 'min'][a]));
   assert.deepEqual(pole.matrix.slice(12, 15), [3, 1.2, 0]);
   assert(near(pole.bounds[1][2] - board.bounds[0][2], 0.005));
   assert(

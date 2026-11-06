@@ -26,6 +26,7 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
+import { withChromeLeakGuard } from './lib/chrome-launch-args.mjs';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 
 const ROOT = process.cwd();
@@ -85,6 +86,7 @@ async function main() {
     chromiumSandbox: true,
     headless: true,
     channel: 'chrome',
+    args: withChromeLeakGuard(),
   });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });

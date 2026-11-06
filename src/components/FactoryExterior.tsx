@@ -854,6 +854,126 @@ export const SmallOffice: React.FC<{
 });
 SmallOffice.displayName = 'SmallOffice';
 
+/**
+ * Grass bank seating the Nissen hut raft on falling ground.
+ *
+ * The raft is a level slab down to the lowest ground under the hut, so on the
+ * river side of the west hut ~1.2 m of dark slab face stood proud of the bank
+ * (huts, asset-accepted-20261105: "propped on a ramp"). A ring of earth now
+ * runs from just under the raft lip to the real terrain, sampled through the
+ * same height field as the raft, at a 1:1.7 batter on the low side and a few
+ * centimetres where the ground already meets it. UVs are world metres, as on
+ * the road-tunnel banks, so the grass period matches theirs.
+ */
+const NISSEN_BERM_GRASS = PROCEDURAL_TEXTURES.grassColor.clone();
+NISSEN_BERM_GRASS.repeat.set(1 / 8, 1 / 8);
+const NISSEN_BERM_ROUGHNESS = PROCEDURAL_TEXTURES.grassRoughness.clone();
+NISSEN_BERM_ROUGHNESS.repeat.set(1 / 8, 1 / 8);
+// Tinted to the terrain's own grass: untinted, the shared lawn image sat
+// about a third brighter than the ground it meets (maps-after-3 huts).
+const NISSEN_BERM_MATERIAL = new THREE.MeshStandardMaterial({
+  color: '#cfd4c8',
+  map: NISSEN_BERM_GRASS,
+  roughnessMap: NISSEN_BERM_ROUGHNESS,
+  roughness: 1,
+  metalness: 0,
+});
+
+export function createNissenBermGeometry(
+  halfWidth: number,
+  halfDepth: number,
+  lipY: number,
+  groundAt: (localX: number, localZ: number) => number,
+  toWorld: (localX: number, localZ: number) => [number, number]
+): THREE.BufferGeometry {
+  const ring: Array<{ x: number; z: number; nx: number; nz: number }> = [];
+  const step = 0.5;
+  const corners: Array<[number, number, number]> = [
+    [halfWidth, halfDepth, 0],
+    [-halfWidth, halfDepth, Math.PI / 2],
+    [-halfWidth, -halfDepth, Math.PI],
+    [halfWidth, -halfDepth, (Math.PI * 3) / 2],
+  ];
+  corners.forEach(([cx, cz, start], index) => {
+    // Quarter-round corner fan, then the straight side to the next corner.
+    for (let k = 0; k <= 4; k++) {
+      const angle = start + (k / 4) * (Math.PI / 2);
+      ring.push({ x: cx, z: cz, nx: Math.cos(angle), nz: Math.sin(angle) });
+    }
+    const [nextX, nextZ] = corners[(index + 1) % 4];
+    const length = Math.hypot(nextX - cx, nextZ - cz);
+    const count = Math.max(1, Math.round(length / step));
+    const outward = corners[(index + 1) % 4][2];
+    for (let k = 1; k < count; k++) {
+      const t = k / count;
+      ring.push({
+        x: cx + (nextX - cx) * t,
+        z: cz + (nextZ - cz) * t,
+        nx: Math.cos(outward),
+        nz: Math.sin(outward),
+      });
+    }
+  });
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const push = (x: number, y: number, z: number) => {
+    positions.push(x, y, z);
+    const [wx, wz] = toWorld(x, z);
+    uvs.push(wx, wz);
+  };
+  // Four rings: lip, a convex shoulder, a concave toe and a buried foot, so
+  // the bank eases into the terrain instead of meeting it along one straight
+  // crease (the first, three-ring bank read as a hard-edged wedge, maps-after-2).
+  const RINGS = 4;
+  for (const { x, z, nx, nz } of ring) {
+    const innerX = x - nx * 0.02;
+    const innerZ = z - nz * 0.02;
+    const drop = Math.max(0, lipY - groundAt(x, z));
+    const run = Math.max(0.35, drop * 2.4);
+    const at = (t: number): [number, number] => [x + nx * run * t, z + nz * run * t];
+    const [outerX, outerZ] = at(1);
+    const outerY = groundAt(outerX, outerZ) - 0.1;
+    const height = lipY - outerY;
+    push(innerX, lipY, innerZ);
+    for (const [t, share] of [
+      [0.3, 0.72],
+      [0.68, 0.12],
+    ] as const) {
+      const [px, pz] = at(t);
+      push(px, Math.max(groundAt(px, pz) - 0.03, outerY + height * share), pz);
+    }
+    push(outerX, outerY, outerZ);
+  }
+  const indices: number[] = [];
+  for (let i = 0; i < ring.length; i++) {
+    const a = i * RINGS;
+    const b = ((i + 1) % ring.length) * RINGS;
+    for (let r = 0; r < RINGS - 1; r++) {
+      indices.push(a + r, b + r, a + r + 1, a + r + 1, b + r, b + r + 1);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  // Keep the bank facing the sky whichever way the ring was wound.
+  const normals = geometry.getAttribute('normal');
+  let upward = 0;
+  for (let i = 0; i < normals.count; i++) upward += normals.getY(i);
+  if (upward < 0) {
+    for (let i = 0; i < indices.length; i += 3) {
+      const swap = indices[i + 1];
+      indices[i + 1] = indices[i + 2];
+      indices[i + 2] = swap;
+    }
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+  }
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 // Nissen hut - semi-cylindrical corrugated building
 const NissenHut: React.FC<{
   position: readonly [number, number, number];
@@ -891,6 +1011,29 @@ const NissenHut: React.FC<{
     const top = -0.01;
     return bottom < -0.28 ? { width, depth, top, bottom } : null;
   }, [position, length, rotation, quality]);
+  const berm = useMemo(() => {
+    if (!raft) return null;
+    const segments = getTerrainGridSegments(quality);
+    const cos = Math.cos(rotation);
+    const sin = Math.sin(rotation);
+    const toWorld = (lx: number, lz: number): [number, number] => [
+      position[0] + lx * cos + lz * sin,
+      position[2] - lx * sin + lz * cos,
+    ];
+    const groundAt = (lx: number, lz: number) => {
+      const [wx, wz] = toWorld(lx, lz);
+      return SITE_LAYOUT.datum.terrain + sampleTerrainGroundHeight(wx, wz, segments) - position[1];
+    };
+    // A 10 cm concrete lip stays visible above the bank.
+    return createNissenBermGeometry(
+      raft.width / 2,
+      raft.depth / 2,
+      raft.top - 0.1,
+      groundAt,
+      toWorld
+    );
+  }, [raft, position, rotation, quality]);
+  useEffect(() => () => berm?.dispose(), [berm]);
 
   return (
     <group position={[position[0], position[1], position[2]]} rotation={[0, rotation, 0]}>
@@ -898,6 +1041,14 @@ const NissenHut: React.FC<{
         <OutletStone
           position={[0, (raft.top + raft.bottom) / 2, 0]}
           size={[raft.width, raft.top - raft.bottom, raft.depth]}
+        />
+      )}
+      {berm && (
+        <mesh
+          name="nissen-hut-berm"
+          geometry={berm}
+          material={NISSEN_BERM_MATERIAL}
+          receiveShadow
         />
       )}
       <GeneratedBoundary fallback={<NissenHutFallback length={length} />}>
@@ -3987,31 +4138,53 @@ const Caravan: React.FC<{
  * Follows CLAUDE.md's exterior stack rather than inventing a Y offset: the pad
  * shares the site's ground datum with the terrain and separates from it by
  * `polygonOffset` alone, at `exteriorMid` so it draws over the grass channel and
- * under any road or marking laid on top of it. Reuses `TARMAC_LOT_MAP`, so it
- * costs no new texture and matches the car park it is a satellite of.
+ * under any road or marking laid on top of it. Same tarmac image and grain as
+ * the car park it is a satellite of.
+ *
+ * TILED IN METRES. It used to share `TARMAC_LOT_MAP`, whose fixed 25 x 25
+ * repeat suits the near-square lot. The station forecourt pad is 8.5 x 76 m,
+ * so that repeat stretched the aggregate nine to one along the pad: the long
+ * directional smear streaks in the `picnic-shelter` foreground
+ * (asset-accepted-20261105), unchanged with AO and every post pass disabled
+ * (test-results/art-review/maps-streak-diagnostic). UVs now run in metres
+ * over one shared 1 m tile, the lot's own scale, so every pad keeps square
+ * grain whatever its shape.
  */
+const HARDSTANDING_MAP = cloneTiledTexture(PROCEDURAL_TEXTURES.tarmacColor, 1, 1);
+const HARDSTANDING_ROUGHNESS = cloneTiledTexture(PROCEDURAL_TEXTURES.tarmacRoughness, 1, 1);
 const Hardstanding: React.FC<{
   position: [number, number, number];
   size: [number, number];
   rotation?: number;
-}> = ({ position, size, rotation = 0 }) => (
-  <mesh
-    position={[position[0], EXTERIOR_LAYERS.ground, position[2]]}
-    rotation={[-Math.PI / 2, 0, rotation]}
-    receiveShadow
-  >
-    <planeGeometry args={size} />
-    <meshStandardMaterial
-      color="#ffffff"
-      roughness={0.9}
-      map={TARMAC_LOT_MAP}
-      roughnessMap={TARMAC_LOT_ROUGHNESS}
-      polygonOffset
-      polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
-      polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
-    />
-  </mesh>
-);
+}> = ({ position, size, rotation = 0 }) => {
+  const [width, depth] = size;
+  const geometry = useMemo(() => {
+    const plane = new THREE.PlaneGeometry(width, depth);
+    const uv = plane.getAttribute('uv');
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * width, uv.getY(i) * depth);
+    uv.needsUpdate = true;
+    return plane;
+  }, [width, depth]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <mesh
+      position={[position[0], EXTERIOR_LAYERS.ground, position[2]]}
+      rotation={[-Math.PI / 2, 0, rotation]}
+      geometry={geometry}
+      receiveShadow
+    >
+      <meshStandardMaterial
+        color="#ffffff"
+        roughness={0.9}
+        map={HARDSTANDING_MAP}
+        roughnessMap={HARDSTANDING_ROUGHNESS}
+        polygonOffset
+        polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
+        polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}
+      />
+    </mesh>
+  );
+};
 
 // Cute food truck
 const FoodTruck: React.FC<{
@@ -7089,7 +7262,12 @@ const CAR_COLORS = [
   '#06b6d4', // Cyan
   '#f97316', // Orange
   '#64748b', // Slate gray
-  '#1f2937', // Dark gray
+  // Charcoal, not near-black: #1f2937 decodes to 0.02 linear luminance, so the
+  // three dark cars on the `carpark` camera lost every panel and crease
+  // (asset-accepted-20261105). #374151 (0.05) still read near-black from above
+  // once the atlas shading multiplied in (maps-after-1); 0.09 keeps a dark
+  // car that shows its form.
+  '#4b5563', // Charcoal
   '#ffffff', // White
   '#fbbf24', // Yellow
 ];
@@ -7841,35 +8019,45 @@ const CheckpointBarrier: React.FC<{
           </group>
         </GeneratedBoundary>
 
-        {/* Windows - front and back */}
+        {/* Windows - front and back. Daylight glass, as on the offices
+            (APARTMENT_GLASS_SKY in GeneratedOfficeModel): the sky-tinted
+            #8aa4bb at low roughness, with the metalness down from 0.5 so the
+            reflections are no longer tinted saturated #87ceeb, which read as
+            flat teal. Literals, because checkpointFixture.test.tsx evaluates
+            this declaration with a fixed set of bindings. */}
         {[boothDepth / 2 + 0.01, -boothDepth / 2 - 0.01].map((z, i) => (
           <mesh key={`window-${i}`} position={[0, boothHeight / 2 + 0.8, z]}>
             <planeGeometry args={[boothWidth - 0.6, 1.5]} />
             <meshStandardMaterial
-              color="#87ceeb"
+              color="#8aa4bb"
               transparent
-              opacity={0.6}
-              metalness={0.5}
-              roughness={0.1}
+              opacity={0.5}
+              metalness={0.2}
+              roughness={0.14}
               side={THREE.DoubleSide}
             />
           </mesh>
         ))}
 
-        {/* Side windows */}
-        {[boothWidth / 2 + 0.01, -boothWidth / 2 - 0.01].map((x, i) => (
+        {/* Side windows. The -X wall carries the booth's door (z 0.35..1.35,
+            head 2.25 in the asset frame, D-036), so its pane stops at the jamb:
+            1.6 m, z -1.3..0.3, where the delivered booth paints its glazing. */}
+        {[
+          { x: boothWidth / 2 + 0.01, z: 0, width: boothDepth - 0.4 },
+          { x: -boothWidth / 2 - 0.01, z: -0.5, width: 1.6 },
+        ].map(({ x, z, width }, i) => (
           <mesh
             key={`side-window-${i}`}
-            position={[x, boothHeight / 2 + 0.8, 0]}
+            position={[x, boothHeight / 2 + 0.8, z]}
             rotation={[0, Math.PI / 2, 0]}
           >
-            <planeGeometry args={[boothDepth - 0.4, 1.5]} />
+            <planeGeometry args={[width, 1.5]} />
             <meshStandardMaterial
-              color="#87ceeb"
+              color="#8aa4bb"
               transparent
-              opacity={0.6}
-              metalness={0.5}
-              roughness={0.1}
+              opacity={0.5}
+              metalness={0.2}
+              roughness={0.14}
               side={THREE.DoubleSide}
             />
           </mesh>

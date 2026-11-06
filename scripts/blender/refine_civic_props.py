@@ -53,6 +53,13 @@ PALETTE = [
  ('bark',(85,70,46),.94,'wood'), ('white',(199,204,194),.65,'paint'),
 ]
 TILES={v[0]:i for i,v in enumerate(PALETTE)}
+# Hay end spiral: one wound layer every 9.5 cm of radius, CCW about the bale
+# axis in (x, z), in physical end-cap coordinates. Used by the end raster.
+def SPIRAL_PHASE(r,a):return r/.095+a/math.tau
+# Depth of the end relief at w = 0, .25, .5, .75 across one wound layer (crest
+# at w = 0 = 1, lowest at .75, rolling back up to the next crest). Shared by
+# the end geometry and the end raster.
+HAY_ROLL=(0,.30,.75,1.0)
 PARTS=[]
 MAT=None
 
@@ -68,33 +75,201 @@ def hay_atlas(size):
  rgb=np.zeros((size,size,4),dtype=np.uint8);rgb[:,:,3]=255
  orm=np.zeros_like(rgb);orm[:,:,0]=255;orm[:,:,1]=237;orm[:,:,3]=255
  half=size//2;rng=np.random.default_rng(8147)
- yy,xx=np.mgrid[0:size,0:half]
- macro=.012*np.sin(xx*.021+np.sin(yy*.009))+.009*np.sin(yy*.017+xx*.006)
- body=np.array((192,163,104))[None,None,:]*(1+macro[:,:,None])
- # Fine stems share a consistent direction, with irregular starts/lengths and
- # quiet broken shadows. No full-width periodic stripe crosses the barrel.
- for i in range(6200):
-  x=int(rng.integers(2,half-2));y=int(rng.integers(0,size));length=int(rng.integers(6,43))
-  along=np.arange(length);rows=(y+along)%size;cols=np.clip(x+np.rint(np.sin(along/length*math.pi)*rng.uniform(-1.4,1.4)).astype(int),1,half-2)
-  tint=rng.uniform(-13,12)*np.sin((along+.5)/length*math.pi)
-  body[rows,cols]+=tint[:,None]*np.array((1,.88,.60))[None,:]
- rgb[:,:half,:3]=np.clip(body,0,255).astype(np.uint8)
+ # Barrel chart, round 5 (strike rule): re-authored as overlapping straw
+ # bundles, not a field of fine parallel stalks. At ~3.2 x 4.2 mm per delivered
+ # texel a single stalk is 1-1.5 px and smears into wood grain, so the unit is
+ # now the bundle: 5-10 px wide and 45-150 px long at 768, wrapping the bale
+ # (rows run around it) at a scattered slant of about +-13 deg, each with its
+ # own hue, a lit crown, a dark edge crease and a cast shadow on the straw it
+ # lies over, painted in order so later bundles overlap earlier ones; dark gaps
+ # show where no bundle covers. Loose stalks cross the wrap at up to 70 deg.
+ # The pinned matte-straw test caps the CV of (R+G+B)/3 at .07, so the tonal
+ # breakup is carried mainly by CHROMA at equal channel mean (yellow-green to
+ # orange-tan bundles and 10-25 cm sheet patches); luminance is scaled to the
+ # cap afterwards. R>G>B holds at every hue by construction.
+ H=int(round(.96*size));W=half;rb=np.random.default_rng(52051)
+ fy=np.fft.fftfreq(H)[:,None];fx=np.fft.fftfreq(W)[None,:]
+ def patches(sr,sc):
+  # Gaussian-filtered noise, periodic in rows (the chart wraps the bale).
+  out=np.real(np.fft.ifft2(np.fft.fft2(rb.normal(0,1,(H,W)))*np.exp(-2*math.pi**2*((fy*sr)**2+(fx*sc)**2))))
+  return out/out.std()
+ L=.30*patches(30,40)+.16*patches(10,14)-.55
+ C=.55*patches(45,60)
+ R=np.zeros((H,W))
+ def stamp(cy,cx,length,width,ang,bend):
+  hl=length/2;ca,sa=math.cos(ang),math.sin(ang)
+  er=int(hl*abs(ca)+width+abs(bend))+2;ec=int(hl*abs(sa)+width+abs(bend))+2
+  rows=np.arange(int(cy)-er,int(cy)+er+1);cols=np.arange(max(0,int(cx)-ec),min(W,int(cx)+ec+1))
+  if len(cols)==0:return None
+  dr=rows[:,None]-cy;dc=cols[None,:]-cx
+  s_=dr*ca+dc*sa;t_=-dr*sa+dc*ca;q=np.clip(2*s_/length,-1,1)
+  t_=t_-bend*(1-q*q);hw=width/2*np.sqrt(np.clip(1-q**4,0,1))
+  return np.ix_(rows%H,cols),s_,t_,hw,np.abs(s_)<hl
+ for i in range(1150):
+  cy=rb.uniform(0,H);cx=rb.uniform(-8,W+8);length=rb.uniform(45,150);width=rb.uniform(5,10)
+  got=stamp(cy,cx,length,width,float(np.clip(rb.normal(0,.22),-.5,.5)),rb.uniform(-5,5))
+  if got is None:continue
+  ix,s_,t_,hw,along=got;tone=rb.normal(.12,.22);hue=rb.normal(0,.75);rough=rb.uniform(-8,4)
+  u=t_/np.maximum(hw,1e-6);inside=along&(np.abs(u)<1);shadow=along&(u>=1)&(t_<hw+3)
+  sub=L[ix];sub[shadow]-=.35;band=np.sin(math.tau*(t_/4.2)+i)*.10
+  sub[inside]=(tone+.22*(1-u*u)+.14*(u<-.55)-.30*(u>.72)+band-.25*np.clip((np.abs(2*s_/length)-.85)/.15,0,1))[inside];L[ix]=sub
+  sub=C[ix];sub[inside]=hue;C[ix]=sub
+  sub=R[ix];sub[inside]=(rough-6*(1-u*u))[inside];sub[shadow]+=6;R[ix]=sub
+ for i in range(380):
+  # Loose stalks lying across the wrap: thin, bright, with a hairline shadow.
+  got=stamp(rb.uniform(0,H),rb.uniform(0,W),rb.uniform(15,60),2.2,rb.uniform(-1.2,1.2),rb.uniform(-2,2))
+  if got is None:continue
+  ix,s_,t_,hw,along=got;inside=along&(np.abs(t_)<hw);shadow=along&(t_>=hw)&(t_<hw+1.5)
+  sub=L[ix];sub[shadow]-=.30;sub[inside]=.55+.1*rb.normal();L[ix]=sub
+  sub=C[ix];sub[inside]=rb.uniform(-.9,.2);C[ix]=sub
+ S=L-L.mean();C=np.clip(C,-1.1,1.1)
+ # Golden mid; C<0 runs to pale yellow straw, C>0 to orange-tan, all at the
+ # same channel mean and with R-G >= 20 so no bundle turns olive.
+ mid=np.array((210,174,92),dtype=float);pale=np.array((-8,6,2),dtype=float);tan=np.array((10,-8,-2),dtype=float)
+ vv=((np.arange(size)/size-.02)/.96*H).astype(int)%H
+ cv_=C[vv,:][:,:,None];hue_rgb=mid[None,None,:]+np.maximum(cv_,0)*tan[None,None,:]-np.minimum(cv_,0)*pale[None,None,:]
+ def barrel(k):
+  return np.clip(hue_rgb*(1+np.clip(S[vv,:]*k,-.32,.32))[:,:,None],0,255)
+ def delivered_cv(img):
+  # Area-average 768 -> 512 (what the 512 resample approximates), then read the
+  # same 24 x 32 grid the pinned test reads.
+  up=np.repeat(np.repeat(img,2,0),2,1);n=up.shape[0]//3;m=up.shape[1]//3
+  small=up[:n*3,:m*3].reshape(n,3,m,3,3).mean(axis=(1,3))
+  def cv(im,rows,cols):
+   lv=np.array([im[min(rows-1,int((1-(.04+y/31*.92))*rows)),min(cols-1,int((.04+x/23*.42)*rows))].mean() for y in range(32) for x in range(24)])
+   return lv.std()/lv.mean()
+  return max(cv(small,n,m),cv(img,size,W))
+ # The estimate reads ~1.3x low for this bundle raster (the delivered 512
+ # resample keeps more bundle-edge contrast than an area average, and the cord
+ # occlusion adds some), so .047 here measured .065 on the delivered PNG.
+ # Occlusion where the straw dives under the round-6 binding band: both barrel
+ # islands run u=.02+.46*|y|/.75, so the tie courses at |y|=.47 share one
+ # column. A dark crease just beyond the band edge (19 mm out, sigma 4.5 mm),
+ # nothing under the band where the straw is hidden. It is painted after the
+ # contrast scale, so the straw keeps round 5's contrast exactly.
+ dist=np.abs((np.arange(W)/size-.02)/.46*.75-.47)
+ occ=1-.24*np.exp(-((dist-.019)/.0045)**2)
+ k=1.0
+ for _ in range(5):k*=.047/max(delivered_cv(barrel(k)),1e-6)
+ body=barrel(k)*occ[None,:,None]
+ rgb[:,:half,:3]=body.astype(np.uint8)
+ orm[:,:half,1]=np.clip(240+R[vv,:]-30*k*S[vv,:],226,252).astype(np.uint8)
  yy,xx=np.mgrid[0:half,0:half];x=(xx-half/2)/(half*.48);y=(yy-half/2)/(half*.48)
- radius=np.sqrt(x*x+y*y);angle=np.arctan2(y,x)
- roll=radius*7.2+angle/math.tau+.11*np.sin(angle*3+radius*4)
- end_signal=.018*np.sin(roll*math.tau)+.012*np.sin(angle*11+radius*37)+.012*np.cos(xx*.024+yy*.017)
+ # The end chart is planar: u-.75 = .23*x/.616 and v-.75 = .23*(z-.6555)/.616,
+ # so each texel maps back to the cap's physical radius and angle and the
+ # rolled bands are laid out in metres on the dished cap.
+ px=(xx/size-.25)*.616/.23;pz=(yy/size-.25)*.616/.23
+ radius=np.sqrt(px*px+pz*pz);angle=np.arctan2(pz,px)
+ # Painted to the modelled helical relief (round 5): frac(phase) is the
+ # geometry's w and HAY_ROLL its depth profile, so the albedo darkens where
+ # each wound layer runs lowest (w ~.75, before it rolls up) and lightens on
+ # the rounded crest (w -> 0/1). No terrace edge is painted any more.
+ phase=SPIRAL_PHASE(radius,angle);w=phase%1.0
+ depth=np.interp(w,[0,.25,.5,.75,1],list(HAY_ROLL)+[0])
+ foot=np.exp(-((w-.74)/.12)**2);lip=np.exp(-np.minimum(w,1-w)/.06)
+ fine=np.sin(math.tau*4*phase+np.sin(angle*5+radius*31))
+ fade=np.clip((.6-radius)/.05,0,1)
+ end_signal=fade*(-.09*depth-.08*foot+.06*lip+.025*fine)+.012*np.sin(angle*11+radius*170)+.01*np.cos(xx*.024+yy*.017)
  end=np.array((183,151,93))[None,None,:]*(1+end_signal[:,:,None])
  for i in range(4400):
   a=rng.uniform(0,math.tau);r=math.sqrt(rng.uniform(0,.98))*half*.47;length=int(rng.integers(2,10));theta=a+np.linspace(-.5,.5,length)*length/max(r,10)
   cols=np.clip(np.rint(half/2+r*np.cos(theta)).astype(int),0,half-1);rows=np.clip(np.rint(half/2+r*np.sin(theta)).astype(int),0,half-1)
-  end[rows,cols]+=rng.uniform(-11,12)*np.array((1,.88,.62))
+  end[rows,cols]+=rng.uniform(-18,17)*np.array((1,.88,.62))
  rgb[half:,half:,:3]=np.clip(end,0,255).astype(np.uint8)
- # Quiet flax twine uses the existing second half of the same atlas/material.
- weave=.025*np.sin(xx*.11+yy*.07)+.018*np.sin(xx*.14-yy*.13)
- rgb[:half,half:,:3]=np.clip(np.array((140,122,85))[None,None,:]*(1+weave[:,:,None]),0,255).astype(np.uint8)
+ # Weathered sisal cord, a mid tone about as light as the straw but greyer
+ # (neither the round-2 cream that read as a white line nor a shadow-dark
+ # seam); the painted channel occlusion either side gives it its edge. Each UV island spans the chart along the tie (~1.5 mm/px) and the
+ # cord section across the rows, so the two laid plies are drawn as helical
+ # strands: a 24 px (36 mm) lay, a dark crease between plies, a lit crown on
+ # each, and fine fibre hair.
+ # Round 6: the band's three wraps carry the same chart; the tone is a greyer,
+ # less saturated sisal than the golden straw, with a stronger lay contrast so
+ # each wrap reads as twisted cord rather than a flat stripe.
+ C=half*.92;p2=2*(xx/24+(yy-half*.04)/C);g=p2%1.0
+ ply=np.sin(math.pi*g)**.6
+ hair=.05*np.sin(xx*1.9+yy*.23)*np.sin(yy*.71-xx*.4)+.03*np.sin(xx*.09+yy*.05)
+ cord=.60+.48*ply+hair
+ rgb[:half,half:,:3]=np.clip(np.array((178,166,134))[None,None,:]*cord[:,:,None],0,255).astype(np.uint8)
  return rgb,orm
 
-def material(folder,hay_only=False):
+def well_stone_chart(rgb,orm):
+ # Round 4 (well wall, strike rule): only the wishing well calls this. Atlas
+ # row 3 (leaf-light .. canvas-cream, unused by well()) becomes twelve stone
+ # cells of 128 x 64 px, one dressed stone each: its own hue and value, mottle
+ # at three scales, rising-damp darkening at the foot, sparse lichen, worn
+ # lighter arrises and a dark mortar border where the modelled joint's floor
+ # maps. Every other prop's atlas is byte-identical (the PALETTE loop is not
+ # touched). Working if the kept-asset regression shas still match.
+ rng=np.random.default_rng(70411);cw,chh,y_strip=128,64,384
+ yy,xx=np.mgrid[0:chh,0:cw].astype(float)
+ fy=np.fft.fftfreq(chh)[:,None];fx=np.fft.fftfreq(cw)[None,:]
+ def blur(s):
+  out=np.real(np.fft.ifft2(np.fft.fft2(rng.normal(0,1,(chh,cw)))*np.exp(-2*math.pi**2*((fy*s)**2+(fx*s)**2))))
+  return out/out.std()
+ bases=[(146,147,132),(158,151,129),(130,135,128),(166,164,147),(121,123,112),(152,144,121),
+        (138,143,136),(160,158,140),(127,126,111),(146,140,123),(134,140,125),(153,153,142)]
+ mortar=np.array((92,91,83),float)
+ for c,base in enumerate(bases):
+  x0=(c%6)*cw;y0=y_strip+(c//6)*chh;base=np.array(base,float)
+  ragged=.8*blur(1.5)
+  dx=np.minimum(xx,cw-1-xx)+ragged;dy=np.minimum(yy,chh-1-yy)+ragged
+  # Mortar sits within ~5 px (u) / 4 px (v) of the cell edge: the joint floor.
+  stone_d=np.minimum(dx-5,(dy-4)*1.25)
+  value=.075*blur(7)+.035*blur(2.5)+.02*blur(.8)
+  warm=.05*blur(10)
+  wear=np.clip(1-stone_d/6,0,1)*(.65+.35*np.clip(blur(2),-1,1))
+  damp=np.clip((.32-yy/chh)/.32,0,1)
+  col=base[None,None,:]*(1+value+.11*wear-.10*damp)[:,:,None]
+  col+=warm[:,:,None]*np.array((7,2,-7))[None,None,:]+damp[:,:,None]*np.array((-5,1,-2))[None,None,:]
+  for _ in range(int(rng.integers(1,4))):
+   ly,lx,lr=rng.uniform(8,chh-8),rng.uniform(10,cw-10),rng.uniform(3,7)
+   spot=np.clip(1.4-np.hypot(yy-ly,(xx-lx)*.8)/lr+.3*blur(1.2),0,1)*.38
+   col=col*(1-spot[:,:,None])+np.array((160,160,112))[None,None,:]*spot[:,:,None]
+  pits=rng.random((chh,cw))<.012;col[pits]*=.82
+  joint=stone_d<0
+  col[joint]=mortar*(1+.04*blur(1.5)[joint])[:,None]
+  rgb[y0:y0+chh,x0:x0+cw,:3]=np.clip(col,0,255).astype(np.uint8)
+  orm[y0:y0+chh,x0:x0+cw,1]=np.where(joint,246,232).astype(np.uint8)
+
+ROOF_CELL=(91,64,128,640)
+def well_roof_chart(rgb,orm):
+ # Round 5 (well roof, strike rule): only the wishing well calls this. Atlas
+ # row 5 right of stone-dark (leaf-warm .. white, none used by well()) becomes
+ # fourteen clay tile cells of 91 x 64 px, seven by two: one plain tile each,
+ # downslope butt edge at the cell's bottom row. Each has its own fired hue and
+ # value, mottle at three scales, a slight cross camber, the shadow of the
+ # course above along its top and a SOFT painted joint half along each side, so
+ # neighbouring cells meet as one ~1.3 cm joint line, not a geometric trench.
+ # Two cells are weathered (darker, lichen), but within the same tonal family.
+ cw,chh,x_strip,y_strip=ROOF_CELL;rng=np.random.default_rng(52817)
+ yy,xx=np.mgrid[0:chh,0:cw].astype(float)
+ fy=np.fft.fftfreq(chh)[:,None];fx=np.fft.fftfreq(cw)[None,:]
+ def blur(s):
+  out=np.real(np.fft.ifft2(np.fft.fft2(rng.normal(0,1,(chh,cw)))*np.exp(-2*math.pi**2*((fy*s)**2+(fx*s)**2))))
+  return out/out.std()
+ bases=[(152,76,50),(142,71,46),(158,83,54),(146,79,52),(137,69,47),(155,74,46),(149,82,57),
+        (161,79,50),(140,75,51),(150,72,44),(144,77,49),(156,80,52),(132,72,48),(128,74,52)]
+ for c,base in enumerate(bases):
+  x0=x_strip+(c%7)*cw;y0=y_strip+(c//7)*chh;base=np.array(base,float);weathered=c>=12
+  value=.06*blur(6)+.03*blur(2.5)+.015*blur(.8)
+  warm=.05*blur(9)
+  camber=.035*(1-((xx-(cw-1)/2)/((cw-1)/2))**2)
+  shade=np.clip((yy/(chh-1)-.80)/.20,0,1)**1.5*.30
+  col=base[None,None,:]*(1+value+camber-shade)[:,:,None]+warm[:,:,None]*np.array((6,1,-5))[None,None,:]
+  if weathered:
+   for _ in range(int(rng.integers(2,4))):
+    ly,lx,lr=rng.uniform(8,chh-14),rng.uniform(10,cw-10),rng.uniform(3,6)
+    spot=np.clip(1.4-np.hypot(yy-ly,xx-lx)/lr+.3*blur(1.2),0,1)*.30
+    col=col*(1-spot[:,:,None])+np.array((150,146,104))[None,None,:]*spot[:,:,None]
+  pits=rng.random((chh,cw))<.010;col[pits]*=.86
+  # Soft joint: a half-width of ~1.6 px at each side edge, fading over 2 px more.
+  dx=np.minimum(xx,cw-1-xx)+.35*blur(1.5)
+  joint=np.clip(1-(dx-1.6)/2,0,1)*np.clip(1-shade/.30*.4,0,1)
+  col=col*(1-.34*joint[:,:,None])
+  rgb[y0:y0+chh,x0:x0+cw,:3]=np.clip(col,0,255).astype(np.uint8)
+  orm[y0:y0+chh,x0:x0+cw,1]=np.clip(204+22*joint,0,255).astype(np.uint8)
+
+def material(folder,hay_only=False,well_only=False):
  global MAT
  size=768;tile=128;yy,xx=np.mgrid[0:tile,0:tile]/tile
  rgb=np.zeros((size,size,4),dtype=np.uint8);orm=rgb.copy()
@@ -112,6 +287,7 @@ def material(folder,hay_only=False):
   rgb[y:y+tile,x:x+tile,3]=255
   orm[y:y+tile,x:x+tile]=np.stack([np.full_like(xx,255),np.clip((rough+signal*.3)*255,0,255),np.zeros_like(xx),np.full_like(xx,255)],axis=2).astype(np.uint8)
  if hay_only:rgb,orm=hay_atlas(size)
+ if well_only:well_stone_chart(rgb,orm);well_roof_chart(rgb,orm)
  folder.mkdir(parents=True,exist_ok=True)
  for name,data in [('albedo',rgb),('orm',orm)]:png(folder/(name+'.png'),data[::-1])
  MAT=bpy.data.materials.new('Crafted prop atlas');MAT.use_nodes=True
@@ -187,6 +363,14 @@ def meshpart(name,verts,faces,key,smooth=False,bevel=0):
 
 def sphere(name,loc,scale,key='leaf',segments=12,rings=6):
  bpy.ops.mesh.primitive_uv_sphere_add(segments=segments,ring_count=rings,radius=1,location=loc);o=bpy.context.object;o.name=name;o.scale=scale
+ # The UV-sphere operator emits its faces in a different order in each Blender
+ # process (vertices and each face's loop order are stable), which reshuffled
+ # the exported index buffer of every prop holding a sphere. Sort the faces by
+ # their vertex indices. Working if two runs export identical bytes.
+ # BMesh sorts by a numeric key, so rank the faces' vertex-index tuples first.
+ bm=bmesh.new();bm.from_mesh(o.data);bm.verts.index_update();bm.faces.index_update()
+ rank={f.index:r for r,f in enumerate(sorted(bm.faces,key=lambda f:tuple(sorted(v.index for v in f.verts))))}
+ bm.faces.sort(key=lambda f:rank[f.index]);bm.to_mesh(o.data);bm.free()
  bpy.ops.object.transform_apply(location=False,rotation=False,scale=True);return finish(o,key,smooth=True)
 
 def lathe(name,profile,key='stone',segments=32,loc=(0,0,0),flutes=0,depth=0,continuous_uv=False):
@@ -270,14 +454,37 @@ def board(name,loc,dims,key='oak',rot=None):
 
 def bench():
  for i in range(4):board('Separate seat slat',(0,-.18+i*.123,.45),(1.8,.108,.055),'oak-light' if i%2 else 'oak')
- for i in range(3):board('Reclined back slat',(0,.235+i*.014,.64+i*.151),(1.8,.065,.128),'oak',rot=(-.09,0,0))
+ # Back slats sit 32 mm further forward than the old embedded upright allowed,
+ # so the cast strap can carry them on its front face inside the same depth.
+ for i in range(3):board('Reclined back slat',(0,.203+i*.014,.64+i*.151),(1.8,.065,.128),'oak',rot=(-.09,0,0))
  for x in [-.64,.64]:
   for y in [-.18,.21]:
    box('Cast iron foot',(x,y,.025),(.18,.18,.05),'iron')
    bolts([x-.053,x+.053],[y-.049,y+.049],.052,'iron')
   beam('Front cast leg',(x,-.18,.04),(x,-.15,.445),.065,'iron')
-  beam('Back cast leg and upright',(x,.21,.04),(x,.26,.98),.065,'iron')
-  beam('Under-seat bearing',(x,-.255,.412),(x,.26,.412),.055,'iron')
+  # The rear leg and back upright are one casting lofted from its side
+  # silhouette: a 65 mm leg rising from the foot, a knee under the seat, then
+  # a 28 mm reclined strap whose front face is housed 4 mm into the back
+  # slats' rear plane. Working if the strap stands visibly behind the slats
+  # from the rear and the through-bolts below land on its back face.
+  tilt=.09;sy,sz=.203,.64
+  def strap(z,off):return sy+off/math.cos(tilt)+(z-sz)*math.tan(tilt)
+  F,R=.0285,.0565
+  def lower(z,a,b):return a+(b-a)*(z-.03)/.47
+  stations=[]
+  for z in [.03,.36]:stations.append((z,lower(z,.1775,strap(.5,F)-.04),lower(z,.2425,strap(.5,R))))
+  stations.append((.44,(lower(.44,.1775,strap(.5,F)-.04)+strap(.44,F))/2,lower(.44,.2425,strap(.5,R))))
+  for z in [.5,.955]:stations.append((z,strap(z,F),strap(z,R)))
+  stations.append((.972,strap(.972,F)+.006,strap(.972,R)-.006))
+  verts=[]
+  for z,yf,yr in stations:
+   w=.032-.006*(z-.03)/.94
+   verts.extend([(x-w,yf,z),(x+w,yf,z),(x+w,yr,z),(x-w,yr,z)])
+  n=len(stations);faces=[(3,2,1,0),tuple((n-1)*4+k for k in range(4))]
+  for i in range(n-1):
+   for k in range(4):faces.append((i*4+k,i*4+(k+1)%4,(i+1)*4+(k+1)%4,(i+1)*4+k))
+  meshpart('Back cast leg and upright',verts,faces,'iron',bevel=.005)
+  beam('Under-seat bearing',(x,-.255,.412),(x,.25,.412),.055,'iron')
   # Radius at the front replaces the sharp right-angle hand contact.
   points=[(x,-.18,.443)]
   for i in range(9):
@@ -288,7 +495,14 @@ def bench():
   beam('Diagonal frame brace',(x,-.15,.13),(x,.22,.41),.04,'iron')
   # Each end frame ties into the low longitudinal stretcher.
   beam('Stretcher end bearer',(x,-.17,.18),(x,.22,.18),.035,'iron')
-  for z in [.64,.791,.942]:cylinder('Back bolt',(x,.19,z),.014,.012,'steel',6,rot=(math.pi/2,0,0))
+  # Each back bolt is a through-bolt on one axis along the slat normal: the
+  # carriage head on the slat's front face, and a flanged domed nut on the
+  # strap's back face, sunk 1 mm so the joint is one component. Working
+  # if the rear view shows a nut on each upright at every slat.
+  for i in range(3):
+   c=Vector((x,sy+i*.014,sz+i*.151));n=Vector((0,-math.cos(tilt),math.sin(tilt)))
+   cylinder('Back bolt',tuple(c+n*.0305),.014,.012,'iron',6,rot=(math.pi/2-tilt,0,0))
+   cylinder('Back bolt flanged nut',tuple(c-n*(R+.0045)),.016,.011,'iron',6,rot=(math.pi/2-tilt+math.pi,0,0),radius2=.008)
  beam('Low longitudinal stretcher',(-.64,.02,.18),(.64,.02,.18),.036,'iron')
  bolts([-.64,.64],[-.18,-.057,.066,.189],.482)
 
@@ -377,20 +591,105 @@ def fence():
   box('Mortised rail',(0,0,z),(1.6,.077,.09),'weathered',.008)
   for x in [-.72,.72]:cylinder('Peg',(x,-.085,z),.015,.018,'wood-end',8,rot=(math.pi/2,0,0))
 
+def corner_post(sx,sy):
+ # Round 3 (strike rule): the rim corner is a modelled joint, not a moved part.
+ # One lofted timber per corner, ground to the rim datum, its outer faces plumb
+ # at |x| .75 / |y| .275 (5 mm proud of the side planks, so no shared face) and
+ # its inner faces tapered 14 mm below the body into a foot. Every vertical
+ # arris carries a 10 mm chamfer; the foot and the top are chamfered too. The
+ # side courses butt its inner x face, the end courses its inner y face.
+ stations=[(0,.006,.020,.006),(.008,0,.0135,.010),(.1865,0,0,.010),(.534,0,0,.010),(.542,.006,.006,.006)]
+ verts=[]
+ for z,oi,ii,c in stations:
+  a,b,d,e=.67+ii,.75-oi,.195+ii,.275-oi
+  for x,y in [(b-c,d),(b,d+c),(b,e-c),(b-c,e),(a+c,e),(a,e-c),(a,d+c),(a+c,d)]:verts.append((sx*x,sy*y,z))
+ n=8;faces=[tuple(reversed(range(n))),tuple(range((len(stations)-1)*n,len(stations)*n))]
+ for j in range(len(stations)-1):
+  for i in range(n):faces.append((j*n+i,j*n+(i+1)%n,(j+1)*n+(i+1)%n,(j+1)*n+i))
+ # A mirror in one axis reverses the ring's turn, so keep faces outward.
+ if sx*sy<0:faces=[tuple(reversed(f)) for f in faces]
+ meshpart('Corner post',verts,faces,'oak-dark')
+
 def trough():
- for x in [-.66,.66]:
-  for y in [-.2,.2]:box('Corner foot',(x,y,.105),(.09,.09,.21),'oak-dark')
- box('Watertight inner floor',(0,0,.155),(1.34,.42,.035),'oak-dark')
+ for x in [-1,1]:
+  for y in [-1,1]:corner_post(x,y)
+ # The floor's underside is flush with the bottom courses, so no plate hangs
+ # below the walls between the posts and the underside reads as one base.
+ box('Watertight inner floor',(0,0,.204),(1.372,.42,.035),'oak-dark')
+ # Side walls: three equal courses from the body bottom (.1865) to the rim
+ # datum (.542), so the top course is one more plank of the wall rather than a
+ # taller rail standing on it. Each runs between the corner posts (|x| .67).
+ # The top course keeps the 4 mm arris and the |y| .21-.27 faces, which put its
+ # outer chamfer through .53887 at delivered |z| .258 (source .26914 at the
+ # .95863 lateral fit), where the runtime roll embeds. Working if VillageArea's
+ # trough seating hits read .53887 / .4735 / .427.
+ h=(.542-.1865-2*.007)/3
  for y in [-.24,.24]:
-  for i in range(3):box('Side plank',(0,y,.232+i*.098),(1.5,.06,.091),'oak' if i%2 else 'oak-light')
- for x in [-.72,.72]:
-  for i in range(3):box('End plank',(x,0,.232+i*.098),(.06,.43,.091),'oak')
- for x in [-.58,.58]:
-  for y in [-.275,.275]:
-   box('Iron stave strap',(x,y,.333),(.045,.012,.37),'iron',.003)
-   for z in [.23,.43]:cylinder('Rivet',(x,y*1.023,z),.012,.009,'steel',6,rot=(math.pi/2,0,0))
+  for i in range(3):
+   z0=.1865+i*(h+.007)
+   box('Side rim board' if i==2 else 'Side plank',(0,y,z0+h/2),(1.34,.06,h),'oak' if i==1 else 'oak-light',.004 if i==2 else .008)
+ # End courses sit between the posts, 4 mm behind their outer faces; the top
+ # course's 4 mm arris keeps x .738 on its flat .4735 top for the runtime roll.
+ for x in [-.716,.716]:
+  for i in range(3):box('End plank',(x,0,.232+i*.098),(.06,.39,.091),'oak',.004 if i==2 else .008)
+ # Round 5 (strike rule): the straps are swept, not stacked. Four per side,
+ # one per bay, each lofted along a path traced on the end elevation: under
+ # the bottom course, round its lower arris, then up the full wall to just
+ # under the top course's chamfer (.538). Max z stays .542 and the domed
+ # rivet apexes stay the outermost |y| (.285825), which sets the .95863
+ # lateral fit every runtime pin is measured against.
+ mids=[.1865+i*(h+.007)+h/2 for i in range(3)]
+ for x in [-.54,-.18,.18,.54]:
+  for sy in [-1,1]:
+   strap(x,sy)
+   for z in mids:rivet_dome(x,sy,z)
  box('Water plane',(0,0,.421),(1.37,.419,.012),'water',0)
- for y in [-.24,.24]:box('Rim rail',(0,y,.516),(1.5,.068,.052),'oak-dark')
+
+def outward(verts,faces):
+ # Signed volume by the divergence theorem; flip a closed shell that came out
+ # inside-out (a mirrored path reverses its turn).
+ vol=0
+ for f in faces:
+  a=Vector(verts[f[0]])
+  for i in range(1,len(f)-1):vol+=a.dot(Vector(verts[f[i]]).cross(Vector(verts[f[i+1]])))
+ return faces if vol>0 else [tuple(reversed(f)) for f in faces]
+
+def strap(x,sy,w=.045,t=.007,c=.0012):
+ # Centreline in the (y,z) elevation. The inner face embeds 1 mm in the plank
+ # (face .27, bottom .1865) and the bend's inner radius follows the course's
+ # 8 mm lower chamfer. Section: a 45 x 7 mm flat with 1.2 mm chamfered edges.
+ face=.269+t/2;under=.1875-t/2;r=.012;cy,cz=face-r,under+r
+ path=[(.222,under),(cy-.012,under)]
+ path+=[(cy+r*math.cos(a),cz+r*math.sin(a)) for a in [-math.pi/2+k*math.pi/10 for k in range(6)]]
+ path+=[(face,.26),(face,.40),(face,.535)]
+ ring=[(-w/2+c,-t/2),(w/2-c,-t/2),(w/2,-t/2+c),(w/2,t/2-c),(w/2-c,t/2),(-w/2+c,t/2),(-w/2,t/2-c),(-w/2,-t/2+c)]
+ verts=[]
+ for i,(py,pz) in enumerate(path):
+  qy,qz=path[min(i+1,len(path)-1)];oy,oz=path[max(i-1,0)]
+  ty,tz=qy-oy,qz-oz;l=math.hypot(ty,tz);ty,tz=ty/l,tz/l
+  ny,nz=tz,-ty  # outward: +y on the face, -z under the course
+  for u,v in ring:verts.append((x+u,sy*(py+v*ny),pz+v*nz))
+ n=len(ring);faces=[tuple(reversed(range(n))),tuple((len(path)-1)*n+j for j in range(n))]
+ for i in range(len(path)-1):
+  for j in range(n):faces.append((i*n+j,i*n+(j+1)%n,(i+1)*n+(j+1)%n,(i+1)*n+j))
+ meshpart('Iron stave strap',verts,outward(verts,faces),'iron')
+
+def rivet_dome(x,sy,z,apex=.285825,base=.2745,radius=.011,segments=8):
+ # Lathed round head about Y with one apex vertex (no pole fan of duplicates).
+ # Its base sinks 1.5 mm into the strap's outer face (.276).
+ height=apex-base
+ rings=[(radius,0),(radius*.97,.25),(radius*.86,.5),(radius*.66,.72),(radius*.38,.9)]
+ verts=[];faces=[]
+ for r,f in rings:
+  for i in range(segments):
+   a=i*math.tau/segments;verts.append((x+r*math.cos(a),sy*(base+f*height),z+r*math.sin(a)))
+ top=len(verts);verts.append((x,sy*apex,z))
+ faces.append(tuple(reversed(range(segments))))
+ for j in range(len(rings)-1):
+  for i in range(segments):faces.append((j*segments+i,j*segments+(i+1)%segments,(j+1)*segments+(i+1)%segments,(j+1)*segments+i))
+ k=(len(rings)-1)*segments
+ for i in range(segments):faces.append((k+i,k+(i+1)%segments,top))
+ meshpart('Domed rivet',verts,outward(verts,faces),'steel',smooth=True)
 
 def postbox():
  lathe('Fluted foot',[(0,0),(.314,0),(.34,.035),(.34,.14),(.315,.18),(.302,.22)],'black',40)
@@ -479,90 +778,181 @@ def sign():
  # Gltf front face is +Z. Runtime text at +0.12 clears this recessed face.
 
 def hay():
- # A continuous rolled straw surface, shallow end dishes and fitted flax ties.
- # Working if both fronts remain closed/outward, the original envelope/budgets
- # pass, and each twine course stays seated on the same analytic barrel radius.
- segments=64;profile=[(-.75,.616),(-.724,.642),(-.665,.6555),(-.5,.6555),(-.47,.6555),(-.44,.6555),(0,.6555),(.44,.6555),(.47,.6555),(.5,.6555),(.665,.6555),(.724,.642),(.75,.616)]
+ # Round-5 rebuild of the straw (strike rule), replacing round 3's method.
+ # Barrel: no belt ridges and no tail step (regular hoops on a tan cylinder
+ # read as a wooden barrel). It is lofted from a traced compression profile:
+ # the bound straw pillows out in the middle and again outboard of each tie and
+ # is pinched into a broad waist under the ties, the section is lumpy (low-order
+ # lobes whose phase drifts along the bale, faded before the shoulders so the
+ # rim stays a true circle) and the underside is flattened by the bale's own
+ # weight into a contact patch. Ends: no terraces and no risers. Each end is ONE
+ # smooth helical sheet whose rows follow SPIRAL_PHASE, four samples across
+ # every wound layer with the HAY_ROLL depth profile, so the roll reads as a
+ # continuous rounded spiral in the dish rather than stacked discs. Working if
+ # the five outward rays, the barrel/end UV regions and the tie gaps still pass.
+ pitch=.095;segments=48;ANG=[i*math.tau/segments for i in range(segments)]
+ # Round 6: each tie is a raised band of three wraps lying on a shallow bed
+ # pressed into the straw (no shoulders: round 4's straw shoulders stood level
+ # with the cord crown and buried it). Rings at 12 and 28 mm either side of the
+ # course resolve the bed. Render vertices are 3 per triangle here, so every
+ # ring costs 288 of the 24,800.
+ CHANNEL=[.012,.028]
+ rings=sorted({sg*y for y in (0,.12,.24,.36,.47,.58,.65) for sg in (-1,1)}|{-.75,-.745,-.732,-.70,.70,.732,.745,.75}|{c+sg*d for c in (-.47,.47) for d in CHANNEL for sg in (-1,1)})
+ def smooth(e0,e1,x):t=min(1,max(0,(x-e0)/(e1-e0)));return t*t*(3-2*t)
  def radius(y,a):
-  base=float(np.interp(y,[p[0] for p in profile],[p[1] for p in profile]))
-  press=.003*sum(math.exp(-((y-course)/.019)**2) for course in [-.47,.47])
-  return base*(1+.0035*math.sin(a*7)+.002*math.sin(a*11+y*3))-press
+  ay=abs(y)
+  base=float(np.interp(ay,[0,.70,.732,.745,.75],[.6555,.6555,.648,.634,.616]))
+  rim=1-smooth(.70,.75,ay);body=1-smooth(.60,.70,ay)
+  # Traced compression profile: middle pillow, broad pinch under each tie
+  # (sigma 5 cm, 1 cm deep), outboard pillow, then the rolled shoulder.
+  swell=(.016*math.exp(-(y/.28)**2)+.010*math.exp(-((ay-.59)/.055)**2)-.010*math.exp(-((ay-.47)/.05)**2))*rim
+  lumps=(.0055*math.cos(3*a+1.1+2.3*y)+.004*math.cos(5*a+.4-3.1*y)+.003*math.cos(7*a+2.6+4.7*y)+.0025*math.cos(2*a+.3+1.7*y))*body
+  flat=-.014*max(0.,-math.sin(a))**6*rim
+  # Bed under each tie (round 6): a flat-bottomed 4 mm press as wide as the
+  # three-wrap band (super-gaussian, flat to ~12 mm, gone by ~28 mm), so the
+  # band's crown stands ~7.5 mm proud of the straw beside it.
+  channel=sum(-.004*math.exp(-((y-course)/.019)**4) for course in [-.47,.47])
+  return base+swell+lumps+flat+channel
  def barrel_uv(o):
+  # Four islands: each half of the length gets the full u span, and each half
+  # of the circumference the full v span (offset a quarter turn on +y, so the
+  # two halves do not repeat in step). Seams run along the stalks.
   for face in o.data.polygons:
    coords=[o.data.vertices[o.data.loops[i].vertex_index].co for i in face.loop_indices]
-   angles=[math.atan2(p.z-.6555,p.x)%math.tau for p in coords]
-   angles=[0 if min(a,math.tau-a)<1e-6 else a for a in angles]
+   upper=sum(p.y for p in coords)/len(coords)>0;offset=math.pi/2 if upper else 0
+   angles=[(math.atan2(p.z-.6555,p.x)+offset)%math.tau for p in coords]
    if max(angles)-min(angles)>math.pi:angles=[a+math.tau if a<math.pi else a for a in angles]
-   for i,p,a in zip(face.loop_indices,coords,angles):o.data.uv_layers.active.data[i].uv=(.02+.46*(p.y+.75)/1.5,.02+.96*a/math.tau)
+   half=math.floor(sum(angles)/len(angles)/math.pi)
+   for i,p,a in zip(face.loop_indices,coords,angles):
+    # Round 4: the -y island is mirrored (u runs outward from the waist on
+    # both halves) so both tie courses land on one chart column, where the
+    # cord channel's occlusion is painted once (hay_atlas).
+    u=abs(p.y)/.75
+    o.data.uv_layers.active.data[i].uv=(.02+.46*min(1,max(0,u)),.02+.96*(a-half*math.pi)/math.pi)
  def end_uv(o):
   for face in o.data.polygons:
    for i in face.loop_indices:
     p=o.data.vertices[o.data.loops[i].vertex_index].co
     o.data.uv_layers.active.data[i].uv=(.75+.23*p.x/.616,.75+.23*(p.z-.6555)/.616)
  verts=[];faces=[]
- for y,_ in profile:
-  for i in range(segments):
-   a=i*math.tau/segments;r=radius(y,a);verts.append((r*math.cos(a),y,.6555+r*math.sin(a)))
- for j in range(len(profile)-1):
+ for y in rings:
+  for a in ANG:r=radius(y,a);verts.append((r*math.cos(a),y,.6555+r*math.sin(a)))
+ for j in range(len(rings)-1):
   for i in range(segments):faces.append(((j+1)*segments+i,(j+1)*segments+(i+1)%segments,j*segments+(i+1)%segments,j*segments+i))
- core=meshpart('Continuous compressed straw barrel',verts,faces,'straw',True);barrel_uv(core)
- def cap_y(r):return .743+.007*(r/.616)**2
+ core=meshpart('Lofted compression-profile straw barrel',verts,faces,'straw',True);barrel_uv(core)
+ # Dish: the rolled core stays within 4 mm of the rim plane (rays at .18 m
+ # radius must meet the cap beyond .74 m), a 5.5 cm annular trough, and a level
+ # lip into the chamfer. The helical relief fades in from .15 m and is gone by
+ # .565 m, inside the sheet's outer clamp, so the clamp edge is a flat circle.
+ def cap_y(r):
+  t=(r-.40)/.20;trough=.055*(.5+.5*math.cos(math.pi*t)) if abs(t)<1 else 0
+  return .75-trough-.004*(1-min(1,max(0,(r-.15)/.10)))
+ def relief(r):return .010*smooth(.15,.27,r)*(1-smooth(.47,.565,r))
+ # The sheet is sampled at 24 angles (every second barrel angle), n=4 rows
+ # across each wound layer. Row s sits at angle EA[s%24], wound s/24 turns in;
+ # sample k at radius pitch*(k/4+K-s/24), so frac(SPIRAL_PHASE) is exactly k/4.
+ # Radii come from one integer numerator, so sample (s,4) and sample (s-24,0)
+ # are the same float and merge, leaving one connected smooth sheet. Radii
+ # clamp to the core and outer circles; collapsed faces drop out.
+ M,n,r_in,r_out=24,4,.12,.57;EA=ANG[::2];K=int(math.ceil(r_out/pitch))+1
+ def build(quads):
+  verts=[];lookup={};faces=[]
+  def vid(p):
+   key=tuple(round(c,7) for c in p)
+   if key not in lookup:lookup[key]=len(verts);verts.append(p)
+   return lookup[key]
+  for quad,expect in quads:
+   pts=[Vector(q) for q in quad];nn=Vector((0,0,0))
+   for i in range(len(pts)):p,q=pts[i],pts[(i+1)%len(pts)];nn+=Vector(((p.y-q.y)*(p.z+q.z),(p.z-q.z)*(p.x+q.x),(p.x-q.x)*(p.y+q.y)))
+   if nn.length<1e-8:continue
+   ids=[vid(q) for q in quad];faces.append(tuple(ids) if nn.dot(expect)>0 else tuple(ids[::-1]))
+  return verts,faces
  for side in [-1,1]:
-  verts=[(0,side*.743,.6555)];faces=[];rings=[.105,.22,.34,.46,.56,.616]
-  for r in rings:
-   for i in range(segments):
-    a=i*math.tau/segments;rr=r*radius(side*.75,a)/.616
-    verts.append((rr*math.cos(a),side*cap_y(r),.6555+rr*math.sin(a)))
-  for i in range(segments):
-   face=(0,1+(i+1)%segments,1+i);faces.append(face if side>0 else face[::-1])
-  for j in range(len(rings)-1):
-   for i in range(segments):
-    a=1+j*segments+i;b=1+j*segments+(i+1)%segments;c=b+segments;d=a+segments
-    face=(a,b,c,d);faces.append(face if side>0 else face[::-1])
-  cap=meshpart('Shallow rolled straw end',verts,faces,'straw',True);end_uv(cap)
-  # Short curved fibres lie on the rolled surface, with shared planar UVs.
-  verts=[];faces=[]
-  for i in range(120):
-   theta=i*2.3999632297+side*.31;r=.58*math.sqrt((i+.5)/120);length=.04+.03*(.5+.5*math.sin(i*1.73));n=len(verts)
-   for step in range(4):
-    a=theta+(step/3-.5)*length/max(r,.08)
-    for edge in [-1,1]:
-     rr=r+edge*.0018;verts.append((rr*math.cos(a),side*(cap_y(rr)+.0015),.6555+rr*math.sin(a)))
-   for step in range(3):
-    j=n+step*2;face=(j,j+2,j+3,j+1);faces.append(face if side>0 else face[::-1])
-  fibres=meshpart('Seated curved end fibres',verts,faces,'straw');end_uv(fibres)
- # Sparse tangential fibres continue the barrel chart instead of restarting it.
- verts=[];faces=[]
- for i in range(160):
-  a=i*2.3999632297;y=-.64+1.28*((i*.61803398875)%1);n=len(verts)
-  for da,dy in [(-.035,-.0017),(.035,-.0017),(.035,.0017),(-.035,.0017)]:
-   rr=radius(y+dy,a+da)+.0012;verts.append((rr*math.cos(a+da),y+dy,.6555+rr*math.sin(a+da)))
-  faces.append((n+3,n+2,n+1,n))
- fibres=meshpart('Seated barrel fibres',verts,faces,'straw');barrel_uv(fibres)
+  def sample(s,k):
+   a=EA[s%M];r=min(r_out,max(r_in,pitch*(k*M+n*K*M-n*s)/(n*M)))
+   return (r*math.cos(a),side*(cap_y(r)-relief(r)*HAY_ROLL[k%n]),.6555+r*math.sin(a))
+  up=Vector((0,side,0));quads=[]
+  for s in range((K+1)*M+1):
+   for k in range(n):quads.append(((sample(s,k),sample(s+1,k),sample(s+1,k+1),sample(s,k+1)),up))
+  core_c=(0,side*cap_y(0),.6555)
+  for i in range(M):
+   a,b=EA[i],EA[(i+1)%M]
+   quads.append(((core_c,(r_in*math.cos(a),side*cap_y(r_in),.6555+r_in*math.sin(a)),(r_in*math.cos(b),side*cap_y(r_in),.6555+r_in*math.sin(b))),up))
+  # Lip: stitch the sheet's 24-angle outer circle to the 48-angle rim that the
+  # barrel's last ring shares, two rim samples per sheet sample.
+  def ring(r,a):return (r*math.cos(a),side*cap_y(r),.6555+r*math.sin(a))
+  for i in range(M):
+   a0,a1,a2=ANG[2*i],ANG[2*i+1],ANG[(2*i+2)%segments]
+   quads.append(((ring(r_out,a0),ring(.616,a0),ring(.616,a1)),up))
+   quads.append(((ring(r_out,a0),ring(.616,a1),ring(r_out,a2)),up))
+   quads.append(((ring(r_out,a2),ring(.616,a1),ring(.616,a2)),up))
+  cap=meshpart('Helical rolled straw end',*build(quads),'straw',True);end_uv(cap)
+ # Twine, round 6 (strike rule): round 4's single 13 mm cord in a channel
+ # with straw shoulders level with its crown read as a seam at every distance.
+ # Each tie is now a BAND of three wraps, each its own lofted strand (12 x
+ # 11.6 mm, radial x axial) seated on the straw under its own course line, laid
+ # 11 mm apart so they touch, giving a 34 mm ribbed band whose crowns stand
+ # ~7.5 mm proud of the straw beside it. The ray gap the pinned test reads at
+ # the mean course hits the middle strand: tie_c + tie_rn (11.5 mm), whatever
+ # the bed depth. Working if the body-to-rope gap at each course stays 1-15 mm.
+ tie_rn,tie_ra,tie_c=.006,.0058,.0055;WRAPS=(-.011,0,.011)
+ def frame(a):return Vector((math.cos(a),0,math.sin(a))),Vector((-math.sin(a),0,math.cos(a)))
+ def at(a,y,r):return Vector((r*math.cos(a),y,.6555+r*math.sin(a)))
+ def lump(name,a,y,lift,semi_t,semi_y,semi_n,twist,key='rope',rings_=6,segs=10):
+  # A closed ellipsoid in the bale's local (axial, tangent, radial) frame,
+  # turned by `twist` about the radial axis; seated by its centre's height
+  # above the channel floor. Normals are recalculated outward afterwards.
+  n,t=frame(a);yv=Vector((0,1,0));c=at(a,y,radius(y,a)+lift)
+  e1=yv*math.cos(twist)+t*math.sin(twist);e2=-yv*math.sin(twist)+t*math.cos(twist)
+  verts=[tuple(c-n*semi_n)]
+  for i in range(1,rings_):
+   phi=-math.pi/2+math.pi*i/rings_
+   for j in range(segs):
+    th=math.tau*j/segs;verts.append(tuple(c+e1*semi_y*math.cos(phi)*math.cos(th)+e2*semi_t*math.cos(phi)*math.sin(th)+n*semi_n*math.sin(phi)))
+  verts.append(tuple(c+n*semi_n));top=len(verts)-1;faces=[]
+  for j in range(segs):faces.append((0,1+(j+1)%segs,1+j))
+  for i in range(rings_-2):
+   for j in range(segs):faces.append((1+i*segs+j,1+i*segs+(j+1)%segs,1+(i+1)*segs+(j+1)%segs,1+(i+1)*segs+j))
+  for j in range(segs):faces.append((top,1+(rings_-2)*segs+j,1+(rings_-2)*segs+(j+1)%segs))
+  o=meshpart(name,verts,faces,key,True)
+  bm=bmesh.new();bm.from_mesh(o.data);bmesh.ops.recalc_face_normals(bm,faces=bm.faces);bm.to_mesh(o.data);bm.free()
+  return o
  for course in [-.47,.47]:
-  verts=[];faces=[];major=72;minor=6
-  for i in range(major):
-   a=i*math.tau/major;r=radius(course,a)+.002
-   for j in range(minor):
-    b=j*math.tau/minor;rr=r+.0045*math.cos(b)
-    verts.append((rr*math.cos(a),course+.0045*math.sin(b),.6555+rr*math.sin(a)))
-  for i in range(major):
-   for j in range(minor):faces.append((i*minor+j,i*minor+(j+1)%minor,((i+1)%major)*minor+(j+1)%minor,((i+1)%major)*minor+j))
-  tie=meshpart('Fitted continuous flax binding',verts,faces,'rope',True)
-  for face in tie.data.polygons:
-   col=face.index//minor;row=face.index%minor
-   for k in face.loop_indices:
-    vi=tie.data.loops[k].vertex_index;u=(col+(0 if vi//minor==col else 1))/major;v=(row+(0 if vi%minor==row else 1))/minor
-    tie.data.uv_layers.active.data[k].uv=(.52+.46*u,.02+.46*v)
-  # Small laid knot with two restrained seated loops, seated on the same binding.
-  a=1.18;r=radius(course,a)+.006
+  major=segments;minor=5;island=8
+  for wrap in WRAPS:
+   yc=course+wrap;verts=[];faces=[]
+   for i in range(major):
+    a=ANG[i];r=radius(yc,a)+tie_c
+    for j in range(minor):
+     b=j*math.tau/minor;rr=r+tie_rn*math.cos(b)
+     verts.append((rr*math.cos(a),yc+tie_ra*math.sin(b),.6555+rr*math.sin(a)))
+   for i in range(major):
+    for j in range(minor):faces.append((i*minor+j,i*minor+(j+1)%minor,((i+1)%major)*minor+(j+1)%minor,((i+1)%major)*minor+j))
+   tie=meshpart('Wound sisal binding wrap',verts,faces,'rope',True)
+   # Six UV islands along each wrap, each spanning the whole cord chart, so
+   # the laid two-ply twist is drawn at ~2 mm per texel.
+   for face in tie.data.polygons:
+    col=face.index//minor;row=face.index%minor
+    for k in face.loop_indices:
+     vi=tie.data.loops[k].vertex_index;u=(col%island+(0 if vi//minor==col else 1))/island;v=(row+(0 if vi%minor==row else 1))/minor
+     tie.data.uv_layers.active.data[k].uv=(.52+.46*u,.02+.46*v)
+  # Knot, gathered over all three wraps: a body lobe as wide as the band
+  # standing ~14 mm above the wrap crowns, and two crossing lobes either side
+  # of it where the ends pass round. Kept inside a=(.92,1.04), clear of the
+  # k*pi/8 test rays; symmetric in y, so the mean tie z holds.
+  a=.98
+  lump('Gathered twine knot',a,course,.0135,.027,.021,.012,.5,rings_=4,segs=8)
+  for dt,tw in [(-.023,.6),(.023,-.6)]:
+   lump('Crossing twine knot loop',a+dt/.67,course,.0115,.017,.012,.009,tw,rings_=4,segs=8)
+  # Two cut ends leave the knot and lie down the barrel BESIDE the band (off
+  # the course plane, so no test ray meets them), resting on the straw.
   for shift in [-1,1]:
    points=[]
-   for k in range(7):
-    t=k/6;aa=a+(t-.5)*.045;yy=course+shift*.014*math.sin(t*math.pi)
-    points.append((r*math.cos(aa),yy,.6555+r*math.sin(aa)))
-   tube('Laid flax tie',points,.003,'rope',5)
-
+   for k in range(6):
+    t=k/5;aa=a-.04-.13*t;yy=course+shift*(.019+.012*t+.004*math.sin(math.pi*t));lift=(1-t)**2
+    rr=radius(yy,aa)+.0038+(.012-.0038)*lift
+    points.append((rr*math.cos(aa),yy,.6555+rr*math.sin(aa)))
+   tube('Cut twine end',points,.0042,'rope',5)
 
 def leaf(name,loc,length,width,angle,key='leaf'):
  # Closed, cupped lanceolate leaf, intentional low-poly plant language.
@@ -663,21 +1053,93 @@ def garden():
      tube('Hanging bean pod',[(px,py,z-.02),(px+side*.018,py-.005,z-.075),(px+side*.025,py-.003,z-.155),(px+side*.012,py,z-.19)],.018,'leaf-warm',6)
 
 def well():
- for row in range(3):
-  for i in range(14):
-   theta=(i+(row%2)*.5)*math.tau/14
-   # Individual shaped voussoir blocks preserve a real opening.
-   r0,r1=.65,1.02;z0=.08+row*.245;z1=z0+.229;ang=.205
-   vs=[(r*math.cos(a),r*math.sin(a),z) for z in [z0,z1] for r in [r0,r1] for a in [theta-ang,theta+ang]]
-   meshpart('Coursed well stone',vs,[(0,1,3,2),(4,6,7,5),(0,4,5,1),(2,3,7,6),(0,2,6,4),(1,5,7,3)],'stone' if i%3 else 'stone-light')
+ # Round 4 (wall, strike rule): rounds 1-3 stacked 42 separate voussoir boxes
+ # behind open joints, which read as tinted boxes with see-through slits at the
+ # silhouette. The wall is now LOFTED: each outer course is one continuous
+ # height field r(theta, z) over a grid of five columns per stone (joint
+ # centre, arris, crown, arris, joint centre) and up to five rows. The joints
+ # are MODELLED as rounded V-grooves 1.4 cm deep, shared by neighbouring stones,
+ # so there is nothing to see through and a silhouette joint is a notch. Each
+ # stone has its own pillowed crown and a few mm of set (proud or back), and
+ # the joint positions carry a seeded jitter so the bond is not machine-even.
+ # UVs are re-laid, one stone per dressed-stone cell of the well-only chart in
+ # atlas row 3 (well_stone_chart), joint centre at the cell's mortar border.
+ # The shaft lining is a ring of two flat facets per stone on the same cells.
+ # The delivered GLB is de-indexed (render vertices = 3 x triangles), so the
+ # wall spends ~1,400 triangles, not a dense grid.
+ # Courses are re-pitched to .224 so the top bed joint sits under the coping;
+ # the ground course still starts at z .08 (the fit datum). The mortar cores
+ # stay behind the joint floors (outer r .99 < 1.006, shaft r .676 > .664) and
+ # back the few-mm chord step where staggered bed joints meet.
+ # Working if the fitRatios are unchanged and the clay views show coursed,
+ # pillowed stones with dark joints and no light through the wall.
+ lathe('Well mortar core',[(.99,.08),(.99,.78)],'stone-dark',28,continuous_uv=True)
+ lathe('Well shaft mortar core',[(.676,.78),(.676,.08)],'stone-dark',28,continuous_uv=True)
+ rng=np.random.default_rng(96921)
+ beds=[.08+k*.224 for k in range(4)]
+ joints=[[(j+.5*(k%2))*math.tau/14-math.tau/28+rng.uniform(-.022,.022) for j in range(14)] for k in range(3)]
+ UU=[0,.06,.5,.94,1]
+ def wall_course(name,k,outer):
+  # Outer: rows of (z, kind, v) where kind j = joint floor, e = arris, c =
+  # crown. The ground course starts at the face (no groove into the ground)
+  # and the top course runs straight up 1 cm inside the coping slab, so no
+  # triangle is spent where it cannot be seen. Shaft side: two flat facets per
+  # stone, one row per course, the joint painted from the same cell (it is
+  # only seen from above, and it stops at the coping's underside at .752).
+  zb,zt=beds[k],beds[k+1];mid=(zb+zt)/2
+  if outer:
+   rj,rf=1.006,1.02
+   rows=[(zb,'f',0),(mid,'c',.5),(zt-.008,'e',.92),(zt,'j',1)] if k==0 else \
+        [(zb,'j',0),(zb+.008,'e',.08),(mid,'c',.5),(.762,'f',1)] if k==2 else \
+        [(zb,'j',0),(zb+.008,'e',.08),(mid,'c',.5),(zt-.008,'e',.92),(zt,'j',1)]
+  else:rows=[(zb,'f',0),(zt,'f',1)]
+  verts=[];faces=[];uvs=[]
+  for j in range(14):
+   a=joints[k][j];b=joints[k][(j+1)%14]+(math.tau if j==13 else 0)
+   if outer:
+    dt=.010/rj;ts=list(zip([a,a+dt,(a+b)/2,b-dt,b],UU))
+    face=rf+rng.uniform(-.004,.004);crown=rng.uniform(.004,.011)
+   else:ts=[(a,0),((a+b)/2,.5),(b,1)];face=.65;crown=0
+   cell=int(rng.integers(12));flip=rng.random()<.5
+   cu0=(cell%6)*128+2;cv0=384+(cell//6)*64+2;base=len(verts);nc=len(ts)
+   for z,kind,v in rows:
+    for ci,(t,u) in enumerate(ts):
+     joint=outer and (ci in (0,nc-1) or kind=='j')
+     r=rj if joint else face+(crown if kind=='c' and ci==2 else 0)
+     verts.append((r*math.cos(t),r*math.sin(t),z))
+     uvs.append(((cu0+124*(1-u if flip else u))/768,(cv0+60*v)/768))
+   for ri in range(len(rows)-1):
+    for ci in range(nc-1):
+     q=(base+ri*nc+ci,base+ri*nc+ci+1,base+(ri+1)*nc+ci+1,base+(ri+1)*nc+ci)
+     faces.append(q if outer else tuple(reversed(q)))
+  sgn=1 if outer else -1
+  o=meshpart(name,verts,faces,'stone',True)
+  if len(o.data.polygons)!=len(faces):raise RuntimeError(name+': a wall face was dropped')
+  for p in o.data.polygons:
+   c=p.center;radial=Vector((c.x,c.y,0)).normalized()
+   if p.normal.dot(radial)*sgn<=0:raise RuntimeError(name+': a wall face is inside-out')
+  uv=o.data.uv_layers.active
+  for li,loop in enumerate(o.data.loops):uv.data[li].uv=uvs[loop.vertex_index]
+  return o
+ for k in range(3):
+  wall_course('Lofted coursed well wall',k,True)
+  wall_course('Lofted coursed shaft lining',k,False)
  for i in range(18):
   a=i*math.tau/18+.005;b=(i+1)*math.tau/18-.005
   vs=[(r*math.cos(t),r*math.sin(t),z) for z in [.752,.84] for r in [.65,1.065] for t in [a,b]]
   meshpart('Jointed coping stone',vs,[(0,1,3,2),(4,6,7,5),(0,4,5,1),(2,3,7,6),(0,2,6,4),(1,5,7,3)],'stone-light' if i%3 else 'stone',bevel=.008)
  cylinder('Deep water',(0,0,.18),.642,.02,'water',32)
+ # Posts run up into the ridge beam (bottom 2.805) and stop 1 cm under the
+ # first tile course, so the roof is carried, not hovering. Each post line has
+ # a rafter per slope, top 1.3 cm into the mid-course tile underside
+ # (z = 2.851 - .46|y|), from inside the ridge into the eave beam; the knees
+ # land inside that rafter. Working if the turntable reports no floating roof.
+ rafter_pitch=math.atan(.46)
  for x in [-.86,.86]:
-  box('Roof support',(x,0,1.48),(.13,.17,2.4),'oak-dark')
-  for side in [-1,1]:beam('Roof knee',(x,0,1.97),(x,side*.43,2.39),.078,'oak')
+  box('Roof support',(x,0,1.5475),(.13,.17,2.535),'oak-dark')
+  for side in [-1,1]:
+   beam('Roof knee',(x,0,1.97),(x,side*.565,2.535),.078,'oak')
+   box('Post-line rafter',(x,side*.565,2.8125-.46*.565),(.08,1.07/math.cos(rafter_pitch),.07),'oak-dark',0,rot=(-side*rafter_pitch,0,0))
  beam('Ridge',(-1.02,0,2.855),(1.02,0,2.855),.10,'oak-dark')
  for i in range(7):
   x=-1.07+i*.31;verts=[]
@@ -691,25 +1153,125 @@ def well():
   meshpart('Half-round ridge cap',verts,faces,'clay',True)
  for x in [-1.09,1.09]:
   for side in [-1,1]:beam('Gable verge batten',(x,0,2.863),(x,side*1.12,2.355),.045,'oak-light')
+ # Round 3 (roof, strike rule): the 70 placed tile slabs left an open slit at
+ # every column seam on a single-sided material. Each slope is now ONE lofted
+ # shell traced from the side profile: a stepped top (five courses, a 2 cm butt
+ # at each course line, the eave course kicked up as a double course over the
+ # eave beam), a soffit 3 mm under the rafter tops, a vertical butt face per
+ # course and a gable end face at each verge. Column joints are grooves cut
+ # INTO the top (1.4 cm wide, 9 mm deep, floored), half-bond staggered course
+ # to course, so nothing opens through the roof. UVs are laid per tile at one
+ # density with a seeded window, and a seeded clay/rust mix varies the tiles.
+ # A mortar bed under the half-round caps closes the ridge. The eave arris
+ # stays at the old eave tile's outer corner, so the fit is unchanged.
+ # Working if the top-down view shows no ground through the roof and the
+ # grooves read as tile joints, not slats.
+ zu=lambda s:2.848-.46*s
+ eave=1.035+.136*math.cos(.43)+.021*math.sin(.43)
+ X0=1.0795;W=2*X0/7;G=.007;D=.009
+ lines=[k*.2335 for k in range(5)]+[eave]
+ thick=[(.026,.046)]*4+[(.030,.068)]
+ def ztop(k,s):
+  a,b=lines[k],lines[k+1];t0,t1=thick[k];return zu(s)+t0+(t1-t0)*(s-a)/(b-a)
+ roof_rng=np.random.default_rng(43117)
+ def roof_shell(name,side,pts,polys,key):
+  # pts are (x, s, z) with s measured from the ridge; polys are
+  # (vertex indices, outward hint, uv per vertex, atlas key). The winding is
+  # chosen from the hint, so the mirrored slope cannot come out inside-out.
+  verts=[(x,side*s,z) for x,s,z in pts];faces=[]
+  for f,hint,_,_ in polys:
+   v=[Vector(verts[i]) for i in f];n=Vector((0,0,0))
+   for i in range(len(v)):a,b=v[i],v[(i+1)%len(v)];n+=Vector(((a.y-b.y)*(a.z+b.z),(a.z-b.z)*(a.x+b.x),(a.x-b.x)*(a.y+b.y)))
+   h=Vector((hint[0],side*hint[1],hint[2]))
+   faces.append(tuple(f) if n.dot(h)>0 else tuple(reversed(f)))
+  o=meshpart(name,verts,faces,key)
+  if len(o.data.polygons)!=len(faces):raise RuntimeError(name+': a roof face was dropped')
+  uv=o.data.uv_layers.active
+  for p,face,(f,_,uvs,k) in zip(o.data.polygons,faces,polys):
+   lookup=dict(zip(f,uvs))
+   if k is None:
+    # Absolute atlas coordinates (the well-only clay tile chart).
+    for li in p.loop_indices:uv.data[li].uv=lookup[o.data.loops[li].vertex_index]
+    continue
+   t=TILES[k];u0=(t%6)/6;v0=(t//6)/6
+   for li in p.loop_indices:
+    cu,cv=lookup[o.data.loops[li].vertex_index];uv.data[li].uv=(u0+(.045+.91*cu)/6,v0+(.045+.91*cv)/6)
+  return o
+ # Round 5 (roof, strike rule): round 3's lofted courses cut each column joint
+ # INTO the top as a floored 'rust' groove. On the sunlit slope the groove
+ # floors read as hairline cracks against lit clay, so the two slopes looked
+ # different. The joints are now PAINTED, not modelled: each course top is one
+ # flat plane split only at the tile edges (coplanar, so no trench and no
+ # self-shadow), and every tile maps onto one cell of the well-only clay tile
+ # chart (well_roof_chart) with a soft joint half painted along each side edge.
+ # Stagger is half-bond by course parity; verge half tiles map half a cell,
+ # joint side out. The butt face of each tile maps a band of the same cell, so
+ # its edge matches its tile. Same chart, same density on both slopes. Each
+ # course top starts 6 mm under the butt of the course above (k > 0), and each
+ # butt drops 1.3 cm into the course below or to the soffit at the eave.
+ cw,chh,x_strip,y_strip=ROOF_CELL
+ def cell_uv(c,u,v):return ((x_strip+(c%7)*cw+.5+(cw-1)*u)/768,(y_strip+(c//7)*chh+.5+(chh-1)*v)/768)
  for side in [-1,1]:
-  for row in range(5):
-   # Each course rides 6.5 mm above the one below it (eave row unchanged), so
-   # the overlap strip is a real lap rather than two tile faces 0.29 mm apart.
-   y=side*(.115+row*.23);z=2.87-abs(y)*.46+(4-row)*.0065
-   for col in range(7):
-    x=-.93+col*.31
-    # Only the visible upper arris is rounded; lower tile edges overlap and
-    # do not need four-sided bevels. Same closed slab, 20 instead of 44 tris.
-    verts=[]
-    for zz,inset in [(-.029,0),(.021,0),(.029,.008)]:
-     for xx,yy in [(-1,-1),(1,-1),(1,1),(-1,1)]:verts.append((xx*(.1495-inset),yy*(.136-inset),zz))
-    faces=[(3,2,1,0),(8,9,10,11)]
-    for ring in [0,4]:
-     for j in range(4):faces.append((ring+j,ring+(j+1)%4,ring+4+(j+1)%4,ring+4+j))
-    tile=meshpart('Overlapping clay tile',verts,faces,'clay');tile.location=(x,y,z);tile.rotation_euler=(-side*.43,0,0)
+  last_row=[]
+  for k in range(5):
+   a,b=lines[k],lines[k+1]
+   joints=[-X0+W*j for j in range(1,7)] if k%2==0 else [-X0+W*(j+.5) for j in range(7)]
+   xs=[-X0]+joints+[X0];n=len(xs)
+   s0=0 if k==0 else a-.006
+   zb=ztop(k+1,b)-.013 if k<4 else zu(b)
+   pts=[(x,s0,ztop(k,s0)) for x in xs]+[(x,b,ztop(k,b)) for x in xs]+[(x,b,zb) for x in xs]
+   polys=[];row=[];prev=-1
+   for i in range(n-1):
+    # About one tile in ten weathered, never two side by side or one above
+    # another; otherwise any plain cell not equal to its left neighbour.
+    near={prev}|set(last_row[max(0,i-1):i+2])
+    if roof_rng.random()<.10 and not near&{12,13}:c=int(roof_rng.integers(12,14))
+    else:
+     c=int(roof_rng.integers(12))
+     while c in near:c=(c+1)%12
+    prev=c;row.append(c)
+    u0,u1=(.5,1) if (n==9 and i==0) else (0,.5) if (n==9 and i==n-2) else (0,1)
+    top=[n+i,n+i+1,i+1,i];butt=[2*n+i,2*n+i+1,n+i+1,n+i]
+    tuv=lambda q:cell_uv(c,u0+(u1-u0)*(pts[q][0]-xs[i])/(xs[i+1]-xs[i]),(pts[q][1]-b)/(s0-b))
+    buv=lambda q:cell_uv(c,u0+(u1-u0)*(pts[q][0]-xs[i])/(xs[i+1]-xs[i]),.05+.07*(pts[q][2]-zb)/(ztop(k,b)-zb))
+    polys.append((top,(0,0,1),[tuv(q) for q in top],None))
+    polys.append((butt,(0,1,0),[buv(q) for q in butt],None))
+   last_row=row
+   roof_shell('Painted clay tile course',side,pts,polys,'clay')
+  # Soffit and gable ends, from the same profile.
+  prof=[(0,ztop(0,0))]
+  for k in range(5):
+   prof.append((lines[k+1],ztop(k,lines[k+1])))
+   if k<4:prof.append((lines[k+1],ztop(k+1,lines[k+1])))
+  pts=[(-X0,0,zu(0)),(X0,0,zu(0)),(X0,eave,zu(eave)),(-X0,eave,zu(eave))]
+  polys=[([0,1,2,3],(0,0,-1),[(0,0),(1,0),(1,1),(0,1)],'clay')]
+  zlo,zhi=zu(eave),max(z for s,z in prof)
+  for end in [-1,1]:
+   base=len(pts)
+   for s,z in prof:pts+=[(end*X0,s,z),(end*X0,s,zu(s))]
+   for i in range(len(prof)-1):
+    if prof[i][0]==prof[i+1][0]:continue
+    f=[base+2*i,base+2*i+1,base+2*i+3,base+2*i+2]
+    polys.append((f,(end,0,0),[(pts[q][1]/eave,(pts[q][2]-zlo)/(zhi-zlo)) for q in f],'clay'))
+  roof_shell('Roof soffit and gable end',side,pts,polys,'clay')
   beam('Eave',(-1.1,side*1.12,2.34),(1.1,side*1.12,2.34),.07,'oak-dark')
+ # Bedding under the ridge caps: its top is 7 mm above the cap legs (z 2.877)
+ # and it meets both slopes outside the caps' .073 m half-width. Dark, so the
+ # 1.4 cm lip below each cap reads as its shadow line, not a light slit.
+ zl=ztop(0,.09)-.006
+ prof=[(-.09,zl),(-.076,2.884),(.076,2.884),(.09,zl)]
+ pts=[(x,s,z) for x in [-X0,X0] for s,z in prof];polys=[]
+ for i in range(3):
+  f=[i,i+1,4+i+1,4+i];mid=(prof[i][0]+prof[i+1][0])/2
+  polys.append((f,(0,mid,.05),[((pts[q][0]+X0)/(2*X0),q%4/3) for q in f],'rust'))
+ for end in [0,1]:
+  f=[4*end+q for q in range(4)]
+  polys.append((f,(2*end-1,0,0),[((pts[q][1]+.09)/.18,(pts[q][2]-zl)/(2.884-zl)) for q in f],'rust'))
+ roof_shell('Ridge mortar bed',1,pts,polys,'rust')
  cylinder('Windlass',(0,0,1.47),.072,1.80,'oak',16,rot=(0,math.pi/2,0))
- for x in [-.84,.84]:torus('Windlass ferrule',(x,0,1.47),.078,.016,'iron',12,rot=(0,math.pi/2,0))
+ # Ferrules sit on the windlass against the inner post faces (|x| .795), where
+ # they are seen; inside the post bearing they rendered nothing.
+ for x in [-.78,.78]:torus('Windlass ferrule',(x,0,1.47),.078,.016,'iron',12,rot=(0,math.pi/2,0),minor=4)
  # Coil, drop and knot are one connected rope path, attached to the bail.
  points=[]
  for i in range(61):
@@ -735,6 +1297,11 @@ def well():
    box('Post foot strap',(x,side*.091,.99),(.08,.013,.28),'iron',0)
    box('Bearing mounting strap',(x,side*.091,1.47),(.096,.013,.29),'iron',0)
    for z in [.90,1.08,1.37,1.57]:cylinder('Post strap bolt',(x,side*.104,z),.017,.014,'steel',6,rot=(math.pi/2,0,0))
+ # The crank is keyed on an iron axle that leaves the windlass inside the post,
+ # passes a washer on the post face (x .925) and ends in the arm's hub.
+ cylinder('Windlass iron axle',(.94,0,1.47),.02,.10,'iron',8,rot=(0,math.pi/2,0))
+ cylinder('Bearing washer',(.931,0,1.47),.045,.014,'iron',8,rot=(0,math.pi/2,0))
+ cylinder('Crank hub',(.98,0,1.47),.032,.05,'iron',8,rot=(0,math.pi/2,0))
  beam('Crank arm',(.98,0,1.47),(.98,0,1.22),.035,'iron')
  beam('Crank grip',(.98,0,1.22),(1.09,0,1.22),.055,'oak')
 
@@ -771,35 +1338,209 @@ def market():
 
 def fountain():
  # Overlay heights and annular clearances remain exactly as consumed live.
- lathe('Foot and bowl',[(0,0),(1.43,0),(1.5,.08),(1.5,.22),(1.40,.28),(1.43,.90),(1.5725,1.05),(1.5725,1.30),(1.285,1.30),(1.285,.93),(.36,.93)],'stone',48,continuous_uv=True)
+ # Round 5 (strike rule, basin wall): the cushioned stones swept in rings, the
+ # projecting corbel band and the inset drum course are gone. The wall is now
+ # ONE battered face line from the plinth seat (r 1.465) to the coping seat
+ # (r 1.525), dressed as FLAT ashlar: every stone face lies on that one cone (no
+ # swell, lean or proud/shy), four courses of equal height, running bond. The
+ # joints are cut rebates, not chamfers: a stone's face turns 90 degrees into a
+ # flat-shaded return (perpends both ends, an upward ledge on the bed), with
+ # the face/return arris marked sharp, and the joint floor is a dark mortar
+ # core 18 mm behind the face. The bottom course rises out of the plinth slope
+ # and the top course runs up inside the coping, so no band shows under it.
+ # Faces are smooth only along the arc. Every face is its own chart island at
+ # one texel density near the coping's; returns take the plain stone tile.
+ # Working if fitRatios stay [1, ~1.01113, 1] and the probe reports 1 component.
+ RF0,RF1,ZF0,ZF1=1.465,1.525,.235,1.30
+ face=lambda z:RF0+(RF1-RF0)*(z-ZF0)/(ZF1-ZF0)
+ JD,BG,PG,BURY=.018,.022,.020,.008
+ lathe('Basin plinth',[(0,0),(1.43,0),(1.5,.08),(1.5,.22),(1.38,.28)],'stone',48,continuous_uv=True)
+ # The core's top lip runs out to r 1.5725 INSIDE the coping (z 1.31, above its
+ # bevelled underside), so it fills the coping joints flush as mortar and keeps
+ # the exact 1.5725 extremity the projecting corbel used to hold: fitRatios
+ # and the 1.430875 foot datum stay exact. The inner wall starts from that lip
+ # rim, so the core, lip and inner wall form one manifold chain.
+ lathe('Basin mortar core',[(face(ZF0)-JD,ZF0),(face(ZF1)-JD,ZF1),(1.5725,1.31)],'stone-dark',48,continuous_uv=True)
+ lathe('Basin inner wall',[(1.5725,1.31),(1.285,1.30),(1.285,.93),(.36,.93)],'stone',48,continuous_uv=True)
+ # The face leaves the plinth slope r = 1.5 - 2(z - .22) at SEAT.
+ SEAT=(1.5+2*.22-RF0+ZF0*(RF1-RF0)/(ZF1-ZF0))/(2+(RF1-RF0)/(ZF1-ZF0))
+ NC,NS,SP=4,18,3;H=(ZF1-SEAT)/NC
+ rng=np.random.default_rng(50521)
+ stones=[]
+ for k in range(NC):
+  lo=.215 if k==0 else SEAT+k*H+BG/2
+  hi=1.312 if k==NC-1 else SEAT+(k+1)*H-BG/2
+  R=face((lo+hi)/2);w=1+.06*(2*rng.random(NS)-1);w=w/w.sum()*math.tau
+  js=np.concatenate([[0],np.cumsum(w)[:-1]])+(k%2)*.5*math.tau/NS+.11
+  for j in range(NS):
+   a0=js[j];a1=js[j+1] if j<NS-1 else js[0]+math.tau;h=PG/2/R
+   stones.append(dict(k=k,lo=lo,hi=hi,R=R,a0=a0+h,a1=a1-h,tone=2*rng.random()-1,ph=rng.random(3)))
+ # Pack every face's rectangle into the atlas tiles the fountain never
+ # samples, at one density, starting near the coping's ~195 px per metre.
+ REGIONS=[(0,768,384,640),(0,768,0,128),(128,768,640,768),(0,512,128,256),(384,768,256,384),(0,256,256,384)]
+ for D in range(200,100,-5):
+  cur=[r[2] for r in REGIONS];strips={};ok=True
+  for st in stones:
+   w=math.ceil((st['a1']-st['a0'])*st['R']*D)+4;h=math.ceil((st['hi']-st['lo'])*D)+4;placed=False
+   for sx in strips.setdefault(h,[]):
+    if sx[0]+w<=sx[1]:st['px']=(sx[0]+2,sx[2]+2);sx[0]+=w;placed=True;break
+   if not placed:
+    for i,r in enumerate(REGIONS):
+     if cur[i]+h<=r[3]:
+      strips[h].append([r[0]+w,r[1],cur[i]]);st['px']=(r[0]+2,cur[i]+2);cur[i]+=h;placed=True;break
+   if not placed:ok=False;break
+  if ok:break
+ if not ok:raise RuntimeError('Masonry chart does not fit')
+ CHART_D=D
+ for st in stones:
+  k,lo,hi,R,a0,a1=st['k'],st['lo'],st['hi'],st['R'],st['a0'],st['a1']
+  angs=[a0+(a1-a0)*i/SP for i in range(SP+1)]
+  P=lambda a,z,r:(r*math.cos(a),r*math.sin(a),z)
+  verts=[P(a,z,face(z)) for a in angs for z in (lo,hi)]            # F(i,j) = 2i+j
+  F=lambda i,j:2*i+j;n0=len(verts)
+  verts+=[P(a0,lo,face(lo)-JD-BURY),P(a1,lo,face(lo)-JD-BURY)]    # deep perpend feet
+  verts+=[P(a,hi,face(hi)-JD-BURY) for a in angs]                 # deep ledge row
+  DL,DR=n0,n0+1;Dh=lambda i:n0+2+i
+  front=[(F(i,0),F(i+1,0),F(i+1,1),F(i,1)) for i in range(SP)]
+  ret=[(DL,F(0,0),F(0,1),Dh(0)),(F(SP,0),DR,Dh(SP),F(SP,1))]
+  if k<NC-1:ret+=[(F(i,1),F(i+1,1),Dh(i+1),Dh(i)) for i in range(SP)]
+  o=meshpart('Dressed basin ashlar',verts,front+ret,'stone',True)
+  if len(o.data.polygons)!=len(front)+len(ret):raise RuntimeError('Ashlar stone lost a face')
+  me=o.data;uv=me.uv_layers.active;X,Y=st['px']
+  fset={frozenset(f) for f in front}
+  for f in me.polygons:
+   isf=frozenset(f.vertices) in fset;f.use_smooth=isf
+   if isf:
+    for li in f.loop_indices:
+     vi=me.loops[li].vertex_index;a=angs[vi//2];z=(lo,hi)[vi%2]
+     uv.data[li].uv=((X+(a-a0)*R*D)/768,(Y+(z-lo)*D)/768)
+  fe=set();oe=set()
+  for f in me.polygons:(fe if frozenset(f.vertices) in fset else oe).update(f.edge_keys)
+  sharp=me.attributes.get('sharp_edge') or me.attributes.new('sharp_edge','BOOLEAN','EDGE')
+  for e in me.edges:sharp.data[e.index].value=e.key in fe and e.key in oe
+ # Fountain-only atlas: the shared civic atlas is read back from the material
+ # material() built and only tiles this fountain never samples are repainted.
+ imgs={n.image.name:n for n in MAT.node_tree.nodes if n.type=='TEX_IMAGE'}
+ def readback(name):
+  im=imgs['crafted-prop-'+name].image;a=np.empty(len(im.pixels),dtype=np.float32);im.pixels.foreach_get(a)
+  return np.rint(a.reshape(im.size[1],im.size[0],4)*255).astype(np.uint8)
+ rgb=readback('albedo');orm=readback('orm')
+ # The mortar core alone samples stone-dark here: darken that tile (keeping its
+ # grain) to about half the stone face value, so every joint reads as a cut.
+ mortar=np.array(PALETTE[TILES['stone-dark']][1],dtype=float)*.68
+ t=TILES['stone-dark'];x=(t%6)*128;y=(t//6)*128
+ rgb[y:y+128,x:x+128,:3]=np.clip(rgb[y:y+128,x:x+128,:3]*.68,0,255).astype(np.uint8)
+ for (x0,x1,y0,y1) in REGIONS:
+  rgb[y0:y1,x0:x1,:3]=mortar.astype(np.uint8);orm[y0:y1,x0:x1]=(255,int(.88*255),0,255)
+ mid=np.array((154,155,141),dtype=float)
+ for st in stones:
+  R,lo,hi=st['R'],st['lo'],st['hi'];L=(st['a1']-st['a0'])*R;Hs=hi-lo;X,Y=st['px'];p=st['ph']
+  w=math.ceil(L*D)+4;h=math.ceil(Hs*D)+4
+  yy,xx=np.mgrid[Y-2:Y-2+h,X-2:X-2+w]
+  s=(xx+.5-X)/D;z=(yy+.5-Y)/D
+  inside=(s>-.5/D)&(s<L+.5/D)&(z>-.5/D)&(z<Hs+.5/D)
+  edge=np.minimum(np.minimum(s,L-s),np.minimum(z,Hs-z))
+  # Tight per-stone value (+/-3%), no warm/cool cast, a quiet tooled grain,
+  # one texel of arris shade, and splash grime only at the plinth seat.
+  shade=1+.03*st['tone']+.016*np.sin(math.tau*(s/.13+p[0]))*np.sin(math.tau*(z/.09+p[1]))+.01*np.sin(math.tau*(s/.37+z/.21+p[2]))
+  shade-=.07*np.clip(1-edge/(1.5/D),0,1)
+  if st['k']==0:shade-=.06*np.clip(1-(lo+z-SEAT)/.05,0,1)
+  col=np.clip(mid[None,None,:]*shade[:,:,None],0,255)
+  tgt=rgb[Y-2:Y-2+h,X-2:X-2+w,:3]
+  tgt[inside]=col[inside].astype(np.uint8)
+ folder=REPORT.parent/'fountain-atlas';folder.mkdir(parents=True,exist_ok=True)
+ for name,data in [('albedo',rgb),('orm',orm)]:
+  png(folder/(name+'.png'),data[::-1]);node=imgs['crafted-prop-'+name];old=node.image;old.name='superseded-'+name
+  image=bpy.data.images.load(str(folder/(name+'.png')));image.name='crafted-prop-'+name
+  image.colorspace_settings.name='sRGB' if name=='albedo' else 'Non-Color';image.pack();node.image=image;bpy.data.images.remove(old)
  coping=[(1.5725,1.30),(1.5725,1.32),(1.54,1.385),(1.41,1.385),(1.33,1.36),(1.285,1.30)]
  for i in range(16):
   radial_segment('Jointed basin coping',coping,i*math.tau/16+.002,(i+1)*math.tau/16-.002,'stone-light' if i%4 else 'stone',3,.003)
  lathe('Water annulus',[(1.282,1.25),(.36,1.25)],'water',48,continuous_uv=True)
  lathe('Fluted turned pedestal',[(.36,.94),(.4,1.29),(.35,1.38),(.24,1.43),(.20,1.63),(.26,1.88),(.20,2.06),(.37,2.13)],'stone-light',48,flutes=12,depth=.038,continuous_uv=True)
- bowl=lathe('Fluted upper tazza',[(.2,2.05),(.46,2.14),(.62,2.32),(.69,2.48),(.694,2.505),(.70,2.57),(.65,2.62),(.57,2.57),(.548,2.505),(.54,2.47),(.10,2.47)],'stone',64,flutes=16,depth=.042,continuous_uv=True)
- # Real notches connect the upper water to the four scupper channels. Their
- # cut edges are covered by the thick returned mouth sides, never by water.
- bm=bmesh.new();bm.from_mesh(bowl.data)
- remove=[]
- for f in bm.faces:
-  c=f.calc_center_median()
-  if min(v.co.z for v in f.verts)>=2.5049 and math.hypot(c.x,c.y)>.535 and abs(math.sin(2*math.atan2(c.y,c.x)))<.11:remove.append(f)
- bmesh.ops.delete(bm,geom=remove,context='FACES');bm.to_mesh(bowl.data);bm.free();bowl.data.update()
+ # Round 6 (strike rule, scuppers): the rim is no longer notched. The tazza is
+ # an unfluted lathe whose rim moulding (band, outer chamfer, flat top, inner
+ # splay) stays one continuous ring; the 16 gadroons are applied per profile
+ # row and die out under the band, with a ridge (not a groove) on each spout
+ # axis. Each spout is PIERCED through the bowl wall below the rim: two
+ # windows (outer band and inner wall, rows 5-6 and 10-11, two segments each)
+ # are removed by explicit index and the spout solid encloses every cut edge.
+ TZ=[(.20,2.05,0),(.46,2.14,.5),(.62,2.32,1),(.665,2.405,.55),(.688,2.452,0),(.712,2.47,0),(.712,2.575,0),
+     (.712,2.595,0),(.698,2.615,0),(.586,2.615,0),(.552,2.575,0),(.548,2.47,0),(.10,2.47,0)]
+ TS=80;bowl=lathe('Fluted upper tazza',[(r,z) for r,z,_ in TZ],'stone',TS,continuous_uv=True);me=bowl.data
+ for j,(r,z,wt) in enumerate(TZ):
+  for i in range(TS if wt else 0):
+   a=i*math.tau/TS;rr=r-.042*wt*(.5-.5*math.cos(16*a));me.vertices[j*TS+i].co=(rr*math.cos(a),rr*math.sin(a),z)
+ quad=lambda j,i:frozenset((j*TS+i,j*TS+(i+1)%TS,(j+1)*TS+(i+1)%TS,(j+1)*TS+i))
+ cut={quad(j,i%TS) for s in range(4) for i in (TS//4*s-1,TS//4*s) for j in (5,10)}
+ bm=bmesh.new();bm.from_mesh(me);bm.verts.ensure_lookup_table()
+ remove=[f for f in bm.faces if frozenset(v.index for v in f.verts) in cut]
+ if len(remove)!=16:raise RuntimeError('Tazza windows: expected 16 faces, found '+str(len(remove)))
+ nv=len(bm.verts);bmesh.ops.delete(bm,geom=remove,context='FACES');bm.to_mesh(me);bm.free();me.update()
+ if len(me.vertices)!=nv:raise RuntimeError('Tazza windows moved vertices')
+ # The rim moulding's arrises shade as cuts; the gadrooned underside stays smooth.
+ rims={frozenset((j*TS+i,j*TS+(i+1)%TS)) for j in (7,8) for i in range(TS)}
+ sharp=me.attributes.get('sharp_edge') or me.attributes.new('sharp_edge','BOOLEAN','EDGE')
+ for e in me.edges:sharp.data[e.index].value=frozenset(e.vertices) in rims
  lathe('Upper water',[(.556,2.515),(.1,2.515)],'water',32,continuous_uv=True)
  lathe('Fleur spout',[(.14,2.47),(.17,2.57),(.12,2.70),(.075,3.03),(.15,3.16),(.10,3.28),(0,3.32)],'stone-light',20,continuous_uv=True)
- # Channel mouths align with runtime stream starts after the unchanged Z fit
- # (3.18 / 3.145). The channel floor is level with the upper water.
- for i in range(4):
-  a=i*math.pi/2
-  for name,r,z,w,d,h in [('Spill channel floor',.674,2.492,.214,.114,.034),('Spill hood',.72,2.575,.12,.15,.045)]:
-   box(name,(r*math.cos(a),r*math.sin(a),z),(w,d,h),'stone-light',.003,rot=(0,0,a))
-  for side in [-1,1]:
-   x=.68*math.cos(a)-side*.064*math.sin(a);y=.68*math.sin(a)+side*.064*math.cos(a)
-   box('Spill side return',(x,y,2.535),(.20,.026,.11),'stone-light',.003,rot=(0,0,a))
- for i in range(16):
-  a=i*math.tau/16
-  beam('Basin course joint',(1.46*math.cos(a),1.46*math.sin(a),.3),(1.515*math.cos(a),1.515*math.sin(a),.88),.016,'stone-dark')
+ # Spouts, traced from a side elevation (top line T and keel line B against r)
+ # and a plan taper (top half-width Wt, keel half-width Wb), swept through
+ # flat chamfered 12-point sections: a corbelled keel that grows out of the
+ # gadroon ridge, battered sides, a flat top tucked under the rim's outer
+ # chamfer, a chamfered nose, and a segmental-arch tunnel lined in the dark
+ # joint tile with a splayed reveal at the mouth. The back is an intake
+ # surround 12 mm proud of the inner wall, below the rim. Pinned datums
+ # (stream starts after the unchanged 3.18 / 3.145 fit): tunnel floor 2.509,
+ # crown 2.553 to r .77 (stone 22 mm above and below the stream start at r .76,
+ # y 2.531), hood top 2.5975 at r .75, and the tunnel clear at 2.531 through
+ # both windows. The nose stays at .785, as before.
+ OUT=[(.540,.070,.070,2.466,2.582),(.650,.090,.036,2.386,2.600),(.690,.095,.048,2.418,2.602),
+      (.720,.093,.056,2.442,2.600),(.750,.083,.058,2.462,2.5975),(.776,.073,.056,2.476,2.596),(.785,.065,.048,2.484,2.588)]
+ TUN=[(.540,.042,2.509,2.525,2.553),(.770,.042,2.509,2.525,2.553),(.785,.047,2.509,2.528,2.560)]
+ # Ten points per section, matched one to one so each end face is an annulus
+ # of quads: keel chamfer, batter, side, top chamfer, top (and mirror); the
+ # tunnel's flat floor, jamb, haunch and flat crown (crown = ceiling datum).
+ def osec(Wt,Wb,B,T,c=.012):
+  zM=B+.3*(T-B);half=[(Wb-c,B),(Wb,B+c),(Wt,zM),(Wt,T-c),(Wt-c,T)]
+  return half+[(-w,z) for w,z in reversed(half)]
+ def tsec(hw,F,S,C):
+  half=[(hw*.45,F),(hw,F),(hw,S),(hw*.8,S+.62*(C-S)),(hw*.38,C)]
+  return half+[(-w,z) for w,z in reversed(half)]
+ def chart(ring):
+  d=[0]
+  for k in range(len(ring)):d.append(d[-1]+math.hypot(ring[(k+1)%len(ring)][0]-ring[k][0],ring[(k+1)%len(ring)][1]-ring[k][1]))
+  return [x/d[-1] for x in d]
+ def spout(a):
+  rings=[[(r,w,z) for w,z in osec(*p)] for r,*p in OUT]+[[(r,w,z) for w,z in tsec(*p)] for r,*p in TUN]
+  n=10;no=len(OUT);nt=len(TUN);idx=lambda s,k:s*n+k%n
+  faces=[];kind=[]
+  for s in range(no-1):faces+=[(idx(s,k),idx(s,k+1),idx(s+1,k+1),idx(s+1,k)) for k in range(n)];kind+=['O']*n
+  for s in range(no,no+nt-1):faces+=[(idx(s,k),idx(s,k+1),idx(s+1,k+1),idx(s+1,k)) for k in range(n)];kind+=['T']*n
+  faces+=[(idx(0,k),idx(0,k+1),idx(no,k+1),idx(no,k)) for k in range(n)];kind+=['E']*n
+  faces+=[(idx(no-1,k),idx(no-1,k+1),idx(no+nt-1,k+1),idx(no+nt-1,k)) for k in range(n)];kind+=['E']*n
+  pts=[p for rg in rings for p in rg]
+  verts=[(r*math.cos(a)-w*math.sin(a),r*math.sin(a)+w*math.cos(a),z) for r,w,z in pts]
+  o=meshpart('Pierced scupper spout',verts,faces,'stone',True)
+  if len(o.data.polygons)!=len(faces):raise RuntimeError('Scupper spout lost a face')
+  bm=bmesh.new();bm.from_mesh(o.data);bmesh.ops.recalc_face_normals(bm,faces=bm.faces);bm.to_mesh(o.data);bm.free()
+  # Continuous charts (not face-local islands): around each section by arc
+  # length with the seam on the hidden keel/floor, along the sweep by radius;
+  # end faces planar in (w, z). The tunnel lining takes the darkened joint tile.
+  co=chart([(w,z) for _,w,z in rings[3]]);ct=chart([(w,z) for _,w,z in rings[no]])
+  uv=o.data.uv_layers.active;me=o.data
+  for f,g in zip(me.polygons,kind):
+   ks=[me.loops[li].vertex_index%n for li in f.loop_indices];wrap=0 in ks and n-1 in ks
+   for li in f.loop_indices:
+    vi=me.loops[li].vertex_index;r,w,z=pts[vi];k=vi%n
+    if g=='E':key,u,v='stone',(w+.1)/.2,(z-2.38)/.24
+    else:
+     key='stone-dark' if g=='T' else 'stone';u=(ct if g=='T' else co)[n if wrap and k==0 else k];v=(r-.54)/.245
+    t=TILES[key];uv.data[li].uv=((t%6)/6+(.045+.91*min(1,max(0,u)))/6,(t//6)/6+(.045+.91*min(1,max(0,v)))/6)
+   f.use_smooth=True
+  me.set_sharp_from_angle(angle=math.radians(30))
+  return o
+ for i in range(4):spout(i*math.pi/2)
 
 def pond(source):
  # The provider is a preserved reference only. Author courses and coping from
@@ -875,7 +1616,7 @@ for asset,extent in ENVELOPES.items():
  bpy.ops.wm.read_factory_settings(use_empty=True);PARTS=[];details={}
  if slug=='duckpond':details=pond(source)
  else:
-  material(REPORT.parent/'civic-atlas',hay_only=slug=='haybale');BUILDERS[slug]()
+  material(REPORT.parent/'civic-atlas',hay_only=slug=='haybale',well_only=slug=='wishingwell');BUILDERS[slug]()
  details['components']={}
  for o in PARTS:
   name=o.name.rsplit('.',1)[0] if o.name.rsplit('.',1)[-1].isdigit() else o.name

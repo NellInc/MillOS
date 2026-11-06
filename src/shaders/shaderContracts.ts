@@ -179,9 +179,32 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium'],
     uniformOwner: 'OptimizedSkySystem memoized per-ring materials',
     timeSource: 'simulation',
-    cacheKey: 'millos-ridge-aerial-geology-v28',
+    cacheKey: 'millos-ridge-aerial-geology-v32',
     disposalOwner: 'OptimizedSkySystem cleanup effect',
     fallbackMaterial: 'flat vertex-coloured basic ridge',
+  },
+  {
+    // The hill town takes its foothill's distance haze, not scene fog.
+    id: 'near-city-anchored-aerial',
+    owner: 'NearHorizonCity',
+    sources: ['src/components/environment/NearHorizonCity.tsx'],
+    coordinateSpaces: [
+      'radial view distance (atmosphericFog vFogViewPosition) against RIDGE_ANCHORED_AERIAL distances',
+      'instance-local metres above the lowest face for the contact shade',
+    ],
+    colorSpace: 'MeshStandardMaterial pipeline; haze toward scene fog.color',
+    toneMapping: 'material-pipeline',
+    // Replaces <fog_fragment> with the anchored ridge's per-channel term.
+    fog: 'material-pipeline',
+    transparency: 'opaque',
+    depthBehavior: 'standard opaque depth',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner:
+      'shared RIDGE_ANCHORED_AERIAL_SPAN (OptimizedSkySystem) and the module CITY_CLEAR_AIR ref',
+    timeSource: 'none',
+    cacheKey: 'millos-near-city-aerial-v1',
+    disposalOwner: 'NearHorizonCity module-lifetime materials',
+    fallbackMaterial: 'the same city materials under scene FogExp2',
   },
   {
     // Registered in the DEFECT 2 sweep. The moon shares a file with the two sky
@@ -761,7 +784,7 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     uniformOwner:
       'ExteriorLampDriver shared EXTERIOR_LAMP_LEVEL dimmer; inherited VILLAGE_INTERIOR_STRENGTH and fabric-only VILLAGE_FABRIC_STRENGTH',
     timeSource: 'simulation',
-    cacheKey: 'millos-generated-apartment-window-v5',
+    cacheKey: 'millos-generated-apartment-window-v7',
     disposalOwner: 'GeneratedOfficeModel effect cleanup disposes cloned materials',
     fallbackMaterial: 'the existing procedural apartment through GeneratedBoundary',
   },
@@ -785,6 +808,26 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     cacheKey: 'millos-generated-office-window-v3',
     disposalOwner: 'GeneratedOfficeModel effect cleanup disposes its cloned materials',
     fallbackMaterial: 'the generated office material before the window injection',
+  },
+  {
+    id: 'generated-canopy-ground-bounce',
+    owner: 'models/GeneratedModel brickCarport',
+    sources: ['src/components/models/canopyBounce.ts'],
+    coordinateSpaces: [
+      'world normal from the model matrix, flipped by faceDirection',
+      'view-space sun direction against the view-space world up',
+    ],
+    colorSpace: 'linear indirect diffuse irradiance from the existing directional key',
+    toneMapping: 'material-pipeline',
+    fog: 'material-pipeline',
+    transparency: 'opaque',
+    depthBehavior: 'inherited opaque generated mesh, depth test and write enabled',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner: 'three directionalLights[0], the single shadowed sun/moon key; no own uniforms',
+    timeSource: 'none',
+    cacheKey: 'millos-canopy-ground-bounce-v2',
+    disposalOwner: 'GeneratedModel effect cleanup disposes its cloned materials',
+    fallbackMaterial: 'the generated carport atlas material without the bounce term',
   },
   {
     id: 'generated-vehicle-paint',

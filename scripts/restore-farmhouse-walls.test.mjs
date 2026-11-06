@@ -31,6 +31,7 @@ import {
   roofPlanes,
   clearances,
   refine,
+  restoreWalls,
   safeOutput,
 } from './restore-farmhouse-walls.mjs';
 const io = new NodeIO(),
@@ -38,6 +39,7 @@ const io = new NodeIO(),
 let inputBytes,
   sourceBytes,
   outputBytes,
+  wallBytes,
   before,
   after,
   source,
@@ -150,7 +152,12 @@ beforeAll(async () => {
   const d = await io.readBinary(inputBytes);
   report = refine(d, source, hash(inputBytes), hash(sourceBytes));
   outputBytes = Buffer.from(await io.writeBinary(d));
-  after = await io.readBinary(outputBytes);
+  // The wall audits below read the wall step itself; refine() then runs the
+  // roof-edge, window, tile and chimney steps on top of it.
+  const w = await io.readBinary(inputBytes);
+  restoreWalls(w, source, hash(inputBytes), hash(sourceBytes));
+  wallBytes = Buffer.from(await io.writeBinary(w));
+  after = await io.readBinary(wallBytes);
   // safeOutput returns real paths; macOS tmpdir() is /var/..., a symlink to /private/var/...
   temp = await realpath(await mkdtemp(path.join(tmpdir(), 'farmhouse-wall-test-')));
   b = mesh(before);
@@ -198,7 +205,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (temp) await rm(temp, { recursive: true, force: true });
 });
-test('pins accepted and source bytes; deterministic433424-byte candidate', async () => {
+test('pins accepted and source bytes; deterministic535064-byte candidate', async () => {
   expect(hash(inputBytes)).toBe(INPUT_SHA256);
   expect(hash(sourceBytes)).toBe(SOURCE_SHA256);
   expect(() => refine(before, source, 'wrong', SOURCE_SHA256)).toThrow('Pinned accepted');
@@ -209,9 +216,16 @@ test('pins accepted and source bytes; deterministic433424-byte candidate', async
   // Fresh output retains the installed VERSION; geometry and hash guards stay exact.
   historicalReplay.getRoot().getAsset().generator = 'glTF-Transform v4.4.2';
   expect(hash(await io.writeBinary(historicalReplay))).toBe(
+    '4af020ee2dc1dde581df62e211b198facc79e1b6a911cbf7c1d39e82851771ae'
+  );
+  expect(outputBytes.length).toBe(535064);
+  // The wall step alone is still the previously accepted wall-only delivery.
+  const wallReplay = await io.readBinary(wallBytes);
+  wallReplay.getRoot().getAsset().generator = 'glTF-Transform v4.4.2';
+  expect(hash(await io.writeBinary(wallReplay))).toBe(
     '0a579e5c32dc08033d34a8c086dd99e5869eb43ce2639fc8c4203f59b8b6e599'
   );
-  expect(outputBytes.length).toBe(433424);
+  expect(wallBytes.length).toBe(433424);
   const d = await io.readBinary(inputBytes);
   refine(d, source, INPUT_SHA256, SOURCE_SHA256);
   // `toEqual` walks 433,424 bytes through generic equality: 10.9 s for two

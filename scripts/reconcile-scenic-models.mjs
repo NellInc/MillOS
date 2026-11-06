@@ -1,13 +1,15 @@
-/** Two exact current-input replays; newer textures, finish and joinery are retained. */
+/** One exact current-input replay (the lock gate); newer textures, finish and joinery are retained.
+ * The Cupid figure-contact stage (scripts/refine-cupid-figure-contact.mjs) is retired: the figure
+ * is rebuilt as authored geometry by scripts/blender/authored/cupid-authored-body.py (D-034,
+ * 2026-11-06), seated on its pedestal at source, so no final-stage shift applies to it.
+ */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import * as cupid from './refine-cupid-figure-contact.mjs';
 import * as lock from './refine-lock-gate-body.mjs';
 import { assertModelNormalization } from './reconcile-yard-models.mjs';
 
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 export const RECONCILED_SCENIC_MODELS = Object.freeze({
-  [cupid.SPEC.id]: { ...cupid.SPEC, input: cupid.SPEC.rawNormalizedSha256, producer: cupid },
   [lock.SPEC.id]: { ...lock.SPEC, input: lock.SPEC.rawNormalized, producer: lock },
 });
 

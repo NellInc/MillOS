@@ -1,5 +1,6 @@
 import {preview} from 'vite';
 import {chromium} from 'playwright';
+import { withChromeLeakGuard } from '../../../scripts/lib/chrome-launch-args.mjs';
 import {writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import {acquireCaptureLock} from '../../../scripts/lib/capture-lock.mjs';
@@ -9,7 +10,7 @@ let browser,server;
 const report={scenes:[],errors:[]};
 try {
  server=await preview({preview:{host:'127.0.0.1',port:4403,strictPort:true}});
- browser=await chromium.launch({channel:'chrome',headless:false,args:['--mute-audio']});
+ browser=await chromium.launch({channel:'chrome',headless:false,args:withChromeLeakGuard(['--mute-audio'])});
  for(const scene of ['interior','village']){
   const context=await browser.newContext({viewport:{width:1280,height:720},deviceScaleFactor:2,serviceWorkers:'block'});
   const page=await context.newPage();

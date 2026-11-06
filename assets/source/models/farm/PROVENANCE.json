@@ -25,14 +25,14 @@
       "sha256": "fa0bca3ad45676edccd2154cf8e8550fcda5d67bf43bb7fe96a7ab3a158a113a",
       "blenderPreparation": {
         "file": "assets/source/models/farm/cow-crafted.glb",
-        "sha256": "7117aab59824ffea4c50159bbeb86b4c058971585d1c28be727cf3c70eb9207d",
+        "sha256": "769ae0daa0a7987c75e0e9f166cde9321c36034ad69c7f471c189b0fc78eeb22",
         "script": "scripts/blender/refine_creature_assets.py",
         "method": "Fair lumpy shoulder, flank and muzzle transitions; preserve horns and hooves. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/farm/cow.glb",
-        "sha256": "f2c62f54b435b84807c69902af77a6762bd49494f13f012e950dc0e5f5c59282",
-        "bytes": 338640
+        "sha256": "3f65560f48c63ceca08f099afc1acff4be4ed0e8b02e0fbea747678af1e59645",
+        "bytes": 316268
       },
       "normalization": {
         "sizedBy": "length",
@@ -53,7 +53,7 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 75900,
+        "textureBytes": 53532,
         "renderVertices": 17958
       }
     },
@@ -115,14 +115,14 @@
       "sha256": "368451504b298b089ef33b842f5685063b5d6930c2d4222a2ecdad31df6db733",
       "blenderPreparation": {
         "file": "assets/source/models/farm/pig-crafted.glb",
-        "sha256": "cdab8cfe68ab2368469b781620b0331214eab32392162a5ef8b9f5cf97f437c4",
+        "sha256": "a69d8a4b988ef71afe8b9131c70a823f73c3d65f8bb16a66b8948d574ee00d9e",
         "script": "scripts/blender/refine_creature_assets.py",
         "method": "Fair broad flank and cheek while retaining ears, nostrils and curled tail. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/farm/pig.glb",
-        "sha256": "c9137ad941eacff4f9ff9c9455f41296f0f3dd9d1d8a376dd6ec5df6b40edbfd",
-        "bytes": 305508
+        "sha256": "0bc1fe7ea726963a04c3ebee68556cce60c4369e152e09bf99aba647b435aa31",
+        "bytes": 267560
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -143,8 +143,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 49776,
-        "renderVertices": 18000
+        "textureBytes": 13663,
+        "renderVertices": 18804
       }
     },
     {
@@ -160,14 +160,14 @@
       "sha256": "d66efc8e6b06c541ab74612628fbe4a08a6df84c0c967693b2008e2430f25b5b",
       "blenderPreparation": {
         "file": "assets/source/models/farm/horse-crafted.glb",
-        "sha256": "a0207f5c1a700b37a14b611ecde90c8cde21be61355ef017d0aae4a77b755661",
+        "sha256": "1e4b751d534d82d1e9431749f08abbd4797de2c7de95ac7b77e290881360677f",
         "script": "scripts/blender/refine_creature_assets.py",
         "method": "Fair neck, shoulders and flank; retain mane ridges and hooves. Curvature-protected Taubin fairing and angle-weighted normals; all topology, UV, skin, joint, material and animation bytes preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/farm/horse.glb",
-        "sha256": "b8cf0ec6a612a51834875c0b4163ce13d0345fc1678ce1d527a7afe1d542ca3b",
-        "bytes": 332932
+        "sha256": "ff93e4ab060e042aa5ac5f009ee021a0786e6a2b77d8fa21908de89699d77f85",
+        "bytes": 319364
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -189,7 +189,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 65651,
-        "renderVertices": 17988
+        "renderVertices": 18720
       }
     },
     {
@@ -295,14 +295,14 @@
       "sha256": "01b9793bf6d9af2d8d771ba89192b21d29aba5eb1431f10e34bc262f4207f16f",
       "blenderPreparation": {
         "file": "assets/source/models/farm/duck-crafted.glb",
-        "sha256": "d427b047c1b854cdba8e89ebefc4597cda46aa1c3495898c692a1e630362cba9",
+        "sha256": "808b1291b5543aa7815dadb01ec3a5e464f5e0eb4cb6e9fb1386ea661d4c1dd3",
         "script": "scripts/blender/correct_duck_dorsal_albedo.py",
         "method": "Curvature-protected breast/cheek fairing followed by a separate SHA-pinned dorsal albedo correction using adjacent neutral plumage texels. Bill and foot UV regions protected. Topology, UVs, skin, joints and non-albedo payloads retained; lossless corrected albedo recompressed only by delivery normalization."
       },
       "runtimeDerivative": {
         "file": "public/models/farm/duck.glb",
-        "sha256": "65e8b431083f5ae3691aa0b8cb13a37bc423bab7fd458ab2a5786f6cf8c3ba62",
-        "bytes": 297840
+        "sha256": "3328df77c46d065025964df72a8555d135167de64450022e8365e1c78dee2c17",
+        "bytes": 295824
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -323,8 +323,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 47671,
-        "renderVertices": 18000
+        "textureBytes": 46696,
+        "renderVertices": 18570
       }
     },
     {
@@ -338,24 +338,24 @@
       "sha256": "a0849ef2ea5e3b347d52843534781290fda2e79c8bd3a369a1d5b301e0327b4c",
       "blenderPreparation": {
         "file": "assets/source/models/farm/barn-crafted.glb",
-        "sha256": "ab9f3f1bd03b4c7461e05c58518d535be03f833fd04146147f7e42d311eb5274",
+        "sha256": "f74e47cbf12c24c6f5ec03d4d231b7776687efd2da9c0a896cd744fe8a734a5f",
         "script": "scripts/blender/refine_architecture_assets.py",
         "method": "Rebuilt measured roof slopes with courses, verge trim, ridge and eave details; retained original walls, doors and chimney details. Closed thin roof slabs provide physical upper faces, undersides and sealed edges while retaining single-sided material rendering, original envelope and existing normalization."
       },
       "runtimeDerivative": {
         "file": "public/models/farm/barn.glb",
-        "sha256": "dfb46238507e165766fa91b6533b452ebb2b77968f213ff86ca8a8106bc33d3e",
-        "bytes": 614780
+        "sha256": "5cb651b4022cc72d769457ff843b7d0511b2af6e7199ee2190159354962fedf0",
+        "bytes": 620632
       },
       "normalization": {
         "sizedBy": "longest axis",
         "targetMetres": 10,
-        "scaleFactor": 10.00763,
+        "scaleFactor": 10.00801,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
-          "width": 9.3502,
-          "height": 9.9988,
+          "width": 9.3254,
+          "height": 9.9995,
           "length": 10,
           "minY": 0,
           "centreX": 0,
@@ -366,8 +366,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 267674,
-        "renderVertices": 24162
+        "textureBytes": 262557,
+        "renderVertices": 16560
       }
     },
     {
@@ -390,13 +390,13 @@
         "parent": "assets/source/models/farm/coop-pre-precision.glb",
         "parentSHA256": "e6e1f4ff7184cd865c77d3952bbadccde7c51189580dfb0aaee823d7007a63b7",
         "builder": "scripts/craft-precise-coop.mjs",
-        "builderSHA256": "6fc3f9a33f0e9032b0bf43a045f90aa35d19b00f80c472d9d0fe936128baf424",
-        "outputSHA256": "577e172d9c9356ad02e26dc3712e4e0abaf0f4310e65e622bb48cb9880365880",
+        "builderSHA256": "916a6f6aa7f0d3ffaab93adec3ebc145e064b461da309329a7a08ddc5b9ea84d",
+        "outputSHA256": "a0db36f09bc66cce2aaa6b44ff6eed472dd7f2e63bf88d700ff5134255b0ea87",
         "ancestor": {
           "method": "current-main-wall-repair-v1",
           "baselineCommit": "4853755ab449155105198b1ef0109cad9e767067",
           "preparedSHA256": "b6c1f13bbb3e2b0b06d503bd452a130902c5ce5fc3f09d9eaa3d270730fad5f5",
-          "authoringSHA256": "ddd30879f2abb12b618a8e475c57ac2f7b708bf0f6958fbb0d626cfdedaeada2",
+          "authoringSHA256": "74e6408e297af9194be3ff46b759118f817c95b302430c601f7e584c73bb08f2",
           "manifestSHA256": "180e97c7e0a505a23020cce278c54a3103f098b497b37c45248f8bbe6fb16a78",
           "inputSHA256": "59d70ebe84a1daacd63c8b9be15a07febbceb14f3c34685ec19eeab50b3aff05",
           "sourceSHA256": "c1c59659ffda9b0078b2f823289b0757abaf035e3df09526611af3fea55ee0b1",
@@ -4272,117 +4272,198 @@
           "status": "Current-main bounded wall repair; native GPU acceptance pending"
         },
         "authoring": {
-          "receiptSHA256": "9ba5fee4d6fcc751ff9ffd1201e5dbcbee914bd5d16a52517b8b192d453e9795",
-          "vertices": 9148,
-          "triangles": 4416,
-          "parts": 114,
+          "receiptSHA256": "fdb8560091ddc79f763a2953876c6f712077c71c08801e0894e657338fb1c334",
+          "vertices": 6826,
+          "triangles": 3764,
+          "parts": 147,
           "retainedRoof": {
-            "start": 5228,
-            "count": 716,
-            "outputFirstTriangle": 0,
-            "attributeSHA256": {
-              "POSITION": "364e8cf54b2f39e2688bc7d89c33a3bde3c42a106aadeca3ca48edc7bdcfd634",
-              "NORMAL": "e61245960e5bad5c85b02ee165b0461eed6b850556ac615f023c5186e4a5d4d9",
-              "TEXCOORD_0": "c66c2e62ccd868f9605ba633f1d39b05099b0a25774511971fca4723546be275"
+            "method": "authored-lofted-ribbed-sheet-v4",
+            "parentTrianglesCopied": 0,
+            "soffitPlanesFromParentTriangles": [
+              5230,
+              5472
+            ],
+            "ribsPerSlope": [
+              18,
+              17
+            ],
+            "ribPitch": 0.033772222222222224,
+            "rib": {
+              "base": 0.013,
+              "crown": 0.006,
+              "height": 0.006999999999999999
             },
-            "verifiedOutputSHA256": {
-              "POSITION": "364e8cf54b2f39e2688bc7d89c33a3bde3c42a106aadeca3ca48edc7bdcfd634",
-              "NORMAL": "e61245960e5bad5c85b02ee165b0461eed6b850556ac615f023c5186e4a5d4d9",
-              "TEXCOORD_0": "c66c2e62ccd868f9605ba633f1d39b05099b0a25774511971fca4723546be275"
+            "islandDensityPxPerUnit": 533.1494399107721,
+            "envelopeExtremes": {
+              "xMin": -0.5001055002212524,
+              "zMin": -0.3535238206386566,
+              "zMax": 0.35358738899230957,
+              "yMax": 0.4356960654258728
             }
           },
           "textureReceipts": [
             {
               "name": "coop-normal",
               "oldImageSHA256": "c9873dd400b5fe2166a6fa070093e636470306b9ede1e36c5fcb9b92d2a3ac60",
-              "newImageSHA256": "5444641069bb912dc11e6aaa7b6813b0fd0f5f555eef9d39a823d924c747d7aa",
+              "newImageSHA256": "fe3b5e37ce0001e188b29c153dc80b98bea12a26e9a24314ddd8b64c38d0b64d",
               "outsidePatchChangedComponentsBeforeEncoding": 0,
               "encoding": {
                 "format": "jpeg",
                 "quality": 90,
                 "chromaSubsampling": "4:4:4"
               },
-              "protectedRoofTexels": {
-                "count": 108,
-                "meanAbsoluteRGBByteError": 0.1111111111111111,
-                "maximumRGBByteError": 2,
-                "meanUnitNormalAngleDegrees": 0.057654035148529514,
-                "maximumUnitNormalAngleDegrees": 0.7146406296450831
-              },
               "patches": [
                 {
-                  "x": 16,
+                  "x": 0,
                   "y": 256,
-                  "width": 128,
-                  "height": 128
+                  "width": 152,
+                  "height": 192
                 },
                 {
-                  "x": 16,
-                  "y": 400,
-                  "width": 64,
-                  "height": 64
+                  "x": 96,
+                  "y": 456,
+                  "width": 48,
+                  "height": 48
+                },
+                {
+                  "x": 4,
+                  "y": 452,
+                  "width": 40,
+                  "height": 56
+                },
+                {
+                  "x": 52,
+                  "y": 452,
+                  "width": 36,
+                  "height": 56
+                },
+                {
+                  "x": 160,
+                  "y": 0,
+                  "width": 352,
+                  "height": 256
+                },
+                {
+                  "x": 160,
+                  "y": 256,
+                  "width": 352,
+                  "height": 256
+                },
+                {
+                  "x": 0,
+                  "y": 0,
+                  "width": 152,
+                  "height": 248
                 }
               ]
             },
             {
               "name": "coop-albedo",
               "oldImageSHA256": "ecbc79fc1da443c74f4f68d2e1d06e2d6a18695b44e45c4ded954d61c53d67d5",
-              "newImageSHA256": "5b4ae7428966fa145491929c7b20987513995de3b73a009f63ee7403c0ce1e56",
+              "newImageSHA256": "a1e1c30e92c25933483bf0e0407af925b2dea9ed501d3d2f884119212828023e",
               "outsidePatchChangedComponentsBeforeEncoding": 0,
               "encoding": {
                 "format": "jpeg",
                 "quality": 90,
                 "chromaSubsampling": "4:4:4"
               },
-              "protectedRoofTexels": {
-                "count": 108,
-                "meanAbsoluteRGBByteError": 1.0895061728395061,
-                "maximumRGBByteError": 5
-              },
               "patches": [
                 {
-                  "x": 16,
+                  "x": 0,
                   "y": 256,
-                  "width": 128,
-                  "height": 128
+                  "width": 152,
+                  "height": 192
                 },
                 {
-                  "x": 16,
-                  "y": 400,
-                  "width": 64,
-                  "height": 64
+                  "x": 96,
+                  "y": 456,
+                  "width": 48,
+                  "height": 48
+                },
+                {
+                  "x": 4,
+                  "y": 452,
+                  "width": 40,
+                  "height": 56
+                },
+                {
+                  "x": 52,
+                  "y": 452,
+                  "width": 36,
+                  "height": 56
+                },
+                {
+                  "x": 160,
+                  "y": 0,
+                  "width": 352,
+                  "height": 256
+                },
+                {
+                  "x": 160,
+                  "y": 256,
+                  "width": 352,
+                  "height": 256
+                },
+                {
+                  "x": 0,
+                  "y": 0,
+                  "width": 152,
+                  "height": 248
                 }
               ]
             },
             {
               "name": "coop-orm",
               "oldImageSHA256": "13209d3997043ac12baea9ed23bd8209b517a98ad90b863a7440c90b60a057f5",
-              "newImageSHA256": "91573a47b868538ee829ba304bab644744cf0369fb80b6bedf330daefb65381d",
+              "newImageSHA256": "0b872a0289b4d846e2b13f2117002774547904c9fb1ff333c2f01594994604cf",
               "outsidePatchChangedComponentsBeforeEncoding": 0,
               "encoding": {
                 "format": "jpeg",
                 "quality": 90,
                 "chromaSubsampling": "4:4:4"
               },
-              "protectedRoofTexels": {
-                "count": 108,
-                "meanAbsoluteRGBByteError": 1.2592592592592593,
-                "maximumRGBByteError": 9,
-                "meanRoughnessDrift": 0.0029774872912127774,
-                "maximumRoughnessDrift": 0.011764705882352941
-              },
               "patches": [
                 {
-                  "x": 16,
+                  "x": 0,
                   "y": 256,
-                  "width": 128,
-                  "height": 128
+                  "width": 152,
+                  "height": 192
                 },
                 {
-                  "x": 16,
-                  "y": 400,
-                  "width": 64,
-                  "height": 64
+                  "x": 96,
+                  "y": 456,
+                  "width": 48,
+                  "height": 48
+                },
+                {
+                  "x": 4,
+                  "y": 452,
+                  "width": 40,
+                  "height": 56
+                },
+                {
+                  "x": 52,
+                  "y": 452,
+                  "width": 36,
+                  "height": 56
+                },
+                {
+                  "x": 160,
+                  "y": 0,
+                  "width": 352,
+                  "height": 256
+                },
+                {
+                  "x": 160,
+                  "y": 256,
+                  "width": 352,
+                  "height": 256
+                },
+                {
+                  "x": 0,
+                  "y": 0,
+                  "width": 152,
+                  "height": 248
                 }
               ]
             }
@@ -4391,8 +4472,8 @@
       },
       "runtimeDerivative": {
         "file": "public/models/farm/coop.glb",
-        "sha256": "577e172d9c9356ad02e26dc3712e4e0abaf0f4310e65e622bb48cb9880365880",
-        "bytes": 434536
+        "sha256": "a0db36f09bc66cce2aaa6b44ff6eed472dd7f2e63bf88d700ff5134255b0ea87",
+        "bytes": 320808
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -4413,8 +4494,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 113201,
-        "renderVertices": 13248
+        "textureBytes": 77683,
+        "renderVertices": 11292
       }
     },
     {
@@ -4436,20 +4517,25 @@
         "method": "current-main-wall-repair-v1",
         "baselineCommit": "4853755ab449155105198b1ef0109cad9e767067",
         "preparedSHA256": "38b423981f82f9591dc6fed298c828755300a5c0af5a6c00d62f8f96455074f3",
-        "authoringSHA256": "ddd30879f2abb12b618a8e475c57ac2f7b708bf0f6958fbb0d626cfdedaeada2",
+        "authoringSHA256": "74e6408e297af9194be3ff46b759118f817c95b302430c601f7e584c73bb08f2",
         "manifestSHA256": "5ad25e20050d2f410fd2a9554695083410af4ef08ca5dbf5d9a7360ba8ef215b",
         "inputSHA256": "3915c901a1cbcfadb6b2997b89d622c38c4b2745dd265c4ff410d66bea615c6a",
         "sourceSHA256": "ebc862d40b2bc9df64c56e362be259f680a9241e4f1fa7893b8df56931306ba7",
-        "outputSHA256": "0a579e5c32dc08033d34a8c086dd99e5869eb43ce2639fc8c4203f59b8b6e599",
+        "outputSHA256": "4af020ee2dc1dde581df62e211b198facc79e1b6a911cbf7c1d39e82851771ae",
         "steps": [
           {
             "status": "Unpromoted output-only candidate; CPU diagnostics are not native renderer acceptance",
-            "scope": "Restore14 exact original recessed plaster-wall triangles and UVs,13 unambiguous retained source-normal entries,2 documented new-corner normal continuations; preserve every current index,position/UV,roof/chimney face,hard edge,material,texture,transform and bound",
+            "scope": "Wall step: restore 14 exact original recessed plaster-wall triangles and UVs, 13 unambiguous retained source-normal entries, 2 documented new-corner normal continuations. Roof-edge step (roofEdges): delete provider roof-shell faces outside the wall footprint and rebuild verges, fascias and soffits as closed boards, then replace the chimney apron and the provider skin around it with a lead plate and counterflashing sleeve. Window step (windows): delete the sculpted provider window joinery on all three facades and rebuild frames, glazing bars, glass, sills, lintels and shutters as closed chamfered slabs seated into the measured wall. Tile step (roofTiles): re-centre each crafted roof tile on a seeded texel from six measured roof colours in a narrow value band, move every tile riser to one flat darker texel, and turn the -Z slope tile risers outward. Chimney step (chimney): delete the provider shaft and cap and rebuild the chimney as modelled brick courses on a mortar core, two corbel courses and a mitred coping round a flue, with lead flashing laid course by course on the tiles (stepped side flashing, front apron over the riser, back gutter); door, materials, textures, transform and bounds are kept",
             "trianglesBefore": 5595,
-            "trianglesAfter": 5609,
+            "trianglesAfter": 5583,
             "verticesBefore": 6100,
-            "verticesAfter": 6142,
-            "renderVertices": 16827,
+            "verticesAfter": 9323,
+            "renderVertices": 16749,
+            "wallStep": {
+              "trianglesAfter": 5609,
+              "verticesAfter": 6142,
+              "renderVertices": 16827
+            },
             "bounds": {
               "min": [
                 -0.4999103248119354,
@@ -5250,15 +5336,241 @@
               3528,
               3531
             ],
-            "residualClearance": "Original recessed wall profile only. The residual roof slot is preserved, with no speculative infill or claim of watertightness."
+            "residualClearance": "Original recessed wall profile only. The residual roof slot is closed from outside by the verge soffits and bargeboards; no claim of watertightness.",
+            "roofEdges": {
+              "scope": "Reverses the earlier roof-cleanup rejection for the edges only: deletes provider roof-shell faces outside the wall footprint, replaces crafted verge rods and fascia strips with closed chamfered bargeboards, fascias, eave and verge soffits, and extends slab and tiles to the old eave line; deletes the crafted chimney apron and the provider skin around the chimney (the flashing is rebuilt by the chimney step)",
+              "deletedProviderFaces": 457,
+              "deletedProviderFacesSHA256": "ddd1fc05a51b3fa5fa52ae749d49b347da6ebdee9eacddf147a1df477fe39c4f",
+              "replacedCraftedFaces": 52,
+              "deletedChimneySkirtFaces": 121,
+              "deletedChimneySkirtFacesSHA256": "eb8227b547ca145a08ebe65262255bec1a9f92a72fba6b825e42533ecc998f05",
+              "replacedApronFaces": 96,
+              "movedEaveVertices": 258,
+              "addedFaces": 172,
+              "addedParts": {
+                "bargeboard--X+Z": 16,
+                "verge-soffit--X+Z": 10,
+                "bargeboard--X-Z": 16,
+                "verge-soffit--X-Z": 10,
+                "bargeboard-+X+Z": 16,
+                "verge-soffit-+X+Z": 10,
+                "bargeboard-+X-Z": 16,
+                "verge-soffit-+X-Z": 10,
+                "fascia+Z": 16,
+                "eave-soffit+Z": 12,
+                "fascia-Z": 16,
+                "eave-soffit-Z": 12,
+                "ridge-cap--X": 6,
+                "ridge-cap-+X": 6
+              },
+              "trianglesAfter": 5055,
+              "verticesAfter": 5808,
+              "renderVertices": 15165
+            },
+            "windows": {
+              "scope": "Deletes the sculpted provider window joinery on the +X front (window and the closed shutter left of the door) and both gable windows, and rebuilds frame, glass, glazing bars, lintel, sill and shutter leaves as closed chamfered slabs seated 1.5 mm into the measured wall; glass fills exactly the runtime glazing boxes",
+              "deletedFaces": 1556,
+              "deletedFacesSHA256": "b3e8197400a8f693d1c2cea497839568e6f10c9a580525318e51000e7cd276e5",
+              "openedRimVertices": 82,
+              "windows": [
+                {
+                  "name": "front",
+                  "seatPlane": 0.3841989040374756,
+                  "parts": 20,
+                  "deletedFaces": 730
+                },
+                {
+                  "name": "front-closed",
+                  "seatPlane": 0.3844658136367798,
+                  "parts": 7,
+                  "deletedFaces": 160
+                },
+                {
+                  "name": "gable+Z",
+                  "seatPlane": 0.419620543718338,
+                  "parts": 12,
+                  "deletedFaces": 360
+                },
+                {
+                  "name": "gable-Z",
+                  "seatPlane": 0.3760860860347748,
+                  "parts": 12,
+                  "deletedFaces": 306
+                }
+              ],
+              "addedFaces": 786,
+              "addedParts": {
+                "front-glass": 10,
+                "front-frame": 72,
+                "front-bar-v": 10,
+                "front-bar-h0": 10,
+                "front-bar-h1": 10,
+                "front-leaf0": 18,
+                "front-leaf0-field": 36,
+                "front-leaf0-strap": 20,
+                "front-leaf1": 18,
+                "front-leaf1-field": 36,
+                "front-leaf1-strap": 20,
+                "front-lintel": 20,
+                "front-sill": 20,
+                "front-closed-leaf0": 18,
+                "front-closed-leaf0-field": 36,
+                "front-closed-leaf0-strap": 20,
+                "front-closed-lintel": 20,
+                "front-closed-sill": 20,
+                "gable+Z-glass": 10,
+                "gable+Z-frame": 72,
+                "gable+Z-bar-v": 10,
+                "gable+Z-bar-h0": 10,
+                "gable+Z-bar-h1": 10,
+                "gable+Z-casing": 54,
+                "gable+Z-sill": 20,
+                "gable-Z-glass": 10,
+                "gable-Z-frame": 72,
+                "gable-Z-bar-v": 10,
+                "gable-Z-bar-h0": 10,
+                "gable-Z-bar-h1": 10,
+                "gable-Z-casing": 54,
+                "gable-Z-sill": 20
+              },
+              "trianglesAfter": 4285,
+              "verticesAfter": 6249,
+              "renderVertices": 12855
+            },
+            "roofTiles": {
+              "scope": "Re-centres each crafted roof tile’s UV patch (span 0.2 px) on a seeded choice of six uniform, flat-normal roof texels within a 1.24x linear-luminance band (no repeat of the left neighbour), moves every tile riser to one flat texel a step darker, and turns the -Z slope tile risers outward; no position changes",
+              "seed": "millos-farmhouse-roof-tiles-v1",
+              "tiles": 242,
+              "courses": 18,
+              "paletteCounts": {
+                "114,52,31": 33,
+                "118,53,31": 44,
+                "117,56,35": 55,
+                "120,55,33": 53,
+                "120,58,35": 22,
+                "125,59,37": 35
+              },
+              "rerolled": 34,
+              "risers": 484,
+              "turnedRiserFaces": 242,
+              "trianglesAfter": 4285,
+              "renderVertices": 12855
+            },
+            "chimney": {
+              "scope": "Deletes the provider chimney shaft and cap and models the chimney: mortar core, proud brick courses with alternating corner bricks on flat brick texels, two corbel courses, a mitred chamfered coping round a flue whose top keeps the asset maximum height, and lead laid course by course on the measured tile planes (soakers and stepped upstands down both sides with drops over each riser, a front apron folded over the downhill riser with a dressed edge, a back gutter ending at the riser above)",
+              "deletedFaces": 500,
+              "deletedFacesSHA256": "6cf5a73edde3fb121d32ae5ac427f85230e11cbf07832453bbe63d5df4c3852d",
+              "tileCourses": [
+                {
+                  "su": 0.052222222089767456,
+                  "sl": 0.10364444553852081
+                },
+                {
+                  "su": 0.10444444417953491,
+                  "sl": 0.15586666762828827
+                },
+                {
+                  "su": 0.15666666626930237,
+                  "sl": 0.20808888971805573
+                },
+                {
+                  "su": 0.20888888835906982,
+                  "sl": 0.260311096906662
+                },
+                {
+                  "su": 0.2611111104488373,
+                  "sl": 0.31253331899642944
+                }
+              ],
+              "steps": [
+                {
+                  "course": 2,
+                  "from": 0.1425,
+                  "to": 0.15246946252674065,
+                  "top": 0.28039833378791806
+                },
+                {
+                  "course": 2,
+                  "from": 0.15246946252674065,
+                  "to": 0.15681666762828828,
+                  "top": 0.26439833378791805
+                },
+                {
+                  "course": 3,
+                  "from": 0.15626666762828828,
+                  "to": 0.16557942037452872,
+                  "top": 0.26439833378791805
+                },
+                {
+                  "course": 3,
+                  "from": 0.16557942037452872,
+                  "to": 0.18675298246672128,
+                  "top": 0.24839833378791804
+                },
+                {
+                  "course": 3,
+                  "from": 0.18675298246672128,
+                  "to": 0.20903888971805573,
+                  "top": 0.23239833378791805
+                },
+                {
+                  "course": 4,
+                  "from": 0.20848888971805574,
+                  "to": 0.22103648046991,
+                  "top": 0.21639833378791806
+                },
+                {
+                  "course": 4,
+                  "from": 0.22103648046991,
+                  "to": 0.24221003642641567,
+                  "top": 0.20039833378791805
+                },
+                {
+                  "course": 4,
+                  "from": 0.24221003642641567,
+                  "to": 0.2565,
+                  "top": 0.18439833378791803
+                }
+              ],
+              "frontUpstandTop": 0.18439833378791803,
+              "backUpstandTop": 0.28039833378791806,
+              "bodyCourses": 15,
+              "bricks": 123,
+              "bricksHiddenByLead": 47,
+              "flashingFaces": 388,
+              "addedFaces": 1798,
+              "addedParts": {
+                "flashing-step-0": 96,
+                "flashing-step-1": 96,
+                "flashing-soaker-0": 36,
+                "flashing-drop-0": 24,
+                "flashing-soaker-1": 36,
+                "flashing-drop-1": 24,
+                "flashing-apron-upstand": 12,
+                "flashing-apron": 12,
+                "flashing-apron-drop": 12,
+                "flashing-apron-dressed": 16,
+                "flashing-gutter": 12,
+                "flashing-gutter-upstand": 12,
+                "chimney-core": 8,
+                "chimney-corbel-band-0": 10,
+                "chimney-corbel-band-1": 10,
+                "chimney-brick": 1330,
+                "chimney-coping": 40,
+                "chimney-flue": 12
+              },
+              "trianglesAfter": 5583,
+              "verticesAfter": 9323,
+              "renderVertices": 16749
+            }
           }
         ],
         "status": "Current-main bounded wall repair; native GPU acceptance pending"
       },
       "runtimeDerivative": {
         "file": "public/models/farm/farmhouse.glb",
-        "sha256": "0a579e5c32dc08033d34a8c086dd99e5869eb43ce2639fc8c4203f59b8b6e599",
-        "bytes": 433424
+        "sha256": "4af020ee2dc1dde581df62e211b198facc79e1b6a911cbf7c1d39e82851771ae",
+        "bytes": 535064
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -5280,7 +5592,7 @@
         "materials": 1,
         "textures": 3,
         "textureBytes": 201208,
-        "renderVertices": 16827
+        "renderVertices": 16749
       }
     },
     {
@@ -5357,14 +5669,14 @@
       "sha256": "bfde41964609e2d7b7f8d40c35060d780f32d3b5b2329795eb0007bb1c676ccf",
       "blenderPreparation": {
         "file": "assets/source/models/farm/haybale-crafted.glb",
-        "sha256": "7351d416c0f0cb23855c216e0a1061b475505bb8623a2aa95589f2dac290e1a5",
+        "sha256": "b7b60752665df8cbb760158e16f9da7d73164c779beaad35508609c38b78a75e",
         "script": "scripts/blender/refine_civic_props.py",
         "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/farm/haybale.glb",
-        "sha256": "52c874ef131b07a4ef6bbe74768ef6c33d94d1dd157caff67422c6254dafa8ee",
-        "bytes": 260556
+        "sha256": "00aae892d8658826eb0342b7ed3dfcda273dd207a90ebc5f20e7b6c54efcdaa0",
+        "bytes": 271912
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -5385,8 +5697,8 @@
         "clips": [],
         "materials": 1,
         "textures": 2,
-        "textureBytes": 15085,
-        "renderVertices": 20088
+        "textureBytes": 49387,
+        "renderVertices": 24528
       }
     },
     {
@@ -5400,14 +5712,14 @@
       "sha256": "2ed4fd775e2e7ce2fbcb1f46bcc6091f9d55e12040b83be9209d412010f6531f",
       "blenderPreparation": {
         "file": "assets/source/models/farm/watertrough-crafted.glb",
-        "sha256": "4729f05f630c4a4ea2eed2b9faf8321083cc7739cb2af61862db3364e554519c",
+        "sha256": "a0a6e7553118d09dca5037b03adb360fc0d71e0e8f4a6905428b814c595c34a1",
         "script": "scripts/blender/refine_civic_props.py",
         "method": "Hand-authored component rebuild in the retained runtime metre envelope, with separated construction details and one sRGB colour/linear roughness atlas; original provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/farm/watertrough.glb",
-        "sha256": "66bcb7c9c2bf49c124fc576313d7de46059671dcf79b4d51a83f2c4f235a0277",
-        "bytes": 100328
+        "sha256": "d9e83a9314d01d6331e05ecf1b29355923a3cd3b9c902d6828f66ebafcb490e4",
+        "bytes": 307872
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -5429,7 +5741,7 @@
         "materials": 1,
         "textures": 2,
         "textureBytes": 28990,
-        "renderVertices": 3552
+        "renderVertices": 12408
       }
     },
     {
@@ -5443,13 +5755,13 @@
       "sha256": "b2004fc325df0ee4d60bd033510dada4eef0b7396b1213a8905678675449e17b",
       "blenderPreparation": {
         "file": "assets/source/models/farm/gardenbed-crafted.glb",
-        "sha256": "73ac37d18e5f99ada5a52c2533561c7b55f41f3715db5d3fd2ec43307efc80aa",
+        "sha256": "542a087c8b4abcae9bd8a66ec5148525a71154c0a0b73cb8617c68a6e5fd1200",
         "script": "scripts/blender/refine_civic_props.py",
         "method": "Reference-concept refinement: three layered cabbages, five branching carrot crowns, three tied bean canes with climbing runners and pods, broken soil furrows and corner bands. Single mesh and existing atlas; box envelope and provider source preserved."
       },
       "runtimeDerivative": {
         "file": "public/models/farm/gardenbed.glb",
-        "sha256": "e7d83657c57a21e561ae72ff55446d803ec1e55190c59b0b71bf8137e2ed3a14",
+        "sha256": "c98e3c2d251dcddbb82c8452d466434f33a5aceb076cda9a284f27f23b1b62c6",
         "bytes": 389768
       },
       "normalization": {

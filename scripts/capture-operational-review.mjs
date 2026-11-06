@@ -11,6 +11,7 @@ import { access, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium, expect } from '@playwright/test';
+import { withChromeLeakGuard } from './lib/chrome-launch-args.mjs';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 
 const ROOT = process.cwd();
@@ -2923,7 +2924,7 @@ async function main() {
     chromiumSandbox: true,
     headless: !options.headed,
     channel: options.browserChannel || undefined || 'chrome',
-    args: ['--mute-audio'],
+    args: withChromeLeakGuard(['--mute-audio']),
   });
   const results = [];
   let contactSheet = null;

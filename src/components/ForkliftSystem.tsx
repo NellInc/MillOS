@@ -563,9 +563,12 @@ const BILLBOARD_MATERIALS = {
     new THREE.MeshStandardMaterial({ color: '#374151', roughness: 0.4, metalness: 0.85 }),
     'metal'
   ),
-  mast: applyWorldSurface(
-    new THREE.MeshStandardMaterial({ color: '#374151', roughness: 0.35, metalness: 0.85 }),
-    'metal'
+  // The near model paints its overhead guard and mast in the dielectric
+  // 'structural-graphite' (linear 0.0388, 0.0508, 0.0592 = sRGB #384045,
+  // ForkliftModel.tsx), so an amber canopy here popped colour at the swap.
+  structural: applyWorldSurface(
+    new THREE.MeshStandardMaterial({ color: '#384045', roughness: 0.45, metalness: 0 }),
+    'vehicle'
   ),
 };
 
@@ -605,7 +608,7 @@ const ForkliftBillboard: React.FC<{ cargoPresenceRef: React.MutableRefObject<num
           a different vehicle rather than a different level of detail. */}
       <mesh position={[0, 2.05, -0.35]} castShadow receiveShadow>
         <boxGeometry args={[1.42, 0.08, 1.22]} />
-        <primitive object={BILLBOARD_MATERIALS.body} attach="material" />
+        <primitive object={BILLBOARD_MATERIALS.structural} attach="material" />
       </mesh>
       {[-0.6, 0.6].map((x) => (
         <mesh key={`rops-${x}`} position={[x, 1.6, -0.85]} castShadow receiveShadow>
@@ -628,17 +631,19 @@ const ForkliftBillboard: React.FC<{ cargoPresenceRef: React.MutableRefObject<num
       {/* Mast */}
       <mesh position={[0, 1.2, 0.66]} castShadow receiveShadow>
         <boxGeometry args={[0.8, 2, 0.15]} />
-        <primitive object={BILLBOARD_MATERIALS.mast} attach="material" />
+        <primitive object={BILLBOARD_MATERIALS.structural} attach="material" />
       </mesh>
-      {/* Cargo - always mounted, opacity from the shared presence */}
+      {/* Cargo - always mounted, opacity from the shared presence. The near
+          tiers' travelling load: pallet underside at the 0.32 m travel fork
+          height, six courses to 1.52 m, 0.9 x 0.8 m in plan. */}
       <mesh
         ref={cargoMeshRef}
-        position={[0, 1.4, FORKLIFT_PALLET_REACH_METRES.compact]}
+        position={[0, 0.92, FORKLIFT_PALLET_REACH_METRES.compact]}
         castShadow
         receiveShadow
         visible={cargoPresenceRef.current > 0.01}
       >
-        <boxGeometry args={[0.9, 0.7, 0.9]} />
+        <boxGeometry args={[0.9, 1.2, 0.8]} />
         {/* Sacking on a pallet, in OBJECT rest space - the forklift drives, and
             a world-space field would slide the weave across the load. */}
         <meshStandardMaterial

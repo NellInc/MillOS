@@ -151,6 +151,7 @@ export function applyApartmentWindows(
     shader.uniforms.villageGlow = shader.uniforms.officeGlow;
     shader.uniforms.villageRoomLight = shader.uniforms.officeGlow;
     shader.uniforms.villageLinen = { value: new THREE.Color('#e4e6dd') };
+    shader.uniforms.apartmentSky = { value: new THREE.Color(APARTMENT_GLASS_SKY) };
     shader.uniforms.apartmentFloorLow = {
       value: new THREE.Vector4(-0.42368, -0.20059, floors === 3 ? 0.01059 : 0.01663, 0.22798),
     };
@@ -164,6 +165,7 @@ export function applyApartmentWindows(
     shader.fragmentShader = `varying vec3 vOfficePosition;
       uniform vec4 apartmentFloorLow;
       uniform vec4 apartmentFloorHigh;
+      uniform vec3 apartmentSky;
       ${shader.fragmentShader}`.replace(
       'float glazing = mix(1.0, atlasGlazing, villageAtlas);',
       `float roomHeight = (vOfficePosition.y + 0.5) * 16.1;
@@ -175,7 +177,9 @@ export function applyApartmentWindows(
          (diffuseColor.b - diffuseColor.r) / max(0.001, diffuseColor.b))
          * smoothstep(0.32, 0.46,
          (diffuseColor.g - diffuseColor.r) / max(0.001, diffuseColor.g));
-       glazing *= aboveSill * step(1.3, roomHeight) * (1.0 - step(13.8, roomHeight));`
+       glazing *= aboveSill * step(1.3, roomHeight) * (1.0 - step(13.8, roomHeight));
+       // Every pane, the ground-floor door glass included (excluded below).
+       float apartmentGlassMask = glazing;`
     );
     const paneStart = shader.fragmentShader.indexOf('vec2 pane = mix(');
     const paneEnd = shader.fragmentShader.indexOf('vec2 du = dFdx(pane)', paneStart);
@@ -206,13 +210,78 @@ export function applyApartmentWindows(
         'float occupied = occupiedFloor * step(0.22, seed);'
       )
       .replace('* villageNight;', '* villageNight * occupiedFloor;')
-      .replace('* villageNight * glazing;', '* villageNight * occupiedFloor * glazing;');
+      .replace('* villageNight * glazing;', '* villageNight * occupiedFloor * glazing;')
+      .replace(
+        /(\* villageNight \* occupiedFloor \* glazing;\s*\})/,
+        `$1
+       // DAYLIGHT GLASS. At noon the panes showed only their virtual rooms,
+       // flat beige linen or black, and the door glass fell through to raw
+       // atlas cyan, which read as two randomly lit windows (offices,
+       // asset-accepted-20261105). Glazing now carries a sky-tinted
+       // reflectance that grows toward grazing, over a neutral lobby behind
+       // the door glass at the value of a daylit room (the darkened atlas cyan
+       // still read as two teal panes, maps-after-2), and a low roughness so
+       // the environment adds a specular sheen. As villageNight rises the
+       // panes return to the room light.
+       float apartmentDay = 1.0 - clamp(villageNight, 0.0, 1.0);
+       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.10, 0.10, 0.095),
+         apartmentGlassMask * (1.0 - glazing));
+       float apartmentFacing = abs(dot(normalize(vViewPosition), normal));
+       float apartmentFresnel = 0.32 + 0.53 * pow(1.0 - apartmentFacing, 3.0);
+       float apartmentGlass = apartmentGlassMask * apartmentDay;
+       diffuseColor.rgb = mix(diffuseColor.rgb, apartmentSky, apartmentFresnel * apartmentGlass);
+       roughnessFactor = mix(roughnessFactor, 0.14, apartmentGlass);`
+      );
   };
-  material.customProgramCacheKey = () => 'millos-generated-apartment-window-v5';
+  material.customProgramCacheKey = () => 'millos-generated-apartment-window-v7';
 }
 
+/** Sky-tinted daylight reflectance of the apartment glazing (sRGB). */
+export const APARTMENT_GLASS_SKY = '#8aa4bb';
+
+/**
+ * Albedo lift on the apartment atlas. The delivered navy facade sat near 0.03
+ * linear against 0.10-0.15 grass, a black slab on the `offices` camera. A
+ * uniform scale keeps the chroma ratios the glazing mask reads.
+ */
+export const APARTMENT_FACADE_LIFT = 2.2;
+
 /** Program key for the apartment windows plus the composed facade finish. */
-export const APARTMENT_FACADE_CACHE_KEY = 'millos-generated-apartment-facade-v1';
+export const APARTMENT_FACADE_CACHE_KEY = 'millos-generated-apartment-facade-v4';
+
+/**
+ * Bay rhythm on the apartment masonry, appended after the daylight glazing in
+ * the same fragment (no map, no draw call). The runtime triage still read the
+ * navy front as "a near-uniform dark slate" (maps2-final offices): the atlas
+ * gives the wall one tone between the openings. Recomputed from the window
+ * shader's measured bays (pitch 0.192 front, 0.200 side; pane 0.1194/0.1233),
+ * so every term lands on the same openings: a dark reveal at each jamb and
+ * under each sill, a lighter pier between bays and a recessed spandrel below
+ * the sills. Masonry only: the glass mask, the tan stair core (red over
+ * blue) and the roof line are left as they were.
+ */
+const APARTMENT_FACADE_RHYTHM = /* glsl */ `
+       {
+         float rhythmSide = step(0.25, abs(vOfficePosition.x))
+           * (1.0 - step(0.43, abs(vOfficePosition.z)));
+         float rhythmH = mix(vOfficePosition.x, vOfficePosition.z, rhythmSide);
+         float rhythmPitch = mix(0.192, 0.200, rhythmSide);
+         float rhythmColumn = floor((rhythmH + mix(0.3493, 0.400, rhythmSide)) / rhythmPitch);
+         float rhythmCentre = mix(-0.2533, -0.300, rhythmSide) + rhythmColumn * rhythmPitch;
+         float bay = abs(rhythmH - rhythmCentre) / mix(0.1194, 0.1233, rhythmSide);
+         float inStorey = mod(roomHeight, 3.5);
+         float wall = (1.0 - apartmentGlassMask)
+           * step(0.35, roomHeight) * (1.0 - step(13.8, roomHeight))
+           * step(diffuseColor.r, diffuseColor.b * 1.05);
+         float opening = step(0.52, inStorey) * (1.0 - step(3.1, inStorey));
+         float reveal = smoothstep(0.47, 0.52, bay) * (1.0 - smoothstep(0.58, 0.64, bay)) * opening;
+         float sill = smoothstep(0.36, 0.42, inStorey) * (1.0 - step(0.52, inStorey))
+           * (1.0 - smoothstep(0.58, 0.64, bay));
+         float pier = smoothstep(0.66, 0.78, bay);
+         float spandrel = (1.0 - step(0.36, inStorey)) * (1.0 - pier);
+         float rhythm = 1.0 - 0.30 * reveal - 0.32 * sill - 0.10 * spandrel + 0.12 * pier;
+         diffuseColor.rgb *= mix(1.0, rhythm, wall);
+       }`;
 
 /**
  * Facade definition for the two apartment blocks, composed on top of their
@@ -234,6 +303,14 @@ export const APARTMENT_FACADE_CACHE_KEY = 'millos-generated-apartment-facade-v1'
  * reads a chroma RATIO, which a uniform tonal scale leaves unchanged.
  */
 export function applyApartmentFacade(material: THREE.MeshStandardMaterial) {
+  const glazing = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    glazing.call(material, shader, renderer);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'roughnessFactor = mix(roughnessFactor, 0.14, apartmentGlass);',
+      `roughnessFactor = mix(roughnessFactor, 0.14, apartmentGlass);${APARTMENT_FACADE_RHYTHM}`
+    );
+  };
   return composeWorldSurface(material, 'masonry', {
     cacheKey: APARTMENT_FACADE_CACHE_KEY,
     overrides: {
@@ -266,6 +343,7 @@ export function GeneratedOfficeModel({ asset = 'smallOffice' }: { asset?: Office
       else {
         applyApartmentWindows(material, night, asset === 'officeApartmentThree' ? 3 : 4);
         applyApartmentFacade(material);
+        material.color.multiplyScalar(APARTMENT_FACADE_LIFT);
       }
       object.material = material;
       object.castShadow = true;

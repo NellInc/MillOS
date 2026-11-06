@@ -31,12 +31,12 @@ export const RECONCILED_FARM_MODELS = Object.freeze({
     preparedSHA256: '38b423981f82f9591dc6fed298c828755300a5c0af5a6c00d62f8f96455074f3',
     scaleFactor: 6.00116,
     manifestSHA256: '5ad25e20050d2f410fd2a9554695083410af4ef08ca5dbf5d9a7360ba8ef215b',
-    outputSHA256: '0a579e5c32dc08033d34a8c086dd99e5869eb43ce2639fc8c4203f59b8b6e599',
+    outputSHA256: '4af020ee2dc1dde581df62e211b198facc79e1b6a911cbf7c1d39e82851771ae',
   }),
 });
 
 export const AUTHORING_SCRIPT = 'scripts/blender/refine_architecture_assets.py';
-export const AUTHORING_SHA256 = 'ddd30879f2abb12b618a8e475c57ac2f7b708bf0f6958fbb0d626cfdedaeada2';
+export const AUTHORING_SHA256 = '74e6408e297af9194be3ff46b759118f817c95b302430c601f7e584c73bb08f2';
 export const BASELINE_DIRECTORY = 'src/test/fixtures/farm-model-reconciliation';
 
 export function assertFarmDependencies(id, sourceBytes, preparedBytes, authoringBytes, manifest) {

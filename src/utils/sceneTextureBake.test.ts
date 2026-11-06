@@ -22,8 +22,10 @@ type Scene = typeof import('./sceneTextureRecipes');
 
 /** `<w>x<h>:<colorSpace>:<sha256 first 16>`, by direct generator call on 0b899e77. */
 const GOLDEN_0B899E77: Record<string, string> = {
-  'factoryFloorMacro.albedo': '1024x1024:srgb:9ef576aef9bdc61d',
-  'factoryFloorMacro.surface': '1024x1024::2db4b3dda4a8b9f4',
+  // Re-pinned 2026-11-06 for the slab's contraction cuts and per-panel cure
+  // (factoryFloorMacro.ts, runtime-triage-20261106); still sRGB / linear.
+  'factoryFloorMacro.albedo': '1024x1024:srgb:2e6e19de6de709bf',
+  'factoryFloorMacro.surface': '1024x1024::578f9c085c16bf76',
   floorDetailConcrete: '512x512:srgb:fedb570768491409',
   machineOrmVertical: '512x512::f0278619a49da4fa',
   // Re-pinned for the mill identity plates (millNameplates.test.ts); the
@@ -64,7 +66,9 @@ const GOLDEN_0DBB4ED6: Record<string, string> = {
   'terrainSurfaceMaps.macro': '256x256::0b30e730098c7b3e',
   terrainDirt: '256x256:srgb:678f35f8c71e0485',
   terrainDirtDetail: '512x512:srgb:79ea8734e65e8b0d',
-  terrainGrass: '1024x1024:srgb:1a51c08529bfb246',
+  // Grass albedo v2 (2026-11-06, maps2 near-grass pass): jittered blade layers
+  // replace the v1 leaf grid; re-pinned with Nell's 2026-11-06 instruction.
+  terrainGrass: '1024x1024:srgb:591f3796e4c6d87a',
   'flourSackCloth.map': '256x256:srgb:37ea388885e8abd3',
   'flourSackCloth.normal': '256x256::021ee147dbc6c92c',
   'flourSackCloth.roughness': '256x256::062a86015853c761',

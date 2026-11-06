@@ -266,8 +266,24 @@ function contact(actual) {
 for (const c of cases)
   test(`windshield clears and fits actual ${c.mode} front at consumer ${c.consumerIndex}`, () => {
     const proof = contact(c.actual);
-    assert.equal(proof.front.length, 2, 'Two real front face triangles required');
-    assert(Math.abs(proof.area - 3.2) < 2e-5, 'Complete 2 x 1.6 cab face required');
+    // Asset loop 2026-11-06: the rebuilt cab's flat front is split round its
+    // frame (8 triangles over 2.05 x 1.81 m) where the old box had one 2 x 1.6
+    // face of two. The invariant is the same: every point of the pane is backed
+    // by opaque cab face 10 mm behind it, which a sampled grid proves.
+    assert(proof.front.length >= 2, 'Real front face triangles required');
+    const paneBox = new THREE.Box3().setFromPoints(proof.corners);
+    for (let i = 0; i <= 34; i++)
+      for (let j = 0; j <= 20; j++) {
+        const point = new THREE.Vector3(
+          paneBox.min.x + ((paneBox.max.x - paneBox.min.x) * i) / 34,
+          paneBox.min.y + ((paneBox.max.y - paneBox.min.y) * j) / 20,
+          0
+        );
+        assert(
+          proof.front.some((t) => insideXY(point, t)),
+          'Every pane point lies on the actual face'
+        );
+      }
     for (const corner of proof.corners) {
       assert(Math.abs(corner.z) < 1e-6);
       assert(
@@ -282,9 +298,9 @@ for (const c of cases)
     }
     const ys = proof.front.flat().map((p) => p.y),
       xs = proof.front.flat().map((p) => p.x);
-    assert(Math.abs(Math.max(...ys) - 0.55) < 2e-6);
-    assert(Math.abs(Math.min(...ys) + 1.05) < 2e-6);
-    assert(Math.abs(Math.min(...xs) + 1) < 2e-6 && Math.abs(Math.max(...xs) - 1) < 2e-6);
+    // The face spans the whole 1.7 x 1 pane (pane-local x +-0.85, y +-0.5).
+    assert(Math.max(...ys) >= paneBox.max.y - 2e-6 && Math.min(...ys) <= paneBox.min.y + 2e-6);
+    assert(Math.min(...xs) <= paneBox.min.x + 2e-6 && Math.max(...xs) >= paneBox.max.x - 2e-6);
   });
 test('both current source callers retain actual yard ancestors and front direction', () => {
   const anchors = actualConsumers.map((c) =>

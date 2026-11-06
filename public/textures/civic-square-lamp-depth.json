@@ -561,7 +561,7 @@
   "objects": [
     {
       "name": "static-merge:community-authored-static:0:0",
-      "vertices": 20877,
+      "vertices": 21525,
       "instances": 1
     },
     {
@@ -576,17 +576,22 @@
     },
     {
       "name": "",
-      "vertices": 3674,
+      "vertices": 4174,
       "instances": 1
     },
     {
       "name": "world-public-realm-joinery",
-      "vertices": 16428,
+      "vertices": 18588,
+      "instances": 1
+    },
+    {
+      "name": "static-batch:authored-factory-exterior:0:57",
+      "vertices": 1618,
       "instances": 1
     },
     {
       "name": "TownhallBody",
-      "vertices": 14262,
+      "vertices": 14414,
       "instances": 1
     },
     {
@@ -601,7 +606,7 @@
     },
     {
       "name": "PubBody",
-      "vertices": 8848,
+      "vertices": 11245,
       "instances": 1
     },
     {
@@ -611,17 +616,17 @@
     },
     {
       "name": "ShopBody",
-      "vertices": 6034,
+      "vertices": 10320,
       "instances": 1
     },
     {
       "name": "ShopBody",
-      "vertices": 6034,
+      "vertices": 10320,
       "instances": 1
     },
     {
       "name": "ShopBody",
-      "vertices": 7074,
+      "vertices": 11360,
       "instances": 1
     },
     {
@@ -631,12 +636,32 @@
     },
     {
       "name": "WishingwellBody",
-      "vertices": 11394,
+      "vertices": 9580,
+      "instances": 1
+    },
+    {
+      "name": "market-isolated-cloth",
+      "vertices": 4373,
+      "instances": 1
+    },
+    {
+      "name": "market-isolated-cloth",
+      "vertices": 4373,
+      "instances": 1
+    },
+    {
+      "name": "market-isolated-cloth",
+      "vertices": 4373,
+      "instances": 1
+    },
+    {
+      "name": "market-isolated-cloth",
+      "vertices": 4373,
       "instances": 1
     },
     {
       "name": "FountainBody",
-      "vertices": 7424,
+      "vertices": 8432,
       "instances": 1
     },
     {
@@ -670,8 +695,18 @@
       "instances": 1
     },
     {
+      "name": "tree-crown-branches",
+      "vertices": 182,
+      "instances": 1
+    },
+    {
       "name": "tree-trunks",
       "vertices": 648,
+      "instances": 2
+    },
+    {
+      "name": "tree-crown-branches",
+      "vertices": 210,
       "instances": 2
     },
     {
@@ -706,7 +741,7 @@
     },
     {
       "name": "static-merge:authored-village:0:14",
-      "vertices": 30960,
+      "vertices": 24720,
       "instances": 1
     },
     {
@@ -716,49 +751,49 @@
     }
   ],
   "exclusions": {
-    "alphaOrMoving": 41
+    "alphaOrMoving": 58
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "c8a136db99372b07298469ef2aa579b871bb76d67aceb44379b0dc3a598e6f15",
-  "atlasSha256": "28d10cf78ff92863682283e6d6b25d18ecbd04fb5dd102952bfec6827c41eb91",
+  "inputSha256": "02d29640f46c30b07a4b56d7d27165e849e88c90d706aa0664a96cb2ce4d3851",
+  "atlasSha256": "f6e01f6c033a4d5fd24592720651f23238ddca72ce2c1a37929ee7eae50fe655",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 421024,
-  "triangles": 180518,
-  "elapsedSeconds": 8.59,
+  "vertices": 452405,
+  "triangles": 201434,
+  "elapsedSeconds": 9.65,
   "sourceReceipts": [
     {
       "id": "hall-west",
-      "blockedRays": 78872,
+      "blockedRays": 78864,
       "rays": 98304
     },
     {
       "id": "hall-east",
-      "blockedRays": 78831,
+      "blockedRays": 78824,
       "rays": 98304
     },
     {
       "id": "hall-sign",
-      "blockedRays": 64978,
+      "blockedRays": 67106,
       "rays": 98304
     },
     {
       "id": "post-left",
-      "blockedRays": 62296,
+      "blockedRays": 62289,
       "rays": 98304
     },
     {
       "id": "post-fountain",
-      "blockedRays": 75506,
+      "blockedRays": 74868,
       "rays": 98304
     },
     {
       "id": "post-garden",
-      "blockedRays": 55075,
+      "blockedRays": 55110,
       "rays": 98304
     },
     {
       "id": "post-right",
-      "blockedRays": 56854,
+      "blockedRays": 56852,
       "rays": 98304
     },
     {
@@ -768,37 +803,37 @@
     },
     {
       "id": "hall-verge",
-      "blockedRays": 63740,
+      "blockedRays": 60520,
       "rays": 98304
     },
     {
       "id": "hall-front-west",
-      "blockedRays": 53917,
+      "blockedRays": 53015,
       "rays": 98304
     },
     {
       "id": "hall-front-east",
-      "blockedRays": 54448,
+      "blockedRays": 53542,
       "rays": 98304
     },
     {
       "id": "hall-side-near",
-      "blockedRays": 68272,
+      "blockedRays": 67920,
       "rays": 98304
     },
     {
       "id": "hall-side-far",
-      "blockedRays": 65611,
+      "blockedRays": 64287,
       "rays": 98304
     },
     {
       "id": "fountain-border",
-      "blockedRays": 45245,
+      "blockedRays": 45275,
       "rays": 98304
     },
     {
       "id": "tree-inner",
-      "blockedRays": 31963,
+      "blockedRays": 31515,
       "rays": 98304
     },
     {
@@ -818,59 +853,59 @@
     },
     {
       "id": "shed-bed-east",
-      "blockedRays": 34350,
+      "blockedRays": 34351,
       "rays": 98304
     },
     {
       "id": "tree-middle",
-      "blockedRays": 34258,
+      "blockedRays": 33898,
       "rays": 98304
     },
     {
       "id": "tree-near",
-      "blockedRays": 32208,
+      "blockedRays": 31191,
       "rays": 98304
     },
     {
       "id": "verge-near",
-      "blockedRays": 24153,
+      "blockedRays": 24265,
       "rays": 98304
     },
     {
       "id": "hall-front-window--4.3",
-      "blockedRays": 49672,
+      "blockedRays": 48392,
       "rays": 98304
     },
     {
       "id": "hall-front-window-4.3",
-      "blockedRays": 49388,
+      "blockedRays": 48124,
       "rays": 98304
     },
     {
       "id": "hall-side-window-16.8",
-      "blockedRays": 46238,
+      "blockedRays": 45089,
       "rays": 98304
     },
     {
       "id": "hall-side-window-20",
-      "blockedRays": 48298,
+      "blockedRays": 47964,
       "rays": 98304
     },
     {
       "id": "hall-side-window-23.2",
-      "blockedRays": 46271,
+      "blockedRays": 45122,
       "rays": 98304
     }
   ],
   "casterPins": {
     "glb": {
-      "public/models/village/townhall.glb": "75515c40b20fe8978117e7ff5730ae615a4e131a67ee0dd97abba8cfdf699c48",
-      "public/models/village/pub.glb": "8315e9a61ad10f59ec83df60ac86426fe964a3a6c7907722ec8165cf29e21c97",
+      "public/models/village/fountain.glb": "2ab7febbdcb8a85774f8a5cd6d2750f8a0c4d8dc1fc092d8f4633348657635fc",
+      "public/models/village/postbox.glb": "a9d444ddb857dab168a66fc14d8e09b35b0eeac0d5526846e1d1e503a7e38f95",
+      "public/models/village/pub.glb": "a08c3a936d49ce18b6ef9b0e25325e3ee5723fa242f2c9b964308bcf1bc861f7",
       "public/models/village/school.glb": "29ca695121450a5595922af645756acb3669616705a6e63dd9c538632e7bfc6b",
-      "public/models/village/shop.glb": "74075f9e5f710fa6d897af30aa880b1b0f8f9cb170fad5069d78a4e4982e9e1e",
-      "public/models/village/wishingwell.glb": "59bc379b747d495c670b0193ae304d589ad8aa1817ae203236ff40b733d1ced1",
-      "public/models/village/fountain.glb": "55ba5ba5db6d1d015b1430e95d166fb4283bff57299d927d68848ed73a7f05a4",
-      "public/models/village/postbox.glb": "a9d444ddb857dab168a66fc14d8e09b35b0eeac0d5526846e1d1e503a7e38f95"
+      "public/models/village/shop.glb": "662e9c864fbf5ccb7044a53d9fae62417253cabffcb87cb2b6855252ef2d9465",
+      "public/models/village/townhall.glb": "16d0e6f05f9dbbdb7f82e7a2d48b74f76c8e663217ea0f835a1e937916336fdf",
+      "public/models/village/wishingwell.glb": "689c1c7fa9b0538c8f631340ebe0e20dfd860ec4cb7adebe24e018c2591b6b41"
     },
     "villageGardenPositions": [
       "cfce6fd22b6eb0248051372e02a1f36610a96bb82d10a0d7e309f217685bc115",
@@ -891,23 +926,5 @@
       "e4e6adc351b460e2bb37f89e0b52cace9dbff25e3afcc1cf7fe019d74e409904"
     ],
     "townHallHedgePositions": "2ffd894b9cca542118f871dd706a846c96820db18db5c541dcba1412873ccb6c"
-  },
-  "codecEquivalence": [
-    {
-      "asset": "public/models/village/townhall.glb",
-      "status": "codec-equivalent substitution; atlas not rebaked",
-      "originalCommit": "9858b5a6123af672838e55c71ed3696c1c7d86c3",
-      "originalCasterSha256": "985538194282d623c972e10c5b271d34b771a75f95206089c6ef41419f8d1e8a",
-      "currentCasterSha256": "75515c40b20fe8978117e7ff5730ae615a4e131a67ee0dd97abba8cfdf699c48",
-      "decodedContractSha256": "8d71bfbf349ddaa249a0e6eb5e07f84a9c6581e9cc04a7558d210c06324cc1f5",
-      "algorithm": "meshopt-trial-decoded-contract-v1",
-      "codec": "EXT_meshopt_compression, no quantization or topology transforms",
-      "verifier": "scripts/verify-civic-codec-rebind.mjs",
-      "verifierSha256": "7169dd868e31a87cce608ec28fbbe78d0f18daf6c98bdc731c495144b5ea4e15",
-      "gltfTransformVersion": "4.5.1",
-      "meshoptimizerVersion": "1.3.0",
-      "originalInputSha256": "c8a136db99372b07298469ef2aa579b871bb76d67aceb44379b0dc3a598e6f15",
-      "originalAtlasSha256": "28d10cf78ff92863682283e6d6b25d18ecbd04fb5dd102952bfec6827c41eb91"
-    }
-  ]
+  }
 }

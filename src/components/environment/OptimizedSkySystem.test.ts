@@ -4,6 +4,7 @@ import {
   MOUNTAIN_RIDGE_SEGMENTS,
   MOUNTAIN_RIDGE_ROWS,
   FAR_MOUNTAIN_SPEC,
+  FAR_RIDGE_CREST,
   createMountainRidgeGeometry,
   getSkyTwilightWeight,
   getSkyBlueHourWeight,
@@ -319,6 +320,27 @@ describe('mountain ridge geometry', () => {
     // straight chords along a summit at a ring radius of 280-325.
     expect(MOUNTAIN_RIDGE_SEGMENTS).toBeGreaterThanOrEqual(384);
   });
+
+  // forecourt (850-1950, 20-240), runtime-triage-20261106: clean witch-hat
+  // spikes with smooth flanks, a hard polygonal profile unlike the hills.
+  it('breaks the far crest into shoulders and notches with no cusped apex', () => {
+    const positions = MOUNTAIN_RIDGE_GEOMETRIES[0].getAttribute('position');
+    const summits = Array.from({ length: MOUNTAIN_RIDGE_SEGMENTS }, (_, i) =>
+      positions.getY(i * MOUNTAIN_RIDGE_ROWS + MOUNTAIN_RIDGE_ROWS - 1)
+    );
+    const n = summits.length;
+    const high = FAR_MOUNTAIN_SPEC.baseY + FAR_MOUNTAIN_SPEC.maxHeight * 0.35;
+    const maxima = summits.filter(
+      (y, i) => y > high && y > summits[(i + n - 1) % n] && y >= summits[(i + 1) % n]
+    ).length;
+    // The former field had about one apex per 7th/13th-harmonic lobe on the
+    // high ground; shoulders and notches add sub-summits between them.
+    expect(maxima).toBeGreaterThanOrEqual(30);
+    // Every harmonic keeps at least five columns per period.
+    expect(MOUNTAIN_RIDGE_SEGMENTS / 67).toBeGreaterThan(5);
+    expect(FAR_RIDGE_CREST.apexRounding.every((c) => c > 0.05 && c < 0.3)).toBe(true);
+    expect(FAR_RIDGE_CREST.peakShare).toBeLessThan(0.98);
+  });
 });
 
 describe('sky twilight colour', () => {
@@ -511,7 +533,7 @@ describe('solid fixed foothills', () => {
       expect(material.fragmentShader).toContain('gl_FragColor = vec4(lit, 1.0)');
       expect(material.fragmentShader).not.toContain('groundBlend');
       expect(material.fragmentShader).not.toContain('sampler');
-      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+      expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v32');
       material.dispose();
     }
   });
@@ -864,6 +886,20 @@ it('owns a bounded irregular parcel finish privately on each anchored hill', () 
     expect(partition).toContain('length(secondSite - firstSite)');
     expect(partition).not.toContain('texture(');
     expect(near.fragmentShader).toContain('fwidth(edge)');
+    // maps2-final / runtime-triage-20261106: hard cell edges and dark seams.
+    // Neighbouring crops blend across a bent boundary that the hedge follows,
+    // hedge relief is a few centimetres, and contrast fades with distance.
+    const craft = near.fragmentShader.split('if (uParcelCraftStrength > 0.5)')[1];
+    expect(craft).toContain('neighbourId = id;');
+    expect(craft).toContain('hedgeLine = abs(boundary);');
+    expect(near.fragmentShader).toContain('hedgeWidth + edgeAa, hedgeLine)');
+    expect(near.fragmentShader).toContain('hayShare = mix(hayShare,');
+    expect(parcelCraft.blendMetres).toBeGreaterThan(parcelCraft.hedgeMetres * 4);
+    expect(parcelCraft.blendMetres + parcelCraft.boundaryWarp).toBeLessThan(
+      parcelCraft.woodlandMarginMetres
+    );
+    expect(parcelCraft.hedgeReliefMetres).toBeLessThan(parcelCraft.hedgeMetres / 4);
+    expect(parcelCraft.contrastFarKeep).toBeGreaterThan(0.3);
   } finally {
     near.dispose();
     mid.dispose();
@@ -886,7 +922,7 @@ it('parcels the gentle foothill slopes into hedged fields brighter than the wood
   expect(branch).toContain(`vec2(${cell[0].toFixed(1)}, ${cell[1].toFixed(1)})`);
   expect(branch).toContain('hedge');
   expect(branch).toContain('fwidth(edge)');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v32');
   near.dispose();
 });
 
@@ -953,7 +989,7 @@ it('breaks the farmed/wooded edge across terrace rows and draws no isolated fiel
   // parcel now draw back from its boundary into ragged stands.
   expect(branch).not.toContain('* step(0.4, parcelUse)');
   expect(branch).toContain('float woods =');
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v32');
   near.dispose();
 });
 
@@ -1003,7 +1039,7 @@ it('gives the far lower slopes contrast that survives the aerial mix and real ou
     linearLuminance(lowland[0]) * 4
   );
   expect(branch).not.toContain('(1.0 - max(rock, substrate)))');
-  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(material.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v32');
   material.dispose();
 });
 
@@ -1038,7 +1074,7 @@ it('thins the far ring haze below the snow line only, keeping snow, upper rock a
   // Only the far (alpine) branch sets it: the foothills keep their haze.
   const alpine = shader.split('} else if (uWorldAnchored < 0.5')[1].split('} else {')[0];
   expect(alpine).toContain('aerialScale = mix(1.0,');
-  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(far.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v32');
   far.dispose();
 });
 
@@ -1168,7 +1204,7 @@ it('draws woods as soft, coherent stands with a lighter fringe', () => {
   expect(branch).toContain(`p.xz * ${standScale[0].toFixed(3)}`);
   expect(branch).toContain(`p.xz * ${standScale[1].toFixed(3)}`);
   expect(branch).toContain(glslVec3Literal(scrub));
-  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v28');
+  expect(near.customProgramCacheKey()).toBe('millos-ridge-aerial-geology-v32');
   near.dispose();
 });
 

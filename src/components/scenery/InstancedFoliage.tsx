@@ -381,10 +381,15 @@ export function createTreeCrownDetails(
   const cards: CardBuilder = { position: [], normal: [], uv: [] };
   const up = new THREE.Vector3(0, 1, 0);
   const origin = new THREE.Vector3(0, centerY, 0);
-  const branch = (from: THREE.Vector3, to: THREE.Vector3, thickness: number) => {
+  const branch = (
+    from: THREE.Vector3,
+    to: THREE.Vector3,
+    thickness: number,
+    tipRadius = thickness * 0.28
+  ) => {
     const direction = to.clone().sub(from);
     const geometry = new THREE.CylinderGeometry(
-      thickness * 0.28,
+      tipRadius,
       thickness,
       direction.length(),
       6,
@@ -441,15 +446,25 @@ export function createTreeCrownDetails(
       }
     }
   } else {
+    // The leader rises out of the bole at the bole's own top radius (oak 0.18,
+    // birch 0.10 in the trunk profiles below), starting 12 cm under the trunk's
+    // flat top so it swallows that cap: at 0.13 / 0.085 the cap read as a hard
+    // horizontal step at the fork (runtime-triage-20261106, forge).
     branch(
-      new THREE.Vector3(0, trunkTop * 0.88, 0),
+      new THREE.Vector3(0, trunkTop - 0.12, 0),
       new THREE.Vector3(0.045, centerY + height * 0.66, -0.025),
-      species === 'birch' ? 0.085 : 0.13
+      species === 'birch' ? 0.103 : 0.185,
+      species === 'birch' ? 0.03 : 0.05
     );
     const count = species === 'birch' ? 7 : 6;
     for (let i = 0; i < count; i++) {
       const angle = i * 2.3999632297 + (species === 'birch' ? 0.7 : 0.18);
-      const radial = 0.94 + (i % 2) * 0.06;
+      // Each spray is centred inside the crown's visible leaf mass, narrowing
+      // toward the top (bottom, middle, top tier), not on its rim. At 0.94-1.0
+      // radii the parkland trees, which draw these sprays without their
+      // branches (ExteriorVegetation), showed the top-tier pair as a leaf
+      // cluster floating in the sky (runtime-triage-20261106, forge).
+      const radial = [0.82, 0.8, 0.7][i % 3] + (i % 2) * 0.04;
       const y = centerY + height * (-0.48 + (i % 3) * 0.43);
       const tip = new THREE.Vector3(
         Math.cos(angle) * radius * radial,
@@ -460,8 +475,10 @@ export function createTreeCrownDetails(
       const elbow = tip.clone().multiplyScalar(0.52);
       elbow.y = species === 'birch' ? y + height * 0.2 : (start.y + y) * 0.5 - height * 0.12;
       const thickness = species === 'birch' ? 0.045 : 0.085;
-      branch(start, elbow, thickness);
-      branch(elbow, tip, thickness * 0.55);
+      // One continuous taper through the elbow (the inner limb used to end at
+      // 0.28 of its base and the outer one restart at 0.55: a stick joint).
+      branch(start, elbow, thickness, thickness * 0.55);
+      branch(elbow, tip, thickness * 0.55, thickness * 0.15);
       // Two intersecting small atlas sprays, rather than another full crown cage.
       // Both windings preserve outward shading and the existing wind/depth pair.
       for (let face = 0; face < 2; face++) {
