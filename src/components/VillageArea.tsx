@@ -3589,9 +3589,7 @@ const VILLAGE_NIGHT_GLASS = new THREE.Color('#fef3c7');
 // ===== MAIN VILLAGE COMPONENT =====
 export const VillageArea: React.FC = () => {
   // Selector optimization: Only re-render when night status CHANGES
-  const isNight = useGameSimulationStore(
-    (state) => getExteriorLampLevel(state.gameTime, state.weather) > 0.1
-  );
+  const isNight = useGameSimulationStore((state) => getExteriorLampLevel(state.gameTime) > 0.1);
 
   useFrame(() => {
     const level = EXTERIOR_LAMP_LEVEL.value;

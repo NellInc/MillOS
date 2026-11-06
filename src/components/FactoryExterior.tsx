@@ -762,7 +762,7 @@ export const SmallOffice: React.FC<{
   rotation?: number;
 }> = React.memo(({ position, size = [12, 8, 10], rotation = 0 }) => {
   const isNight = useGameSimulationStore(
-    useShallow((state) => getExteriorLampLevel(state.gameTime, state.weather) > 0.1)
+    useShallow((state) => getExteriorLampLevel(state.gameTime) > 0.1)
   );
 
   return (
@@ -2661,7 +2661,7 @@ export const CanalBoat: React.FC<{
     cabinColor = '#8b2323', // Traditional burgundy red
   }) => {
     const isNight = useGameSimulationStore(
-      useShallow((state) => getExteriorLampLevel(state.gameTime, state.weather) > 0.1)
+      useShallow((state) => getExteriorLampLevel(state.gameTime) > 0.1)
     );
     const realDeckLight = useGraphicsStore(
       (state) =>

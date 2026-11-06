@@ -8,8 +8,6 @@ import { getRuntimeMode } from '../../runtime/runtimeMode';
 import { getStartupSnapshot, startupDrawsOffscreen } from '../../utils/startupReadiness';
 import { logger } from '../../utils/logger';
 
-type ExteriorWeather = ReturnType<typeof useGameSimulationStore.getState>['weather'];
-
 /** Working if the west walk has regularly spaced pools and no posts in its paving. */
 export const WEST_FACTORY_PATH = {
   start: [-65, 0, 50] as [number, number, number],
@@ -99,15 +97,22 @@ export function picnicShelterLightLayout(width: number, height: number, depth: n
   };
 }
 
-export const getExteriorLampLevel = (gameTime: number, weather: ExteriorWeather): number => {
-  const hour = (((Number.isFinite(gameTime) ? gameTime : 12) % 24) + 24) % 24;
-  const solarElevation = Math.sin(((hour - 6) / 24) * Math.PI * 2);
-  // Start before the sky loses its daylight; fully on by sunset, symmetric at dawn.
-  const darkness = 1 - THREE.MathUtils.smoothstep(solarElevation, 0.08, 0.42);
+/**
+ * The lamps run on a fixed clock (D-044): on for the night, off for the day,
+ * with an hour's linear fade centred on sunset (18:00) and sunrise (06:00).
+ * Weather does not light them, so by day they stay hidden from the renderer
+ * (D-030) whatever the sky is doing.
+ */
+export const EXTERIOR_LAMP_CLOCK = { dawnFade: [5.5, 6.5], duskFade: [17.5, 18.5] } as const;
 
-  const weatherFloor =
-    weather === 'storm' ? 0.7 : weather === 'rain' ? 0.42 : weather === 'cloudy' ? 0.14 : 0;
-  return Math.max(darkness, weatherFloor);
+export const getExteriorLampLevel = (gameTime: number): number => {
+  const hour = (((Number.isFinite(gameTime) ? gameTime : 12) % 24) + 24) % 24;
+  const [dawnStart, dawnEnd] = EXTERIOR_LAMP_CLOCK.dawnFade;
+  const [duskStart, duskEnd] = EXTERIOR_LAMP_CLOCK.duskFade;
+  if (hour < dawnStart || hour >= duskEnd) return 1;
+  if (hour < dawnEnd) return (dawnEnd - hour) / (dawnEnd - dawnStart);
+  if (hour < duskStart) return 0;
+  return (hour - duskStart) / (duskEnd - duskStart);
 };
 
 const createLampPoolTexture = (): THREE.DataTexture => {
@@ -210,18 +215,13 @@ declare global {
 /** One scalar driver for every exterior lens, pool, and real high-quality light. */
 export const ExteriorLampDriver: React.FC = () => {
   const { gl, scene, camera } = useThree();
-  const targetRef = useRef(
-    getExteriorLampLevel(
-      useGameSimulationStore.getState().gameTime,
-      useGameSimulationStore.getState().weather
-    )
-  );
+  const targetRef = useRef(getExteriorLampLevel(useGameSimulationStore.getState().gameTime));
   const levelRef = useRef(targetRef.current);
 
   useEffect(
     () =>
       useGameSimulationStore.subscribe((state) => {
-        targetRef.current = getExteriorLampLevel(state.gameTime, state.weather);
+        targetRef.current = getExteriorLampLevel(state.gameTime);
       }),
     []
   );

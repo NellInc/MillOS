@@ -606,10 +606,7 @@ export const NearHorizonCity: React.FC = () => {
   const equipmentRef = useRef<THREE.InstancedMesh>(null);
   const stacksRef = useRef<THREE.InstancedMesh>(null);
   const treesRef = useRef<THREE.InstancedMesh>(null);
-  const initialLightLevel = getExteriorLampLevel(
-    useGameSimulationStore.getState().gameTime,
-    useGameSimulationStore.getState().weather
-  );
+  const initialLightLevel = getExteriorLampLevel(useGameSimulationStore.getState().gameTime);
   const lightTargetRef = useRef(initialLightLevel);
   const lightLevelRef = useRef(initialLightLevel);
 
@@ -730,7 +727,7 @@ export const NearHorizonCity: React.FC = () => {
   useEffect(() => {
     CITY_CLEAR_AIR.value = nearCityClearAir(useGameSimulationStore.getState().weather);
     return useGameSimulationStore.subscribe((state) => {
-      lightTargetRef.current = getExteriorLampLevel(state.gameTime, state.weather);
+      lightTargetRef.current = getExteriorLampLevel(state.gameTime);
       CITY_CLEAR_AIR.value = nearCityClearAir(state.weather);
     });
   }, []);

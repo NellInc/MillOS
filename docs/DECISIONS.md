@@ -556,3 +556,17 @@ still at night strength under a lit sky, is real. Both follow `getExteriorLampLe
 (`ExteriorLighting.tsx`, millos-6e's file), which is 94% on at 06:30. An exact dawn-only
 change was sent to millos-6e on 2026-11-06 and is that session's decision.
 Source: Nell's delegation of 2026-11-06 (D-031); `rt6-dawn-0530`, `rt6-dawn-0630`.
+
+### D-044 · Exterior lamps run on a fixed clock · [Nell] · 2026-11-06
+
+`getExteriorLampLevel` (`src/components/exterior/ExteriorLighting.tsx`) is a clock, not a
+model of a light sensor. The lamps are fully on from 18:30 to 05:30 and off from 06:30 to
+17:30, with a linear hour-long fade centred on sunset (18:00) and sunrise (06:00), so dawn
+mirrors dusk. Weather no longer lights them: the old floors (storm 0.7, rain 0.42, cloudy
+0.14) are gone, so under D-030 they stay hidden from the renderer all day whatever the sky.
+The same level drives the village and factory window glow and the near-horizon city
+windows, which follow the same clock.
+It replaces a sun-elevation curve that was still 94% on at 06:30 and 17:30, under a lit sky
+(blind judge, `rt6-dawn-0630`; D-043).
+Source: Nell, 2026-11-06: "2 please, if you can get it very resource efficient", then
+"just set it to come on at an appropriate time, no 'sensor' needed please."

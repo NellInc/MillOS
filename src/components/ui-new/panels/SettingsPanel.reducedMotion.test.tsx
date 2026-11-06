@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./BuildCacheDiagnostics', () => ({ BuildCacheDiagnostics: () => null }));
@@ -66,7 +66,11 @@ describe('SettingsPanel reduce motion control', () => {
   });
 
   // Runs last: Reset Simulation suspends persistence for the rest of the page.
-  it('Reset Simulation keeps the motion preference and says so', () => {
+  it('Reset Simulation keeps the motion preference and says so', async () => {
+    // The reset reloads after a bounded SCADA history clear. Unstubbed and
+    // unawaited, that reload ran after teardown ("window is not defined").
+    const reload = vi.fn();
+    Object.defineProperty(window, 'location', { configurable: true, value: { reload } });
     FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED = true;
     localStorage.setItem(
       MOTION_PREFERENCE_STORAGE_KEY,
@@ -90,5 +94,6 @@ describe('SettingsPanel reduce motion control', () => {
     expect(localStorage.getItem('millos-physical-session')).toBeNull();
     const ui = JSON.parse(localStorage.getItem('millos-ui') ?? 'null');
     expect(ui?.state).toEqual({ uiScale: 1.5 });
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
   });
 });

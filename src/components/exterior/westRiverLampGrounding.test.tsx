@@ -521,8 +521,8 @@ it('keeps the source fallback, loaded body, luminous mask and canonical pool con
     expect(material.polygonOffsetUnits).toBe(POLYGON_OFFSET.exteriorOverlay.units);
     expect(material.map).toBe(canonical.props.material.map);
     expect(candidate.props.renderOrder).toBe(RENDER_ORDER.floorMarkings);
-    expect(getExteriorLampLevel(12, 'clear')).toBe(0);
-    expect(getExteriorLampLevel(23, 'clear')).toBe(1);
+    expect(getExteriorLampLevel(12)).toBe(0);
+    expect(getExteriorLampLevel(23)).toBe(1);
     expect(source(lightingFile)).toContain('LAMP_POOL_MATERIAL.opacity = level * 0.24');
     expect(source(lightingFile)).toContain(
       'LAMP_POOL_MATERIAL.visible = LAMP_POOL_MATERIAL.opacity > 0.002'
