@@ -277,11 +277,58 @@ const grassLeaf = (u: number, v: number) => {
   return { leaf, ridge, dry: seed > 0.86 ? 1 : 0 };
 };
 
-/** Terrain-only albedo: fine lance-shaped leaves over a quiet meadow understorey.
+/**
+ * A layer of blades placed anywhere in their cell (full jitter, 3x3 search),
+ * so unlike `grassLeaf` they keep no lattice. `light` and `dark` are coverage
+ * of the sunlit and the shaded blades; about half of each.
+ */
+const grassBladeLayer = (u: number, v: number, cells: number, salt: number) => {
+  const x = u * cells;
+  const y = v * cells;
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  let light = 0;
+  let dark = 0;
+  for (let oy = -1; oy <= 1; oy++) {
+    for (let ox = -1; ox <= 1; ox++) {
+      const cx = ix + ox;
+      const cy = iy + oy;
+      const seed = tileHash(cx + salt, cy, cells);
+      const px = x - (cx + 0.08 + tileHash(cx, cy + salt, cells) * 0.84);
+      const py = y - (cy + 0.08 + tileHash(cx + 2 * salt, cy + 5, cells) * 0.84);
+      const angle = tileHash(cx + 11, cy + 3 * salt, cells) * Math.PI;
+      const dx = Math.cos(angle);
+      const dy = Math.sin(angle);
+      const along = px * dx + py * dy;
+      const across = py * dx - px * dy;
+      const length = 0.55 + seed * 0.3;
+      const taper = Math.max(0, 1 - (along / length) ** 2);
+      const width = (0.085 + seed * 0.04) * taper;
+      if (width <= 0) continue;
+      const blade = clamp01((width - Math.abs(across)) * 18);
+      if (seed > 0.5) light = Math.max(light, blade);
+      else dark = Math.max(dark, blade);
+    }
+  }
+  return { light, dark };
+};
+
+/** Terrain-only albedo: lance-shaped leaves over a meadow understorey.
+ *
+ * v1 carried one pale leaf per 16 px cell, centred to within 6% of the cell,
+ * over two smooth noise fields: a regular grid of straw dashes on a soft green
+ * wash. Magnified at the 2-10 m of the close cameras (6.5 m tile, 157 texels
+ * per metre) that read as smeared grass (maps-after-2: caravan, cars, huts,
+ * picnic-shelter, square). v2 keeps that leaf (the relief map is built on the
+ * same field) and adds two jittered blade layers, at 40 and 27 cells (25 and
+ * 38 px), half sunlit and half shaded, and blade-scale mottling at 64 and 128
+ * cells (16 and 8 px, above the 4-6 px floor), and fades half of the v1
+ * leaves back to 30% so their grid stops reading. The light and dark terms are
+ * balanced so the mean colour stays within a level of v1.
  * Working if the worker seeds this exact key and neighbouring lawns stay unchanged.
  */
 export const generateTerrainGrass = (size = 1024): THREE.DataTexture =>
-  getTexture(`terrain-grass-albedo-v1-${size}`, () => {
+  getTexture(`terrain-grass-albedo-v2-${size}`, () => {
     const data = new Uint8Array(size * size * 4);
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
@@ -289,16 +336,31 @@ export const generateTerrainGrass = (size = 1024): THREE.DataTexture =>
         const v = (y + 0.5) / size;
         const tuft = tileFbm(u, v, 10, 3);
         const fine = tileFbm(u + 0.31, v + 0.17, 32, 2) - 0.5;
-        const { leaf, ridge, dry } = grassLeaf(u, v);
+        const mottle =
+          (tileFbm(u + 0.57, v + 0.11, 64, 1) - 0.5) * 0.05 +
+          (tileFbm(u + 0.13, v + 0.83, 128, 1) - 0.5) * 0.035;
+        const { leaf: cellLeaf, ridge: cellRidge, dry } = grassLeaf(u, v);
+        // Half of the lattice leaves fade back into the sward, so their 16 px
+        // grid stops reading as a pattern. The relief keeps every leaf.
+        const keep = tileHash(Math.floor(u * 64) + 3, Math.floor(v * 64) + 29, 64) < 0.5 ? 0.3 : 1;
+        const leaf = cellLeaf * keep;
+        const ridge = cellRidge * keep;
+        const near = grassBladeLayer(u, v, 40, 7);
+        const far = grassBladeLayer(u, v, 27, 13);
+        const sunlit = Math.max(near.light, far.light * 0.8);
+        const shaded = Math.max(near.dark, far.dark * 0.8) * (1 - sunlit);
         const i = (y * size + x) * 4;
-        const light = (tuft - 0.5) * 0.14 + fine * 0.06;
+        const light = (tuft - 0.5) * 0.14 + fine * 0.05 + mottle;
+        const blade = sunlit * 0.05 - shaded * 0.055;
         data[i] = Math.round(
-          clamp01(0.32 + light + leaf * (0.065 + dry * 0.075) + ridge * 0.035) * 255
+          clamp01(0.32 + light + blade * 0.8 + leaf * (0.065 + dry * 0.075) + ridge * 0.035) * 255
         );
         data[i + 1] = Math.round(
-          clamp01(0.405 + light + leaf * (0.065 + dry * 0.025) + ridge * 0.025) * 255
+          clamp01(0.405 + light + blade + leaf * (0.065 + dry * 0.025) + ridge * 0.025) * 255
         );
-        data[i + 2] = Math.round(clamp01(0.27 + light * 0.8 + leaf * (0.025 + dry * 0.025)) * 255);
+        data[i + 2] = Math.round(
+          clamp01(0.27 + light * 0.8 + blade * 0.55 + leaf * (0.025 + dry * 0.025)) * 255
+        );
         data[i + 3] = 255;
       }
     }

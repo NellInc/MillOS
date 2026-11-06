@@ -156,7 +156,11 @@ Captures the current `art` scene set at `medium`, noon, clear, into
 `test-results/art-review/baseline-<date>/`, plus a contact sheet, a manifest,
 and a non-art performance run.
 
-- `--headed` uses the real GPU. Headless falls back to SwiftShader, which is both
+- **Checks run headless** (Nell, 2026-11-06: no foreground browser windows for checks).
+  On macOS the harness launches headless Chrome on ANGLE over Metal, the real GPU, and
+  refuses to run if it reports a software renderer, so `--headed` is not needed for valid
+  frames. Use it only when someone asks to watch.
+- Older note, kept for history: `--headed` uses the real GPU. Headless falls back to SwiftShader, which is both
   far slower and **renders differently** — software frames are not valid art
   evidence.
 - **Capture from a clean tree if the result is meant to be a baseline.** The
@@ -351,6 +355,10 @@ sequence has actual evidence:
    lock and with safe disk headroom. The tooling stage requests no substitute
    atlas. Capture the actual animation-ready scene, then export its world
    triangles through the benchmark-only civic instrument after measurement.
+   `node scripts/export-civic-casters.mjs <outDir>` does all of this. It disables
+   distance LOD (`perfDebug.disableDistanceLod`) before exporting, because the bake
+   is seen from every distance, and with LOD on the trunks export their far mesh. It
+   exports twice and records whether the two exports are identical.
 2. Inspect effective ancestor visibility, actual instanced transforms, caster
    bounds and exclusions. Export rigid opaque casters only. Alpha-tested crowns,
    opaque GPU-wind deformation, people and moving equipment require explicit
@@ -362,7 +370,8 @@ sequence has actual evidence:
 4. Retain `public/textures/civic-square-lamp-depth.png` and matching JSON, then
    enable `CIVIC_SHADOW_BAKE_READY`. The JSON also carries `casterPins`: the
    sha256 of every `<Name>Body` caster GLB in `objects` and the village home and
-   allotment position digests, as exported. `civicLampShadows.test.ts` and
+   allotment position digests. Neither the exporter nor the baker writes them:
+   compute them from the files the export saw, and add them to the JSON. `civicLampShadows.test.ts` and
    `VillageGardens.test.ts` fail when a pinned caster changes, so any geometry
    edit to them must rebake (and re-pin) in the same change. These pins cover
    GLB bodies and garden geometry only; other procedural casters still need a
@@ -379,6 +388,9 @@ sequence has actual evidence:
    `node scripts/verify-civic-codec-rebind.mjs`. This is a codec-equivalent
    substitution, not a rebake. Working if that verifier and the unchanged strict
    caster-pin/cache-version tests pass; any decoded difference requires rebaking.
+   A full rebake drops `codecEquivalence`. On a JSON without it, the verifier
+   prints `CIVIC_CODEC_EQUIVALENCE_NOT_APPLICABLE` and checks only that every
+   caster pin and the atlas hash match the delivered bytes.
 5. Measure shadows on/off/on in one page through the shared isolation uniform.
    Reject animated pixels using the existing surface-measurement pattern, then
    inspect source-by-source illumination, reversed views and noon/night/Low

@@ -6,6 +6,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { chromium } from 'playwright';
+import { withChromeLeakGuard } from './lib/chrome-launch-args.mjs';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 import {
   assertHostedMetalCompositor,
@@ -52,7 +53,7 @@ try {
     headless: true,
     chromiumSandbox: true,
     ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
-    args: [
+    args: withChromeLeakGuard([
       // CDP command-line auditing requires this; Playwright no longer supplies it.
       // Working if the audit still verifies the original sandbox/hardware flags.
       '--enable-automation',
@@ -61,7 +62,7 @@ try {
       '--use-gl=angle',
       '--use-angle=metal',
       ...(softwareCompositor ? ['--disable-gpu-compositing'] : []),
-    ],
+    ]),
   });
   const cdp = await browser.newBrowserCDPSession();
   report.browserVersion = browser.version();

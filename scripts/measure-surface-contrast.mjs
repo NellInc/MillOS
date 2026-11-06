@@ -127,6 +127,7 @@ import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
+import { withChromeLeakGuard } from './lib/chrome-launch-args.mjs';
 import sharp from 'sharp';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 import { changeMask } from './lib/surface-change-mask.mjs';
@@ -328,11 +329,11 @@ async function main() {
     channel: 'chrome',
     chromiumSandbox: true,
     ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
-    args: [
+    args: withChromeLeakGuard([
       '--mute-audio',
       '--enable-automation',
       ...(process.platform === 'darwin' ? ['--use-gl=angle', '--use-angle=metal'] : []),
-    ],
+    ]),
   });
   const results = [];
 

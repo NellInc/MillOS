@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { withChromeLeakGuard } from '../lib/chrome-launch-args.mjs';
 import { createServer } from 'vite';
 import { acquireCaptureLock } from '../lib/capture-lock.mjs';
 
@@ -94,6 +95,7 @@ const context = await chromium.launchPersistentContext(PROFILE, {
   chromiumSandbox: true,
   headless: false,
   viewport: { width: 1280, height: 800 },
+  args: withChromeLeakGuard(),
 });
 const consoleLines = [];
 const fetchedRepos = new Set();

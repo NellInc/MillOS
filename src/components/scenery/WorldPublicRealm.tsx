@@ -35,6 +35,31 @@ export const REALM_PAVING_MATERIAL = new THREE.MeshStandardMaterial({
 });
 
 /**
+ * World paving (station path, canal walk, lake promenade, cafe court) with a
+ * weathering finish. The shared paving carries one flat vertex tone per slab,
+ * and the caravan frame read its slabs as "flat colour, hairline joints only,
+ * no wear" (maps2-final). Masonry's tonal terms, tuned for flat ground: a 5 m
+ * stain drift and a 0.3 m mottle that a 1 m slab resolves, a slight relief,
+ * and no grime, dust or edge term (those are vertical and ledge terms, and on
+ * open ground they turn a path into sand, see `masonry`). A clone, so the
+ * village square and farm paving keep their accepted look; same draw count.
+ */
+export const WORLD_REALM_PAVING_MATERIAL = applyWorldSurface(
+  REALM_PAVING_MATERIAL.clone(),
+  'masonry',
+  {
+    macroPeriod: 5,
+    macro: 0.16,
+    mesoPeriod: 0.3,
+    meso: 0.14,
+    reliefMetres: 0.006,
+    grime: 0,
+    dust: 0,
+    edge: 0,
+  }
+);
+
+/**
  * The cereal field's soil. It shared the paving's flat vertex-coloured finish
  * and read as a flat brown plane. Its own material carries plough furrows as
  * world-space ridge-and-trough relief along the drills (the drills vary along
@@ -741,8 +766,10 @@ export const FARM_REALM_GEOMETRY = farmRealm();
 function Realm({
   name,
   geometry,
+  pavingMaterial = REALM_PAVING_MATERIAL,
 }: {
   name: string;
+  pavingMaterial?: THREE.Material;
   geometry: {
     paving: THREE.BufferGeometry;
     solid: THREE.BufferGeometry;
@@ -762,7 +789,7 @@ function Realm({
       <mesh
         name={`${name}-paving`}
         geometry={geometry.paving}
-        material={REALM_PAVING_MATERIAL}
+        material={pavingMaterial}
         receiveShadow
       />
       <mesh
@@ -794,7 +821,11 @@ export function WorldPublicRealm() {
   );
   return (
     <>
-      <Realm name="world-public-realm" geometry={geometry} />
+      <Realm
+        name="world-public-realm"
+        geometry={geometry}
+        pavingMaterial={WORLD_REALM_PAVING_MATERIAL}
+      />
       <CastleAccessTrail segments={segments} />
     </>
   );

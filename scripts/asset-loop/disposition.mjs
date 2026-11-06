@@ -77,9 +77,16 @@ export function classify(asset) {
 if (process.argv[1]?.endsWith('disposition.mjs')) {
   const [ledgerPath, flag] = process.argv.slice(2);
   const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+  // Measured overrides (render path, builder blocks) beat the text-based classes.
+  const overridesPath = `${ledgerPath.replace(/[^/]+$/, '')}disposition-overrides.json`;
+  const overrides = fs.existsSync(overridesPath)
+    ? JSON.parse(fs.readFileSync(overridesPath, 'utf8'))
+    : {};
   const byClass = {};
   for (const asset of Object.values(ledger.assets)) {
-    const disposition = classify(asset);
+    const measured = overrides[asset.id];
+    const disposition =
+      measured && !asset.rounds.at(-1).pass ? { ...measured, measured: true } : classify(asset);
     asset.disposition = disposition;
     (byClass[disposition.class] ??= []).push(
       disposition.script ? `${asset.id} [${disposition.script.replace('scripts/', '')}]` : asset.id

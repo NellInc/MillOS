@@ -43,11 +43,13 @@ export const DOCK_DECK = {
 export const DOCK_CANOPY = { u: 8, modelOffsetU: 0.1, width: 20, depth: 5 } as const;
 
 /**
- * Where the carried pallet's underside stands above the fork datum: the
- * authored model's pallet origin (0.34) less the pallet's 0.06 m underside.
- * The compact model's stands 2.5 cm lower.
+ * Where the carried pallet's underside stands above the fork datum: every
+ * tier's pallet origin (0.06) less the pallet's 0.06 m underside, so at fork
+ * height 0 a pallet stands on the floor. It was 0.28 (origin 0.34), which left
+ * a pallet hovering 0.28 m over the hall floor at the floor pickup and dropoff
+ * and 0.3 m above the authored model's tines while carried.
  */
-export const FORKLIFT_PALLET_REST_ABOVE_FORK = 0.28;
+export const FORKLIFT_PALLET_REST_ABOVE_FORK = 0;
 
 /** Fork height at which a pallet rests on the dock deck. */
 export const DOCK_DECK_FORK_HEIGHT = DOCK_DECK.topY - FORKLIFT_PALLET_REST_ABOVE_FORK;

@@ -95,6 +95,41 @@ export interface CreatureRigHandle {
   setResting?(seconds: number, seed: number): void;
 }
 
+/**
+ * The horse's coat response, finished at runtime on a cached clone.
+ *
+ * The delivered `horse-surface` keeps roughness 1 times its packed map, whose
+ * green channel (three's roughness) sits at 0.46-0.83, median 0.57: a satin
+ * dielectric, so the chestnut coat took a uniform sheen and read as glossy
+ * orange plastic beside the forge's matte stone (maps-after-2 forge). Hair is
+ * close to fully rough at this distance, so the coat drops that map for 0.86
+ * (the packed texture still serves metalness, which is 0). Its albedo averages
+ * sRGB (151, 91, 67), a light ginger. Neutral tone mapping subtracts a black
+ * offset keyed on the smallest channel, so a coat with linear blue at 0.056
+ * displayed at saturation 0.89 (173, 85, 19) and a uniform darkening raised it
+ * to 0.96 (maps2-after-1). The tint darkens red and green and keeps blue,
+ * taking the albedo to about sRGB (125, 75, 64), a brown chestnut. The GLB, its
+ * textures and the cached source material are untouched: one shared clone per
+ * source material, never disposed, so the paddock and forge horses match.
+ */
+export const HORSE_COAT_ROUGHNESS = 0.86;
+const HORSE_COAT_TINT = new THREE.Color().setRGB(0.68, 0.68, 0.92);
+const horseCoats = new WeakMap<THREE.Material, THREE.Material>();
+
+export function horseCoatMaterial(source: THREE.Material): THREE.Material {
+  if (!(source instanceof THREE.MeshStandardMaterial)) return source;
+  let coat = horseCoats.get(source);
+  if (!coat) {
+    const finished = source.clone();
+    finished.roughnessMap = null;
+    finished.roughness = HORSE_COAT_ROUGHNESS;
+    finished.color.multiply(HORSE_COAT_TINT);
+    horseCoats.set(source, finished);
+    coat = finished;
+  }
+  return coat;
+}
+
 const smooth = THREE.MathUtils.smoothstep;
 type HorseRegion = 'leftEar' | 'rightEar' | 'tail' | 'breath';
 function horseRegionWeight(region: HorseRegion, x: number, y: number, z: number): number {
@@ -119,7 +154,7 @@ function horseRegionWeight(region: HorseRegion, x: number, y: number, z: number)
 /**
  * The shipped horse has no ear/tail joints. Finish those regions in fixed model
  * rest space BEFORE skinning, using private geometry, never a shared material or
- * shader. These metre masks belong to HorseBody's measured 4,224-vertex asset;
+ * shader. These metre masks belong to HorseBody's measured 3,935-vertex asset;
  * an incompatible replacement keeps its original geometry. Working if only the
  * measured ears/tail/ribs move, neutral is byte-exact, and other copies survive.
  */
@@ -129,7 +164,7 @@ export function createHorseRestMotion(model: THREE.Object3D) {
   if (
     !mesh?.isSkinnedMesh ||
     !source ||
-    source.attributes.position?.count !== 4224 ||
+    source.attributes.position?.count !== 3935 ||
     !source.attributes.normal ||
     !source.attributes.skinWeight
   )
@@ -143,9 +178,10 @@ export function createHorseRestMotion(model: THREE.Object3D) {
   const points = Array.from({ length: source.attributes.position.count }, (_, i) =>
     new THREE.Vector3().fromBufferAttribute(source.attributes.position, i).applyMatrix4(toModel)
   );
-  // The tail curves left to x=-.296m, overlapping the hind legs in X. Its
-  // connected surface BELOW the attachment is distinct, even though the whole
-  // horse is one mesh. Weld only this analysis graph, preserving every UV seam.
+  // The tail hangs behind the hind legs. Its connected surface below the
+  // attachment and behind the rump plane (z -1.02) is distinct, even though the
+  // whole horse is one mesh and the tail is filleted into the rump. Weld only
+  // this analysis graph, preserving every UV seam.
   const links = points.map(() => [] as number[]);
   const welded = new Map<string, number[]>();
   const keys = points.map((p) => `${p.x.toFixed(5)},${p.y.toFixed(5)},${p.z.toFixed(5)}`);
@@ -173,14 +209,14 @@ export function createHorseRestMotion(model: THREE.Object3D) {
   while (pending.length) {
     const i = pending.pop()!;
     for (const j of [...links[i], ...welded.get(keys[i])!]) {
-      if (tail.has(j) || points[j].y >= 1.2) continue;
+      if (tail.has(j) || points[j].y >= 1.2 || points[j].z > -1.02) continue;
       tail.add(j);
       pending.push(j);
     }
   }
   // Fail closed for another asset/topology: never attach a tail field to a leg.
   if (
-    tail.size !== 257 ||
+    tail.size !== 240 ||
     [...tail].some((i) => {
       const p = points[i];
       return p.y < 0.35 || p.z > -1.02 || Math.abs(p.x) > 0.31;
@@ -835,6 +871,8 @@ export const RiggedCreatureModel = React.forwardRef<CreatureRigHandle, RiggedCre
         if (!mesh.isSkinnedMesh) return;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        if (creature === 'horse' && !Array.isArray(mesh.material))
+          mesh.material = horseCoatMaterial(mesh.material);
         mesh.geometry.computeBoundingBox();
         if (mesh.geometry.boundingBox) _bindBox.union(mesh.geometry.boundingBox);
         skinned.push(mesh);

@@ -95,12 +95,12 @@ export function siloFloodPools(): { position: [number, number, number]; radius: 
 /**
  * Solar elevation (sine) over which the floods fade in at dusk and out at dawn:
  * fully on once the sun is this far below the horizon, off before it rises.
- * The shared lamp clock (`getExteriorLampLevel`) is the wrong gate for them: it
- * is max(darkness, weather floor), fully on at 06:00 when the sun is on the
- * horizon and at 0.42 in daytime rain. That suits a lens or a window. A flood
- * paints a bright vertical stripe up 30 m of drum, so on that clock the battery
- * read as night at sunrise and at noon in the rain (final4-med-06 overview,
- * final4-med-rain farm and overview).
+ * The shared lamp clock (`getExteriorLampLevel`) is the wrong gate for them. It
+ * once also lit in daytime rain; since D-044 it is a fixed clock, still half on
+ * at 06:00 when the sun is on the horizon. That suits a lens or a window. A flood
+ * paints a bright vertical stripe up 30 m of drum, so on the old clock the
+ * battery read as night at sunrise and at noon in the rain (final4-med-06
+ * overview, final4-med-rain farm and overview).
  */
 export const SILO_FLOOD_DUSK = [-0.12, -0.01] as const;
 

@@ -1,5 +1,6 @@
 import {preview} from 'vite';
 import {chromium} from 'playwright';
+import { withChromeLeakGuard } from '../../../scripts/lib/chrome-launch-args.mjs';
 import {writeFile,readFile} from 'node:fs/promises';
 import {acquireCaptureLock} from '../../../scripts/lib/capture-lock.mjs';
 const dir='output/playwright/sign-illumination';
@@ -16,7 +17,7 @@ const cameras=[
 ];
 try {
  server=await preview({preview:{host:'127.0.0.1',port:4403,strictPort:true}});
- browser=await chromium.launch({channel:'chrome',headless:false,args:['--mute-audio']});
+ browser=await chromium.launch({channel:'chrome',headless:false,args:withChromeLeakGuard(['--mute-audio'])});
  for(const [hour,quality] of (remaining?[[17,'medium'],[22,'low']]:[[22,'medium'],[12,'medium'],[17,'medium'],[22,'low']])){
   page=await browser.newPage({viewport:{width:1280,height:800},serviceWorkers:'block',reducedMotion:'reduce'});
   await page.addInitScript(()=>{

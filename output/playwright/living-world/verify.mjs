@@ -1,5 +1,6 @@
 import {preview} from 'vite';
 import {chromium} from 'playwright';
+import { withChromeLeakGuard } from '../../../scripts/lib/chrome-launch-args.mjs';
 import {writeFile,mkdir} from 'node:fs/promises';
 import {acquireCaptureLock} from '../../../scripts/lib/capture-lock.mjs';
 const dir='output/playwright/living-world';
@@ -24,7 +25,7 @@ async function setSpeed(speed){return page.evaluate(async speed=>{
 try {
  await mkdir(dir,{recursive:true});
  server=await preview({preview:{host:'127.0.0.1',port:4403,strictPort:true}});
- browser=await chromium.launch({channel:'chrome',headless:false,args:['--mute-audio']});
+ browser=await chromium.launch({channel:'chrome',headless:false,args:withChromeLeakGuard(['--mute-audio'])});
  for(const c of cases){
   const context=await browser.newContext({viewport:{width:1280,height:800},serviceWorkers:'block'});
   page=await context.newPage();

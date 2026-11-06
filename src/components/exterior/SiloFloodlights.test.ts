@@ -44,7 +44,7 @@ describe('silo battery floodlights', () => {
   });
 
   it('publishes the lens positions the heads are built at, and only at night', () => {
-    const flood = writeSiloFloodLight(getExteriorLampLevel(22, 'clear')).clone();
+    const flood = writeSiloFloodLight(getExteriorLampLevel(22)).clone();
     const radius = SITE_LAYOUT.machineDimensions.silo[0] / 2;
     const [x, , z] = SITE_LAYOUT.machines.silos[0].position;
     const own = siloFloodFixtures().slice(0, SILO_FLOOD_HEAD_ANGLES.length);
@@ -56,7 +56,7 @@ describe('silo battery floodlights', () => {
     expect(flood.z).toBe(SILO_FLOOD.headY);
     expect(flood.w).toBeCloseTo(flood.y - radius, 6);
     expect(flood.x).toBeGreaterThan(0.5);
-    expect(writeSiloFloodLight(getExteriorLampLevel(12, 'clear')).x).toBe(0);
+    expect(writeSiloFloodLight(getExteriorLampLevel(12)).x).toBe(0);
     expect(SILO_FLOOD_LIGHT.value.x).toBe(0);
   });
 });
@@ -110,7 +110,7 @@ describe('silo floods on the drum (final3-med-1830/22: hard line at the seam, bl
   const radius = SITE_LAYOUT.machineDimensions.silo[0] / 2;
   const [binX, , binZ] = SITE_LAYOUT.machines.silos[2].position;
   const axis = [binX, binZ] as const;
-  const night = () => writeSiloFloodLight(getExteriorLampLevel(22, 'clear')).clone();
+  const night = () => writeSiloFloodLight(getExteriorLampLevel(22)).clone();
   /** Up the line of wall facing the +X head. */
   const facing = (flood: THREE.Vector4, y: number) =>
     siloFloodIrradiance([binX + radius, y, binZ], [1, 0, 0], axis, flood);

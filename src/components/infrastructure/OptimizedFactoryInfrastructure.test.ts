@@ -6,7 +6,7 @@ import { OBB } from 'three/examples/jsm/math/OBB.js';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { MachineData, MachineType } from '../../types';
 import { buildSpoutRoutes, SPOUT_PIPE_RADIUS } from '../flow/spoutRoutes';
-import { PIPE_SUPPORT_SEGMENTS } from '../SpoutingSystem';
+import { PIPE_SUPPORT_SEGMENTS, buildSpoutHangers, spoutRouteRadii } from '../SpoutingSystem';
 import {
   buildCeilingFixtures,
   buildProcessPads,
@@ -934,6 +934,133 @@ it('keeps ceiling fixtures clear of every actual pneumatic and finished-product 
         `${route.family}: ${point.toArray()}`
       ).toBe(false);
   }
+});
+
+/**
+ * runtime-triage-20261106 packing: three finished-product runs crossed the hall
+ * with no hangers. The trapeze hangers that fix it are built from the live
+ * routes; these checks hold them against the real roof steel.
+ */
+describe('overhead spouting hangers', () => {
+  const groups = [
+    [SITE_LAYOUT.machines.silos, MachineType.SILO, SITE_LAYOUT.machineDimensions.silo],
+    [
+      SITE_LAYOUT.machines.rollerMills,
+      MachineType.ROLLER_MILL,
+      SITE_LAYOUT.machineDimensions.rollerMill,
+    ],
+    [SITE_LAYOUT.machines.sifters, MachineType.PLANSIFTER, SITE_LAYOUT.machineDimensions.sifter],
+    [SITE_LAYOUT.machines.packers, MachineType.PACKER, SITE_LAYOUT.machineDimensions.packer],
+  ] as const;
+  const machines = groups.flatMap(([anchors, type, size]) =>
+    anchors.map((anchor) => ({ ...anchor, position: [...anchor.position], type, size: [...size] }))
+  ) as unknown as MachineData[];
+  const routes = buildSpoutRoutes(machines);
+  const radii = spoutRouteRadii(routes);
+  const hangers = buildSpoutHangers(routes, radii);
+  const structure = buildFactoryRoofStructure();
+  const bottomOf = (part: (typeof structure.purlins)[number]) => {
+    const angle = part.rotation?.[2] ?? 0;
+    return part.position[1] - (part.scale[1] / 2) * Math.cos(angle);
+  };
+
+  it('hangs every rod from a real purlin or a truss bottom chord', () => {
+    expect(hangers.rods).toHaveLength(hangers.beams.length * 2);
+    for (const rod of hangers.rods) {
+      const [x, top, z] = rod.end;
+      const purlin = structure.purlins.find(
+        (part) =>
+          Math.abs(part.position[0] - x) < 1e-6 &&
+          Math.abs(z - part.position[2]) < part.scale[2] / 2 - 0.05
+      );
+      const chord = structure.frames.find(
+        (part) =>
+          (part.rotation?.[2] ?? 0) === 0 &&
+          part.scale[1] < 0.1 &&
+          part.scale[2] > 0.4 &&
+          Math.abs(part.position[2] - z) < 1e-6 &&
+          Math.abs(part.position[1] - part.scale[1] / 2 - top) < 0.01
+      );
+      const onPurlin = purlin !== undefined && Math.abs(bottomOf(purlin) - top) < 0.01;
+      expect(onPurlin || chord !== undefined, `rod at ${x}, ${z}`).toBe(true);
+    }
+  });
+
+  it('seats each carried run on its bar and keeps every member off the others', () => {
+    const samples = routes.flatMap((route, index) =>
+      route.curve.getSpacedPoints(Math.ceil(route.length / 0.1)).map((point) => ({
+        index,
+        point,
+      }))
+    );
+    const line = new THREE.Line3();
+    const near = new THREE.Vector3();
+    for (const beam of hangers.beams) {
+      line.set(new THREE.Vector3(...beam.start), new THREE.Vector3(...beam.end));
+      const touching = samples.filter(({ index, point }) => {
+        line.closestPointToPoint(point, true, near);
+        return near.distanceTo(point) < radii[index] + beam.radius + 0.02;
+      });
+      // A bar carries at least one run, and every run it meets rests on it.
+      expect(touching.length, `beam ${beam.start}`).toBeGreaterThan(0);
+      // The bar sits under the bundle's largest bore; a smaller one rides at
+      // most a centimetre and a half above it, never into it.
+      for (const { index, point } of touching) {
+        const gap = point.y - beam.start[1] - (radii[index] + beam.radius);
+        expect(gap).toBeGreaterThan(-1e-3);
+        expect(gap).toBeLessThan(0.015);
+      }
+    }
+    for (const rod of hangers.rods) {
+      line.set(new THREE.Vector3(...rod.start), new THREE.Vector3(...rod.end));
+      for (const { index, point } of samples) {
+        line.closestPointToPoint(point, true, near);
+        expect(near.distanceTo(point), `rod ${rod.start}`).toBeGreaterThan(
+          radii[index] + rod.radius
+        );
+      }
+    }
+    const fixtures = buildCeilingFixtures().housings.map((part) =>
+      new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(...part.position),
+        new THREE.Vector3(...part.scale).addScalar(0.1)
+      )
+    );
+    const gallery = buildProcessGallery();
+    const steel = [...gallery.deck, ...gallery.supports].map((part) =>
+      new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(...part.position),
+        new THREE.Vector3(...part.scale)
+      )
+    );
+    for (const member of [...hangers.beams, ...hangers.rods])
+      for (let s = 0; s <= 60; s += 1) {
+        const p = new THREE.Vector3(...member.start).lerp(new THREE.Vector3(...member.end), s / 60);
+        expect(fixtures.some((box) => box.containsPoint(p))).toBe(false);
+        expect(steel.some((box) => box.distanceToPoint(p) < member.radius)).toBe(false);
+      }
+  });
+
+  it('carries the packing runs at the joint pitch', () => {
+    const finished = routes
+      .map((route, index) => ({ route, index }))
+      .filter(({ route }) => route.family === 'finished');
+    expect(finished).toHaveLength(3);
+    for (const { route } of finished) {
+      const x = route.curve.getPointAt(0.99).x;
+      const zs = hangers.beams
+        .filter((beam) => beam.start[2] === beam.end[2] && beam.start[0] < x && beam.end[0] > x)
+        .map((beam) => beam.start[2])
+        .sort((a, b) => a - b);
+      // The long run spans z -11.35 to 12.35; gallery steel takes over past 14.9.
+      expect(zs.length, `${x}`).toBeGreaterThanOrEqual(5);
+      expect(zs[0]).toBeLessThan(-8);
+      expect(zs[zs.length - 1]).toBeGreaterThan(8);
+      for (let i = 1; i < zs.length; i += 1) expect(zs[i] - zs[i - 1]).toBeLessThan(4.6);
+    }
+    // Only those runs: drops near the intake bundle stood in front of the sifting camera.
+    expect(hangers.beams.every((beam) => beam.start[2] === beam.end[2])).toBe(true);
+  });
 });
 
 describe('roof standing seams', () => {

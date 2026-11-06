@@ -1,5 +1,6 @@
 import { preview } from 'vite';
 import { chromium } from 'playwright';
+import { withChromeLeakGuard } from '../../../scripts/lib/chrome-launch-args.mjs';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import os from 'node:os';
 import assert from 'node:assert/strict';
@@ -19,7 +20,7 @@ const cases = [
 ];
 try {
  server = await preview({preview:{host:'127.0.0.1',port:4403,strictPort:true}});
- browser = await chromium.launch({channel:'chrome',headless:false,args:['--mute-audio']});
+ browser = await chromium.launch({channel:'chrome',headless:false,args:withChromeLeakGuard(['--mute-audio'])});
  for (const c of cases) {
   const context = await browser.newContext({viewport:{width:960,height:640},serviceWorkers:'block', recordVideo:{dir,size:{width:960,height:640}}});
   const page = await context.newPage();

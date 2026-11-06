@@ -19,6 +19,7 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
+import { withChromeLeakGuard } from './lib/chrome-launch-args.mjs';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 
 const ROOT = process.cwd();
@@ -138,6 +139,7 @@ try {
     headless: !process.argv.includes('--headed'),
     // Same default as run-performance-benchmark.mjs: the installed Chrome.
     channel: argument('channel', 'chrome') || undefined || 'chrome',
+    args: withChromeLeakGuard(),
   });
   const results = [];
   for (const variant of VARIANTS) {

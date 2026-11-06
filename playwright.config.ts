@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { withChromeLeakGuard } from './scripts/lib/chrome-launch-args.mjs';
 
 /**
  * Playwright configuration for MillOS E2E tests.
@@ -52,7 +53,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         channel: 'chrome',
-        launchOptions: { chromiumSandbox: true },
+        launchOptions: { chromiumSandbox: true, args: withChromeLeakGuard() },
         ...devices['Desktop Chrome'],
       },
     },

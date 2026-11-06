@@ -45,20 +45,22 @@ describe('generated park bench instancing', () => {
   });
   it('bends the woody leader within the existing crown without moving its endpoints', () => {
     const positions = TREE_BRANCH_GEOMETRY.getAttribute('position');
-    // First fork, six unique vertices per ring; the seventh closes its seam.
+    // First fork (the leader), eight unique vertices per ring; the ninth closes
+    // its seam. 2026-11-06: eight sides and a 2.9 m start, so the leader covers
+    // the bole's flat top (fx-ab1 forge review).
     const ringCenter = (ring: number) => {
       const center = new THREE.Vector3();
-      for (let i = 0; i < 6; i++) {
-        center.add(new THREE.Vector3().fromBufferAttribute(positions, ring * 7 + i));
+      for (let i = 0; i < 8; i++) {
+        center.add(new THREE.Vector3().fromBufferAttribute(positions, ring * 9 + i));
       }
-      return center.divideScalar(6);
+      return center.divideScalar(8);
     };
     expect(ringCenter(0).distanceTo(new THREE.Vector3(0.14, 5.2, -0.08))).toBeLessThan(1e-6);
-    expect(ringCenter(2).distanceTo(new THREE.Vector3(0, 2.6, 0))).toBeLessThan(1e-6);
+    expect(ringCenter(2).distanceTo(new THREE.Vector3(0, 2.9, 0))).toBeLessThan(1e-6);
     const straightCenter = ringCenter(0).add(ringCenter(2)).multiplyScalar(0.5);
     expect(ringCenter(1).distanceTo(straightCenter)).toBeGreaterThan(0.13);
     expect(ringCenter(1).distanceTo(straightCenter)).toBeLessThan(0.14);
-    expect(TREE_BRANCH_GEOMETRY.index!.count / 3).toBe(180);
+    expect(TREE_BRANCH_GEOMETRY.index!.count / 3).toBe(192);
     TREE_BRANCH_GEOMETRY.computeBoundingBox();
     for (const crown of TREE_FOLIAGE_VARIANTS) {
       crown.computeBoundingBox();

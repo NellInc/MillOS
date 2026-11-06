@@ -157,6 +157,26 @@ export const MEADOW_POCKETS = [
   [191, 89, 17, 12],
 ] as const;
 
+/**
+ * Light foreground dressing: [x, z, rx, rz, shrubs, stones]. The `huts` and
+ * `lake` cameras opened on 40% and 35% of bare mown lawn (maps2-final). A few
+ * low crowns, outcrops and grass clumps from the same instanced draws, off
+ * the promenade and the lake path (`meadowSiteClear` keeps them off every
+ * non-grass region and the river bank). Walk-through scrub, like every
+ * meadow pocket: none of it is a walking obstacle.
+ */
+export const FOREGROUND_POCKETS = [
+  // Between the Nissen hut promenade and the river, south-east of the hut.
+  [-58, -97, 7, 5, 7, 6],
+  // The lawn outside the lake path, below the pine on the `lake` camera.
+  [105, 92, 7, 4.5, 6, 6],
+] as const;
+
+const MEADOW_POCKET_SPECS = [
+  ...MEADOW_POCKETS.map(([x, z, rx, rz]) => [x, z, rx, rz, 48, 12] as const),
+  ...FOREGROUND_POCKETS,
+];
+
 export function meadowSiteClear(x: number, z: number, radius: number) {
   return (
     Math.hypot(x, z) + radius < SITE_LAYOUT.world.radius &&
@@ -177,8 +197,8 @@ export const MEADOW_SHRUB_MAX_DROP = 0.45;
 export const MEADOW_STONE_MAX_DROP = 0.22;
 
 export function meadowTransforms(segments: number, rocks = false) {
-  return MEADOW_POCKETS.flatMap(([cx, cz, rx, rz], pocket) => {
-    const count = rocks ? 12 : 48;
+  return MEADOW_POCKET_SPECS.flatMap(([cx, cz, rx, rz, shrubs, outcrops], pocket) => {
+    const count = rocks ? outcrops : shrubs;
     return Array.from({ length: count }, (_, i) => {
       const seed = [cx + i * 0.73, 0, cz + pocket] as const;
       // Stones draw their own spot: on the shrubs' channels every stone sat
@@ -246,7 +266,7 @@ export function landscapeGrassSpec(segments: number, density: number): ClutterSp
         ] as const
     );
   });
-  for (const [x, z, rx, rz] of MEADOW_POCKETS)
+  for (const [x, z, rx, rz] of MEADOW_POCKET_SPECS)
     for (let i = 0; i < 14; i++) {
       const a = i * 2.399963;
       const r = Math.sqrt((i + 1) / 14);

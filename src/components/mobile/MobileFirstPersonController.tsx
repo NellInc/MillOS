@@ -17,6 +17,7 @@ import {
   walkingBlocks,
   isDryWalkingGround,
 } from '../../utils/castleNavigation';
+import { walkingObstacleBlocks } from '../../utils/walkingObstacles';
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import { FIRST_PERSON_EYE_HEIGHT, clampNavigationDelta } from '../../utils/cameraNavigation';
 import { useT } from '../../i18n';
@@ -52,6 +53,8 @@ const COLLISION_BOXES = [
 /** True when a player standing at (x, z) would overlap the world edge or an obstacle. */
 const collides = (x: number, z: number): boolean => {
   if (!isWithinWalkingDomain(x, z, PLAYER_RADIUS)) return true;
+  // Cottages, garden walls, the perimeter fence and the station shop.
+  if (walkingObstacleBlocks(x, z, PLAYER_RADIUS)) return true;
   for (const box of COLLISION_BOXES) {
     if (
       x + PLAYER_RADIUS > box.minX &&

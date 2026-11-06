@@ -147,7 +147,7 @@ const STARTUP_GENERATED_MODELS: readonly GeneratedAssetId[] = [
   'coop',
   'farmhouse',
   'gardenbed',
-  'drainagePipeUnit',
+  // No 'drainagePipeUnit': no DrainageCulvert is placed (D-040).
   'fence',
   'windmill',
   'watertrough',

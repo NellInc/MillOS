@@ -40,7 +40,7 @@
  *   --settle-timeout=<s>  How long to wait for the scene graph to settle. Default 30.
  *   --perf-gate           Also run a non-art budget run on the same scenes.
  *   --skip-build          Reuse the existing dist/ (records the risk in the manifest).
- *   --headed              Show the browser (real GPU; headless falls back to SwiftShader).
+ *   --headed              Show the browser window. Not needed for real-GPU frames: on macOS headless runs ANGLE over Metal and the benchmark refuses a software renderer. Checks must stay headless (Nell, 2026-11-06).
  *   --help
  */
 import { spawn } from 'node:child_process';
@@ -48,6 +48,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
+import { withChromeLeakGuard } from './lib/chrome-launch-args.mjs';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 
 const ROOT = process.cwd();
@@ -240,6 +241,7 @@ async function buildContactSheet(directory, scenes, headed) {
     chromiumSandbox: true,
     headless: !headed,
     channel: 'chrome',
+    args: withChromeLeakGuard(),
   });
   try {
     const page = await browser.newPage({ viewport: { width: 640 * columns, height: 720 } });

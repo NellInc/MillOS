@@ -26,7 +26,9 @@ const prepared = fs.readFileSync(
 const first = deriveAirHoseSignGLB(baseline),
   second = deriveAirHoseSignGLB(baseline),
   a = inspectAirDelivery(baseline),
-  b = inspectAirDelivery(first.bytes),
+  // v7 replaces every baseline triangle with the lofted housing, post, reel,
+  // gauge and sign; the counts are the regenerated delivery's own.
+  b = inspectAirDelivery(first.bytes, { vertices: 286, triangles: 181 }),
   vset = new Set(first.receipt.boardVertexIds);
 const proof = {
   receipt: first.receipt,
@@ -78,49 +80,67 @@ test('exact12 triangles own24 disjoint board vertices without touching other con
     if (!first.receipt.boardTriangleIds.includes(t))
       assert(a.triangles[t].every((i) => !vset.has(i)));
 });
-test('board XZ and every non-board POSITION remain exact, with75mm Y-only metric displacement', () => {
-  for (let i = 0; i < 233; i++) {
-    const x = a.position.get(i),
-      y = b.position.get(i);
-    assert.equal(x[0], y[0]);
-    assert.equal(x[2], y[2]);
-    if (vset.has(i)) assert(Math.abs(a.points[i][1] - b.points[i][1] - 0.075) < 1e-6);
-    else assert.deepEqual(x, y);
+test('the new sign keeps the authored board width and its foot and top dropped exactly75mm', () => {
+  const board = first.receipt.boardBoundsBefore;
+  for (const drop of first.receipt.actualDropRange) assert(Math.abs(drop - 0.075) < 1e-6);
+  const top = b.points.filter((p) => Math.abs(p[1] - b.bounds.max[1]) < 1e-6);
+  assert(top.length > 0);
+  assert(Math.abs(b.bounds.max[1] - (board.max[1] - 0.075)) < 1e-6);
+  assert.equal(Math.min(...top.map((p) => p[0])), board.min[0]);
+  assert.equal(Math.max(...top.map((p) => p[0])), board.max[0]);
+});
+test('both maps are byte-exact and the material, nodes and samplers are unchanged', () => {
+  for (const image of a.g.json.images) {
+    const was = a.g.json.bufferViews[image.bufferView],
+      now = b.g.json.bufferViews[image.bufferView];
+    assert(
+      a.g.bin
+        .subarray(was.byteOffset, was.byteOffset + was.byteLength)
+        .equals(b.g.bin.subarray(now.byteOffset, now.byteOffset + now.byteLength))
+    );
   }
+  for (const k of ['asset', 'scenes', 'nodes', 'materials', 'images', 'textures', 'samplers'])
+    assert.deepEqual(b.g.json[k], a.g.json[k], k);
 });
-test('all normals, UVs, vertex colours, indices, images and BIN padding are byte-exact', () => {
-  const permit = new Set();
-  for (const i of vset)
-    for (let k = 0; k < 4; k++) permit.add(a.position.start + i * a.position.stride + 4 + k);
-  assert.equal(a.g.bin.length, b.g.bin.length);
-  for (let i = 0; i < a.g.bin.length; i++)
-    if (!permit.has(i)) assert.equal(a.g.bin[i], b.g.bin[i], 'Unexpected BIN mutation at' + i);
-});
-test('all nodes/materials/samplers/texture declarations exact; only accessor minmax metadata changes', () => {
-  const j = structuredClone(b.g.json);
-  j.accessors[a.primitive.attributes.POSITION].min =
-    a.g.json.accessors[a.primitive.attributes.POSITION].min;
-  j.accessors[a.primitive.attributes.POSITION].max =
-    a.g.json.accessors[a.primitive.attributes.POSITION].max;
-  assert.deepEqual(j, a.g.json);
+test('only accessor counts/extrema, view offsets/lengths and the buffer length change in JSON', () => {
+  const normalised = (json) => {
+    const copy = structuredClone(json);
+    for (const accessor of copy.accessors) {
+      delete accessor.count;
+      delete accessor.min;
+      delete accessor.max;
+    }
+    for (const view of copy.bufferViews) {
+      delete view.byteOffset;
+      delete view.byteLength;
+    }
+    delete copy.buffers[0].byteLength;
+    return copy;
+  };
+  assert.deepEqual(normalised(b.g.json), normalised(a.g.json));
 });
 test('final accessor extrema describe actual POSITION values and final runtime bounds are3.25m', () => {
-  const local = Array.from({ length: 233 }, (_, i) => b.position.get(i));
+  const local = Array.from({ length: b.position.definition.count }, (_, i) => b.position.get(i));
   for (let k = 0; k < 3; k++) {
     assert.equal(b.position.definition.min[k], Math.min(...local.map((p) => p[k])));
     assert.equal(b.position.definition.max[k], Math.max(...local.map((p) => p[k])));
   }
   assert(Math.abs(b.bounds.max[1] - b.bounds.min[1] - 3.25) < 1e-6);
-  assert.deepEqual(b.bounds.min, a.bounds.min);
-  assert.equal(b.bounds.max[0], a.bounds.max[0]);
-  assert.equal(b.bounds.max[2], a.bounds.max[2]);
+  // The envelope is regenerated from metric constants, so it agrees to float
+  // precision rather than bit-for-bit: 0.60 x 0.52 m, grounded and centred.
+  assert.equal(b.bounds.min[1], a.bounds.min[1]);
+  for (const k of [0, 2])
+    for (const side of ['min', 'max'])
+      assert(Math.abs(b.bounds[side][k] - a.bounds[side][k]) < 1e-6);
 });
-test('one material/two maps/184triangles/552draw vertices/233indexed positions remain under budget', () => {
+test('one material/two maps/181triangles/543draw vertices/286indexed positions remain under budget', () => {
   assert.equal(b.g.json.materials.length, 1);
   assert.equal(b.g.json.images.length, 2);
-  assert.equal(b.triangles.length, 184);
-  assert.equal(b.indices.definition.count, 552);
-  assert.equal(b.position.definition.count, 233);
+  assert.equal(b.triangles.length, 181);
+  assert.equal(b.indices.definition.count, 543);
+  assert.equal(first.receipt.renderVertices, 543);
+  assert(b.indices.definition.count <= 552); // manifest maxRenderVertices
+  assert.equal(b.position.definition.count, 286);
   assert(first.bytes.length <= 70000);
 });
 test('written candidate exactly equals producer result and no input was overwritten', () => {

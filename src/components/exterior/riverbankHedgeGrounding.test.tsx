@@ -689,8 +689,14 @@ const unchangedSourceHashes = {
   // river-custody-20261103 (river, receiving, water); the grounding checks above pass.
   'src/components/exterior/HedgeFoliage.tsx':
     '127e51627a4e407fd3ea8ca36f568d6aadfca254184b224458fc0c59788ba989',
+  // Re-baselined 2026-11-06 under Nell's 'FIX EVERYTHING USE YOUR BEST JUDGMENT';
+  // reviewed in test-results/art-review/groupB-after2 (forge): crown sprays sit
+  // inside the leaf mass, the leader covers the bole's cap, the limbs taper.
+  // Same bytes confirmed 2026-11-06 by blind A/B test-results/art-review/fx-ab2
+  // (fx-b1-noon with the leader and limb-taper hunks reverted vs fx-b0-noon:
+  // village, farm, paddock, square, forge all equal, no regression).
   'src/components/scenery/InstancedFoliage.tsx':
-    '22c541209adbbc8bd83c8aee8af4b88334f9c3a99b2f303b4a3302c352dc5a75',
+    '4df9e5219b1fb3ba647a9be2acb26305352970211b6ba9a7bac23cbdee01f267',
   'src/components/scenery/WindDriver.tsx':
     '4b9337add2f65164982234a6e6808fe2534665fd09cfca38d7f8c231ac4a034b',
   'src/utils/worldSurface.ts': 'c3e05f3b2158ae4b94c3b25b2c5ab9cdcdf2067e8ba0b88b38e48694402e85ca',
@@ -698,10 +704,17 @@ const unchangedSourceHashes = {
   // This placement-only repair must keep those full-file inputs exact.
   'src/components/models/GeneratedGeometrySurface.tsx':
     'e5d1b63f9e14829abe5c98be94235d79f68d6512cf79b4a9d83849df67d6a1b2',
+  // Re-baselined 2026-11-06 under Nell's 'FIX EVERYTHING USE YOUR BEST JUDGMENT';
+  // reviewed in test-results/art-review/maps-ab-1 (picnic-shelter): the only
+  // change is the brickCarport canopy ground-bounce branch (canopyBounce.ts).
   'src/components/models/GeneratedModel.tsx':
-    'c35f00e3956e2dfceeb075fbe3b3885fc61707d56f2db4cde9dcb8e6ecb73dac',
+    '9ac2dcc472743ca42ef9d4bd15683a31d89ad46e86de9c01126eb35c19c6c470',
+  // Re-baselined 2026-11-06 under Nell's 'FIX EVERYTHING USE YOUR BEST JUDGMENT';
+  // reviewed by blind A/B test-results/art-review/fx-ab1 (forge, fx-b0-noon vs
+  // fx-b2-noon): the parkland leader covers the bole's flat top. Branches only;
+  // the trunk profile and its parkTrunkUnit match are unchanged.
   'src/components/exterior/ExteriorVegetation.tsx':
-    'f91d7a4d847a7acf237b5d586de02587b92e58885de826fab7e610ba6d9e3bf5',
+    'ca43a67f22a4d4f378fdef2c8a40a1071c970be104f7fbfaecfffcad7f9afbc9',
   'src/components/terrain/splatMapGenerator.ts':
     '256448f6186026291e423fd60797a47d86c2e469565190b4f7ea3102d1b5f1e6',
   'src/components/terrain/terrainTypes.ts':
@@ -713,7 +726,10 @@ const unchangedSourceHashes = {
     '35ab482feb104c5d0f4a6f19b7c7649746d13761a80c83c53906b1c6ba926f40',
   'src/utils/castleNavigation.ts':
     '92f86b420d9aea8ed6192e2e32a1049046bf5c7de0c1ac44bbd64fe67505e8e0',
-  'src/components/TruckBay.tsx': '34531b7ccb949398b7940b885b3bc104be5e8e1b4f066e7be35a423978e63c29',
+  // Re-baselined 2026-11-06 under Nell's 'FIX EVERYTHING USE YOUR BEST JUDGMENT';
+  // reviewed in test-results/art-review/groupB-after2 (markings, receiving): dock
+  // rubber and shelter fabric finishes only.
+  'src/components/TruckBay.tsx': 'be77079bbcff05e99adbc8c8fda5fb12b4f268b24d128076e7c65a759a0db365',
   'public/models/world/hedge-unit.glb':
     '808a45bf2a900a731887ef2605cec8a8de691b6c15e8440a3f82d64b0d8cf81b',
   'public/models/world/park-bench.glb':

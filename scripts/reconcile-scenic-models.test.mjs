@@ -9,7 +9,7 @@ import {
   deriveScenicModel,
   assertScenicNormalization,
 } from './reconcile-scenic-models.mjs';
-import * as cupid from './refine-cupid-figure-contact.mjs';
+import { NodeIO, getBounds } from '@gltf-transform/core';
 import * as lock from './refine-lock-gate-body.mjs';
 
 const provenance = JSON.parse(await readFile('assets/source/models/world/PROVENANCE.json'));
@@ -117,31 +117,45 @@ describe.each(Object.keys(RECONCILED_SCENIC_MODELS))('%s current-source replay',
   });
 });
 
-it('seats the complete Cupid figure while preserving pedestal, other attributes and embedded maps', async () => {
-  const [baseline, , , current] = await inputs(cupid.SPEC.id);
-  const before = cupid.inspect(baseline),
-    after = cupid.inspect(current);
-  expect(before.meshes[0].bounds.min[1] - before.meshes[1].bounds.max[1]).toBeCloseTo(0.0507494, 6);
-  expect(after.meshes[0].bounds.min[1]).toBeCloseTo(after.meshes[1].bounds.max[1], 6);
-  expect(after.meshes[1].points).toEqual(before.meshes[1].points);
-  expect(after.images).toEqual(before.images);
-  expect(after.json.materials).toEqual(before.json.materials);
-  for (let mesh = 0; mesh < 2; mesh++) {
-    expect(after.meshes[mesh].triangles).toEqual(before.meshes[mesh].triangles);
-    for (const [semantic, accessor] of Object.entries(before.meshes[mesh].primitive.attributes)) {
-      if (semantic === 'POSITION' && mesh === 0) continue;
-      const a = before.accessor(accessor),
-        b = after.accessor(accessor);
-      for (let i = 0; i < a.definition.count; i++) expect(b.read(i)).toEqual(a.read(i));
-    }
+it('seats the rebuilt Cupid figure on the unchanged pedestal inside the delivered envelope', async () => {
+  // D-034 (2026-11-06): the figure is authored geometry from
+  // scripts/blender/authored/cupid-authored-body.py, seated at source, so the
+  // retired figure-contact shift no longer applies. Its invariants stay: the
+  // pedestal keeps the 1.4 x 1.3 x 1.4 m block it had, the figure sits on its
+  // top (sunk at most 3 mm, never floating) and inside its footprint, and the
+  // whole statue keeps its manifest envelope.
+  const doc = await new NodeIO().read('public/models/world/cupid-authored-body.glb');
+  const parts = Object.fromEntries(
+    doc
+      .getRoot()
+      .listNodes()
+      .filter((node) => node.getMesh())
+      .map((node) => [node.getName(), getBounds(node)])
+  );
+  const figure = parts['Cupid-authored-bodyBody'],
+    pedestal = parts['Cupid-authored-bodyPedestal'];
+  expect(Object.keys(parts)).toHaveLength(2);
+  [-0.7, 0, -0.7].forEach((v, k) => expect(pedestal.min[k]).toBeCloseTo(v, 6));
+  [0.7, 1.3, 0.7].forEach((v, k) => expect(pedestal.max[k]).toBeCloseTo(v, 6));
+  expect(figure.min[1]).toBeLessThanOrEqual(pedestal.max[1] + 1e-6);
+  expect(pedestal.max[1] - figure.min[1]).toBeLessThanOrEqual(0.003);
+  for (const k of [0, 2]) {
+    expect(figure.min[k]).toBeGreaterThan(pedestal.min[k]);
+    expect(figure.max[k]).toBeLessThan(pedestal.max[k]);
   }
-  for (let i = 0; i < before.meshes[0].points.length; i++) {
-    const a = before.meshes[0].points[i],
-      b = after.meshes[0].points[i];
-    expect(b[0]).toBe(a[0]);
-    expect(b[2]).toBe(a[2]);
-    expect(b[1] - a[1]).toBeCloseTo(-0.0507494, 7);
+  const manifest = JSON.parse(await readFile('public/models/asset-manifest.json', 'utf8'));
+  const contract = manifest.assets.find((asset) => asset.id === 'world-cupid-authored-body');
+  const whole = getBounds(doc.getRoot().listScenes()[0]);
+  const size = [0, 1, 2].map((k) => whole.max[k] - whole.min[k]);
+  for (const [k, axis] of [
+    [0, 'width'],
+    [1, 'height'],
+    [2, 'length'],
+  ]) {
+    expect(size[k]).toBeGreaterThanOrEqual(contract.bounds[axis][0]);
+    expect(size[k]).toBeLessThanOrEqual(contract.bounds[axis][1]);
   }
+  expect(Math.abs(whole.min[1])).toBeLessThanOrEqual(contract.bounds.groundTolerance);
 });
 
 it('keeps the live Cupid fallback legs in contact with the unchanged pedestal', () => {
@@ -166,14 +180,31 @@ it('keeps the live Cupid fallback legs in contact with the unchanged pedestal', 
 });
 
 it('removes only the isolated beam and pairs the actual live wrapper with the new local origin', async () => {
-  const [baseline, , , current] = await inputs(lock.SPEC.id);
+  const lockInputs = await inputs(lock.SPEC.id);
+  const [baseline, , , current] = lockInputs;
   const before = lock.inspect(baseline),
     after = lock.inspect(current, true);
+  const { receipt } = deriveScenicModel(lock.SPEC.id, ...lockInputs);
   const retained = before.indices.slice(0, 150).concat(before.indices.slice(186));
-  expect(after.indices).toEqual(retained);
-  expect(after.indices).toHaveLength(180);
-  expect(after.localPoints).toEqual(before.localPoints);
-  expect(after.binary.subarray(432).equals(before.binary.subarray(432))).toBe(true);
+  // v7 rebuilds the leaves into the freed rows; the deck and post faces it keeps
+  // lead the index buffer in baseline order, and none of them is the beam.
+  expect(receipt.removedTriangleIds).toEqual(Array.from({ length: 12 }, (_, i) => 50 + i));
+  expect(receipt.keptTriangleIds.every((t) => t < 50 || t > 61)).toBe(true);
+  const kept = receipt.keptTriangleIds.flatMap((t) => before.indices.slice(t * 3, t * 3 + 3));
+  expect(kept.every((row) => retained.includes(row))).toBe(true);
+  expect(after.indices.slice(0, kept.length)).toEqual(kept);
+  expect(after.indices).toHaveLength(216);
+  // Kept rows are byte-exact apart from the post footings' seated y word.
+  const footings = new Set(receipt.seatedPosts.postRows);
+  for (const row of new Set(kept)) {
+    const at = 432 + row * 44;
+    if (footings.has(row)) {
+      expect(after.binary.subarray(at, at + 4)).toEqual(before.binary.subarray(at, at + 4));
+      expect(after.binary.subarray(at + 8, at + 44)).toEqual(
+        before.binary.subarray(at + 8, at + 44)
+      );
+    } else expect(after.binary.subarray(at, at + 44)).toEqual(before.binary.subarray(at, at + 44));
+  }
   expect(after.images).toEqual(before.images);
   expect(after.json.materials).toEqual(before.json.materials);
   const tree = component('LockGate')({ position: [11, 2, -7], width: 10, rotation: 0.3 });
@@ -185,13 +216,14 @@ it('removes only the isolated beam and pairs the actual live wrapper with the ne
   expect(nodes.filter((element) => element.type === LockGateJoinery)).toHaveLength(1);
   expect(nodes.filter((element) => element.type === LockGateLighting)).toHaveLength(1);
   const parent = new Matrix4().makeRotationY(0.3).setPosition(11, 2, -7);
-  for (const index of new Set(retained)) {
-    const old = new Vector3(...before.points[index])
-      .add(new Vector3(0, -0.75, -1.748748))
-      .applyMatrix4(parent);
-    const next = new Vector3(...after.points[index])
-      .add(new Vector3(...wrapper))
-      .applyMatrix4(parent);
-    expect(next.toArray()).toEqual(old.toArray());
+  for (const index of new Set(kept)) {
+    const old = new Vector3(...before.points[index]).add(new Vector3(0, -0.75, -1.748748));
+    const next = new Vector3(...after.points[index]).add(new Vector3(...wrapper));
+    // A seated footing lands on its stated target height; x and z stay put.
+    if (footings.has(index)) {
+      expect(next.y).toBeCloseTo(receipt.seatedPosts.postFooting.after - 0.75, 5);
+      next.y = old.y;
+    }
+    expect(next.applyMatrix4(parent).toArray()).toEqual(old.applyMatrix4(parent).toArray());
   }
 });

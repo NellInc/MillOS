@@ -24,6 +24,7 @@ import { GENERATED_ASSET_PATHS, type GeneratedAssetId } from '../../utils/modelL
 import ErrorBoundary from '../ErrorBoundary';
 import { applyWorldSurface, pinSurfaceProfile } from '../../utils/worldSurface';
 import { CLOSED_DOUBLE_FACED_ASSETS } from './closedDoubleFacedAssets';
+import { applyCanopyBounce } from './canopyBounce';
 import {
   createMarketCanopyGeometry,
   createMarketClothTexture,
@@ -283,6 +284,13 @@ export const GeneratedModel: React.FC<GeneratedModelProps> = ({
         material.normalMap = null;
         material.roughness = VESSEL_SHELL_ROUGHNESS;
         applyWorldSurface(pinSurfaceProfile(material, 'vessel'), 'vessel');
+        mesh.material = material;
+        materials.push(material);
+      }
+      // The picnic shelter's soffit takes the sunlit ground's bounce (canopyBounce.ts).
+      if (asset === 'brickCarport' && mesh.material instanceof THREE.MeshStandardMaterial) {
+        const material = mesh.material.clone();
+        applyCanopyBounce(material);
         mesh.material = material;
         materials.push(material);
       }

@@ -424,12 +424,16 @@ function createPrintGeometry() {
     )
   );
   // Rounded food ends, resting on stainless rollers instead of hovering in a box.
-  for (const z of [-0.15, 0, 0.15]) {
+  // Each lies in the trough between two rollers (centres z -0.71 + 0.084 i,
+  // radius 0.022, axis y 1.1): troughs at z -0.668, -0.5 and -0.332, where a
+  // 0.038 m sausage touching both rollers centres at y 1.1 + 0.0428. At z
+  // +-0.15 and y 1.15 two of them sat half on a roller crown (rt6-base).
+  for (const z of [-0.168, 0, 0.168]) {
     parts.push(
       styled(
         new THREE.CapsuleGeometry(0.038, 0.33, farDetail ? 2 : 4, segments(10))
           .rotateZ(Math.PI / 2)
-          .translate(-10, 1.15, -0.5 + z),
+          .translate(-10, 1.1428, -0.5 + z),
         '#ae6441'
       )
     );
@@ -533,6 +537,21 @@ function createHardwareGeometry() {
         [x, 0, -1.9]
       )
     );
+    // Top collar on the glass rim (1.587), under the lid skirt (1.595). With
+    // only the 0.14-opacity bowl between them the lid read as floating over
+    // the hopper (rt6-base station-shop).
+    p.push(
+      lathe(
+        [
+          [0.119, 1.57],
+          [0.128, 1.57],
+          [0.128, 1.597],
+          [0.119, 1.597],
+        ],
+        metal,
+        [x, 0, -1.9]
+      )
+    );
     b([0.098, 0.12, 0.094], [x, 0.833, -1.707], black, 0.02);
     b([0.05, 0.13, 0.027], [x, 0.927, -1.653], '#cbbd9c', 0.012);
   }
@@ -609,20 +628,33 @@ function createSlushGeometry() {
   return joined(
     [-10.15, -9.85]
       .map((x) => x + STATION_APPLIANCE_SHIFT.slush)
-      .map((x, i) =>
+      .flatMap((x, i) => [
+        // Filled to just under the collar, as a running machine is: at 1.493
+        // a 10 cm band of empty glass separated the slush from the lid.
         lathe(
           [
             [0, 1.042],
             [0.095, 1.042],
             [0.107, 1.064],
-            [0.107, 1.465],
-            [0.084, 1.478],
-            [0, 1.493],
+            [0.107, 1.5],
+            [0, 1.5],
           ],
           i === 0 ? '#b94743' : '#407f9e',
           [x, 0, -1.9]
-        )
-      )
+        ),
+        // A paler frozen crown, so the contents read as ice rather than paint.
+        lathe(
+          [
+            [0, 1.5],
+            [0.107, 1.5],
+            [0.107, 1.536],
+            [0.09, 1.552],
+            [0, 1.56],
+          ],
+          i === 0 ? '#e2aaa4' : '#a8d2e3',
+          [x, 0, -1.9]
+        ),
+      ])
   );
 }
 export const RETAIL_GEOMETRY = {

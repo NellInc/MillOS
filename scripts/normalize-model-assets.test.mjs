@@ -10,6 +10,8 @@ import {
   multiplyScale,
   indexGeneratedGeometry,
   GENERATED_ASSETS,
+  GENERATED_ASSET_ATTRIBUTION,
+  AUTHORED_CREDIT_PENDING_RENORMALIZE,
   generatedAssetHeader,
 } from './normalize-model-assets.mjs';
 import { RECONCILED_FARM_MODELS } from './reconcile-farm-models.mjs';
@@ -32,6 +34,10 @@ test('every committed generated GLB carries the header and credit its spec decla
     )
   );
   const stale = [];
+  // Delivered before their authored credit changed: the old provider credit is
+  // accepted for these ids only, and a listed id that no longer carries it has
+  // been re-normalized and must leave the list.
+  const pendingCredit = [];
   for (const spec of GENERATED_ASSETS) {
     const file = `public/models/${spec.area}/${spec.slug}.glb`;
     const bytes = readFileSync(file);
@@ -56,11 +62,35 @@ test('every committed generated GLB carries the header and credit its spec decla
         !/^MillOS generated-asset pipeline, glTF-Transform v\d+\.\d+\.\d+$/.test(
           asset.generator
         )) ||
-      asset.copyright !== expected.copyright
+      asset.copyright !==
+        (AUTHORED_CREDIT_PENDING_RENORMALIZE.has(spec.id)
+          ? GENERATED_ASSET_ATTRIBUTION
+          : expected.copyright)
     )
       stale.push(spec.id);
+    if (AUTHORED_CREDIT_PENDING_RENORMALIZE.has(spec.id)) pendingCredit.push(spec.id);
   }
   expect(stale).toEqual([]);
+  expect(pendingCredit.sort()).toEqual([...AUTHORED_CREDIT_PENDING_RENORMALIZE].sort());
+});
+
+test('from-scratch authored rows credit MillOS, keeping Tripo3D only where its images remain', () => {
+  // `-authored-v2` rows are rebuilt by scripts/blender/authored/<slug>.py. Only
+  // the fuel-pump shell re-embeds atlas images from a Tripo-textured delivery.
+  const authored = GENERATED_ASSETS.filter((spec) =>
+    String(spec.preparedSource ?? '').endsWith('-authored-v2.glb')
+  );
+  expect(authored.length).toBeGreaterThan(0);
+  for (const spec of authored) {
+    expect(spec.runtimeLicense, spec.id).toMatch(/^MillOS project-authored geometry/);
+    expect(generatedAssetHeader(spec).copyright, spec.id).not.toBe(GENERATED_ASSET_ATTRIBUTION);
+    expect(/Tripo3D/.test(spec.runtimeLicense), spec.id).toBe(spec.id === 'world-fuel-pump-shell');
+  }
+  for (const id of AUTHORED_CREDIT_PENDING_RENORMALIZE)
+    expect(
+      authored.some((spec) => spec.id === id),
+      id
+    ).toBe(true);
 });
 
 test('fresh generated exports record the installed toolkit rather than historical replay labels', async () => {

@@ -7,6 +7,7 @@ import path from 'node:path';
 import { cpus, loadavg } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { chromium } from 'playwright';
+import { withChromeLeakGuard } from './lib/chrome-launch-args.mjs';
 import { preview } from 'vite';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 import { ownedGpuPid, preflightMetalTrace, startMetalTrace } from './lib/metal-system-trace.mjs';
@@ -182,7 +183,7 @@ try {
     headless: true,
     chromiumSandbox: true,
     ...(metalRenderer ? { ignoreDefaultArgs: ['--enable-unsafe-swiftshader'] } : {}),
-    args: [
+    args: withChromeLeakGuard([
       // CDP command-line auditing requires this; Playwright no longer supplies it.
       // Working if the audit still verifies the original sandbox/hardware flags.
       '--enable-automation',
@@ -202,7 +203,7 @@ try {
       // then check both CDP and the application's own context below.
       ...(metalRenderer ? ['--enable-gpu', '--use-gl=angle', '--use-angle=metal'] : []),
       ...(softwareCompositor ? ['--disable-gpu-compositing'] : []),
-    ],
+    ]),
   });
   report.browserVersion = browser.version();
   await checkpoint('browser-renderer');

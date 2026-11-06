@@ -127,9 +127,12 @@ export const createAuthoredForkliftMaterials = (grime: number): AuthoredForklift
    * unstructured rubber grain is unwrap-agnostic and reads correctly either
    * way. Normal only: this is relief, and it must not multiply the albedo.
    */
+  // Albedo raised from the authored (0.0056, 0.0080, 0.0097), a near-black on
+  // which the GLB's moulded lugs had no shading to show: the triage read the
+  // tyres as "thin, treadless". 0.022-0.026 linear is worn tyre rubber.
   const rubber = new THREE.MeshStandardMaterial({
     name: 'industrial-rubber',
-    color: linearColor(0.0056054, 0.0080232, 0.0097212),
+    color: linearColor(0.022, 0.024, 0.026),
     roughness: 0.96,
     metalness: 0,
     normalMap: PROCEDURAL_TEXTURES.rubberNormal,
@@ -218,6 +221,28 @@ const COMPACT_GLASS_RENDER_ORDER = RENDER_ORDER.vehicleGlass;
  */
 const RAM_NODE_NAMES = new Set(['forklift-hydraulic02-poles-19', 'forklift-hydraulic01-poles-23']);
 const TELESCOPING_RAM_NODES = new Set(['forklift-hydraulic02-poles-19']);
+/**
+ * Nodes repainted in the dark structural paint, by NODE name (file order and
+ * names untouched). The GLB paints the overhead guard and roof the same amber
+ * as the body and the mast channels the same pale galvanised blue-grey as the
+ * carriage, so in the runtime triage (forklift, milling) the guard dissolved
+ * into the body and the mast into the cream sacks, and the vehicle read as "a
+ * plain yellow box, no overhead guard or mast discernible". Measured in
+ * forklift.glb: frame 25 (y 0.63-1.78), roof 28 (1.73-1.79), lamp bar 26;
+ * mast channels 09/16/20 and side plates 17 to y 1.71, crossbar 21. The
+ * carriage, forks, backrest and bolts stay galvanised and the rams chromed,
+ * so the moving stage still reads against the fixed mast.
+ */
+const STRUCTURAL_PAINT_NODES = new Set([
+  'forklift-frame-25',
+  'forklift-roof-28',
+  'forklift-lights-frame-26',
+  'forklift-metal-pole-01-20',
+  'forklift-metal-pole-02-16',
+  'forklift-metal-pole-03-09',
+  'forklift-metal-plates-02-17',
+  'forklift-metal-plates-03-21',
+]);
 /** Node name of the second mast stage. Its local +Y is genuinely vertical. */
 const FORK_CARRIER_NODES = ['lift02_9', 'lift01_11'];
 
@@ -390,11 +415,15 @@ export const COMPACT_FORK_LOAD: {
   palletPosition: [number, number, number];
 } = {
   centres: [-0.17, 0.17],
-  // 0.7 m tines from the carriage face (mast-local z 0.125).
+  // 0.7 m tines from the carriage face (mast-local z 0.125). At fork height 0
+  // they stand in the pallet's fork pockets (pallet-local y -0.035 to 0.025)
+  // with the pallet's underside on the floor, the same datum as the authored
+  // model. They used to stand at 0.30-0.34 m, which put every floor pickup's
+  // pallet 0.255 m in the air.
   size: [0.13, 0.04, 0.7],
-  y: 0.32,
+  y: 0.065,
   z: 0.475,
-  palletPosition: [0, 0.315, 0.53],
+  palletPosition: [0, 0.06, 0.53],
 };
 /**
  * The compact (low tier) mast's distance ahead of the forklift origin. Its
@@ -406,9 +435,12 @@ export const COMPACT_MAST_Z = 0.61;
 /**
  * The authored (medium and above) model's carried pallet, in model space. Its
  * back edge (z 0.74) sits just ahead of the mast face (0.733); at z 1.02 it
- * ran 0.11 m back through the mast poles.
+ * ran 0.11 m back through the mast poles. At y 0.06 its underside is on the
+ * floor at fork height 0 and forklift.glb's tines (y 0.064-0.068) stand in its
+ * fork pockets (0.025-0.085). At 0.34 the pallet rode 0.3 m above the tines
+ * (art review rt6, forklift-close: "pallet floating above the forks").
  */
-export const AUTHORED_PALLET_POSITION: [number, number, number] = [0, 0.34, 1.14];
+export const AUTHORED_PALLET_POSITION: [number, number, number] = [0, 0.06, 1.14];
 /**
  * How far ahead of the forklift origin each tier draws the pallet centre: where
  * a dropoff sets it down. The far billboard draws it at the compact reach.
@@ -860,7 +892,7 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
           <mesh
             geometry={compactForkliftGeometry.detailBox}
             material={compactForkliftMaterial.steel}
-            position={[0, 0.62, 0.06]}
+            position={[0, 0.365, 0.06]}
             scale={[1.02, 0.32, 0.13]}
             castShadow
             receiveShadow
@@ -1041,7 +1073,11 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
         child.receiveShadow = true;
         const isRam = RAM_NODE_NAMES.has(child.name);
         const sourceName = (mesh.material as THREE.Material | undefined)?.name ?? '';
-        const replacement = isRam ? materials.ram : materials.byName[sourceName];
+        const replacement = isRam
+          ? materials.ram
+          : STRUCTURAL_PAINT_NODES.has(child.name)
+            ? materials.byName['structural-graphite']
+            : materials.byName[sourceName];
         if (replacement) mesh.material = replacement;
         if (TELESCOPING_RAM_NODES.has(child.name) && mesh.geometry) {
           mesh.geometry.computeBoundingBox();
@@ -1258,7 +1294,8 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
       forksRef.current.position.y = forkHeight;
     }
     if (cargoRef.current) {
-      cargoRef.current.position.y = 0.6 + forkHeight;
+      // Tines at 0.055 fill the pallet's pockets (0.025-0.085 at y 0.06).
+      cargoRef.current.position.y = 0.06 + forkHeight;
     }
     const mastTilt = mastTiltRef?.current ?? 0;
     if (mastAssemblyRef.current) mastAssemblyRef.current.rotation.x = mastTilt;
@@ -1448,7 +1485,7 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
       <group ref={forkTiltRef} position={[0, 0, 1.3]}>
         <group ref={forksRef} position={[0, 0, 0]}>
           {[-0.3, 0.3].map((x, i) => (
-            <group key={i} position={[x, 0.3, 0.5]}>
+            <group key={i} position={[x, 0.055, 0.5]}>
               <mesh castShadow>
                 <boxGeometry args={[0.12, 0.06, 1.3]} />
                 <meshStandardMaterial color="#6b7280" metalness={0.85} roughness={0.15} />
@@ -1539,7 +1576,7 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
       <group ref={cargoTiltRef} position={[0, 0, 1.3]}>
         <group
           ref={cargoRef}
-          position={[0, 0.6, 0.7]}
+          position={[0, 0.06, 0.7]}
           visible={(cargoPresenceRef?.current ?? 0) > 0.01}
         >
           <FlourPallet opacity={cargoPresenceRef?.current ?? 0} materialRefs={cargoMaterialsRef} />

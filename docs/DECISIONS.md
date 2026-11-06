@@ -394,3 +394,179 @@ Source: Nell's "FIX EVERYTHING USE YOUR BEST JUDGMENT" (2026-11-06) after choosi
 Low tier (2026-11-06); the code is `ExteriorLampDriver` in
 `src/components/exterior/ExteriorLighting.tsx`, with `window.__MILLOS_LAMPS__` as the
 benchmark-only instrument used to measure the lamps-on moment.
+
+### D-031 · A model is accepted at 8 of 10 from an independent judge; an improved one below that ships only if it beats the original blind · [proposed] · 2026-11-06
+
+Every asset-loop round is graded by a fresh judge on a different model from the builder
+(Sonnet when Opus builds) against the fixed rubric in `docs/ASSET_JUDGE.md`: a PASS needs
+every one of twelve fixed views and every axis at 8 or more, no blocking defect and no
+code-checked probe failure, and a model is accepted only after two consecutive passes on
+the same bytes. A model that reaches the six-round cap below 8 ships only if a blind A/B
+judge prefers it to the original (recorded as "improved"); otherwise the original is
+restored. The bar is not lowered mid-programme, so triage and fix-run scores stay
+comparable. On 2026-11-05 this accepted 8 models, kept 23 as improved, restored the
+cottage and rejected three unjudged candidates.
+Source: Nell, "FIX EVERYTHING USE YOUR BEST JUDGMENT ASK THE ADVISOR ULTRATHINK FIX THE PIG
+ALSO" (2026-11-06), delegating the open question of the bar; procedure in
+`.claude/commands/asset-loop.md`; evidence in `output/asset-loop-20261104/`.
+
+### D-032 · The till body may use 72 render vertices · [proposed] · 2026-11-06
+
+`world-station-register`'s `maxRenderVertices` rises from 36 to 72 in
+`public/models/asset-manifest.json`. Thirty-six indices allow only a closed 12-triangle
+wedge with knife edges, and every texture-only substitute (baked normal fillet, painted
+arris, grain) was judged fake. Seventy-two allow a chamfered customer-facing ridge and front
+corners (24 triangles). The deck plane under the runtime keys and the screen's facing stay
+as `GasStationInstanced.test.ts` pins them. Every other budget is unchanged.
+Source: Nell's delegation of 2026-11-06 (D-031); the builder's measured triangle minimums in
+`output/asset-loop-20261104/fix-owned-outcomes.json`.
+
+### D-033 · Models the game never renders are left as they are · [proposed] · 2026-11-06
+
+`world-frog-authored-body`, `world-grain-elevator-authored-body`,
+`world-pallet-staging-body` and `world-yard-dock-plate-body` are not polished: their loader
+keys appear only in `src/utils/modelLoader.ts`, and no component draws them (measured with
+`scripts/asset-loop/render-path.mjs`). They stay in the manifest with their provenance and
+pass their contracts. Polish them if a component starts rendering them.
+Source: Nell's delegation of 2026-11-06 (D-031); `output/asset-loop-20261104/disposition-overrides.json`.
+
+### D-034 · The Cupid figure is rebuilt as authored geometry · [proposed] · 2026-11-06
+
+`world-cupid-authored-body`'s figure is a stack of untreated primitives, and its owning
+script (`scripts/refine-cupid-figure-contact.mjs`) can only seat it on the pedestal (a
+hash-sealed vertical shift). The figure is rebuilt by a new authoring script, and the
+scenic reconcile guard and the Cupid pins in `reconcile-scenic-models.test.mjs` follow the
+accepted figure. Pedestal, envelope, budgets and placement stay as they are.
+Source: Nell's delegation of 2026-11-06 (D-031); the blocked builder's analysis in
+`output/asset-loop-20261104/fix-owned-outcomes.json`.
+
+### D-035 · First-person walking stops at houses, garden walls, the perimeter fence and the closed shop · [proposed] · 2026-11-06
+
+On foot (desktop, mobile and the Rapier controller alike) the player is now blocked by the
+five cottages (and Pearl Cottage's bay window), the garden front and side walls, the
+allotment fence and shed, the mill perimeter fence, and the station shop, whose glazed front
+and shut side door make it solid. Garden gates, cottage door approaches up to the wall,
+the allotment gates, the front and back vehicle gates and the canal pedestrian gate stay
+open. Before this a capsule walked straight through all of them. The solids live in
+`src/utils/walkingObstacles.ts`, built from the layout datums, and each controller's own
+collision check calls it. The byte-pinned navigation file is unchanged.
+`walkingObstacles.test.ts` raycasts the real village geometry against the named constants,
+and `firstPersonSpawn.sweep.test.tsx` proves that every camera and machine-focus spawn still
+lands free. Not yet solid: the village civic buildings and the hedges, whose recorded
+outlines include awnings and would block declared walks; they need measured wall bounds.
+Source: Nell's delegation of 2026-11-06 (D-031); the capsule-walk findings in
+`src/utils/__tests__/capsuleWalk.routes.test.ts`.
+
+### D-036 · The canal metal bollard and the checkpoint booth get geometry budgets for their real profiles · [proposed] · 2026-11-06
+
+`world-metal-bollard` rises from 96 to 324 render vertices (a 12-sided mooring profile:
+foot chamfer, neck, overhanging lip, dome), and `world-checkpoint-booth` from 100 to 140
+(a recessed door with a head, plus a plinth step). The index-counted budgets allowed only
+an octagonal prism and a box with a slab roof, and every in-budget method was judged a
+primitive. Both props are placed twice (two metal bollards on the canal coping, two
+checkpoint barriers), so the raise costs a few hundred vertices in the whole world. The
+wooden bollards, of which there are many, keep 96: their in-budget rebuild was accepted. The
+booth's recess also needs the runtime west window pane in `CheckpointBarrier` to stop at
+the door jamb. Every other budget is unchanged.
+Source: Nell's delegation of 2026-11-06 (D-031); the builders' measured triangle minimums in
+`output/asset-loop-20261104/fix2-outcomes.json`; placements in `FactoryExterior.tsx`.
+
+### D-037 · Blue hour lights the ground from the sky · [proposed] · 2026-11-06
+
+After sunset the hemisphere fill takes the larger of its sun-driven dusk curve and a
+blue-hour term (`BLUE_HOUR_FILL_INTENSITY` 3.9 times the sky's own blue-hour weight,
+`SceneEnvironmentIBL.tsx`), and the foothill shadow tint follows the same weight
+(`OptimizedSkySystem.tsx`). Before this, the fill died about an hour after sunset while the
+sky's blue hour peaked, so at 19:00 the ground sat at night level under a glowing sky.
+At 19:00 Medium, ground luma rises from 15-34 to 20-41. At 17:30, 20:30 and 22:00 it is
+unchanged within 0.1, so night stays dark. Exposure, lights and shadow casters are
+unchanged. A blind A/B picked the after frames in 8 of 8 dusk scenes across both tiers.
+This is a look choice: before/after sheets for each hour are in
+`test-results/art-review/dusk-before-after/`.
+Source: Nell's delegation of 2026-11-06 (D-031); the cause was measured by maps pass 2, and
+millos-6e's measurement shows its lamp change is not involved.
+
+### D-038 · The large propane shell joins the models left as they are · [proposed] · 2026-11-06
+
+`world-propane-large-shell` is not rendered (`StorageTank.test.tsx:152` asserts that no
+component draws it; the tanks use the vessel lathe), so like the four models in D-033 it
+keeps its current delivery. A kept candidate (`78735951`) waits in `test-results/asset-loop`
+in case a component ever draws it. This adds to D-033 and supersedes nothing.
+Source: integrator report of 2026-11-06 in `_contprompts/millos_asset_loop_20261104.md`.
+
+### D-039 · First-person walking also stops at the civic buildings and every hedge · [proposed] · 2026-11-06
+
+This completes D-035. On foot the player is now blocked by the church (nave, tower base,
+buttresses), the town hall, the pub, the school, the forge (walls and hearth) and the three
+shops, each at its ground-level wall ring measured from the delivered GLB (the vertical faces
+0.3-1.8 m up), not at the recorded footprints, which include awnings, eaves and stairs. Doors
+stay solid. Joinery up to 0.3 m proud (sills, frames, shopfronts, plinth courses) is not
+solid, and the town hall's two porticos and the forge's open bay stay walkable as porches. The
+town-hall privet, every landscape hedge (cottage gardens, village meadow, crop field,
+forecourt, lineside), the canal-walk hedge and the riverbank hedge are solid along their
+layout lines, keeping every gap. No declared walk had to move. The main path and the lake
+path keep their paving to the fence corner posts; their walks start a body clear of the post,
+outside the fence, since neither corner has a gate. `walkingObstacles.test.ts` re-derives the
+walls from the GLBs, so a model change fails it.
+Source: Nell's delegation of 2026-11-06 (D-031); measurements in `walkingObstacles.test.ts`.
+
+### D-040 · Four more models the game never draws are left as they are · [proposed] · 2026-11-06
+
+`world-industrial-portal-unit`, `world-truck-tyre-unit`, `world-drainage-pipe-unit` and
+`world-dock-door-panel` join D-033 and D-038: no component draws them. The tunnel arch, the
+truck wheels and the dock door are built in TypeScript (`createBrickArchGeometry`, the
+`OptimizedTruckBay` wheel lathe, `buildSectionalDoorGeometry`), and the tunnel's drainage
+pipe has no instances. The drainage pipe is still preloaded on every tier
+(`startupAssetPreload.ts`), so that preload is wasted download.
+Source: Nell's delegation of 2026-11-06 (D-031); `output/asset-loop-20261104/runtime-contract-map.json`.
+
+### D-041 · A forklift's fork datum is the floor · [proposed] · 2026-11-06
+
+At fork height 0 every forklift tier now holds its pallet with the underside on the floor
+and its tines in the pallet's fork pockets. Before, the datum stood 0.28 m up
+(`FORKLIFT_PALLET_REST_ABOVE_FORK`): the compact and procedural tiers built their tines
+0.3 m off the ground, the authored GLB's tines are at floor level (top 0.068 m), and the
+authored pallet rode 0.3 m above them. Two blind Sonnet judges named it ("pallet floating
+above the forks", run rt6, `forklift-close`), and a floor pickup or dropoff left the pallet
+hovering 0.28 m over the hall floor in every tier, against `sampleForkliftLoadPose`'s own
+"0 on the floor". Now the pallet origin is y 0.06 in all three tiers, the compact tines,
+carriage plate and procedural forks drop by the same amount, the dock deck's fork height
+is the deck itself (0.71, was 0.43), and the loaded-travel height of 0.32 m is now the
+pallet underside's height. The travelling load's top falls from about 1.80 m to 1.52 m,
+below the overhead guard (1.79 m), so it no longer hides the mast and guard head-on, and
+the far billboard's load box follows it.
+Source: Nell's delegation of 2026-11-06 (D-031); `dockLoading.test.ts`, `ForkliftModel.test.ts`.
+
+### D-042 · The unused drainage pipe is no longer preloaded · [proposed] · 2026-11-06
+
+D-040 found that `world-drainage-pipe-unit` was preloaded on every tier though no
+`DrainageCulvert` is placed. `startupAssetPreload.ts` no longer lists it. If a culvert is
+placed again, add it back to the list.
+Source: Nell's delegation of 2026-11-06 (D-031); D-040.
+
+### D-043 · Dawn mirrors dusk · [proposed] · 2026-11-06
+
+The fill light is a function of sun elevation, so 05:30 lights the ground as 18:30 does and
+06:30 as 17:30. A blind Sonnet judge failed 05:30 (`rt6-dawn-0530`) for a near-black lake
+path, about (16, 24, 3). With the sun 7.5 degrees below the horizon, that is close to the
+ground level D-037 accepted at 19:00 (luma 20-41), and the missing blue in the grass comes
+from the grass albedo and the tone map's toe, not from the fill. So pre-dawn stays dark and
+dawn keeps dusk's look; D-037 stands. The 06:30 judge's other complaint, lamps and windows
+still at night strength under a lit sky, is real. Both follow `getExteriorLampLevel`
+(`ExteriorLighting.tsx`, millos-6e's file), which is 94% on at 06:30. An exact dawn-only
+change was sent to millos-6e on 2026-11-06 and is that session's decision.
+Source: Nell's delegation of 2026-11-06 (D-031); `rt6-dawn-0530`, `rt6-dawn-0630`.
+
+### D-044 · Exterior lamps run on a fixed clock · [Nell] · 2026-11-06
+
+`getExteriorLampLevel` (`src/components/exterior/ExteriorLighting.tsx`) is a clock, not a
+model of a light sensor. The lamps are fully on from 18:30 to 05:30 and off from 06:30 to
+17:30, with a linear hour-long fade centred on sunset (18:00) and sunrise (06:00), so dawn
+mirrors dusk. Weather no longer lights them: the old floors (storm 0.7, rain 0.42, cloudy
+0.14) are gone, so under D-030 they stay hidden from the renderer all day whatever the sky.
+The same level drives the village and factory window glow and the near-horizon city
+windows, which follow the same clock.
+It replaces a sun-elevation curve that was still 94% on at 06:30 and 17:30, under a lit sky
+(blind judge, `rt6-dawn-0630`; D-043).
+Source: Nell, 2026-11-06: "2 please, if you can get it very resource efficient", then
+"just set it to come on at an appropriate time, no 'sensor' needed please."

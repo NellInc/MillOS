@@ -380,10 +380,18 @@ it('pins the pane transform to UVs in the actual delivered castle GLB', () => {
     if (uv[0] > 0.75 && uv[0] < 1 && uv[1] > 0.75 && uv[1] < 1) glassUVs.push(uv);
   }
   expect(glassUVs.length).toBeGreaterThan(1000);
-  for (const axis of [0, 1]) {
-    expect(Math.min(...glassUVs.map((uv) => uv[axis]))).toBeCloseTo(0.75375, 6);
-    expect(Math.max(...glassUVs.map((uv) => uv[axis]))).toBeCloseTo(0.99625, 6);
-  }
+  // Each window's UVs map its nominal box onto the padded tile. U spans it and
+  // the sill sits on its edge; arches are sampled at four points (no apex
+  // vertex), so the highest glass is one sagitta inside the tile's head.
+  expect(Math.min(...glassUVs.map((uv) => uv[0]))).toBeCloseTo(0.75375, 6);
+  expect(Math.max(...glassUVs.map((uv) => uv[0]))).toBeCloseTo(0.99625, 6);
+  expect(Math.max(...glassUVs.map((uv) => uv[1]))).toBeCloseTo(0.99625, 6);
+  expect(Math.min(...glassUVs.map((uv) => uv[1]))).toBeCloseTo(0.757811, 6);
+  for (const uv of glassUVs)
+    for (const value of uv) {
+      expect(value).toBeGreaterThan(0.75375 - 1e-6);
+      expect(value).toBeLessThan(0.99625 + 1e-6);
+    }
 });
 
 it('reuses bounded curtains and room depth on apartment facade coordinates, with retained dark floors', () => {
@@ -413,7 +421,7 @@ it('keeps the delivered cut upper storey separate from the four-storey pane heig
     material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
     expect(shader.uniforms.apartmentFloorLow.value.z).toBe(floors === 3 ? 0.01059 : 0.01663);
     expect(shader.uniforms.apartmentFloorHigh.value.z).toBe(floors === 3 ? 0.13193 : 0.13014);
-    expect(material.customProgramCacheKey()).toBe('millos-generated-apartment-window-v5');
+    expect(material.customProgramCacheKey()).toBe('millos-generated-apartment-window-v7');
     material.dispose();
   }
 });
@@ -608,7 +616,7 @@ it('finishes only the actual boat paint slots, filtering detail without changing
     if (selected.has(slot)) paint++;
     else excluded++;
   }
-  expect(paint).toBe(932);
+  expect(paint).toBe(1278);
   expect(excluded).toBeGreaterThan(10000);
   for (const protectedSlot of [0, 3, 6, 10]) expect(selected.has(protectedSlot)).toBe(false);
   const source = readFileSync('src/components/models/GeneratedBoatModel.tsx', 'utf8');
@@ -701,12 +709,24 @@ it('matches the real farm recesses and keeps the original loft brace in front of
   });
   const house = await io.read('public/models/farm/farmhouse.glb');
   const p = house.getRoot().listMeshes()[0].listPrimitives()[0].getAttribute('POSITION')!;
-  // Measured dark-pane and protruding-joinery witnesses, not the village atlas.
-  expect(p.getElement(1493, [])[2]).toBeCloseTo(0.4342, 4);
-  expect(p.getElement(1499, [])[2]).toBeGreaterThan(0.439);
-  expect(p.getElement(90, [])[2]).toBeCloseTo(-0.3835, 4);
-  expect(p.getElement(83, [])[2]).toBeLessThan(-0.39);
-  expect(p.getElement(3276, [])[0]).toBeCloseTo(0.3916, 4);
+  // Measured dark-pane and frame witnesses, not the village atlas. The rebuilt
+  // windows are flat panes inside the shader's recess gates, with green frames
+  // 8 mm proud of them that the dark-glass colour gate excludes.
+  const [endPane, endFrame, backPane, backFrame] = [5068, 5106, 5416, 5456].map(
+    (i) => p.getElement(i, [])[2]
+  );
+  const [sidePane, sideFrame] = [4253, 4293].map((i) => p.getElement(i, [])[0]);
+  expect(endPane).toBeCloseTo(0.4226, 4);
+  expect(endFrame).toBeCloseTo(0.4306, 4);
+  expect(backPane).toBeCloseTo(-0.3791, 4);
+  expect(backFrame).toBeCloseTo(-0.3871, 4);
+  expect(sidePane).toBeCloseTo(0.3872, 4);
+  expect(sideFrame).toBeCloseTo(0.3952, 4);
+  for (const pane of [endPane, -backPane]) expect(pane).toBeGreaterThanOrEqual(0.37);
+  expect(endPane).toBeLessThan(0.439);
+  expect(backPane).toBeGreaterThanOrEqual(-0.39);
+  expect(sidePane).toBeGreaterThanOrEqual(0.38);
+  expect(sidePane).toBeLessThan(0.405);
   expect(house.getRoot().listNodes()[0].getScale()[0]).toBeCloseTo(6.001156, 5);
   const barn = await io.read('public/models/farm/barn.glb');
   const primitive = barn.getRoot().listMeshes()[0].listPrimitives()[0];
@@ -723,10 +743,13 @@ it('matches the real farm recesses and keeps the original loft brace in front of
     new THREE.Raycaster(new THREE.Vector3(x, y, 1), new THREE.Vector3(0, 0, -1)).intersectObject(
       mesh
     )[0].point.z;
-  expect(hit(0, 0.05)).toBeCloseTo(0.369353, 5);
-  expect(hit(0.07, -0.04)).toBeCloseTo(0.369291, 5);
-  expect(hit(0, 0)).toBeGreaterThan(0.375); // Original X brace excludes itself by depth.
-  expect(barn.getRoot().listNodes()[0].getScale()[0]).toBeCloseTo(10.007632, 5);
+  // The rebuilt loft is a flat dark backing at z .374, inside the [.360, .375)
+  // aperture, under an X brace 2.6 cm proud of it.
+  expect(hit(0, 0.05)).toBeCloseTo(0.374, 5);
+  expect(hit(0.07, 0.005)).toBeCloseTo(0.374, 5);
+  expect(hit(0.07, -0.04)).toBeGreaterThan(0.375); // A brace arm.
+  expect(hit(0, 0)).toBeGreaterThan(0.375); // The X brace excludes itself by depth.
+  expect(barn.getRoot().listNodes()[0].getScale()[0]).toBeCloseTo(10.008007, 5);
   geometry.dispose();
   material.dispose();
 });

@@ -2600,10 +2600,21 @@ export const RollUpDoor: React.FC<{
 };
 
 /** Shelter fabric folds: a shade lighter than the pad, so each fold catches light. */
+/**
+ * Dock rubber and shelter fabric, read in the hall's noon shadow. Both were
+ * #1f2937 at roughness 0.95: a blue slate at a linear albedo of ~0.02, on navy
+ * shelters under a blue sky fill, so pads and bumpers vanished into the shade
+ * (runtime-triage-20261106 markings, receiving). Neutral charcoal at a dusty
+ * rubber/PVC albedo (~0.06-0.08 linear), a step apart so the bumper separates
+ * from the pad it sits against, and roughness low enough that the generated
+ * normal atlas's bevels and ribs catch a sheen.
+ */
+const DOCK_RUBBER_FINISH = { color: '#454649', roughness: 0.66, metalness: 0 } as const;
+const DOCK_SHELTER_FABRIC_FINISH = { color: '#4d5054', roughness: 0.84, metalness: 0 } as const;
 const SHELTER_PLEAT_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'dock-shelter-pleat',
-  color: '#323b46',
-  roughness: 0.95,
+  color: '#585b60',
+  roughness: 0.84,
   metalness: 0,
 });
 const SHELTER_STRIPE_MATERIAL = new THREE.MeshStandardMaterial({
@@ -2733,7 +2744,7 @@ export const DockShelter: React.FC<{
             meshRef={leftRef}
           />
         </GeneratedBoundary>
-        <meshStandardMaterial color="#1f2937" roughness={0.95} />
+        <meshStandardMaterial {...DOCK_SHELTER_FABRIC_FINISH} />
         <ShelterFolds parts={DOCK_SHELTER_SIDE_PLEATS} />
         <ShelterGuideStripe />
       </mesh>
@@ -2745,7 +2756,7 @@ export const DockShelter: React.FC<{
             meshRef={rightRef}
           />
         </GeneratedBoundary>
-        <meshStandardMaterial color="#1f2937" roughness={0.95} />
+        <meshStandardMaterial {...DOCK_SHELTER_FABRIC_FINISH} />
         <ShelterFolds parts={DOCK_SHELTER_SIDE_PLEATS} />
         <ShelterGuideStripe />
       </mesh>
@@ -2757,7 +2768,7 @@ export const DockShelter: React.FC<{
             meshRef={topRef}
           />
         </GeneratedBoundary>
-        <meshStandardMaterial color="#1f2937" roughness={0.95} />
+        <meshStandardMaterial {...DOCK_SHELTER_FABRIC_FINISH} />
         <ShelterFolds parts={DOCK_SHELTER_HEAD_PLEATS} />
       </mesh>
     </group>
@@ -3577,7 +3588,7 @@ export const TruckBay: React.FC = () => {
         {DOCK_BUMPER_BLOCKS.map((block) => (
           <mesh key={block.x} position={[block.x, block.y, block.u]}>
             <boxGeometry args={[block.width, block.height, block.depth]} />
-            <meshStandardMaterial color="#1f2937" />
+            <meshStandardMaterial {...DOCK_RUBBER_FINISH} />
           </mesh>
         ))}
 
@@ -4024,7 +4035,7 @@ export const TruckBay: React.FC = () => {
         {DOCK_BUMPER_BLOCKS.map((block) => (
           <mesh key={block.x} position={[block.x, block.y, block.u]}>
             <boxGeometry args={[block.width, block.height, block.depth]} />
-            <meshStandardMaterial color="#1f2937" />
+            <meshStandardMaterial {...DOCK_RUBBER_FINISH} />
           </mesh>
         ))}
 
@@ -5746,9 +5757,7 @@ const StretchWrapMachine: React.FC<{
 /** Laminated dock-bumper rubber and the steel that armours a platform's yard face. */
 const DOCK_PAD_RUBBER = new THREE.MeshStandardMaterial({
   name: 'dock-pad-rubber',
-  color: '#1d1d1f',
-  roughness: 0.9,
-  metalness: 0,
+  ...DOCK_RUBBER_FINISH,
 });
 const DOCK_FACE_STEEL = applyWorldSurface(
   new THREE.MeshStandardMaterial({
@@ -5831,7 +5840,7 @@ const DockBumperWithWear: React.FC<{ position: [number, number, number]; wearLev
             meshRef={bumperRef}
           />
         </GeneratedBoundary>
-        <meshStandardMaterial color="#1f2937" roughness={0.95} />
+        <meshStandardMaterial {...DOCK_RUBBER_FINISH} />
       </mesh>
       <mesh position={[0, 0.22, 0.16]}>
         <boxGeometry args={[0.7, 0.03, 0.05]} />

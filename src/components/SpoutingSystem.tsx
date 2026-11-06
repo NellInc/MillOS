@@ -27,7 +27,9 @@ import {
   SPOUT_PIPE_RADIUS,
   SPOUT_SERVICE_LAYOUT,
   type PipeRouteFamily,
+  type SpoutRoute,
 } from './flow/spoutRoutes';
+import { FIXTURE_GRID_X, FIXTURE_GRID_Z } from './environment/InteriorLightRig';
 
 export { createSpoutTubeGeometry };
 
@@ -519,7 +521,9 @@ export const SpoutingSystem = React.memo<{
       })
       .filter((route): route is PipeRouteMesh => route !== null);
 
-    return { routes, flangeMatrices };
+    const hangers = buildSpoutHangers(spoutRoutes, radii);
+
+    return { routes, flangeMatrices, hangers };
     // Stable layout key + tier, not the machines array (status ticks constantly).
   }, [machineKey, radialSegments]);
 
@@ -549,6 +553,7 @@ export const SpoutingSystem = React.memo<{
       ))}
       <InstancedPipeFlanges matrices={pipeData.flangeMatrices} />
       <PipeSupports />
+      <SpoutHangers hangers={pipeData.hangers} />
     </group>
   );
 });
@@ -603,6 +608,349 @@ export const PIPE_SUPPORT_SEGMENTS: { beams: SupportSegment[]; braces: SupportSe
   });
   return { beams, braces };
 })();
+
+/** A support member: a segment drawn at `radius` with the rack's lathe geometry. */
+export type HangerSegment = SupportSegment & { readonly radius: number };
+
+/**
+ * Hall roof steel the drop rods hang from, mirrored from
+ * `OptimizedFactoryInfrastructure` (deck, purlins, skylight wells, trusses) so
+ * this module does not pull the shell's materials into the spouting chunk.
+ * `OptimizedFactoryInfrastructure.test.ts` holds every rod top against the
+ * real purlins, so a drift in either copy fails there.
+ */
+const HALL_ROOF = {
+  deckTop: SITE_LAYOUT.factory.bounds.maxY + 0.63,
+  pitch: 0.05,
+  halfCentre: SITE_LAYOUT.factory.floor.width / 4,
+  deckDepth: 0.36,
+  halfSpan: SITE_LAYOUT.factory.floor.width / 2 - 0.45,
+  purlinPitch: 1.5,
+  purlinDepth: 0.16,
+  purlinGap: 0.01,
+  skylightZ: [-26, 0, 26],
+  skylightCentreX: 15,
+  skylightHalf: { x: 4.5, z: 5.5 },
+  trussZ: [-30, -10, 10, 30],
+  /** Underside of a truss's bottom-chord flange (`buildFactoryRoofStructure`). */
+  trussUnderside: SITE_LAYOUT.factory.bounds.maxY - 2.9 - 0.3,
+} as const;
+
+/** Purlin centre lines across the hall, both roof halves. */
+const HALL_PURLIN_X: readonly number[] = (() => {
+  const count = Math.floor((HALL_ROOF.halfSpan - 0.5) / HALL_ROOF.purlinPitch + 0.5);
+  const xs: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const x = (i + 0.5) * HALL_ROOF.purlinPitch;
+    xs.push(-x, x);
+  }
+  return xs.sort((a, b) => a - b);
+})();
+
+/** Underside of the purlin on line `x` (its lower face at its centre line). */
+function hallPurlinUnderside(x: number): number {
+  const side = x < 0 ? -1 : 1;
+  const slope = -HALL_ROOF.pitch * side;
+  const local = (x - HALL_ROOF.halfCentre * side) / Math.cos(HALL_ROOF.pitch);
+  const deckUnderside = HALL_ROOF.deckTop + local * Math.sin(slope) - HALL_ROOF.deckDepth;
+  const centre =
+    deckUnderside - (HALL_ROOF.purlinGap + HALL_ROOF.purlinDepth / 2) / Math.cos(slope);
+  return centre - (HALL_ROOF.purlinDepth / 2) * Math.cos(slope);
+}
+
+/** Gallery plan (deck and girders), where its own steel carries the spouting. */
+const GALLERY_PLAN = {
+  minX: -21.75,
+  maxX: 21.75,
+  minZ: SITE_LAYOUT.factory.zones.sifting - 5.1,
+  maxZ: SITE_LAYOUT.factory.zones.sifting + 5.1,
+};
+
+/** Spacing of hangers along a bundle, the spouting's bolted-joint pitch (`flangeCount`). */
+const HANGER_PITCH = 4;
+const HANGER_BEAM_RADIUS = 0.07;
+/**
+ * 80 mm drop struts, not 60 mm rod: the packing and interior cameras see them
+ * from 30-60 m, where 60 mm drew a one-pixel line that broke up into dashes
+ * (groupA-after interior).
+ */
+const HANGER_ROD_RADIUS = 0.04;
+
+interface HangerLane {
+  readonly route: number;
+  readonly lateral: number;
+  readonly from: number;
+  readonly to: number;
+  readonly radius: number;
+}
+
+/**
+ * Trapeze hangers for the overhead spouting that no gallery steel reaches.
+ *
+ * packing (runtime-triage-20261106): the three finished-product runs crossed
+ * the hall 7.7 m up for 26 m with nothing holding them. Each
+ * support is a trapeze bar under the run (the rack's crossbeam lathe) on two
+ * drop rods (the rack's column lathe) up to a roof purlin: a single run gets
+ * one beside a bolted joint, a bundle one every HANGER_PITCH metres. A station
+ * is dropped, not moved, wherever it would meet the gallery, a skylight well,
+ * a truss, a light fitting, an existing bracket or another run.
+ *
+ * Working if every rod ends on a real purlin, no member touches a run it does
+ * not carry, and each carried run sits on its bar.
+ */
+export function buildSpoutHangers(
+  routes: readonly SpoutRoute[],
+  radii: readonly number[]
+): { beams: HangerSegment[]; rods: HangerSegment[] } {
+  const beams: HangerSegment[] = [];
+  const rods: HangerSegment[] = [];
+  const groups = new Map<string, HangerLane[]>();
+  routes.forEach((route, index) => {
+    // Finished-product runs only. The intake bundle east of the gallery was
+    // tried (groupA-after): its drops stood 5-12 m in front of the sifting
+    // camera and cut the frame top to bottom like strings.
+    if (route.family !== 'finished') return;
+    for (const piece of route.curve.curves) {
+      if (!(piece instanceof THREE.LineCurve3)) continue;
+      const { v1: a, v2: b } = piece;
+      if (Math.abs(a.y - b.y) > 1e-3 || a.distanceTo(b) < 3) continue;
+      const alongX = Math.abs(a.z - b.z) < 1e-3;
+      if (!alongX && Math.abs(a.x - b.x) > 1e-3) continue;
+      const key = `${alongX ? 'x' : 'z'}:${a.y.toFixed(2)}`;
+      const lanes = groups.get(key) ?? [];
+      lanes.push({
+        route: index,
+        lateral: alongX ? a.z : a.x,
+        from: Math.min(alongX ? a.x : a.z, alongX ? b.x : b.z),
+        to: Math.max(alongX ? a.x : a.z, alongX ? b.x : b.z),
+        radius: radii[index] ?? SPOUT_PIPE_RADIUS,
+      });
+      groups.set(key, lanes);
+    }
+  });
+
+  // Every run's centreline, for clearance checks.
+  const samples: { route: number; point: THREE.Vector3; radius: number }[] = [];
+  routes.forEach((route, index) => {
+    const steps = Math.ceil(route.length / 0.2);
+    for (let s = 0; s <= steps; s++)
+      samples.push({
+        route: index,
+        point: route.curve.getPointAt(s / steps),
+        radius: radii[index] ?? SPOUT_PIPE_RADIUS,
+      });
+  });
+  const segment = new THREE.Line3();
+  const closest = new THREE.Vector3();
+  const clear = (
+    start: THREE.Vector3,
+    end: THREE.Vector3,
+    radius: number,
+    carried: Set<number>
+  ) => {
+    segment.set(start, end);
+    return samples.every(({ route, point, radius: pipe }) => {
+      if (carried.has(route)) return true;
+      segment.closestPointToPoint(point, true, closest);
+      return closest.distanceTo(point) > pipe + radius + 0.04;
+    });
+  };
+  const rodFree = (x: number, z: number) =>
+    Math.abs(x) < HALL_ROOF.halfSpan - 1 &&
+    Math.abs(z) < 48 &&
+    HALL_ROOF.trussZ.every((tz) => Math.abs(z - tz) > 0.6) &&
+    !HALL_ROOF.skylightZ.some(
+      (sz) =>
+        Math.abs(Math.abs(x) - HALL_ROOF.skylightCentreX) < HALL_ROOF.skylightHalf.x + 0.3 &&
+        Math.abs(z - sz) < HALL_ROOF.skylightHalf.z + 0.3
+    ) &&
+    !FIXTURE_GRID_X.some(
+      (fx) => Math.abs(x - fx) < 3.25 && FIXTURE_GRID_Z.some((fz) => Math.abs(z - fz) < 0.55)
+    );
+  const inGallery = (x: number, z: number) =>
+    x > GALLERY_PLAN.minX - 0.4 &&
+    x < GALLERY_PLAN.maxX + 0.4 &&
+    z > GALLERY_PLAN.minZ - 0.4 &&
+    z < GALLERY_PLAN.maxZ + 0.4;
+  const nearestPurlin = (x: number) =>
+    HALL_PURLIN_X.reduce((best, p) => (Math.abs(p - x) < Math.abs(best - x) ? p : best));
+
+  for (const [key, all] of groups) {
+    const alongX = key.startsWith('x');
+    const y = Number(key.slice(2));
+    // Bundles: lanes within a metre of each other share one trapeze.
+    const sorted = [...all].sort((p, q) => p.lateral - q.lateral);
+    const bundles: HangerLane[][] = [];
+    for (const lane of sorted) {
+      const last = bundles[bundles.length - 1];
+      if (last && lane.lateral - last[last.length - 1].lateral < 1) last.push(lane);
+      else bundles.push([lane]);
+    }
+    for (const bundle of bundles) {
+      let stations: number[];
+      if (bundle.length === 1) {
+        // Beside each bolted joint the flanges mark (same count as InstancedPipeFlanges).
+        const lane = bundle[0];
+        const route = routes[lane.route];
+        const count = Math.min(16, Math.max(2, Math.round(route.length / 4)));
+        stations = [];
+        for (let f = 1; f < count; f++) {
+          const p = route.curve.getPointAt(f / count);
+          const lateral = alongX ? p.z : p.x;
+          if (Math.abs(p.y - y) > 1e-2 || Math.abs(lateral - lane.lateral) > 1e-2) continue;
+          stations.push((alongX ? p.x : p.z) + 0.45);
+        }
+      } else {
+        const from = Math.min(...bundle.map((lane) => lane.from));
+        const to = Math.max(...bundle.map((lane) => lane.to));
+        stations = [];
+        for (let s = from + 1; s <= to - 0.6; s += HANGER_PITCH) stations.push(s);
+      }
+      const seen = new Set<string>();
+      for (const raw of stations) {
+        // A rod lands on a purlin (they run along z) or, beside a truss, on its
+        // bottom chord: a station within a metre of a truss moves onto it.
+        const truss = alongX ? undefined : HALL_ROOF.trussZ.find((tz) => Math.abs(raw - tz) < 1);
+        const along = alongX ? nearestPurlin(raw) : (truss ?? raw);
+        if (seen.has(along.toFixed(3))) continue;
+        seen.add(along.toFixed(3));
+        const lanes = bundle.filter((lane) => along > lane.from + 0.6 && along < lane.to - 0.6);
+        if (lanes.length === 0) continue;
+        const lo = Math.min(...lanes.map((lane) => lane.lateral));
+        const hi = Math.max(...lanes.map((lane) => lane.lateral));
+        const radius = Math.max(...lanes.map((lane) => lane.radius));
+        let rodLo: number;
+        let rodHi: number;
+        if (alongX) {
+          rodLo = lo - radius - 0.13;
+          rodHi = hi + radius + 0.13;
+        } else {
+          const left = HALL_PURLIN_X.filter((p) => p <= lo - 0.4);
+          const right = HALL_PURLIN_X.filter((p) => p >= hi + 0.4);
+          if (left.length === 0 || right.length === 0) continue;
+          rodLo = left[left.length - 1];
+          rodHi = right[0];
+        }
+        const at = (lateral: number): [number, number] =>
+          alongX ? [along, lateral] : [lateral, along];
+        const rodsXZ = [at(rodLo), at(rodHi)];
+        if (
+          !rodsXZ.every(
+            ([x, z]) =>
+              (truss !== undefined || rodFree(x, z)) && !inGallery(x, z) && Math.abs(x) < 38.6
+          )
+        )
+          continue;
+        if (inGallery(...at((lo + hi) / 2))) continue;
+        // An existing gallery bracket already carries this bundle here.
+        const bracketed = PIPE_SUPPORT_SEGMENTS.beams.some(
+          ({ start, end }) =>
+            Math.abs((alongX ? start[0] : start[2]) - along) < 1.5 &&
+            Math.abs((alongX ? end[0] : end[2]) - along) < 1.5 &&
+            Math.abs(start[1] - (y - radius - 0.08)) < 0.3
+        );
+        if (bracketed) continue;
+        const beamY = y - radius - HANGER_BEAM_RADIUS;
+        const carried = new Set(lanes.map((lane) => lane.route));
+        const beamEnds = [at(rodLo - 0.08), at(rodHi + 0.08)].map(
+          ([x, z]) => new THREE.Vector3(x, beamY, z)
+        );
+        if (!clear(beamEnds[0], beamEnds[1], HANGER_BEAM_RADIUS, carried)) continue;
+        const rodSegments = rodsXZ.map(([x, z]) => ({
+          start: new THREE.Vector3(x, beamY - HANGER_BEAM_RADIUS - 0.04, z),
+          end: new THREE.Vector3(
+            x,
+            truss !== undefined ? HALL_ROOF.trussUnderside : hallPurlinUnderside(x),
+            z
+          ),
+        }));
+        if (!rodSegments.every(({ start, end }) => clear(start, end, HANGER_ROD_RADIUS, new Set())))
+          continue;
+        beams.push({
+          start: beamEnds[0].toArray() as [number, number, number],
+          end: beamEnds[1].toArray() as [number, number, number],
+          radius: HANGER_BEAM_RADIUS,
+        });
+        for (const { start, end } of rodSegments)
+          rods.push({
+            start: start.toArray() as [number, number, number],
+            end: end.toArray() as [number, number, number],
+            radius: HANGER_ROD_RADIUS,
+          });
+      }
+    }
+  }
+  return { beams, rods };
+}
+
+/** Write one instance matrix per segment: unit y along the member, `radius` across it. */
+function setSegmentMatrices(mesh: THREE.InstancedMesh | null, segments: readonly HangerSegment[]) {
+  if (!mesh) return;
+  const object = new THREE.Object3D();
+  const axis = new THREE.Vector3(0, 1, 0);
+  const direction = new THREE.Vector3();
+  segments.forEach(({ start, end, radius }, index) => {
+    direction.set(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
+    const length = direction.length();
+    object.position.set((start[0] + end[0]) / 2, (start[1] + end[1]) / 2, (start[2] + end[2]) / 2);
+    object.quaternion.setFromUnitVectors(axis, direction.normalize());
+    object.scale.set(radius, length, radius);
+    object.updateMatrix();
+    mesh.setMatrixAt(index, object.matrix);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.computeBoundingSphere();
+}
+
+/**
+ * The trapeze hangers: two instanced draws on the rack's own lathes and
+ * materials, so each bar and rod reads as the same steel as the gallery rack.
+ * Neither casts: a 60 mm rod 15 m long is under a shadow texel wide and would
+ * only crawl across the slab.
+ */
+const SpoutHangers: React.FC<{
+  readonly hangers: { readonly beams: HangerSegment[]; readonly rods: HangerSegment[] };
+}> = React.memo(({ hangers }) => {
+  const beamRef = useRef<THREE.InstancedMesh>(null);
+  const rodRef = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    setSegmentMatrices(beamRef.current, hangers.beams);
+    setSegmentMatrices(rodRef.current, hangers.rods);
+  }, [hangers]);
+  if (hangers.beams.length === 0) return null;
+  return (
+    <group name="process-spouting-hangers">
+      <instancedMesh
+        key={`beams-${hangers.beams.length}`}
+        ref={beamRef}
+        args={[PIPE_CROSS_BEAM_GEOMETRY, PIPE_MATERIALS.supportSlate, hangers.beams.length]}
+        receiveShadow
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset={'spoutingCrossbeamUnit'}
+            original={PIPE_CROSS_BEAM_GEOMETRY}
+            meshRef={beamRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
+      <instancedMesh
+        key={`rods-${hangers.rods.length}`}
+        ref={rodRef}
+        args={[PIPE_COLUMN_GEOMETRY, PIPE_MATERIALS.supportSlate, hangers.rods.length]}
+        receiveShadow
+      >
+        <GeneratedBoundary fallback={null}>
+          <GeneratedGeometrySurface
+            asset={'spoutingColumnUnit'}
+            original={PIPE_COLUMN_GEOMETRY}
+            meshRef={rodRef}
+          />
+        </GeneratedBoundary>
+      </instancedMesh>
+    </group>
+  );
+});
 
 const PipeSupports: React.FC = React.memo(() => {
   const verticalRef = useRef<THREE.InstancedMesh>(null);

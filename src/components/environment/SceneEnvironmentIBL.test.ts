@@ -18,7 +18,10 @@ import {
   neutraliseNightFill,
   neutraliseDaylightFill,
   DAYLIGHT_FILL_NEUTRALISE_STRENGTH,
+  BLUE_HOUR_FILL_INTENSITY,
+  blueHourFillWeight,
 } from './SceneEnvironmentIBL';
+import { getSkyBlueHourWeight } from './OptimizedSkySystem';
 import { sampleAtmosphere, sampleCelestial } from '../../simulation/atmosphere';
 
 /** Sample the equirect the way `equirectUv` in three's shader chunk does. */
@@ -326,6 +329,45 @@ describe('night silhouette fill', () => {
   });
 });
 
+describe('blue-hour fill floor', () => {
+  const fillAt = (hour: number) => {
+    const a = sampleAtmosphere(0, hour, 'clear');
+    const sunUp = THREE.MathUtils.smoothstep(a.solarElevation, -0.1, 0.04);
+    return {
+      with: hemisphereFillIntensity(
+        a.daylight,
+        sunUp,
+        blueHourFillWeight(a.solarElevation, a.twilight)
+      ),
+      without: hemisphereFillIntensity(a.daylight, sunUp),
+    };
+  };
+  it('restates the sky blue-hour ramp exactly', () => {
+    for (let h = 0; h <= 24; h += 0.05) {
+      const a = sampleAtmosphere(0, h, 'clear');
+      expect(blueHourFillWeight(a.solarElevation, a.twilight)).toBe(
+        getSkyBlueHourWeight(a.solarElevation, a.twilight)
+      );
+    }
+    expect(blueHourFillWeight(Number.NaN, 1)).toBe(0);
+  });
+  it('lifts 19:00 and leaves noon, 18:30, 20:30 and night exact', () => {
+    for (const hour of [12, 17.5, 18.5, 20.5, 22, 0]) {
+      const { with: lifted, without } = fillAt(hour);
+      expect(lifted).toBe(without);
+    }
+    const dusk = fillAt(19);
+    expect(dusk.with).toBeGreaterThan(dusk.without * 1.5);
+    expect(dusk.with).toBeLessThan(2.9);
+    expect(hemisphereFillIntensity(0, 0, 1)).toBe(BLUE_HOUR_FILL_INTENSITY);
+  });
+  it('stays continuous through the evening', () => {
+    for (let h = 17; h < 21; h += 0.01) {
+      expect(Math.abs(fillAt(h + 0.01).with - fillAt(h).with)).toBeLessThan(0.08);
+    }
+  });
+});
+
 describe('shared masonry and earth bounce', () => {
   it('warms grass-only daylight bounce while preserving energy and night colours', () => {
     const source = new THREE.Color('#6f806c');
@@ -453,6 +495,28 @@ describe('daylight fill colour', () => {
     expect(chroma(fill)).toBeLessThan(chroma(before) * 0.5);
     expect(fill.b).toBeGreaterThan(fill.r * 1.2);
     expect(luminance(fill)).toBeCloseTo(luminance(before), 6);
+  });
+
+  it('pulls the noon zenith band harder, keeping blue its largest channel', async () => {
+    // fx-ab3 (2026-11-06): the raw sky top is the bluest third of an up-facing
+    // surface's fill, and the Neutral tone map multiplies a dark pixel's chroma,
+    // so shade under the dock canopy read navy (28, 45, 55).
+    const { DAYLIGHT_ZENITH_FILL_NEUTRALISE } = await import('./SceneEnvironmentIBL');
+    const raw = new THREE.Color('#70aed8');
+    const zenith = neutraliseDaylightFill(raw.clone(), noon, DAYLIGHT_ZENITH_FILL_NEUTRALISE);
+    const horizonWeight = neutraliseDaylightFill(raw.clone(), noon);
+    expect(chroma(zenith)).toBeLessThan(chroma(horizonWeight));
+    expect(luminance(zenith)).toBeCloseTo(luminance(raw), 6);
+    expect(zenith.b).toBeGreaterThan(zenith.g);
+    expect(zenith.b).toBeGreaterThan(zenith.r);
+    const night = new THREE.Color('#384a64');
+    neutraliseDaylightFill(night, sampleAtmosphere(0, 22, 'clear').daylight, 0.9);
+    expect(night.equals(new THREE.Color('#384a64'))).toBe(true);
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync('src/components/environment/SceneEnvironmentIBL.tsx', 'utf8');
+    expect(source).toMatch(
+      /neutraliseDaylightFill\(_top, atmosphere\.daylight, DAYLIGHT_ZENITH_FILL_NEUTRALISE\)/
+    );
   });
 
   it('is exactly inert at night, where the night neutralisation owns the colour', () => {

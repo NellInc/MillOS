@@ -4,6 +4,7 @@ import { mkdir, access, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { chromium } from '@playwright/test';
+import { withChromeLeakGuard } from './lib/chrome-launch-args.mjs';
 import { acquireCaptureLock } from './lib/capture-lock.mjs';
 import { classifyDiagnostics } from './lib/diagnostics.mjs';
 import {
@@ -1103,7 +1104,7 @@ async function main() {
     headless: !options.headed,
     chromiumSandbox: true,
     ignoreDefaultArgs: ['--enable-unsafe-swiftshader'],
-    args: [
+    args: withChromeLeakGuard([
       '--mute-audio',
       // Playwright 1.62 stopped passing this by default, and without it CDP
       // Browser.getBrowserCommandLine refuses, so the sandbox admission below
@@ -1112,7 +1113,7 @@ async function main() {
       ...(process.platform === 'darwin' && !options.headed
         ? ['--use-gl=angle', '--use-angle=metal']
         : []),
-    ],
+    ]),
     ...(options.browserExecutable
       ? { executablePath: options.browserExecutable }
       : { channel: options.browserChannel || undefined || 'chrome' }),

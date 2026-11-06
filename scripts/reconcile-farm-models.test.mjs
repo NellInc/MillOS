@@ -246,7 +246,9 @@ for (const id of Object.keys(PRECISION_FARM_MODELS)) {
     await expect(
       derivePrecisionFarmModel(id, { ...spec, id: 'farm-other' }, manifest)
     ).rejects.toThrow();
-  });
+    // Real normalization of the whole model: 2.6 s locally, 10.1 s on the
+    // two-core CI runner under coverage, past the 10 s default.
+  }, 60_000);
 }
 
 async function isolatedRoot(name) {
@@ -550,10 +552,15 @@ test(
 );
 
 test('farmhouse source-face changes and all normal donors stay above the current runtime window aperture', async () => {
-  const { baseline, source, runtime, result } = rows.get('farm-farmhouse');
+  const { baseline, source, result } = rows.get('farm-farmhouse');
   const body = (doc) => doc.getRoot().listMeshes()[0].listPrimitives()[0];
+  // Donor normals and the retained prefix belong to the wall step; the later
+  // roof-edge, window, tile and chimney steps rebuild and renumber geometry.
+  const { DONORS, CONTINUATIONS, restoreWalls } = await import('./restore-farmhouse-walls.mjs');
+  const wall = await io.readBinary(baseline);
+  restoreWalls(wall, await io.readBinary(source), hash(baseline), hash(source));
   const a = body(await io.readBinary(baseline)),
-    b = body(await io.readBinary(runtime)),
+    b = body(wall),
     provider = body(await io.readBinary(source));
   const positions = (primitive, id) =>
     [0, 1, 2].map((corner) =>
@@ -565,7 +572,6 @@ test('farmhouse source-face changes and all normal donors stay above the current
     for (const point of positions(provider, row.sourceFace))
       expect(point[1]).toBeGreaterThan(-0.139);
   }
-  const { DONORS, CONTINUATIONS } = await import('./restore-farmhouse-walls.mjs');
   for (const [vertex] of DONORS)
     expect(b.getAttribute('POSITION').getElement(vertex, [])[1]).toBeGreaterThan(-0.139);
   for (const row of CONTINUATIONS)

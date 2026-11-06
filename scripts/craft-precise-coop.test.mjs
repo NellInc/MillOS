@@ -78,54 +78,79 @@ describe('exact-parent coop architecture', () => {
     for (const t of after.getRoot().listTextures())
       expect(await sharp(t.getImage()).metadata()).toMatchObject({ width: 512, height: 512 });
   });
-  it('preserves every actual roof corner component, including UVs and normals, in the true output assembly', () => {
+  it('authors the roof on the parent soffit planes the runtime interior sits under', () => {
+    // Asset loop 2026-11-06 (D-031, kept as improved): the roof is authored
+    // (lofted ribbed sheets on a closed slab) and no parent triangle is copied,
+    // so the old per-corner roof copy no longer applies. What the runtime
+    // henhouse interior relies on is kept: the slab underside lies exactly on
+    // the parent's two measured soffit planes and covers each of them.
+    expect(result.receipt.roof.parentTrianglesCopied).toBe(0);
     const p = before.getRoot().listMeshes()[0].listPrimitives()[0],
       q = after.getRoot().listMeshes()[0].listPrimitives()[0];
-    for (let t = 0; t < ROOF_TRIANGLES.count; t++)
-      for (let c = 0; c < 3; c++)
-        for (const key of ['POSITION', 'NORMAL', 'TEXCOORD_0']) {
-          const a = p
-              .getAttribute(key)
-              .getElement(p.getIndices().getScalar((ROOF_TRIANGLES.start + t) * 3 + c), []),
-            b = q.getAttribute(key).getElement(q.getIndices().getScalar(t * 3 + c), []);
-          expect(b).toEqual(a);
-        }
-    expect(result.receipt.roof.verifiedOutputSHA256).toEqual(result.receipt.roof.attributeSHA256);
-    // Every preserved roof UV is outside both modified atlas patches.
-    for (let i = 0; i < ROOF_TRIANGLES.count * 3; i++)
-      expect(
-        q.getAttribute('TEXCOORD_0').getElement(q.getIndices().getScalar(i), [])[0]
-      ).toBeGreaterThan(0.36);
+    const triangle = (primitive, t) => {
+      const position = primitive.getAttribute('POSITION'),
+        index = primitive.getIndices();
+      return new THREE.Triangle(
+        ...[0, 1, 2].map(
+          (c) => new THREE.Vector3(...position.getElement(index.getScalar(t * 3 + c), []))
+        )
+      );
+    };
+    const soffits = result.receipt.roof.soffitPlanesFromParentTriangles;
+    expect(soffits).toHaveLength(2);
+    for (const t of soffits) {
+      expect(t).toBeGreaterThanOrEqual(ROOF_TRIANGLES.start);
+      expect(t).toBeLessThan(ROOF_TRIANGLES.start + ROOF_TRIANGLES.count);
+      const source = triangle(p, t),
+        plane = source.getPlane(new THREE.Plane()),
+        normal = source.getNormal(new THREE.Vector3());
+      let area = 0;
+      for (let i = 0; i < q.getIndices().getCount() / 3; i++) {
+        const o = triangle(q, i);
+        if (
+          [o.a, o.b, o.c].every((v) => Math.abs(plane.distanceToPoint(v)) < 1e-5) &&
+          o.getNormal(new THREE.Vector3()).dot(normal) > 0.9999
+        )
+          area += o.getArea();
+      }
+      expect(area).toBeGreaterThanOrEqual(source.getArea());
+    }
   });
   it('has physical front-door/vent openings, joined wire, wall, sill, supports and a grounded non-floating ramp', () => {
-    const { frontX, backX, floorY, groundY, rampEndX } = result.receipt.contacts;
-    // Open entrance and gable cubby see the real back wall, not an opaque front infill.
-    expect(hits([frontX + 0.2, -0.12, 0.02], [-1, 0, 0])[0].point.x).toBeLessThan(backX + 0.01);
-    expect(hits([frontX + 0.2, 0.28, 0.02], [-1, 0, 0])[0].point.x).toBeLessThan(backX + 0.01);
-    expect(hits([frontX + 0.2, -0.12, 0], [-1, 0, 0])[0].point.x).toBeCloseTo(
-      frontX + 0.019 + 0.00145 * Math.cos(Math.PI / 6),
-      5
-    );
-    expect(hits([frontX + 0.2, 0.07, 0], [-1, 0, 0])[0].point.x).toBeGreaterThan(frontX + 0.02);
+    const { frontX, backX, floorY, groundY, rampEndX, doorOpening, ventOpening } =
+      result.receipt.contacts;
+    // Asset loop 2026-11-06: the rebuilt coop has a round-headed pop-hole and a
+    // louvred gable vent where the old one had a tall wired entrance, so the
+    // rays aim at the openings the builder reports. Both still see the real
+    // back wall, not an opaque front infill, and the wall beside the pop-hole is solid.
+    const doorY = (doorOpening.y[0] + doorOpening.y[1]) / 2,
+      ventY = (ventOpening.y[0] + ventOpening.y[1]) / 2;
+    expect(doorOpening.x).toBe(frontX);
+    for (const z of [0, 0.02, doorOpening.z[1] - 0.01])
+      expect(hits([frontX + 0.2, doorY, z], [-1, 0, 0])[0].point.x).toBeLessThan(backX + 0.01);
+    expect(hits([frontX + 0.2, ventY, 0], [-1, 0, 0])[0].point.x).toBeLessThan(backX + 0.01);
+    expect(hits([frontX + 0.2, doorY, 0.2], [-1, 0, 0])[0].point.x).toBeGreaterThan(frontX);
     for (const x of [backX + 0.018, frontX - 0.018])
       for (const z of [-0.248, 0.248]) {
         const ground = hits([x, groundY - 0.1, z], [0, 1, 0])[0];
         expect(ground.point.y).toBeCloseTo(groundY, 6);
         expect(hits([x, floorY + 0.04, z], [0, -1, 0])[0].point.y).toBeGreaterThan(floorY);
       }
-    const x0 = frontX + 0.02;
+    // The ramp deck runs from the pop-hole threshold (0.5 mm under its sill)
+    // down to a ground sill at the foot, which carries it on the ground.
+    const x0 = frontX + 0.0345,
+      y0 = doorOpening.y[0] - 0.0005,
+      y1 = groundY + 0.0275;
     for (let i = 0; i <= 10; i++) {
-      const x = x0 + ((rampEndX - x0) * i) / 10;
-      const expected = floorY + 0.012 + ((x - x0) * (groundY - floorY)) / (rampEndX - x0);
-      // Start above the ramp, below the legitimate doorway lintel and wire.
+      const x = x0 + 0.002 + ((rampEndX - 0.005 - x0) * i) / 10;
+      const expected = y0 + ((x - x0) * (y1 - y0)) / (rampEndX - x0);
+      // Start above the ramp deck, below the pop-hole head.
       const y = hits([x - 0.000001, expected + 0.02, 0.02], [0, -1, 0], 0.04)[0].point.y;
       expect(y).toBeGreaterThanOrEqual(expected - 1e-5);
       expect(y - expected).toBeLessThan(0.012);
     }
-    expect(hits([rampEndX - 0.00001, groundY - 0.02, 0.02], [0, 1, 0])[0].point.y).toBeCloseTo(
-      groundY,
-      4
-    );
+    for (const x of [rampEndX - 0.04, rampEndX - 0.02, rampEndX - 0.002])
+      expect(hits([x, groundY - 0.02, 0.02], [0, 1, 0])[0].point.y).toBeCloseTo(groundY, 4);
   });
   it('uses finite authored UVs, physical nondegenerate outward faces and hard-edged planar boards', () => {
     const p = after.getRoot().listMeshes()[0].listPrimitives()[0],

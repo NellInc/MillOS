@@ -429,6 +429,50 @@ export const RIDGE_FIELD_PROFILE = {
     // Working if the profile's worst-case inside bound beats every outside site.
     jitter: 0.5,
     woodlandMarginMetres: 8,
+    /**
+     * The 34 x 27 m holdings read as a faceted patchwork of straight-edged
+     * polygon cells outlined in dark seams on the lake, huts, offices and
+     * square cameras (asset-accepted-20261105). Real hedged farmland bends
+     * with the ground. The partition now runs in a noise-warped frame: two
+     * octaves of value noise at `warpScale` cycles per metre displace it by
+     * up to +/-`warpMetres`. A first pass with a three-octave fbm put 8 m
+     * kinks in every boundary, which read as cracks (maps-after-1 lake); two
+     * smooth octaves give each hedge one or two gentle bends. The warp
+     * gradient stays near 0.3, so bisector distances remain close to metres.
+     */
+    warpMetres: 8,
+    warpScale: 0.022,
+    /**
+     * Hedgerow albedo pulled this far toward the parcel crop: a soft seam.
+     * 0.5 still drew thin dark outlines in the clear near views (lake,
+     * offices, maps-ab-1), so the seam now carries a third of the hedge tone.
+     * 0.8 was tried on 2026-11-06 and read as identical in a blind A/B
+     * (maps2-ab-hills, five scenes equal): the seams are not the tone.
+     */
+    hedgeTone: 0.65,
+    /** Hedge contrast kept beyond ~1.5 m per pixel, where a seam is sub-pixel. */
+    hedgeFarKeep: 0.3,
+    /**
+     * SEAMS ARE THE STEP, NOT THE HEDGE. Two tone trials changed nothing
+     * (maps2-ab-hills) because what drew the hard cell edges was the crop: hay
+     * or pasture and the per-parcel jitter switched on the nearest site's id
+     * in one pixel, and 0.35 m of hedge relief across a 0.45 m hedge lit one
+     * side of every boundary and shaded the other. Neighbouring parcels now
+     * blend over +/-`blendMetres` either side of a boundary that `boundaryWarp`
+     * metres of two-octave noise (`boundaryWarpScale`, cycles per metre) bend,
+     * the hedge follows that same warped line, its relief is
+     * `hedgeReliefMetres`, and parcel contrast falls to `contrastFarKeep` of
+     * itself over `contrastFade` metres of view distance.
+     */
+    blendMetres: 3.5,
+    boundaryWarp: 1.6,
+    boundaryWarpScale: [0.11, 0.29],
+    hedgeReliefMetres: 0.06,
+    contrastFade: [260, 680],
+    contrastFarKeep: 0.5,
+    /** Per-parcel tone spread and wooded share, calmer for the small holdings. */
+    parcelJitter: 0.1,
+    woodShare: 0.25,
   },
   pasture: [0.08, 0.122, 0.048],
   hay: [0.122, 0.128, 0.058],
@@ -763,12 +807,28 @@ void main() {
     float edge = min(fieldEdge.x, fieldEdge.y);
     float hedgeWidth = ${RIDGE_FIELD_PROFILE.hedgeMetres.toFixed(2)};
     float woodlandMargin = 14.0;
+    // Legacy-grid values; the irregular holdings set their own below.
+    float hedgeTone = 0.0, hedgeKeep = 1.0, hedgeRelief = 0.35;
+    float parcelJitter = 0.16, woodShare = 0.4;
+    // The neighbouring holding and its share of this fragment's crop; the
+    // legacy grid keeps one owner and its hard step.
+    vec2 neighbourId = fieldId;
+    float neighbourShare = 0.0, parcelContrast = 1.0;
+    float hedgeLine = edge;
     if (uParcelCraftStrength > 0.5) {
       // Nine nearby, seeded holdings replace the unbroken rectangular grid.
       // Coordinates and bisector distances stay in metres on the rest mesh.
       // Working if borders form irregular junctions without moving the hills.
       fieldSize = vec2(${RIDGE_FIELD_PROFILE.parcelCraft.cell[0].toFixed(1)}, ${RIDGE_FIELD_PROFILE.parcelCraft.cell[1].toFixed(1)});
-      vec2 parcelBase = floor(fieldQ / fieldSize);
+      // Partition in a warped frame (parcelCraft.warpMetres): boundaries bend
+      // and junctions wander instead of meeting as straight polygon edges.
+      // Two smooth octaves, no fine kinks; 2.0 maps the 0-1 noise to +/-1.
+      vec2 warpQ = fieldQ * ${RIDGE_FIELD_PROFILE.parcelCraft.warpScale.toFixed(3)};
+      vec2 parcelQ = fieldQ + (vec2(
+        ridgeNoise(warpQ + vec2(1.7, 9.2)) * 0.7 + ridgeNoise(warpQ * 2.03 + vec2(4.4, 0.6)) * 0.3,
+        ridgeNoise(warpQ + vec2(8.3, 2.8)) * 0.7 + ridgeNoise(warpQ * 2.03 + vec2(0.9, 7.1)) * 0.3) - 0.5)
+        * ${(RIDGE_FIELD_PROFILE.parcelCraft.warpMetres * 2).toFixed(2)};
+      vec2 parcelBase = floor(parcelQ / fieldSize);
       float nearest = 1e20, runnerUp = 1e20;
       vec2 firstSite = vec2(0.0), secondSite = vec2(0.0);
       for (int x = -1; x <= 1; x++) {
@@ -777,29 +837,55 @@ void main() {
           vec2 jitter = vec2(ridgeHash(id + vec2(3.1, 8.7)),
             ridgeHash(id + vec2(17.4, 2.3))) - 0.5;
           vec2 site = (id + 0.5 + jitter * ${RIDGE_FIELD_PROFILE.parcelCraft.jitter.toFixed(2)}) * fieldSize;
-          vec2 offset = site - fieldQ;
+          vec2 offset = site - parcelQ;
           float distanceSq = dot(offset, offset);
           if (distanceSq < nearest) {
             runnerUp = nearest;
             secondSite = firstSite;
+            neighbourId = fieldId;
             nearest = distanceSq;
             firstSite = site;
             fieldId = id;
           } else if (distanceSq < runnerUp) {
             runnerUp = distanceSq;
             secondSite = site;
+            neighbourId = id;
           }
         }
       }
       edge = max(0.0, (runnerUp - nearest) / max(2.0 * length(secondSite - firstSite), 0.001));
+      // Soft, noise-bent boundary (parcelCraft.blendMetres). The pair is put in
+      // a fixed order by hash, so both sides of a boundary evaluate the same
+      // signed distance and the same bend, and the blend is continuous across.
+      float ownFirst = step(ridgeHash(fieldId + vec2(0.31, 0.73)), ridgeHash(neighbourId + vec2(0.31, 0.73)));
+      float bend = (ridgeNoise(p.xz * ${RIDGE_FIELD_PROFILE.parcelCraft.boundaryWarpScale[0].toFixed(3)} + vec2(2.3, 5.9)) * 0.65
+        + ridgeNoise(p.xz * ${RIDGE_FIELD_PROFILE.parcelCraft.boundaryWarpScale[1].toFixed(3)} + vec2(7.1, 1.3)) * 0.35 - 0.5)
+        * ${(RIDGE_FIELD_PROFILE.parcelCraft.boundaryWarp * 2).toFixed(2)};
+      float boundary = mix(-edge, edge, ownFirst) + bend;
+      float firstShare = smoothstep(-${RIDGE_FIELD_PROFILE.parcelCraft.blendMetres.toFixed(2)},
+        ${RIDGE_FIELD_PROFILE.parcelCraft.blendMetres.toFixed(2)}, boundary);
+      neighbourShare = mix(firstShare, 1.0 - firstShare, ownFirst);
+      // The hedge stands on the bent line, where the crops meet.
+      hedgeLine = abs(boundary);
+      parcelContrast = mix(1.0, ${RIDGE_FIELD_PROFILE.parcelCraft.contrastFarKeep.toFixed(2)},
+        smoothstep(${RIDGE_FIELD_PROFILE.parcelCraft.contrastFade[0].toFixed(1)},
+          ${RIDGE_FIELD_PROFILE.parcelCraft.contrastFade[1].toFixed(1)}, vRidgeDistance));
       hedgeWidth = ${RIDGE_FIELD_PROFILE.parcelCraft.hedgeMetres.toFixed(2)};
       woodlandMargin = ${RIDGE_FIELD_PROFILE.parcelCraft.woodlandMarginMetres.toFixed(1)};
+      // Soft, narrow seams: a lighter hedge tone, less contrast once the hedge
+      // is sub-pixel, and no hedge relief where it would only shade one pixel
+      // light and the next dark along every boundary.
+      hedgeTone = ${RIDGE_FIELD_PROFILE.parcelCraft.hedgeTone.toFixed(2)};
+      hedgeKeep = mix(1.0, ${RIDGE_FIELD_PROFILE.parcelCraft.hedgeFarKeep.toFixed(2)}, smoothstep(0.4, 1.5, footprint));
+      hedgeRelief = ${RIDGE_FIELD_PROFILE.parcelCraft.hedgeReliefMetres.toFixed(2)} * (1.0 - smoothstep(0.3, 1.2, footprint));
+      parcelJitter = ${RIDGE_FIELD_PROFILE.parcelCraft.parcelJitter.toFixed(2)};
+      woodShare = ${RIDGE_FIELD_PROFILE.parcelCraft.woodShare.toFixed(2)};
     }
     float edgeAa = max(fwidth(edge), 0.05);
     // Coverage-weighted: once a hedge is under a pixel wide it thins in tone
     // rather than widening into a dark road across the hill.
-    float hedge = (1.0 - smoothstep(hedgeWidth - edgeAa, hedgeWidth + edgeAa, edge))
-      * min(1.0, hedgeWidth / edgeAa);
+    float hedge = (1.0 - smoothstep(hedgeWidth - edgeAa, hedgeWidth + edgeAa, hedgeLine))
+      * min(1.0, hedgeWidth / edgeAa) * hedgeKeep;
     float parcelUse = ridgeHash(fieldId + vec2(3.7, 11.1));
     // Farmed/wooded edge across the terrace rows (RIDGE_FIELD_PROFILE.slopeGate).
     // The fbm's working range is about 0.3-0.7, so 2.5 normalises it to +/-1.
@@ -818,7 +904,7 @@ void main() {
     // whose grid edge lay near-horizontal on screen: a ruled band across the
     // village hill (art3land-after-med12, village (0,300)-(1060,425)).
     float margin = 1.0 - smoothstep(0.0, woodlandMargin, edge);
-    float woodParcel = 1.0 - step(0.4, parcelUse);
+    float woodParcel = 1.0 - step(woodShare, parcelUse);
     float woodsField = ridgeFbm(p.xz * ${RIDGE_FIELD_PROFILE.standScale[0].toFixed(3)} + vec2(2.2, 8.4))
       + 0.12 - margin * 0.3 + rag;
     float woods = woodParcel * smoothstep(${RIDGE_FIELD_PROFILE.woodsEdge[0].toFixed(2)},
@@ -835,15 +921,34 @@ void main() {
         ${RIDGE_FIELD_PROFILE.strayFootprint[1].toFixed(2)}, footprint));
     float farmed = smoothstep(${RIDGE_FIELD_PROFILE.slopeGate[0].toFixed(2)}, ${RIDGE_FIELD_PROFILE.slopeGate[1].toFixed(2)},
       abs(normal.y) + woodEdge) * (1.0 - copse) * (1.0 - woods) * (1.0 - strays);
-    vec3 crop = mix(${glslVec3(RIDGE_FIELD_PROFILE.pasture)}, ${glslVec3(RIDGE_FIELD_PROFILE.hay)},
-      step(0.8, parcelUse) * (0.6 + 0.4 * ridgeHash(fieldId + vec2(9.2, 1.4))));
-    crop *= 0.9 + stand * 0.14 + (ridgeHash(fieldId + vec2(5.5, 2.2)) - 0.5) * 0.16;
+    float hayShare = step(0.8, parcelUse) * (0.6 + 0.4 * ridgeHash(fieldId + vec2(9.2, 1.4)));
+    float parcelTone = (ridgeHash(fieldId + vec2(5.5, 2.2)) - 0.5) * parcelJitter;
+    // Each holding's crop meets its neighbour's across the soft boundary.
+    float neighbourUse = ridgeHash(neighbourId + vec2(3.7, 11.1));
+    hayShare = mix(hayShare, step(0.8, neighbourUse) * (0.6 + 0.4 * ridgeHash(neighbourId + vec2(9.2, 1.4))),
+      neighbourShare);
+    parcelTone = mix(parcelTone, (ridgeHash(neighbourId + vec2(5.5, 2.2)) - 0.5) * parcelJitter,
+      neighbourShare);
+    // Distant holdings keep part of their contrast about the mean crop.
+    hayShare = mix(0.16, hayShare, parcelContrast);
+    parcelTone *= parcelContrast;
+    vec3 crop = mix(${glslVec3(RIDGE_FIELD_PROFILE.pasture)}, ${glslVec3(RIDGE_FIELD_PROFILE.hay)}, hayShare);
+    crop *= 0.9 + stand * 0.14 + parcelTone;
     crop = mix(crop, ${glslVec3(RIDGE_FIELD_PROFILE.scrub)} * (0.9 + needles * 0.2), fringe * 0.75);
     float openField = farmed * (1.0 - hedge);
-    vec3 hedgerow = ${glslVec3(RIDGE_FIELD_PROFILE.woodland)} * (0.85 + needles * 0.2);
-    detailedAlbedo = mix(detailedAlbedo, hedgerow, farmed * hedge);
-    detailedAlbedo = mix(detailedAlbedo, crop, openField);
-    relief = mix(relief, 0.0, openField) + farmed * hedge * 0.35 * uDetailStrength;
+    vec3 hedgerow = mix(${glslVec3(RIDGE_FIELD_PROFILE.woodland)} * (0.85 + needles * 0.2), crop, hedgeTone);
+    if (uParcelCraftStrength > 0.5) {
+      // One coverage blend: the hedge drawn over its field's crop. The two-step
+      // mix left hedge * (1 - hedge) of woodland albedo, and the woodland's
+      // crown and clump relief, under every part-covered hedge pixel: a relief
+      // step inside one pixel shaded each boundary as a dark seam.
+      detailedAlbedo = mix(detailedAlbedo, mix(crop, hedgerow, hedge), farmed);
+      relief = mix(relief, 0.0, farmed) + farmed * hedge * hedgeRelief * uDetailStrength;
+    } else {
+      detailedAlbedo = mix(detailedAlbedo, hedgerow, farmed * hedge);
+      detailedAlbedo = mix(detailedAlbedo, crop, openField);
+      relief = mix(relief, 0.0, openField) + farmed * hedge * hedgeRelief * uDetailStrength;
+    }
     // Moonlight and dusk carry tone, not hue (RIDGE_FIELD_PROFILE.night). Hay
     // and pasture differ mostly in red, which a dim blue key under a warm
     // twilight inscatter turns into purple and red parcels: large straight-
@@ -1304,6 +1409,23 @@ export const MOUNTAIN_RIDGE_SEGMENTS = 384;
 export const MOUNTAIN_RIDGE_ROWS = 17;
 
 /**
+ * The far range's crest (createMountainRidgeGeometry, rollingHills false).
+ * `apexRounding` is the half-width, in |sin| units, over which each ridged
+ * harmonic's apex rounds (0.22 on the 7th harmonic is about 1.8 degrees, two
+ * columns). `shoulders` and `notches` are profile units of crest irregularity
+ * (five harmonics, 31st-67th, at least 5.7 columns per period), faded in over
+ * `gate` of the base field so valleys and the seam-hiding floor are untouched.
+ * `peakShare` keeps the tallest summit where it was.
+ */
+export const FAR_RIDGE_CREST = {
+  apexRounding: [0.22, 0.26],
+  shoulders: 0.045,
+  notches: 0.025,
+  gate: [0.12, 0.52],
+  peakShare: 0.825,
+} as const;
+
+/**
  * A deterministic inward-facing mountain slope preserves the authored horizon
  * in one compact draw per depth layer. Seventeen radial terraces create real depth
  * from the site to the summit, while continuous periodic profiles close the
@@ -1338,24 +1460,56 @@ export function createMountainRidgeGeometry({
   const indices: number[] = [];
   const palette = colors.map((color) => new THREE.Color(color));
 
-  const columns = Array.from({ length: segments }, (_, index) => {
-    const progress = index / segments;
-    const angle = progress * Math.PI * 2;
-    // Broad positive lobes form separated massifs. Sharper ridged harmonics
-    // break each massif into individual peaks, while the very low valley floor
-    // lets the terrain hide the ring between ranges instead of exposing a
-    // continuous horizontal shelf.
+  // FAR CREST: rounded apexes and a broken skyline (FAR_RIDGE_CREST).
+  // `1 - |sin|` has a derivative jump at every apex, and the flanks between the
+  // apexes were the smooth sweep of three harmonics: from the forecourt the
+  // range read as clean witch-hat spikes, a hard polygonal profile unlike the
+  // rolling hills under it (runtime-triage-20261106). The apexes now round over
+  // about a column, and the upper crest carries shoulders, notches and small
+  // towers from five higher harmonics, gated off the valleys so the floor that
+  // hides the world seam stays exact. The tallest summit keeps its share of the
+  // span. Working if the forecourt skyline is irregular and no apex is a cusp.
+  // A soft |s| (s^2 / sqrt(s^2 + c^2)): flat at the apex, within c of |s| elsewhere.
+  const roundedRidge = (s: number, c: number) => 1 - (s * s) / Math.sqrt(s * s + c * c);
+  const crestField = (angle: number, crestDetail = true) => {
     const massif = Math.pow(Math.max(0, Math.sin(angle * 3 + seed * 0.7)), 2.2) * 0.48;
+    const apex = FAR_RIDGE_CREST.apexRounding;
     const ridge =
-      Math.pow(1 - Math.abs(Math.sin(angle * 7 - seed * 1.2)), 2.2) * 0.3 +
-      Math.pow(1 - Math.abs(Math.sin(angle * 13 + seed * 2.1)), 3.4) * 0.16 +
-      Math.pow(1 - Math.abs(Math.sin(angle * 23 - seed * 0.8)), 4) * 0.06;
+      Math.pow(roundedRidge(Math.sin(angle * 7 - seed * 1.2), apex[0]), 2.2) * 0.3 +
+      Math.pow(roundedRidge(Math.sin(angle * 13 + seed * 2.1), apex[0]), 3.4) * 0.16 +
+      Math.pow(roundedRidge(Math.sin(angle * 23 - seed * 0.8), apex[1]), 4) * 0.06;
     const rolling =
       (Math.sin(angle * 2 - seed) * 0.5 + 0.5) * 0.045 +
       (Math.sin(angle * 11 + seed * 1.4) * 0.5 + 0.5) * 0.025;
+    const base = rolling + massif + ridge;
+    if (!crestDetail) return base;
+    const shoulders =
+      Math.sin(angle * 31 + seed * 3.1) * 0.45 +
+      Math.sin(angle * 47 - seed * 1.9) * 0.33 +
+      Math.sin(angle * 67 + seed * 4.3) * 0.22;
+    const notches =
+      Math.pow(1 - Math.abs(Math.sin(angle * 41 + seed * 2.7)), 8) -
+      Math.pow(1 - Math.abs(Math.sin(angle * 53 - seed * 0.6)), 10);
+    const gate = THREE.MathUtils.smoothstep(base, FAR_RIDGE_CREST.gate[0], FAR_RIDGE_CREST.gate[1]);
+    return (
+      base + (shoulders * FAR_RIDGE_CREST.shoulders + notches * FAR_RIDGE_CREST.notches) * gate
+    );
+  };
+  const crestPeak = rollingHills
+    ? 1
+    : Math.max(
+        ...Array.from({ length: segments }, (_, index) =>
+          crestField((index / segments) * Math.PI * 2)
+        )
+      );
+
+  const columns = Array.from({ length: segments }, (_, index) => {
+    const progress = index / segments;
+    const angle = progress * Math.PI * 2;
     // The far ring's raised valley is needed to hide the world seam. Adding
     // it to a full-amplitude massif then clamping flattened entire summits.
-    // Fit the positive field (maximum 1.07) into the remaining vertical span.
+    // Fit the positive field into the remaining vertical span, its tallest
+    // summit at FAR_RIDGE_CREST.peakShare (the former field's 0.883 / 1.07).
     const floor = Math.max(0.025, valleyFloor);
     const hill =
       0.36 * (0.5 + 0.5 * Math.sin(angle * 3 + seed)) +
@@ -1363,14 +1517,25 @@ export function createMountainRidgeGeometry({
       0.19 * (0.5 + 0.5 * Math.sin(angle * 9 + seed * 2)) +
       0.1 * (0.5 + 0.5 * Math.sin(angle * 13 - seed));
     const profile =
-      floor + (rollingHills ? hill : (rolling + massif + ridge) / 1.07) * (0.98 - floor);
+      floor +
+      (rollingHills ? hill : (crestField(angle) / crestPeak) * FAR_RIDGE_CREST.peakShare) *
+        (0.98 - floor);
     const height = THREE.MathUtils.lerp(minHeight, maxHeight, profile);
+    // The buttresses root in the massif's own summits, not in crest notches.
+    const buttressHeight = rollingHills
+      ? height
+      : THREE.MathUtils.lerp(
+          minHeight,
+          maxHeight,
+          floor +
+            (crestField(angle, false) / crestPeak) * FAR_RIDGE_CREST.peakShare * (0.98 - floor)
+        );
     const baseRadius =
       radius + Math.sin(angle * 5 + seed) * 1.5 + Math.sin(angle * 13 - seed) * 0.55;
     const facetTint =
       0.9 + Math.sin(angle * 11 + seed * 2.4) * 0.065 + Math.sin(angle * 23 - seed) * 0.032;
 
-    return { angle, profile, height, baseRadius, facetTint };
+    return { angle, profile, height, buttressHeight, baseRadius, facetTint };
   });
   // Root broad buttresses in the actual prominent skyline peaks. The previous
   // 47th-harmonic recess was narrower than one column and read as pleated cloth.
@@ -1386,12 +1551,12 @@ export function createMountainRidgeGeometry({
     const candidates = columns
       .map((column, index) => ({ ...column, index }))
       .filter(
-        ({ height, index }) =>
-          height > maxHeight * 0.28 &&
-          height > columns[(index + segments - 1) % segments].height &&
-          height >= columns[(index + 1) % segments].height
+        ({ buttressHeight, index }) =>
+          buttressHeight > maxHeight * 0.28 &&
+          buttressHeight > columns[(index + segments - 1) % segments].buttressHeight &&
+          buttressHeight >= columns[(index + 1) % segments].buttressHeight
       )
-      .sort((a, b) => b.height - a.height || a.index - b.index);
+      .sort((a, b) => b.buttressHeight - a.buttressHeight || a.index - b.index);
     for (const { index } of candidates) {
       if (peaks.every((peak) => circularDistance(peak, index) >= 20)) peaks.push(index);
       if (peaks.length === 10) break;
@@ -1622,6 +1787,21 @@ const ridgeSunGolden = new THREE.Color('#ffb478');
 const ridgeSunNight = new THREE.Color('#39527a');
 const ridgeShadowDay = new THREE.Color('#5d7d96');
 const ridgeShadowNight = new THREE.Color('#161f2e');
+/**
+ * The ridges' sky fill through the blue hour, by `getSkyBlueHourWeight`.
+ * The shadow tint followed `visualDaylight` alone, 0.05 at 19:00, so the
+ * foothills took the night fill (#161f2e) and drew one near-black navy mass
+ * under a horizon three times brighter than night (maps2-dusk-base-med-1900).
+ * The tints are radiance per unit albedo with the noon key at about 1, so the
+ * terrain's 19:00 ground light (about 0.73 irradiance after the hemisphere's
+ * blue-hour floor, 0.23 over pi) wants a ridge fill near 0.2: this colour
+ * (luminance 0.24) gives 0.18 at weight 0.73, a quarter of noon as the ground
+ * is. A first value at 0.04 moved the lake frame's hill band by 0.3 of a level.
+ * A lower shade with an afterglow lift on the sun tint, for slope form, read
+ * as identical in a blind A/B (maps2-ab-dusk-form) and was not kept.
+ * Zero blue hour at noon and full night leaves both exact.
+ */
+const ridgeShadowBlueHour = new THREE.Color('#7b889c');
 
 const colorScratch = new THREE.Color();
 const targetTopScratch = new THREE.Color();
@@ -1704,7 +1884,7 @@ export function createRidgeMaterial(
     },
   });
   material.userData.clearAerial = aerial;
-  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v28';
+  material.customProgramCacheKey = () => 'millos-ridge-aerial-geology-v32';
   return material;
 }
 
@@ -2114,7 +2294,10 @@ export function OptimizedSkySystem() {
       .copy(ridgeSunNight)
       .lerp(ridgeSunDay, visualDaylight)
       .lerp(ridgeSunGolden, mountainTwilight);
-    ridgeShadowScratch.copy(ridgeShadowNight).lerp(ridgeShadowDay, visualDaylight);
+    ridgeShadowScratch
+      .copy(ridgeShadowNight)
+      .lerp(ridgeShadowDay, visualDaylight)
+      .lerp(ridgeShadowBlueHour, blueHour);
     const fieldDaylight = getRidgeFieldDaylight(atmosphere.daylight);
     const fieldTone = getRidgeFieldTone(atmosphere.daylight);
     const clearAir = getRidgeClearAir(atmosphere.cloudCoverage);

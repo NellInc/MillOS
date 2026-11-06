@@ -10,6 +10,9 @@ import {
   buildDustPatchGeometry,
   buildHallSackMatrices,
   createDustMask,
+  HALL_CONTACT_MATERIAL,
+  HALL_CONTACT_SPREAD,
+  hallContactShadowMatrices,
 } from './HallDressing';
 import { RENDER_ORDER } from '../../constants/renderLayers';
 import { FACTORY_STRUCTURE_MATERIAL } from './OptimizedFactoryInfrastructure';
@@ -368,5 +371,41 @@ describe('live maintenance cart craft', () => {
         expect(Math.hypot(n.getX(i), n.getY(i), n.getZ(i))).toBeCloseTo(1, 4);
     }
     expect(triangles).toBeLessThanOrEqual(444 + 500);
+  });
+});
+
+/**
+ * groupA-after2 packing (Sonnet scene judge): the pallet stacks "sit on the
+ * slab with little or no AO footprint, so they read as scattered stickers".
+ */
+describe('contact shadows under loads', () => {
+  it('lays one unlit, depth-free footprint under every stack and pile', () => {
+    const matrices = hallContactShadowMatrices();
+    const loads = [...HALL_SACK_STACKS, ...HALL_PALLET_PILES];
+    expect(matrices).toHaveLength(loads.length);
+    const position = new THREE.Vector3();
+    const scale = new THREE.Vector3();
+    matrices.forEach((matrix, i) => {
+      matrix.decompose(position, new THREE.Quaternion(), scale);
+      expect(position.x).toBeCloseTo(loads[i].x, 6);
+      expect(position.z).toBeCloseTo(loads[i].z, 6);
+      expect(position.y).toBeGreaterThan(loads[i].baseY);
+      expect(position.y).toBeLessThan(loads[i].baseY + 0.02);
+      // The spread stays a contact term, not a rug.
+      expect(scale.x).toBeLessThan(2 * (0.63 + 0.3));
+    });
+    expect(HALL_CONTACT_SPREAD).toBeLessThanOrEqual(0.3);
+    expect(HALL_CONTACT_MATERIAL).toBeInstanceOf(THREE.MeshBasicMaterial);
+    expect(HALL_CONTACT_MATERIAL.depthWrite).toBe(false);
+    expect(HALL_CONTACT_MATERIAL.transparent).toBe(true);
+    expect(HALL_CONTACT_MATERIAL.polygonOffset).toBe(true);
+    const mask = HALL_CONTACT_MATERIAL.alphaMap!;
+    expect(mask.colorSpace).toBe(THREE.NoColorSpace);
+    // three samples alphaMap.g: opaque at the centre, clear at the quad's edge.
+    const { data, width } = mask.image as { data: Uint8Array; width: number };
+    const green = (x: number, y: number) => data[(y * width + x) * 4 + 1];
+    expect(green(width / 2, width / 2)).toBe(255);
+    expect(green(0, width / 2)).toBeLessThan(8);
+    expect(green(width / 2, 0)).toBeLessThan(8);
   });
 });

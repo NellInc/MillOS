@@ -35,19 +35,25 @@ import {
 } from './serviceBuildingCraft';
 import { createBarnJoineryGeometry } from '../scenery/AuthoredPropTrim';
 
-describe('exterior lamp schedule', () => {
-  it('is fully lit at night and off at clear noon', () => {
-    expect(getExteriorLampLevel(23, 'clear')).toBe(1);
-    expect(getExteriorLampLevel(12, 'clear')).toBe(0);
+describe('exterior lamp clock (D-044)', () => {
+  it('is fully lit at night and off by day', () => {
+    expect(getExteriorLampLevel(23)).toBe(1);
+    expect(getExteriorLampLevel(3)).toBe(1);
+    expect(getExteriorLampLevel(12)).toBe(0);
   });
 
-  it('fades smoothly at dawn and dusk', () => {
-    expect(getExteriorLampLevel(6, 'clear')).toBe(1);
-    expect(getExteriorLampLevel(18, 'clear')).toBe(1);
+  it('is half on at sunrise and sunset, and off by 06:30 and until 17:30', () => {
+    expect(getExteriorLampLevel(6)).toBeCloseTo(0.5, 6);
+    expect(getExteriorLampLevel(18)).toBeCloseTo(0.5, 6);
+    expect(getExteriorLampLevel(6.5)).toBe(0);
+    expect(getExteriorLampLevel(17.5)).toBe(0);
+    expect(getExteriorLampLevel(18.5)).toBe(1);
   });
 
-  it('raises a daytime minimum in severe weather', () => {
-    expect(getExteriorLampLevel(12, 'storm')).toBe(0.7);
+  it('mirrors dawn and dusk', () => {
+    for (let m = 0; m <= 60; m += 5) {
+      expect(getExteriorLampLevel(6 + m / 60)).toBeCloseTo(getExteriorLampLevel(18 - m / 60), 6);
+    }
   });
 });
 
@@ -70,15 +76,13 @@ it('covers the existing west walk without poles in its two-metre paving', () => 
   }
 });
 
-it('lights the site before sunset and fades continuously without a late switch', () => {
-  expect(getExteriorLampLevel(17, 'clear')).toBeGreaterThan(0.4);
-  expect(getExteriorLampLevel(17.5, 'clear')).toBeGreaterThan(0.9);
+it('fades continuously at dusk without a sudden switch', () => {
   for (let h = 16; h < 20; h += 1 / 60) {
-    const delta = getExteriorLampLevel(h + 1 / 60, 'clear') - getExteriorLampLevel(h, 'clear');
-    expect(delta).toBeGreaterThanOrEqual(0);
+    const delta = getExteriorLampLevel(h + 1 / 60) - getExteriorLampLevel(h);
+    expect(delta).toBeGreaterThanOrEqual(-1e-9);
     expect(delta).toBeLessThan(0.02);
   }
-  expect(getExteriorLampLevel(18 + 24, 'clear')).toBe(1);
+  expect(getExteriorLampLevel(18.5 + 24)).toBe(1);
 });
 
 it('puts both crossing lamps on dry banks, outside stairs and paths, with light inside the real optic', () => {
@@ -191,8 +195,8 @@ it('keeps the bounded picnic spill on paving and uses the existing quality, dimm
     expect(layout.stemLength).toBeGreaterThan(0);
     expect(layout.source.every(Number.isFinite)).toBe(true);
   }
-  expect(getExteriorLampLevel(12, 'clear') * PICNIC_SHELTER_LIGHT.intensity).toBe(0);
-  expect(getExteriorLampLevel(22, 'clear') * PICNIC_SHELTER_LIGHT.intensity).toBe(76);
+  expect(getExteriorLampLevel(12) * PICNIC_SHELTER_LIGHT.intensity).toBe(0);
+  expect(getExteriorLampLevel(22) * PICNIC_SHELTER_LIGHT.intensity).toBe(76);
   const source = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
   const carport = source.slice(
     source.indexOf('const BrickCarport:'),
@@ -347,7 +351,7 @@ it('uses the existing clock, optional gain lifecycle, shared lens/pool and exact
   // A lamp registered mid-day or mid-night joins the driver's current state.
   expect(downlight).toContain('light.visible = lampsShown;');
   expect(downlight).toContain('castShadow={false}');
-  for (const h of [12, 18.25, 22]) expect(getExteriorLampLevel(h, 'clear')).toBe(h === 12 ? 0 : 1);
+  for (const h of [12, 18.5, 22]) expect(getExteriorLampLevel(h)).toBe(h === 12 ? 0 : 1);
   const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8'),
     farm = readFileSync('src/components/FarmArea.tsx', 'utf8');
   expect(exterior.match(/<ServiceEntranceLighting site=/g)).toHaveLength(2);
