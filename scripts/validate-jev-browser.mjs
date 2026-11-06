@@ -110,7 +110,7 @@ const report = {
     : process.env.GITHUB_ACTIONS === 'true'
       ? 'github-actions'
       : 'local',
-  browserChannel: 'chrome',
+  browserChannel: installedChrome ? 'chrome' : metalRenderer ? 'chromium' : 'playwright-chromium',
   requestedChromiumSandbox: true,
   camera: advisoryStartup ? 'sun' : 'overview',
   normalStartupRequired: true,
@@ -178,8 +178,7 @@ try {
   });
   await checkpoint('browser-launch');
   browser = await chromium.launch({
-    channel: 'chrome',
-    ...(installedChrome ? { channel: 'chrome' } : metalRenderer ? { channel: 'chrome' } : {}),
+    ...(installedChrome ? { channel: 'chrome' } : metalRenderer ? { channel: 'chromium' } : {}),
     headless: true,
     chromiumSandbox: true,
     ...(metalRenderer ? { ignoreDefaultArgs: ['--enable-unsafe-swiftshader'] } : {}),

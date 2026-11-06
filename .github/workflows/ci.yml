@@ -174,10 +174,11 @@ jobs:
           console.log(`Verified Linux-built assembly: ${digest}`);
           NODE
 
-      - name: Install stable Chrome for Jev UI acceptance
-        # Keep the same hosted Metal path and deadline while using patched Chrome.
-        # Working if the artifact records the actual Chrome version and the hardware gate passes.
-        run: npx playwright install chrome
+      - name: Install pinned Chromium for Jev UI acceptance
+        # Playwright's pinned full Chromium, as on main. Stable Chrome 157 on this
+        # hosted Metal path failed the startup frame gate that main passes (PR #64).
+        # Working if the artifact records Playwright's Chromium and the gate passes.
+        run: npx playwright install --no-shell chromium
 
       - name: Validate Jev personal-key flow in desktop and mobile layouts
         id: jev-acceptance
