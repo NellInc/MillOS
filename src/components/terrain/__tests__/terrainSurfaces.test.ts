@@ -493,7 +493,9 @@ describe('terrain-owned close surface detail', () => {
       'surfaceDetail ? getTerrainGrassTexture() : PROCEDURAL_TEXTURES.grassColor'
     );
     expect(source).toContain('getTerrainDirtTexture(surfaceDetail)');
-  });
+    // Bakes the full high-definition pairs: 1.5 s locally, past the 10 s default
+    // on the two-core CI runner under coverage.
+  }, 60_000);
 
   it('resolves leaf-scale colour variation in a seamless, opaque sRGB meadow', () => {
     const size = 1024;

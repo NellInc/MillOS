@@ -246,7 +246,9 @@ for (const id of Object.keys(PRECISION_FARM_MODELS)) {
     await expect(
       derivePrecisionFarmModel(id, { ...spec, id: 'farm-other' }, manifest)
     ).rejects.toThrow();
-  });
+    // Real normalization of the whole model: 2.6 s locally, 10.1 s on the
+    // two-core CI runner under coverage, past the 10 s default.
+  }, 60_000);
 }
 
 async function isolatedRoot(name) {

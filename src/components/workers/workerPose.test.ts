@@ -2025,7 +2025,9 @@ describe('actual-rig baker linen skinning and distant preservation', () => {
           geometry.dispose();
           material.dispose();
         });
-      });
+        // Skins the real rigs through every clip: 9.4 s on the two-core CI
+        // runner under coverage, at the edge of the 10 s default.
+      }, 60_000);
     }
 });
 

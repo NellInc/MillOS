@@ -402,7 +402,8 @@ describe('world public realm', () => {
     } finally {
       hull.dispose();
     }
-  });
+    // 7.7 s on the two-core CI runner under coverage, near the 10 s default.
+  }, 60_000);
 
   it('finds every world, village and farm walk from world coordinates', () => {
     // Village and farm walks are stored in their landmark's frame; a world
