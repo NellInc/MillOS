@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./BuildCacheDiagnostics', () => ({ BuildCacheDiagnostics: () => null }));
@@ -32,7 +32,11 @@ describe('SettingsPanel simulation resets', () => {
   });
 
   // Runs last: Reset Simulation suspends persistence for the rest of the page.
-  it('Reset Simulation clears saved progress but keeps sound and language preferences', () => {
+  it('Reset Simulation clears saved progress but keeps sound and language preferences', async () => {
+    // The reset reloads after a bounded SCADA history clear. Unstubbed and
+    // unawaited, that reload ran after teardown ("window is not defined").
+    const reload = vi.fn();
+    Object.defineProperty(window, 'location', { configurable: true, value: { reload } });
     localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify({ version: 2, muted: true }));
     localStorage.setItem(LOCALE_STORAGE_KEY, 'pt-BR');
     localStorage.setItem('millos-autonomous-operations', '{}');
@@ -54,6 +58,7 @@ describe('SettingsPanel simulation resets', () => {
     expect(localStorage.getItem('millos-physical-session')).toBeNull();
     expect(localStorage.getItem('millos-gpu-settings')).toBeNull();
     expect(localStorage.getItem('unrelated-site-key')).toBe('kept');
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
     restoreGate();
   });
 });
