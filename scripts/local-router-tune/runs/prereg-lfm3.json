@@ -1,0 +1,31 @@
+{
+ "run": "lfm3",
+ "writtenAt": "2026-11-06, after the smoke run was started and before any full run",
+ "approvedBy": "Nell: 'Let's test please' (2026-11-06), on the proposal to measure LFM3-1.7B against Qwen3.5-4B with the D-019/D-021 checks",
+ "model": "LiquidAI/LFM3-1.7B-ONNX at 57c125dfa29f2d39157e280b1d1f7480b8736d8d, model_q4f16 (1.38 GB), licence LFM Open License v1.0",
+ "runtime": "Transformers.js 4.3.2 (bundled onnxruntime-web 1.31.0-dev.20260914) on WebGPU, driven by scripts/local-router-tune/lfm3_shim.js: chunked prefill of at most 256 tokens, the session's own KV and conv caches, sampling in JS. Installed outside the repo; nothing in src/ changes.",
+ "design": {
+  "harness": "browser_eval.mjs unchanged in what it asks: strategicPrompt through webgpuClient.generateContent, the advisory rubric through requestJevAdvice({ provider: 'local' }). The shim stands in as webgpuClient's engine under the id LFM3-1.7B-ONNX-q4f16, which has no web-llm profile, so generateContent takes the chat path with the shipped GENERATION_CONFIG (0.7 / top_p 0.9 / 2048) and the shipped prompt budget.",
+  "routing": "The five queue ids are Qwen's (LOCAL_QUEUE_TOKENS); the shim maps each to the first LFM3 piece of the same queue name and returns a softmax over exactly those five, which is what web-llm's +100 logit bias does. Temperature 1, as shipped.",
+  "command": "MODEL=LFM3-1.7B-ONNX-q4f16 node scripts/local-router-tune/browser_eval.mjs --headless --healthy-base --temperatures=0.7,0.1 --repeats=3",
+  "arms": "0.7 is the shipped strategy setting. 0.1 is Liquid's recommended sampling (temperature 0.1, top_k 50, repetition_penalty 1.1), applied by the shim to requests at exactly 0.1. Arms alternate per repeat in one page load: 30 strategy answers each.",
+  "conditions": "Headless Chrome. Started only when the 1-minute load is under 3 runnable per core; if it rises above that during the run, timings are reported as invalid and accuracy stands.",
+  "amendment-2026-11-06T22:57": "Written after the smoke and before any full run. (1) Load is about 22 per core from other repos' test suites and is not expected to clear soon, so the run starts now and its timings are reported as invalid; accuracy stands (inference is on the GPU, and a timeout under load counts against LFM3). (2) A same-day control on this tree: MODEL=Qwen3.5-4B-q4f16_1-MLC --fast-lane --healthy-base --repeats=3 --headless, the shipped wiring (4B strategy, 0.8B routing lane). The gates above stand as absolute; if the control itself misses the strategy gate, LFM3 is also judged against it: it passes strategy only with hits at least the control's. Smoke record (runs/smoke-LFM3-1.7B-ONNX-q4f16.json): one strategy answer on a non-healthy base named silo-0 against rm-102; routing case 0 correct; chunked and one-shot prefill top-5 identical, max logit difference 0.36."
+ },
+ "baselines": {
+  "strategy": "Qwen3.5-4B official build, healthy base: 30/30 (runs/browser-Qwen3.5-4B-q4f16_1-MLC-healthy.json, 2026-11-02, median 33.2 s) and 28/30 (…-healthy-control-alone.json, 2026-11-04, median 43.2 s)",
+  "routingOfficial": "Qwen3.5-4B official, no lane: 215/257 (runs/browser-Qwen3.5-4B-q4f16_1-MLC.json)",
+  "routingLane": "Qwen3.5-0.8B routing tune as shipped: 253/257, test3 (Brazilian Portuguese) 73/75 (runs/browser-Qwen3.5-4B-q4f16_1-MLC-lane-healthy-s08b-pt.json)"
+ },
+ "rule": {
+  "strategyPass": "One arm hits at least 29/30 (D-019's gate) with 30/30 parsed and no focusMachine outside the plant's ids. If both arms pass, the higher hit count is the arm; a tie goes to 0.7.",
+  "routingReplacesLane": "At least 248/257 (D-021's gate) and test3 at least 70/75 (within 3 of the shipped lane).",
+  "outcomes": {
+   "A": "strategyPass and routingReplacesLane: propose that LFM3 replace both Qwen3.5-4B and the 0.8B lane, which would also retire web-llm. A [proposed] decision for Nell; nothing ships from this run.",
+   "B": "strategyPass only: not adopted as it stands, because shipping it would mean two inference runtimes (ONNX Runtime for strategy, web-llm for the lane). Report what an LFM3 routing tune would need; training one is a separate ask.",
+   "C": "strategyPass fails: not adopted.",
+   "none": "The run errors, more than 2% of routing calls return unusable scores, or the smoke shows chunked and one-shot prefill disagreeing in a way that is not fp16 noise: a harness finding, no verdict."
+  },
+  "alsoReported": "Routing against the official 4B's 215/257 (devices without the lane), median strategy seconds, load seconds, download size, and the 1-minute load per core."
+ }
+}

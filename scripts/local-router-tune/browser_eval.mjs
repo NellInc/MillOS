@@ -45,6 +45,14 @@ const PROMPT_ARMS = arg('prompt-arms', '').split(',').filter(Boolean);
 const SEVERITY_LINE =
   'When more than one machine is in warning, focus on the one with the worst readings: highest wear, then vibration, then temperature.';
 const TEMPERATURES = arg('temperatures', '').split(',').filter(Boolean).map(Number);
+// Headless Chrome (WebGPU on Metal works there), so a check never brings a window forward.
+const HEADLESS = process.argv.includes('--headless');
+// LFM3-1.7B through ONNX Runtime Web instead of web-llm (lfm3_shim.js). Transformers.js
+// 4.3.2 is installed outside the repo; LFM3_TJS_DIR is the node_modules holding it.
+const LFM3 = MODEL.startsWith('LFM3-');
+const LFM3_TJS_DIR = process.env.LFM3_TJS_DIR ?? '';
+if (LFM3 && !LFM3_TJS_DIR) throw new Error('LFM3_TJS_DIR is required for an LFM3 model');
+const LFM3_SMOKE = process.argv.includes('--lfm3-smoke');
 const PROFILE = process.env.PROFILE_DIR ?? path.join(os.tmpdir(), 'millos-router-eval-profile');
 const RESULT = path.join(
   HERE,
@@ -93,10 +101,28 @@ await server.listen();
 const context = await chromium.launchPersistentContext(PROFILE, {
   channel: 'chrome',
   chromiumSandbox: true,
-  headless: false,
+  headless: HEADLESS,
   viewport: { width: 1280, height: 800 },
   args: withChromeLeakGuard(),
 });
+if (LFM3) {
+  const files = {
+    'lfm3_shim.js': path.join(HERE, 'lfm3_shim.js'),
+    'transformers.min.js': path.join(
+      LFM3_TJS_DIR,
+      '@huggingface/transformers/dist/transformers.min.js'
+    ),
+  };
+  const ortDist = path.join(LFM3_TJS_DIR, 'onnxruntime-web/dist');
+  await context.route(`http://127.0.0.1:${PORT}/__lfm3/**`, async (route) => {
+    const name = new URL(route.request().url()).pathname.slice('/__lfm3/'.length);
+    const file =
+      files[name] ?? (/^ort-[\w.-]+\.(mjs|wasm)$/.test(name) ? path.join(ortDist, name) : null);
+    if (!file || !fs.existsSync(file)) return route.fulfill({ status: 404, body: `no ${name}` });
+    const type = name.endsWith('.wasm') ? 'application/wasm' : 'text/javascript';
+    return route.fulfill({ status: 200, contentType: type, body: fs.readFileSync(file) });
+  });
+}
 const consoleLines = [];
 const fetchedRepos = new Set();
 try {
@@ -112,7 +138,7 @@ try {
     if (match) fetchedRepos.add(`${match[1]}@${match[2].slice(0, 8)}`);
   });
   page.on('console', (m) => {
-    if (/WebGPU|web-llm|webllm|Advisory|integrity|Error/i.test(m.text()))
+    if (/WebGPU|web-llm|webllm|Advisory|integrity|Error|LFM3|onnx|ort/i.test(m.text()))
       consoleLines.push(m.text().slice(0, 300));
   });
   await page.goto(`http://127.0.0.1:${PORT}/?quality=low&pa=off&scada=false&lang=en`, {
@@ -128,240 +154,418 @@ try {
   const loadStarted = Date.now();
   const loaded = PROMPTS_OUT
     ? true
-    : await page.evaluate(
-        async ({ modelId, fastLane }) => {
+    : LFM3
+      ? await page.evaluate(async (modelId) => {
           const { webgpuClient } = await import('/src/utils/webgpuClient.ts');
+          const { LOCAL_QUEUE_TOKENS } = await import('/src/utils/jevClient.ts');
           const { useAIConfigStore } = await import('/src/stores/aiConfigStore.ts');
           useAIConfigStore.setState({ lightsOut: false });
-          const ok = await webgpuClient.load(undefined, modelId, fastLane);
-          return ok && (!fastLane || webgpuClient.hasFastLane());
-        },
-        { modelId: MODEL, fastLane: FAST_LANE }
-      );
+          const { createLfm3Engine } = await import('/__lfm3/lfm3_shim.js');
+          // The Qwen ids the rubric asks for; the shim maps each to LFM3's first piece.
+          const queueTokens = LOCAL_QUEUE_TOKENS['Qwen3.5-4B-q4f16_1-MLC'];
+          let last = 0;
+          const engine = await createLfm3Engine({
+            queueTokens,
+            onProgress: (p) => {
+              if (p.status === 'progress' && p.progress - last >= 10) {
+                last = p.progress;
+                console.log(`LFM3 download ${p.file} ${Math.round(p.progress)}%`);
+              }
+            },
+          });
+          LOCAL_QUEUE_TOKENS[modelId] = queueTokens;
+          // A model id with no web-llm profile sends generateContent down the chat path.
+          Object.assign(webgpuClient, { engine, modelId, fastLaneId: null });
+          globalThis.__lfm3 = engine;
+          console.log(
+            'LFM3 inputs',
+            JSON.stringify(engine.inputNames.slice(0, 8)),
+            JSON.stringify(engine.pastMeta)
+          );
+          console.log('LFM3 queue pieces', JSON.stringify(engine.queueMap));
+          return webgpuClient.isConnected() && webgpuClient.getModelId() === modelId;
+        }, MODEL)
+      : await page.evaluate(
+          async ({ modelId, fastLane }) => {
+            const { webgpuClient } = await import('/src/utils/webgpuClient.ts');
+            const { useAIConfigStore } = await import('/src/stores/aiConfigStore.ts');
+            useAIConfigStore.setState({ lightsOut: false });
+            const ok = await webgpuClient.load(undefined, modelId, fastLane);
+            return ok && (!fastLane || webgpuClient.hasFastLane());
+          },
+          { modelId: MODEL, fastLane: FAST_LANE }
+        );
   const loadSeconds = (Date.now() - loadStarted) / 1000;
   log(MODEL, 'loaded', loaded, `${loadSeconds.toFixed(0)} s`, 'load', os.loadavg()[0].toFixed(1));
   if (!loaded) throw new Error(`model failed to load: ${consoleLines.slice(-5).join(' | ')}`);
 
-  const result = await page.evaluate(
-    async ({
-      cases,
-      repeats,
-      skipStrategy,
-      skipRouting,
-      healthyBase,
-      temperatures,
-      promptArms,
-      severityLine,
-      promptsOnly,
-    }) => {
+  if (LFM3_SMOKE) {
+    // The new path end to end before any full run: a short answer, chunked against one-shot
+    // prefill on the real strategic prompt, one strategic answer, and one routing call.
+    const smoke = await page.evaluate(async (routingCase) => {
       const { webgpuClient } = await import('/src/utils/webgpuClient.ts');
-      const STRATEGY_TEMPERATURE = 0.7;
-      let armTemperature = null;
-      const applied = [];
-      if (temperatures.length) {
-        const engine = webgpuClient.engine;
-        for (const api of [engine.completions, engine.chat.completions]) {
-          const create = api.create.bind(api);
-          api.create = (request, ...rest) => {
-            if (armTemperature !== null && request?.temperature === STRATEGY_TEMPERATURE) {
-              applied.push(armTemperature);
-              return create({ ...request, temperature: armTemperature }, ...rest);
-            }
-            return create(request, ...rest);
-          };
-        }
-      }
+      const { strategicPrompt } = await import('/src/utils/aiEngine.ts');
+      const { useProductionStore } = await import('/src/stores/productionStore.ts');
       const { requestJevAdvice } = await import('/src/utils/jevClient.ts');
+      const engine = globalThis.__lfm3;
+      const timed = async (fn) => {
+        const t0 = performance.now();
+        const value = await fn();
+        return { value, seconds: Math.round((performance.now() - t0) / 100) / 10 };
+      };
+      const out = {};
+      out.short = await timed(() =>
+        webgpuClient.generateContent('Reply with exactly: MillOS local core online')
+      );
+      const machines = useProductionStore.getState().machines;
+      const target = machines.find((m) => m.id === 'rm-102') ?? machines[0];
+      const faulted = machines.map((m) =>
+        m.id === target.id
+          ? {
+              ...m,
+              status: 'warning',
+              metrics: { ...m.metrics, wear: 93, vibration: 9, temperature: 70 },
+            }
+          : { ...m, status: 'running', metrics: { ...m.metrics, wear: 20 } }
+      );
+      const prompt = strategicPrompt(faulted);
+      const { ids } = engine.promptIds({
+        messages: [{ role: 'user', content: prompt }],
+        extra_body: { enable_thinking: false },
+      });
+      const top5 = (logits) =>
+        [...logits.keys()]
+          .sort((a, b) => logits[b] - logits[a])
+          .slice(0, 5)
+          .map((i) => [engine.tokenizer.decode([i]), Math.round(logits[i] * 100) / 100]);
+      const chunked = await timed(() => engine.feed(ids, 256));
+      let oneShot;
+      try {
+        oneShot = await timed(() => engine.feed(ids, 1e9));
+      } catch (error) {
+        oneShot = { error: String(error).slice(0, 300) };
+      }
+      let maxDiff = null;
+      if (oneShot.value) {
+        maxDiff = 0;
+        for (let i = 0; i < chunked.value.length; i++)
+          maxDiff = Math.max(maxDiff, Math.abs(chunked.value[i] - oneShot.value[i]) || 0);
+      }
+      out.prefill = {
+        promptChars: prompt.length,
+        promptTokens: ids.length,
+        chunked: {
+          seconds: chunked.seconds,
+          top5: top5(chunked.value),
+          nan: chunked.value.some(Number.isNaN),
+        },
+        oneShot: oneShot.value
+          ? {
+              seconds: oneShot.seconds,
+              top5: top5(oneShot.value),
+              nan: oneShot.value.some(Number.isNaN),
+            }
+          : oneShot,
+        maxAbsLogitDiff: maxDiff,
+      };
+      const answer = await timed(() => webgpuClient.generateContent(prompt));
+      const match = (answer.value ?? '').match(/\{[\s\S]*\}/);
+      let focus = null;
+      try {
+        focus = match ? (JSON.parse(match[0]).focusMachine ?? null) : null;
+      } catch {
+        focus = 'unparsed';
+      }
+      out.strategy = {
+        want: target.id,
+        focus,
+        seconds: answer.seconds,
+        text: (answer.value ?? '(null)').slice(0, 1500),
+      };
       let lastScores = null;
       const score = webgpuClient.scoreNextToken.bind(webgpuClient);
       webgpuClient.scoreNextToken = async (request) => (lastScores = await score(request));
+      const routed = await timed(() =>
+        requestJevAdvice({
+          text: routingCase.text,
+          apiKey: '',
+          consent: false,
+          signal: new AbortController().signal,
+          provider: 'local',
+        }).then(
+          (r) => r.queue,
+          (e) => `error: ${String(e).slice(0, 200)}`
+        )
+      );
+      out.routing = {
+        label: routingCase.label,
+        got: routed.value,
+        seconds: routed.seconds,
+        scores: lastScores,
+      };
+      out.queuePieces = engine.queueMap;
+      out.inputNames = engine.inputNames;
+      out.pastMeta = engine.pastMeta;
+      return out;
+    }, cases.cases[0]);
+    const file = path.join(HERE, 'runs', `smoke-${MODEL}.json`);
+    fs.writeFileSync(
+      file,
+      JSON.stringify(
+        {
+          model: MODEL,
+          at: new Date().toISOString(),
+          loadSeconds,
+          load: os.loadavg(),
+          fetchedRepos: [...fetchedRepos],
+          smoke,
+          console: consoleLines.slice(-40),
+        },
+        null,
+        1
+      )
+    );
+    log('wrote', file);
+    console.log(JSON.stringify(smoke, null, 1).slice(0, 6000));
+    process.exitCode = 0;
+  }
 
-      const routing = {};
-      for (const [name, set] of Object.entries(skipRouting ? {} : cases)) {
-        const rows = [];
-        for (const c of set) {
-          lastScores = null;
-          const t0 = performance.now();
-          let got;
-          try {
-            got = (
-              await requestJevAdvice({
-                text: c.text,
-                apiKey: '',
-                consent: false,
-                signal: new AbortController().signal,
-                provider: 'local',
-              })
-            ).queue;
-          } catch (error) {
-            got = `error: ${String(error).slice(0, 160)}`;
-          }
-          rows.push({
-            id: c.id ?? null,
-            set: c.set,
-            label: c.label,
-            planted: c.planted ?? null,
-            got,
-            scores:
-              lastScores?.map((s) => [s.token, Math.round(s.probability * 1e4) / 1e4]) ?? null,
-            ms: Math.round(performance.now() - t0),
-          });
-        }
-        routing[name] = rows;
-      }
-
-      const strategic = [];
-      if (!skipStrategy) {
-        const { strategicPrompt } = await import('/src/utils/aiEngine.ts');
-        const { useProductionStore } = await import('/src/stores/productionStore.ts');
-        const live = useProductionStore.getState().machines;
-        const median = (key, fallback) => {
-          const values = live
-            .map((m) => m.metrics?.[key])
-            .filter((v) => Number.isFinite(v))
-            .sort((a, b) => a - b);
-          return values.length ? values[Math.floor(values.length / 2)] : fallback;
-        };
-        const healthy = {
-          load: median('load', 70),
-          temperature: median('temperature', 45),
-          vibration: median('vibration', 2),
-          wear: 20,
-        };
-        const machines = healthyBase
-          ? live.map((m) => ({ ...m, status: 'running', metrics: { ...m.metrics, ...healthy } }))
-          : live;
-        const ids = machines.map((m) => m.id);
-        const pick = (want) => (ids.includes(want) ? want : ids[0]);
-        const maxVibration = Math.max(1, ...machines.map((m) => m.metrics?.vibration ?? 0));
-        const fault = (list, id, { status = 'warning', severe = true } = {}) =>
-          list.map((m) =>
-            m.id !== id
-              ? m
-              : {
-                  ...m,
-                  status,
-                  metrics: {
-                    ...m.metrics,
-                    wear: severe ? 93 : 78,
-                    vibration: maxVibration * (severe ? 3 : 1.6),
-                    temperature: (m.metrics?.temperature ?? 40) + (severe ? 18 : 8),
-                  },
+  const result = LFM3_SMOKE
+    ? { routing: {}, strategic: [] }
+    : await page.evaluate(
+        async ({
+          cases,
+          repeats,
+          skipStrategy,
+          skipRouting,
+          healthyBase,
+          temperatures,
+          promptArms,
+          severityLine,
+          promptsOnly,
+        }) => {
+          const { webgpuClient } = await import('/src/utils/webgpuClient.ts');
+          const STRATEGY_TEMPERATURE = 0.7;
+          let armTemperature = null;
+          const applied = [];
+          if (temperatures.length) {
+            const engine = webgpuClient.engine;
+            for (const api of [engine.completions, engine.chat.completions]) {
+              const create = api.create.bind(api);
+              api.create = (request, ...rest) => {
+                if (armTemperature !== null && request?.temperature === STRATEGY_TEMPERATURE) {
+                  applied.push(armTemperature);
+                  return create({ ...request, temperature: armTemperature }, ...rest);
                 }
-          );
-        const opaqueName = Object.fromEntries(
-          [...ids].reverse().map((id, n) => [id, `unit-${String(n + 1).padStart(2, '0')}`])
-        );
-        const opaque = (list) => list.map((m) => ({ ...m, id: opaqueName[m.id] }));
-        const strategicCases = [
-          ...['rm-102', 'sifter-a', 'packer-0', 'rm-101'].map((id) => ({
-            kind: 'planted',
-            want: pick(id),
-            machines: fault(machines, pick(id)),
-          })),
-          {
-            kind: 'two-anomalies',
-            want: pick('rm-103'),
-            machines: fault(fault(machines, pick('packer-1'), { severe: false }), pick('rm-103')),
-          },
-          {
-            kind: 'two-anomalies',
-            want: pick('sifter-c'),
-            machines: fault(fault(machines, pick('rm-104'), { severe: false }), pick('sifter-c')),
-          },
-          // Four more pairs for the severity-line test (runs/prereg-severity-line.json).
-          ...(promptArms.length
-            ? [
-                ['rm-101', 'sifter-b'],
-                ['packer-2', 'rm-102'],
-                ['sifter-a', 'packer-0'],
-                ['rm-104', 'silo-2'],
-              ].map(([worse, milder]) => ({
-                kind: 'two-anomalies',
-                want: pick(worse),
-                machines: fault(fault(machines, pick(milder), { severe: false }), pick(worse)),
-              }))
-            : []),
-          ...['rm-104', 'packer-2'].map((id) => ({
-            kind: 'opaque-ids',
-            want: opaqueName[pick(id)],
-            machines: opaque(fault(machines, pick(id))),
-          })),
-          ...['sifter-b', 'rm-101'].map((id) => ({
-            kind: 'no-status',
-            want: pick(id),
-            machines: fault(machines, pick(id), { status: 'running' }),
-          })),
-        ];
-        const parse = (text) => {
-          try {
-            const match = (text ?? '').match(/\{[\s\S]*\}/);
-            if (!match) return null;
-            const parsed = JSON.parse(match[0]);
-            const priorities = Array.isArray(parsed.priorities)
-              ? parsed.priorities.filter((p) => typeof p === 'string' && p.trim())
-              : [];
-            return priorities.length ? parsed : null;
-          } catch {
-            return null;
-          }
-        };
-        const arms = promptArms.length ? promptArms : temperatures.length ? temperatures : [null];
-        const anchor = 'Prioritize safety interlocks';
-        const withArm = (prompt, arm) => {
-          if (arm !== 'severity') return prompt;
-          const lines = prompt.split('\n');
-          const at = lines.findIndex((l) => l.startsWith(anchor));
-          if (at < 0) throw new Error('strategic prompt changed: anchor line not found');
-          lines.splice(at + 1, 0, severityLine);
-          return lines.join('\n');
-        };
-        for (let r = 0; r < repeats; r++) {
-          for (const temperature of r % 2 ? [...arms].reverse() : arms) {
-            armTemperature = promptArms.length ? null : temperature;
-            for (const c of strategicCases) {
-              const before = applied.length;
-              const t0 = performance.now();
-              const prompt = withArm(strategicPrompt(c.machines), temperature);
-              if (promptsOnly) {
-                strategic.push({ arm: temperature, kind: c.kind, want: c.want, prompt });
-                continue;
-              }
-              const text = await webgpuClient.generateContent(prompt);
-              const parsed = parse(text);
-              strategic.push({
-                ...(promptArms.length
-                  ? { arm: temperature, lineIn: prompt.includes(severityLine) }
-                  : { temperature }),
-                overridden: applied.slice(before),
-                kind: c.kind,
-                want: c.want,
-                parsed: Boolean(parsed),
-                hit: parsed?.focusMachine === c.want,
-                focus: parsed?.focusMachine ?? null,
-                seconds: Math.round((performance.now() - t0) / 100) / 10,
-                raw: parsed ? undefined : (text ?? '(null)').slice(0, 300),
-                answer:
-                  temperatures.length || promptArms.length ? (parsed ?? undefined) : undefined,
-              });
+                return create(request, ...rest);
+              };
             }
           }
+          const { requestJevAdvice } = await import('/src/utils/jevClient.ts');
+          let lastScores = null;
+          const score = webgpuClient.scoreNextToken.bind(webgpuClient);
+          webgpuClient.scoreNextToken = async (request) => (lastScores = await score(request));
+
+          const routing = {};
+          for (const [name, set] of Object.entries(skipRouting ? {} : cases)) {
+            const rows = [];
+            for (const c of set) {
+              lastScores = null;
+              const t0 = performance.now();
+              let got;
+              try {
+                got = (
+                  await requestJevAdvice({
+                    text: c.text,
+                    apiKey: '',
+                    consent: false,
+                    signal: new AbortController().signal,
+                    provider: 'local',
+                  })
+                ).queue;
+              } catch (error) {
+                got = `error: ${String(error).slice(0, 160)}`;
+              }
+              rows.push({
+                id: c.id ?? null,
+                set: c.set,
+                label: c.label,
+                planted: c.planted ?? null,
+                got,
+                scores:
+                  lastScores?.map((s) => [s.token, Math.round(s.probability * 1e4) / 1e4]) ?? null,
+                ms: Math.round(performance.now() - t0),
+              });
+            }
+            routing[name] = rows;
+          }
+
+          const strategic = [];
+          if (!skipStrategy) {
+            const { strategicPrompt } = await import('/src/utils/aiEngine.ts');
+            const { useProductionStore } = await import('/src/stores/productionStore.ts');
+            const live = useProductionStore.getState().machines;
+            const median = (key, fallback) => {
+              const values = live
+                .map((m) => m.metrics?.[key])
+                .filter((v) => Number.isFinite(v))
+                .sort((a, b) => a - b);
+              return values.length ? values[Math.floor(values.length / 2)] : fallback;
+            };
+            const healthy = {
+              load: median('load', 70),
+              temperature: median('temperature', 45),
+              vibration: median('vibration', 2),
+              wear: 20,
+            };
+            const machines = healthyBase
+              ? live.map((m) => ({
+                  ...m,
+                  status: 'running',
+                  metrics: { ...m.metrics, ...healthy },
+                }))
+              : live;
+            const ids = machines.map((m) => m.id);
+            const pick = (want) => (ids.includes(want) ? want : ids[0]);
+            const maxVibration = Math.max(1, ...machines.map((m) => m.metrics?.vibration ?? 0));
+            const fault = (list, id, { status = 'warning', severe = true } = {}) =>
+              list.map((m) =>
+                m.id !== id
+                  ? m
+                  : {
+                      ...m,
+                      status,
+                      metrics: {
+                        ...m.metrics,
+                        wear: severe ? 93 : 78,
+                        vibration: maxVibration * (severe ? 3 : 1.6),
+                        temperature: (m.metrics?.temperature ?? 40) + (severe ? 18 : 8),
+                      },
+                    }
+              );
+            const opaqueName = Object.fromEntries(
+              [...ids].reverse().map((id, n) => [id, `unit-${String(n + 1).padStart(2, '0')}`])
+            );
+            const opaque = (list) => list.map((m) => ({ ...m, id: opaqueName[m.id] }));
+            const strategicCases = [
+              ...['rm-102', 'sifter-a', 'packer-0', 'rm-101'].map((id) => ({
+                kind: 'planted',
+                want: pick(id),
+                machines: fault(machines, pick(id)),
+              })),
+              {
+                kind: 'two-anomalies',
+                want: pick('rm-103'),
+                machines: fault(
+                  fault(machines, pick('packer-1'), { severe: false }),
+                  pick('rm-103')
+                ),
+              },
+              {
+                kind: 'two-anomalies',
+                want: pick('sifter-c'),
+                machines: fault(
+                  fault(machines, pick('rm-104'), { severe: false }),
+                  pick('sifter-c')
+                ),
+              },
+              // Four more pairs for the severity-line test (runs/prereg-severity-line.json).
+              ...(promptArms.length
+                ? [
+                    ['rm-101', 'sifter-b'],
+                    ['packer-2', 'rm-102'],
+                    ['sifter-a', 'packer-0'],
+                    ['rm-104', 'silo-2'],
+                  ].map(([worse, milder]) => ({
+                    kind: 'two-anomalies',
+                    want: pick(worse),
+                    machines: fault(fault(machines, pick(milder), { severe: false }), pick(worse)),
+                  }))
+                : []),
+              ...['rm-104', 'packer-2'].map((id) => ({
+                kind: 'opaque-ids',
+                want: opaqueName[pick(id)],
+                machines: opaque(fault(machines, pick(id))),
+              })),
+              ...['sifter-b', 'rm-101'].map((id) => ({
+                kind: 'no-status',
+                want: pick(id),
+                machines: fault(machines, pick(id), { status: 'running' }),
+              })),
+            ];
+            const parse = (text) => {
+              try {
+                const match = (text ?? '').match(/\{[\s\S]*\}/);
+                if (!match) return null;
+                const parsed = JSON.parse(match[0]);
+                const priorities = Array.isArray(parsed.priorities)
+                  ? parsed.priorities.filter((p) => typeof p === 'string' && p.trim())
+                  : [];
+                return priorities.length ? parsed : null;
+              } catch {
+                return null;
+              }
+            };
+            const arms = promptArms.length
+              ? promptArms
+              : temperatures.length
+                ? temperatures
+                : [null];
+            const anchor = 'Prioritize safety interlocks';
+            const withArm = (prompt, arm) => {
+              if (arm !== 'severity') return prompt;
+              const lines = prompt.split('\n');
+              const at = lines.findIndex((l) => l.startsWith(anchor));
+              if (at < 0) throw new Error('strategic prompt changed: anchor line not found');
+              lines.splice(at + 1, 0, severityLine);
+              return lines.join('\n');
+            };
+            for (let r = 0; r < repeats; r++) {
+              for (const temperature of r % 2 ? [...arms].reverse() : arms) {
+                armTemperature = promptArms.length ? null : temperature;
+                for (const c of strategicCases) {
+                  const before = applied.length;
+                  const t0 = performance.now();
+                  const prompt = withArm(strategicPrompt(c.machines), temperature);
+                  if (promptsOnly) {
+                    strategic.push({ arm: temperature, kind: c.kind, want: c.want, prompt });
+                    continue;
+                  }
+                  const text = await webgpuClient.generateContent(prompt);
+                  const parsed = parse(text);
+                  strategic.push({
+                    ...(promptArms.length
+                      ? { arm: temperature, lineIn: prompt.includes(severityLine) }
+                      : { temperature }),
+                    overridden: applied.slice(before),
+                    kind: c.kind,
+                    want: c.want,
+                    parsed: Boolean(parsed),
+                    hit: parsed?.focusMachine === c.want,
+                    focus: parsed?.focusMachine ?? null,
+                    seconds: Math.round((performance.now() - t0) / 100) / 10,
+                    raw: parsed ? undefined : (text ?? '(null)').slice(0, 300),
+                    answer:
+                      temperatures.length || promptArms.length ? (parsed ?? undefined) : undefined,
+                  });
+                }
+              }
+            }
+          }
+          return { routing, strategic };
+        },
+        {
+          cases,
+          repeats: REPEATS,
+          skipStrategy: SKIP_STRATEGY,
+          skipRouting: SKIP_ROUTING,
+          healthyBase: HEALTHY_BASE,
+          temperatures: TEMPERATURES,
+          promptArms: PROMPT_ARMS,
+          severityLine: SEVERITY_LINE,
+          promptsOnly: Boolean(PROMPTS_OUT),
         }
-      }
-      return { routing, strategic };
-    },
-    {
-      cases,
-      repeats: REPEATS,
-      skipStrategy: SKIP_STRATEGY,
-      skipRouting: SKIP_ROUTING,
-      healthyBase: HEALTHY_BASE,
-      temperatures: TEMPERATURES,
-      promptArms: PROMPT_ARMS,
-      severityLine: SEVERITY_LINE,
-      promptsOnly: Boolean(PROMPTS_OUT),
-    }
-  );
+      );
 
   if (PROMPTS_OUT) {
     fs.writeFileSync(PROMPTS_OUT, JSON.stringify(result.strategic, null, 1));
@@ -447,10 +651,12 @@ try {
     ...result,
     console: consoleLines.slice(-40),
   };
-  fs.mkdirSync(path.dirname(RESULT), { recursive: true });
-  fs.writeFileSync(RESULT, JSON.stringify(record, null, 1));
-  log('wrote', RESULT);
-  console.log(JSON.stringify(summary, null, 1));
+  if (!LFM3_SMOKE) {
+    fs.mkdirSync(path.dirname(RESULT), { recursive: true });
+    fs.writeFileSync(RESULT, JSON.stringify(record, null, 1));
+    log('wrote', RESULT);
+    console.log(JSON.stringify(summary, null, 1));
+  }
 } finally {
   await context.close();
   await server.close();

@@ -570,3 +570,29 @@ It replaces a sun-elevation curve that was still 94% on at 06:30 and 17:30, unde
 (blind judge, `rt6-dawn-0630`; D-043).
 Source: Nell, 2026-11-06: "2 please, if you can get it very resource efficient", then
 "just set it to come on at an appropriate time, no 'sensor' needed please."
+
+### D-045 · LFM3-1.7B does not replace the on-device models · [proposed] · 2026-11-06
+
+Liquid's LFM3-1.7B (`LiquidAI/LFM3-1.7B-ONNX` at `57c125df`, q4f16, 1.38 GB) was measured
+against the shipped wiring (Qwen3.5-4B for strategy, the 0.8B routing lane) through the
+app's own prompts in headless Chrome, with the gates fixed beforehand
+(`scripts/local-router-tune/runs/prereg-lfm3.json`). It failed the strategy gate, so it is
+not adopted (outcome C).
+Strategy, healthy base, 30 answers per arm: 26/30 at the shipped 0.7 (two answers did not
+parse) and 27/30 at Liquid's recommended sampling, against a gate of 29/30 and a same-day
+control of 30/30. Five of its seven misses were the same case: of two machines in warning, it
+named the milder (rm-104 for sifter-c). The other two did not parse.
+Routing: 100/257 and Brazilian Portuguese 21/75, against the lane's 253/257 and 73/75 and the
+official 4B's 215/257. It answered "No current incident" for most labels, and took a planted
+answer 55 times in 75 injection cases. [Inference, untested] The rubric scores each queue's
+first token, which suits Qwen's tokenizer ("Equipment" is one piece; for LFM3 it is "Equ"), so
+it may handicap LFM3. Either way it would not change the outcome: strategy alone rules it out.
+Timings are not comparable: machine load was 2-4 per core from other repos' test suites.
+It would also have meant a second inference runtime (ONNX Runtime Web beside web-llm) and a
+licence that ends at $10M revenue. To test it again, `MODEL=LFM3-1.7B-ONNX-q4f16
+LFM3_TJS_DIR=<Transformers.js 4.3.2 node_modules> node scripts/local-router-tune/browser_eval.mjs
+--headless` runs it through `scripts/local-router-tune/lfm3_shim.js`.
+Source: Nell, 2026-11-06: "Is this any good for us?", then "Let's test please.";
+`runs/browser-LFM3-1.7B-ONNX-q4f16-healthy.json`, the control
+`runs/browser-Qwen3.5-4B-q4f16_1-MLC-lane-healthy-lfm3-control.json`, and the smoke
+`runs/smoke-LFM3-1.7B-ONNX-q4f16.json`.
