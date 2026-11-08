@@ -255,11 +255,15 @@
     },
     {
       "id": "hall-verge",
-      "kind": "garden",
+      "kind": "rail",
       "position": [
-        -183.3,
-        0.44,
-        15.5
+        -182.78,
+        1.1814,
+        15.2236
+      ],
+      "mount": [
+        7.29,
+        15.2236
       ],
       "intensity": 12,
       "distance": 9,
@@ -275,7 +279,7 @@
       "position": [
         -185.3,
         0.44,
-        13.1
+        12.495
       ],
       "intensity": 12,
       "distance": 9,
@@ -291,7 +295,7 @@
       "position": [
         -194.7,
         0.44,
-        13.1
+        12.495
       ],
       "intensity": 12,
       "distance": 9,
@@ -303,11 +307,15 @@
     },
     {
       "id": "hall-side-near",
-      "kind": "garden",
+      "kind": "rail",
       "position": [
-        -183.2,
-        0.44,
-        20
+        -182.78,
+        0.8,
+        20.1909
+      ],
+      "mount": [
+        7.29,
+        20.1909
       ],
       "intensity": 12,
       "distance": 9,
@@ -319,11 +327,15 @@
     },
     {
       "id": "hall-side-far",
-      "kind": "garden",
+      "kind": "rail",
       "position": [
-        -183.2,
-        0.44,
-        24
+        -182.78,
+        0.582,
+        23.9164
+      ],
+      "mount": [
+        7.29,
+        23.9164
       ],
       "intensity": 12,
       "distance": 9,
@@ -571,7 +583,7 @@
     },
     {
       "name": "parkland-scaffold-branches",
-      "vertices": 235,
+      "vertices": 249,
       "instances": 17
     },
     {
@@ -585,13 +597,13 @@
       "instances": 1
     },
     {
-      "name": "static-batch:authored-factory-exterior:0:57",
+      "name": "static-batch:authored-factory-exterior:0:56",
       "vertices": 1618,
       "instances": 1
     },
     {
       "name": "TownhallBody",
-      "vertices": 14414,
+      "vertices": 15310,
       "instances": 1
     },
     {
@@ -606,27 +618,27 @@
     },
     {
       "name": "PubBody",
-      "vertices": 11245,
+      "vertices": 11853,
       "instances": 1
     },
     {
       "name": "SchoolBody",
-      "vertices": 11136,
+      "vertices": 9504,
       "instances": 1
     },
     {
       "name": "ShopBody",
-      "vertices": 10320,
+      "vertices": 10472,
       "instances": 1
     },
     {
       "name": "ShopBody",
-      "vertices": 10320,
+      "vertices": 10472,
       "instances": 1
     },
     {
       "name": "ShopBody",
-      "vertices": 11360,
+      "vertices": 11512,
       "instances": 1
     },
     {
@@ -681,7 +693,7 @@
     },
     {
       "name": "",
-      "vertices": 3143,
+      "vertices": 2639,
       "instances": 1
     },
     {
@@ -748,27 +760,37 @@
       "name": "static-merge:authored-village:0:15",
       "vertices": 96636,
       "instances": 1
+    },
+    {
+      "name": "town-hall-ramp",
+      "vertices": 120,
+      "instances": 1
+    },
+    {
+      "name": "town-hall-ramp-rails",
+      "vertices": 6360,
+      "instances": 1
     }
   ],
   "exclusions": {
-    "alphaOrMoving": 58
+    "alphaOrMoving": 60
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "02d29640f46c30b07a4b56d7d27165e849e88c90d706aa0664a96cb2ce4d3851",
-  "atlasSha256": "f6e01f6c033a4d5fd24592720651f23238ddca72ce2c1a37929ee7eae50fe655",
+  "inputSha256": "67e33a4aada7a77af43fd2e865590fd2c39bbc6e2f9459e13dbcea961c59c499",
+  "atlasSha256": "b57a4463697a4aea43fd477e07a267e9468ea86e3e975c532c21af281f59edbc",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 452405,
-  "triangles": 201434,
-  "elapsedSeconds": 9.65,
+  "vertices": 458947,
+  "triangles": 203598,
+  "elapsedSeconds": 8.15,
   "sourceReceipts": [
     {
       "id": "hall-west",
-      "blockedRays": 78864,
+      "blockedRays": 79088,
       "rays": 98304
     },
     {
       "id": "hall-east",
-      "blockedRays": 78824,
+      "blockedRays": 79400,
       "rays": 98304
     },
     {
@@ -778,12 +800,12 @@
     },
     {
       "id": "post-left",
-      "blockedRays": 62289,
+      "blockedRays": 62342,
       "rays": 98304
     },
     {
       "id": "post-fountain",
-      "blockedRays": 74868,
+      "blockedRays": 75033,
       "rays": 98304
     },
     {
@@ -793,7 +815,7 @@
     },
     {
       "id": "post-right",
-      "blockedRays": 56852,
+      "blockedRays": 56866,
       "rays": 98304
     },
     {
@@ -803,37 +825,37 @@
     },
     {
       "id": "hall-verge",
-      "blockedRays": 60520,
+      "blockedRays": 88834,
       "rays": 98304
     },
     {
       "id": "hall-front-west",
-      "blockedRays": 53015,
+      "blockedRays": 82956,
       "rays": 98304
     },
     {
       "id": "hall-front-east",
-      "blockedRays": 53542,
+      "blockedRays": 67399,
       "rays": 98304
     },
     {
       "id": "hall-side-near",
-      "blockedRays": 67920,
+      "blockedRays": 96285,
       "rays": 98304
     },
     {
       "id": "hall-side-far",
-      "blockedRays": 64287,
+      "blockedRays": 92660,
       "rays": 98304
     },
     {
       "id": "fountain-border",
-      "blockedRays": 45275,
+      "blockedRays": 45328,
       "rays": 98304
     },
     {
       "id": "tree-inner",
-      "blockedRays": 31515,
+      "blockedRays": 31565,
       "rays": 98304
     },
     {
@@ -853,47 +875,47 @@
     },
     {
       "id": "shed-bed-east",
-      "blockedRays": 34351,
+      "blockedRays": 34350,
       "rays": 98304
     },
     {
       "id": "tree-middle",
-      "blockedRays": 33898,
+      "blockedRays": 33965,
       "rays": 98304
     },
     {
       "id": "tree-near",
-      "blockedRays": 31191,
+      "blockedRays": 31244,
       "rays": 98304
     },
     {
       "id": "verge-near",
-      "blockedRays": 24265,
+      "blockedRays": 24282,
       "rays": 98304
     },
     {
       "id": "hall-front-window--4.3",
-      "blockedRays": 48392,
+      "blockedRays": 48514,
       "rays": 98304
     },
     {
       "id": "hall-front-window-4.3",
-      "blockedRays": 48124,
+      "blockedRays": 54107,
       "rays": 98304
     },
     {
       "id": "hall-side-window-16.8",
-      "blockedRays": 45089,
+      "blockedRays": 50124,
       "rays": 98304
     },
     {
       "id": "hall-side-window-20",
-      "blockedRays": 47964,
+      "blockedRays": 52734,
       "rays": 98304
     },
     {
       "id": "hall-side-window-23.2",
-      "blockedRays": 45122,
+      "blockedRays": 49015,
       "rays": 98304
     }
   ],
@@ -901,10 +923,10 @@
     "glb": {
       "public/models/village/fountain.glb": "2ab7febbdcb8a85774f8a5cd6d2750f8a0c4d8dc1fc092d8f4633348657635fc",
       "public/models/village/postbox.glb": "a9d444ddb857dab168a66fc14d8e09b35b0eeac0d5526846e1d1e503a7e38f95",
-      "public/models/village/pub.glb": "a08c3a936d49ce18b6ef9b0e25325e3ee5723fa242f2c9b964308bcf1bc861f7",
-      "public/models/village/school.glb": "29ca695121450a5595922af645756acb3669616705a6e63dd9c538632e7bfc6b",
-      "public/models/village/shop.glb": "662e9c864fbf5ccb7044a53d9fae62417253cabffcb87cb2b6855252ef2d9465",
-      "public/models/village/townhall.glb": "16d0e6f05f9dbbdb7f82e7a2d48b74f76c8e663217ea0f835a1e937916336fdf",
+      "public/models/village/pub.glb": "ff5dcc83bb0ca2d623565ce3d340b0e9d122ec5d82a63af792f5e66eecb94b9c",
+      "public/models/village/school.glb": "3ad085fb33ddc882135a0fbf157427eba824aaab5e94e179c0d59f7021226b3a",
+      "public/models/village/shop.glb": "8c522966752b267548fd9a43bcce49560ffab77f05ca95156518908ba5b529da",
+      "public/models/village/townhall.glb": "a95143729787777c6119af26690298ed4537c1f6938ed67de38ca175c016746b",
       "public/models/village/wishingwell.glb": "689c1c7fa9b0538c8f631340ebe0e20dfd860ec4cb7adebe24e018c2591b6b41"
     },
     "villageGardenPositions": [
@@ -925,6 +947,7 @@
       "b9fa42f2a8140de5880fcb9b75def343402d72202a75857bd0da3ae738268612",
       "e4e6adc351b460e2bb37f89e0b52cace9dbff25e3afcc1cf7fe019d74e409904"
     ],
-    "townHallHedgePositions": "2ffd894b9cca542118f871dd706a846c96820db18db5c541dcba1412873ccb6c"
+    "townHallHedgePositions": "2ffd894b9cca542118f871dd706a846c96820db18db5c541dcba1412873ccb6c",
+    "townHallRamp": "69ab4d1fcc3105f3724647ce28e226825bd83d32183df01e0eec220b403a6886"
   }
 }

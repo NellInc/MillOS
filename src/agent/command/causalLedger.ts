@@ -56,7 +56,7 @@ export class AgentCausalLedger {
       limit?: number;
     } = {}
   ): {
-    completeCausalChain: true;
+    completeCausalChain: boolean;
     records: AgentCausalEvent[];
     page: {
       cursor: string;
@@ -66,6 +66,15 @@ export class AgentCausalLedger {
       nextCursor: string | null;
     };
   } {
+    const retainedIds = new Set(this.events.map((event) => event.eventId));
+    const completeCausalChain =
+      this.discardedEvents === 0 &&
+      this.events.every(
+        (event) =>
+          (event.causationId === null || retainedIds.has(event.causationId)) &&
+          !event.provenance.some((reference) => reference.kind === 'import')
+      );
+
     const matching = this.events.filter(
       (event) =>
         (!filters.uri || event.targetUri === filters.uri) &&
@@ -79,7 +88,7 @@ export class AgentCausalLedger {
     const records = matching.slice(offset, offset + limit).map((event) => structuredClone(event));
     const nextOffset = offset + records.length;
     return {
-      completeCausalChain: true,
+      completeCausalChain,
       records,
       page: {
         cursor: String(offset),

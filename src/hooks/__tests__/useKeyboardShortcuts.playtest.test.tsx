@@ -166,31 +166,31 @@ it('+ and - show the new line rate', () => {
 });
 
 // PLAYTEST-14: the keyboard stop's incident is recorded in the active language.
-it('records the Space-bar stop incident in Portuguese in a pt-BR session', () => {
+it('records the X-key stop incident in Portuguese in a pt-BR session', () => {
   setLocale('pt-BR');
   renderHook(() => useKeyboardShortcuts(config));
-  press(' ');
+  press('x');
   expect(useSafetyStore.getState().safetyIncidents[0]?.description).toBe(
-    'Parada de emergência acionada pelo teclado (barra de espaço)'
+    'Parada de emergência acionada pelo teclado (X)'
   );
 });
 
 // PLAYTEST-14: the log line follows a language switch made after the stop.
-it('reads the Space-bar stop incident in the language active now', () => {
+it('reads the X-key stop incident in the language active now', () => {
   renderHook(() => useKeyboardShortcuts(config));
-  press(' ');
+  press('x');
   setLocale('pt-BR');
   expect(incidentDescription(useSafetyStore.getState().safetyIncidents[0])).toBe(
-    'Parada de emergência acionada pelo teclado (barra de espaço)'
+    'Parada de emergência acionada pelo teclado (X)'
   );
 });
 
 // The forklift-stop line carries its topic, so the release retires it even
 // when the language changed between engage and release.
-it('tags the Space-bar stop PA line with the forklift-stop topic', () => {
+it('tags the X-key stop PA line with the forklift-stop topic', () => {
   useAnnouncementsStore.setState({ announcements: [], lastAnnouncementTime: {} });
   renderHook(() => useKeyboardShortcuts(config));
-  press(' ');
+  press('x');
   // The line is keyed (the forklift-stop corpus has the one line), so it
   // follows a language switch; see useKeyboardShortcuts.paKeyed.gameplay.test.
   expect(useAnnouncementsStore.getState().announcements.at(-1)).toMatchObject({

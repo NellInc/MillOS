@@ -11,6 +11,7 @@
  */
 import type { Object3D } from 'three';
 import type {
+  ForkliftControls,
   ForkliftCrewHandover,
   ForkliftCrewState,
   ForkliftParkedAt,
@@ -36,6 +37,8 @@ export interface ForkliftCrewLive {
   handover: { -readonly [K in keyof ForkliftCrewHandover]: ForkliftCrewHandover[K] } | null;
   /** Written by CommunityLife: the operator's root, for the forklift to seat. */
   operatorRoot: Object3D | null;
+  /** Written by the forklift: its steering, and whether it is backing out (the operator's hands and eyes). */
+  controls: ForkliftControls | null;
 }
 
 const live = new Map<string, ForkliftCrewLive>();
@@ -51,6 +54,7 @@ export function forkliftCrewLive(forkliftId: string): ForkliftCrewLive {
       vehicleHeartbeat: -Infinity,
       handover: null,
       operatorRoot: null,
+      controls: null,
     };
     live.set(forkliftId, entry);
   }

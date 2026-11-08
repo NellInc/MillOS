@@ -19,7 +19,6 @@ vi.mock('../../utils/audioManager', () => ({
   audioManager: { muted: false, playAlert: vi.fn() },
 }));
 vi.mock('../game/shared', () => ({
-  usePAScheduler: vi.fn(),
   useEventAnnouncementScheduler: vi.fn(),
 }));
 vi.mock('../../hooks/useMobileDetection', () => ({

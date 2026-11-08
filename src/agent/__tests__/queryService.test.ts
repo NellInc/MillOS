@@ -279,3 +279,27 @@ function createFixture(machineCount = 12) {
     }),
   };
 }
+
+describe('trace capture completeness', () => {
+  it('preserves degraded capture through ordinary and overflowing observation budgets', () => {
+    for (const oversized of [false, true]) {
+      const fixture = createFixture();
+      if (oversized) {
+        fixture.domains.evidence = {
+          commands: [{ action: 'x'.repeat(20000), targetUri: 'millos://machine/rm-001' }],
+        };
+      }
+      const service = createAgentQueryService({
+        registry: SYSTEM_REGISTRY_SOURCE,
+        capture: () => ({ ...fixture.capture(), completeness: 'degraded' }),
+        now: () => new Date(OBSERVED_AT),
+      });
+      const trace = service.trace();
+      expect(trace.completeness).toBe('degraded');
+      expect(byteLength(trace)).toBeLessThanOrEqual(AGENT_LEVEL1_MAXIMUM_BYTES);
+      expect(trace.warnings.map((warning) => warning.code)).toContain(
+        oversized ? 'LEVEL1_TRUNCATED' : 'CAUSAL_CHAIN_UNAVAILABLE'
+      );
+    }
+  });
+});

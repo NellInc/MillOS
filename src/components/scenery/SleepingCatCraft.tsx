@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
-import { DistanceLod } from '../performance/DistanceLod';
+import { crossfadeLodMaterial, DistanceLod } from '../performance/DistanceLod';
 
 type Point = [number, number, number];
 export const SLEEPING_CAT_HEAD = new THREE.Matrix4().compose(
@@ -247,7 +247,21 @@ export function createSleepingCatFarDetails(colour: string) {
     farDetail = false;
   }
 }
-export const SLEEPING_CAT_LOD = { distance: 15, hysteresis: 0.1 } as const;
+/**
+ * The coarse cat dissolves in from 22 m to 28 m. The cat is ~0.5 m long: 26 px
+ * at 22 m and 21 px at 28 m on 1080 rows at fov 50 (it was a hard swap at
+ * 15 m, 39 px, where the dropped toes and faceted flank showed).
+ */
+export const SLEEPING_CAT_LOD = { distance: 22, crossfade: 6 } as const;
+const CAT_LOD_BAND = {
+  start: SLEEPING_CAT_LOD.distance,
+  end: SLEEPING_CAT_LOD.distance + SLEEPING_CAT_LOD.crossfade,
+} as const;
+/** The two detail levels' paint, each dissolving across `CAT_LOD_BAND`. */
+const LOD_MATERIALS = [
+  crossfadeLodMaterial(MATERIAL, 'near', CAT_LOD_BAND),
+  crossfadeLodMaterial(MATERIAL, 'far', CAT_LOD_BAND),
+] as const;
 
 /** Only local transforms, sampled by the existing Cat owner. No timer/driver.
  * Working if the base, paws and head stay settled while the flank rises <4mm.
@@ -302,14 +316,14 @@ export const SleepingCatCraft = forwardRef<SleepingCatHandle, { colour: string }
         <DistanceLod
           name="sleeping-cat-lod"
           distances={[0, SLEEPING_CAT_LOD.distance]}
-          hysteresis={SLEEPING_CAT_LOD.hysteresis}
+          crossfade={SLEEPING_CAT_LOD.crossfade}
         >
           {[g.details, farDetails].map((geometry, far) => (
             <mesh
               key={far}
               name={far ? 'sleeping-cat-settled-details-far' : 'sleeping-cat-settled-details'}
               geometry={geometry}
-              material={MATERIAL}
+              material={LOD_MATERIALS[far]}
               castShadow
               receiveShadow
             />

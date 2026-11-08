@@ -6,8 +6,9 @@ import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { MAX_GAME_SPEED, STANDARD_GAME_SPEED } from '../../simulation/pace';
 import { useUIStore } from '../../stores/uiStore';
-import { setLocale } from '../../i18n';
+import { createTranslator, setLocale } from '../../i18n';
 import { keyedText } from '../../i18n/alertCopy';
+import { unifiedGameTickMessages } from '../UnifiedGameTick.messages';
 
 let tickCount = 0;
 function tickAt(gameSpeed: number, deltaSeconds = 1) {
@@ -76,12 +77,13 @@ describe('a closed shift is announced (row 21)', () => {
     // Screen readers hear the bell notice once, politely, whether or not the
     // PA is on or muted; the PA caption is for the eye, so it is not read twice.
     expect(reviewAlerts()[0].announce).toBe('polite');
-    // The PA caption carries it to where the player is looking.
-    expect(
-      useAnnouncementsStore
-        .getState()
-        .announcements.filter((a) => /^Morning shift closed: /.test(a.message))
-    ).toEqual([expect.objectContaining({ captionOnly: true })]);
+    // The PA caption carries it to where the player is looking, spoken as a
+    // person would say it: no menu path, no colon.
+    const captions = useAnnouncementsStore
+      .getState()
+      .announcements.filter((a) => /^Morning shift's done\. /.test(a.message));
+    expect(captions).toEqual([expect.objectContaining({ captionOnly: true })]);
+    expect(captions[0].message).not.toMatch(/Overview|debrief|:/);
     for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
     expect(reviewAlerts()).toHaveLength(1);
   });
@@ -140,9 +142,7 @@ describe('a closed shift is announced (row 21)', () => {
     expect(
       useAnnouncementsStore
         .getState()
-        .announcements.some((a) =>
-          a.message.startsWith('Morning shift closed: nothing due yet, an incident still open.')
-        )
+        .announcements.some((a) => a.message === "Morning shift's done. An incident is still open.")
     ).toBe(true);
   });
 
@@ -151,14 +151,14 @@ describe('a closed shift is announced (row 21)', () => {
     for (let i = 0; i < 20; i++) tickAt(STANDARD_GAME_SPEED);
     const caption = useAnnouncementsStore
       .getState()
-      .announcements.find((a) => /^Morning shift closed: /.test(a.message))!;
+      .announcements.find((a) => /^Morning shift's done\. /.test(a.message))!;
     expect(keyedText(caption.copy, caption.message)).toBe(caption.message);
     setLocale('pt-BR');
     try {
       const text = keyedText(caption.copy, caption.message);
       // The first morning's order is due after 14:00 and nothing has shipped:
       // nothing fell due, so the caption says so rather than giving a letter.
-      expect(text).toMatch(/^Turno da manhã encerrado: nada venceu ainda\. Revisão em Visão geral/);
+      expect(text).toBe('Fim do turno da manhã. Nenhum pedido venceu ainda.');
     } finally {
       setLocale('en');
     }
@@ -198,5 +198,39 @@ describe('a closed shift is announced (row 21)', () => {
     });
     tickAt(STANDARD_GAME_SPEED);
     expect(reviewAlerts()).toHaveLength(0);
+  });
+});
+
+// The shift-closed PA line is spoken (D-025): it reads as a person on the
+// tannoy says it, with the right article before a grade letter, and points at
+// no menu. The bell notice keeps the title and where the review is.
+describe('the shift-closed PA line', () => {
+  const en = createTranslator(unifiedGameTickMessages, 'en');
+  const pt = createTranslator(unifiedGameTickMessages, 'pt-BR');
+  it.each([
+    [{ variant: 'graded', shift: 'morning', grade: 'A' }, "Morning shift's done. We earned an A."],
+    [{ variant: 'graded', shift: 'night', grade: 'B' }, "Night shift's done. We earned a B."],
+    [
+      { variant: 'graded', shift: 'afternoon', grade: 'F' },
+      "Afternoon shift's done. We earned an F.",
+    ],
+    [{ variant: 'ungraded', shift: 'morning' }, "Morning shift's done. We had no orders to fill."],
+    [{ variant: 'nothingDue', shift: 'morning' }, "Morning shift's done. No orders were due yet."],
+    [{ variant: 'incident', shift: 'night' }, "Night shift's done. An incident is still open."],
+  ])('en %o', (params, line) => {
+    expect(en('shiftClosedCaption', params)).toBe(line);
+  });
+  it.each([
+    [{ variant: 'graded', shift: 'morning', grade: 'A' }, 'Fim do turno da manhã. Tiramos nota A.'],
+    [
+      { variant: 'ungraded', shift: 'night' },
+      'Fim do turno da noite. Não tínhamos pedidos para atender.',
+    ],
+    [
+      { variant: 'nothingDueIncident', shift: 'afternoon' },
+      'Fim do turno da tarde. Ainda há uma ocorrência aberta.',
+    ],
+  ])('pt-BR %o', (params, line) => {
+    expect(pt('shiftClosedCaption', params)).toBe(line);
   });
 });

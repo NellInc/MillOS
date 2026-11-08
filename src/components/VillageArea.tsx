@@ -46,6 +46,7 @@ import { audioManager } from '../utils/audioManager';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { InstancedLamps } from './village/InstancedVillageComponents';
 import { CivicSquareLighting } from './scenery/CivicSquareLighting';
+import { SchoolBell } from './scenery/SchoolBell';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
 import {
   GeneratedBody,
@@ -1276,58 +1277,8 @@ const SchoolPrimitiveBody = React.memo(() => (
         <primitive object={SM.cream} attach="material" />
       </mesh>
 
-      {/* Bell - realistic lathe profile */}
-      <group
-        position={[0, 0.7, 0]}
-        scale={1.5}
-        onClick={(e) => {
-          e.stopPropagation();
-          playCritterSound('bell');
-        }}
-        onPointerOver={() => {
-          document.body.style.cursor = 'pointer';
-        }}
-        onPointerOut={() => {
-          document.body.style.cursor = 'auto';
-        }}
-      >
-        {/* Bell body using lathe geometry for proper curve */}
-        <mesh rotation={[Math.PI, 0, 0]}>
-          <latheGeometry
-            args={[
-              // Profile points for bell shape: [x, y] from top to bottom
-              [
-                new THREE.Vector2(0.08, 0), // Top center (narrow)
-                new THREE.Vector2(0.12, 0.05), // Shoulder
-                new THREE.Vector2(0.15, 0.12), // Upper body
-                new THREE.Vector2(0.18, 0.22), // Mid body
-                new THREE.Vector2(0.24, 0.32), // Lower body (widening)
-                new THREE.Vector2(0.32, 0.4), // Waist
-                new THREE.Vector2(0.38, 0.45), // Lip start
-                new THREE.Vector2(0.4, 0.48), // Lip flare
-                new THREE.Vector2(0.38, 0.5), // Lip bottom edge
-              ],
-              16, // Segments around
-            ]}
-          />
-          <primitive object={SM.gold} attach="material" />
-        </mesh>
-        {/* Mounting yoke */}
-        <mesh position={[0, 0.08, 0]}>
-          <boxGeometry args={[0.08, 0.12, 0.3]} />
-          <primitive object={SM.timber} attach="material" />
-        </mesh>
-        {/* Clapper rod */}
-        <mesh position={[0, -0.2, 0]}>
-          <cylinderGeometry args={[0.015, 0.015, 0.25, 6]} />
-          <primitive object={SM.black} attach="material" />
-        </mesh>
-        {/* Clapper ball */}
-        <mesh position={[0, -0.35, 0]}>
-          <sphereGeometry args={[0.05, 8, 8]} />
-          <primitive object={SM.black} attach="material" />
-        </mesh>
-      </group>
+      {/* The bell itself is SchoolBell, hung by School beside this body so
+          the generated school and this fallback share the one ringable bell. */}
     </group>
     {/* Belfry cap - see createSchoolBellCapGeometry. An octagon springing from
         the square post frame: fascia, eave kick, bell-cast sweep, ball finial. */}
@@ -1369,6 +1320,8 @@ const School = React.memo<{
   <group position={position} rotation={[0, rotation, 0]}>
     {/* Authored walls now meet the real ground datum; no buried turf disc. */}
     <GeneratedBody asset="school" fallback={<SchoolPrimitiveBody />} />
+    {/* The belfry bell swings and rings: click it, or E in first person. */}
+    <SchoolBell />
     <CivicEntryLighting building="school" />
     <group position={[0, 5.23, 3.7]}>
       <VillageNameboard

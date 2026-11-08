@@ -6,6 +6,7 @@ import { EXTERIOR_LAMP_LEVEL } from '../exterior/ExteriorLighting';
 import * as THREE from 'three';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { SITE_LAYOUT, PROCESS_GALLERY_POST_X } from '../../constants/siteLayout';
+import { PERSONNEL_DOOR, PERSONNEL_DOORS } from '../../constants/accessibilityLayout';
 import { FIXTURE_GRID_X, FIXTURE_GRID_Z } from '../environment/InteriorLightRig';
 import { isPostProcessingActive, useGraphicsStore } from '../../stores/graphicsStore';
 import { generateMachineORM } from '../../textures/brushedMetal';
@@ -1822,6 +1823,26 @@ export function buildFactoryGlazing(): BoxInstance[] {
             left = leftGridX + 0.14;
           }
         }
+        // A personnel door beside the dock (accessibilityLayout PERSONNEL_DOORS):
+        // the light over it starts at the door's opening top, and the two
+        // beside it stop 0.2 m short of the opening, as round a portal.
+        const door = front
+          ? PERSONNEL_DOORS.find(
+              (candidate) =>
+                Math.sign(candidate.wallZ) === Math.sign(portal.centre[2]) &&
+                right > candidate.x - PERSONNEL_DOOR.openingHalfWidth &&
+                left < candidate.x + PERSONNEL_DOOR.openingHalfWidth
+            )
+          : undefined;
+        if (door && !crosses) {
+          const doorLeft = door.x - PERSONNEL_DOOR.openingHalfWidth;
+          const doorRight = door.x + PERSONNEL_DOOR.openingHalfWidth;
+          add(left, right, PERSONNEL_DOOR.openingTop, SITE_LAYOUT.datum.mezzanine - 0.3);
+          add(left, right, SITE_LAYOUT.datum.mezzanine, head);
+          add(left, Math.min(right, doorLeft - 0.2), sill, PERSONNEL_DOOR.openingTop);
+          add(Math.max(left, doorRight + 0.2), right, sill, PERSONNEL_DOOR.openingTop);
+          continue;
+        }
         const bottom = crosses ? openingTop : sill;
         add(left, right, bottom, SITE_LAYOUT.datum.mezzanine - 0.3);
         add(left, right, Math.max(bottom, SITE_LAYOUT.datum.mezzanine), head);
@@ -2011,7 +2032,10 @@ export function buildFactoryShellColumns(): BoxInstance[] {
   return result;
 }
 
-/** Lower wall plinth segments, either side of every portal. */
+/**
+ * Lower wall plinth segments, either side of every portal and of each gable's
+ * personnel door (PERSONNEL_DOORS), whose frame stands in the gap.
+ */
 export function buildFactoryLowerWallSegments(): BoxInstance[] {
   const result: BoxInstance[] = [];
   const height = FACTORY_ENVELOPE_SPEC.baseHeight;
@@ -2019,10 +2043,23 @@ export function buildFactoryLowerWallSegments(): BoxInstance[] {
     const front = portal.normal[2] !== 0;
     const extent = (front ? FLOOR_WIDTH : FLOOR_DEPTH) / 2;
     const centre = front ? portal.centre[0] : portal.centre[2];
-    for (const [from, to] of [
-      [-extent, centre - portal.halfWidth],
-      [centre + portal.halfWidth, extent],
-    ]) {
+    const gaps: [number, number][] = [[centre - portal.halfWidth, centre + portal.halfWidth]];
+    if (front)
+      for (const door of PERSONNEL_DOORS)
+        if (Math.sign(door.wallZ) === Math.sign(portal.centre[2]))
+          gaps.push([
+            door.x - PERSONNEL_DOOR.openingHalfWidth,
+            door.x + PERSONNEL_DOOR.openingHalfWidth,
+          ]);
+    gaps.sort((a, b) => a[0] - b[0]);
+    const runs: [number, number][] = [];
+    let start = -extent;
+    for (const [gapFrom, gapTo] of gaps) {
+      runs.push([start, gapFrom]);
+      start = gapTo;
+    }
+    runs.push([start, extent]);
+    for (const [from, to] of runs) {
       const along = (from + to) / 2;
       result.push(
         front
@@ -2773,7 +2810,9 @@ export function buildProcessPads(): BoxInstance[] {
 export function buildWalkwayLanes(): BoxInstance[] {
   return [
     { position: [-FLOOR_WIDTH / 2 + 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
-    { position: [FLOOR_WIDTH / 2 - 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 86] },
+    // On to the gable walls: it is the protected approach to both personnel
+    // doors (PERSONNEL_DOORS at x 37), ending 0.3 m short of the plinth face.
+    { position: [FLOOR_WIDTH / 2 - 3, FLOOR_LAYERS.wornPrimary, 0], scale: [3, 0.012, 98.9] },
     { position: [0, FLOOR_LAYERS.wornPrimary, 39], scale: [72, 0.012, 3.5] },
     { position: [0, FLOOR_LAYERS.wornPrimary, -39], scale: [72, 0.012, 3.5] },
   ];

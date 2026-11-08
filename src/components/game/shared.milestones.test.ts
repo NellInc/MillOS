@@ -15,20 +15,21 @@ vi.mock('../../utils/audioManager', () => ({
 }));
 
 // GC-16: a reload part-way through a day restores dailyBagsProduced; the PA must
-// not caption a milestone the player crossed before the reload.
-describe('daily-target milestone captions across a reload', () => {
+// not caption a target the player made before the reload. Only the target
+// itself is announced (D-054); 25-90% were routine readouts.
+describe('daily-target caption across a reload', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('stays quiet about milestones already passed, and still captions the next one', () => {
+  it('stays quiet about a target already made, and about the readouts on the way', () => {
     vi.useFakeTimers();
     const addAnnouncement = vi.fn();
     useAnnouncementsStore.setState({ mode: 'focused' });
     useProductionStore.setState({
       addAnnouncement,
       machines: [],
-      dailyBagsProduced: DAILY_TARGET_BAGS * 0.6,
+      dailyBagsProduced: DAILY_TARGET_BAGS * 1.05,
     } as never);
 
     const hook = renderHook(() => useEventAnnouncementScheduler());
@@ -39,11 +40,18 @@ describe('daily-target milestone captions across a reload', () => {
       );
     expect(milestoneCaptions()).toHaveLength(0);
 
-    useProductionStore.setState({ dailyBagsProduced: DAILY_TARGET_BAGS * 0.8 });
+    // A new day: 25, 50, 75 and 90% pass in silence, and the target is said.
+    useProductionStore.setState({ dailyBagsProduced: 0 });
+    for (const share of [0.3, 0.6, 0.8, 0.95]) {
+      useProductionStore.setState({ dailyBagsProduced: DAILY_TARGET_BAGS * share });
+      vi.advanceTimersByTime(5000);
+    }
+    expect(milestoneCaptions()).toHaveLength(0);
+    useProductionStore.setState({ dailyBagsProduced: DAILY_TARGET_BAGS });
     vi.advanceTimersByTime(5000);
     expect(milestoneCaptions()).toHaveLength(1);
     expect((milestoneCaptions()[0][0] as { message: string }).message).toBe(
-      sharedMessages.en.milestone75
+      sharedMessages.en.milestone100
     );
     hook.unmount();
   });
@@ -52,7 +60,7 @@ describe('daily-target milestone captions across a reload', () => {
 // A new day zeroes the count. The PA only noticed when a poll caught the
 // count under 10%, and it does not poll while muted, so muting across a
 // rollover silenced the next day's milestone captions.
-describe('daily-target milestone captions across a muted day rollover', () => {
+describe('daily-target caption across a muted day rollover', () => {
   afterEach(() => {
     vi.useRealTimers();
     audioManager.muted = false;
@@ -78,18 +86,18 @@ describe('daily-target milestone captions across a muted day rollover', () => {
     setDay(DAILY_TARGET_BAGS);
     vi.advanceTimersByTime(5000);
     expect(captions()).toHaveLength(1);
-    expect(captions()[0]).toContain('Daily target achieved');
+    expect(captions()[0]).toBe(sharedMessages.en.milestone100);
 
     audioManager.muted = true;
     setDay(0); // the day closes while muted
     setDay(Math.round(DAILY_TARGET_BAGS * 0.2));
     vi.advanceTimersByTime(5000);
     audioManager.muted = false;
-    setDay(Math.round(DAILY_TARGET_BAGS * 0.3));
+    setDay(DAILY_TARGET_BAGS);
     vi.advanceTimersByTime(5000);
 
     expect(captions()).toHaveLength(2);
-    expect(captions()[1]).toBe(sharedMessages.en.milestone25);
+    expect(captions()[1]).toBe(sharedMessages.en.milestone100);
     hook.unmount();
   });
 });
@@ -112,7 +120,7 @@ describe('daily-target reached caption', () => {
     vi.advanceTimersByTime(5000);
     const reached = addAnnouncement.mock.calls
       .map(([input]) => input as { message: string; priority: number; type: string })
-      .find((input) => input.message.includes('Daily target achieved'));
+      .find((input) => input.message === sharedMessages.en.milestone100);
     expect(reached?.type).toBe('success');
     expect(reached?.priority).toBeLessThan(4);
     hook.unmount();

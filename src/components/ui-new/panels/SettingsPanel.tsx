@@ -28,7 +28,7 @@ import { suspendResourcePersistence } from '../../../utils/resourcePersistence';
 import { AUDIO_SETTINGS_KEY } from '../../../utils/audioManager';
 import { LOCALE_STORAGE_KEY, formatFixed, useLocale, useT } from '../../../i18n';
 import { previewPAVoice } from '../../../audio/paVoice';
-import { PA_VOICE_GROUPS, PA_VOICES, paVoiceFor } from '../../../audio/paVoiceCatalog';
+import { FEATURED_PA_VOICES, paVoiceFor } from '../../../audio/paVoiceCatalog';
 import { isBenchmarkRuntime } from '../../../runtime/runtimeMode';
 import { LanguageSwitcher } from '../../../i18n/LanguageSwitcher';
 import { keyedText } from '../../../i18n/alertCopy';
@@ -375,11 +375,12 @@ export const SettingsPanel: React.FC<{
 
           <fieldset className="space-y-2 border-t border-white/5 pt-3">
             <legend className="text-xs font-medium text-slate-200">{t('paMode')}</legend>
-            <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label={t('paMode')}>
+            <div className="grid grid-cols-2 gap-1" role="radiogroup" aria-label={t('paMode')}>
               {(
                 [
+                  // 'characterful' differed only by the timed filler lines the
+                  // PA no longer speaks (D-054); a saved one reads as on.
                   ['focused', t('paFocused')],
-                  ['characterful', t('paCharacterful')],
                   ['off', t('paOff')],
                 ] as const satisfies ReadonlyArray<readonly [PAMode, string]>
               ).map(([mode, label]) => (
@@ -399,7 +400,6 @@ export const SettingsPanel: React.FC<{
                 </button>
               ))}
             </div>
-            <p className="text-[10px] leading-4 text-slate-400">{t('paModeHelp')}</p>
           </fieldset>
 
           {/* Captions and the on-device PA voice (D-025) are independent. */}
@@ -421,26 +421,37 @@ export const SettingsPanel: React.FC<{
             </button>
           </div>
           {voiceEnabled && (
-            <select
-              value={paVoiceFor(locale, voiceNames)}
-              onChange={(event) => {
-                const name = event.target.value;
-                setVoiceName(locale, name);
-                if (!isBenchmarkRuntime()) void previewPAVoice(t('paVoiceSample'), locale, name);
-              }}
+            // Two voices, each introducing itself when picked (D-061), so the
+            // choice is made by ear. Picking the current one plays it again.
+            <div
+              className="grid grid-cols-2 gap-1"
+              role="radiogroup"
               aria-label={t('paVoiceChoice')}
-              className="min-h-10 w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2 text-xs text-slate-200 outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
             >
-              {PA_VOICE_GROUPS[locale].map((group) => (
-                <optgroup key={group} label={t(`paVoiceGroup_${group}`)}>
-                  {PA_VOICES[group].map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              {FEATURED_PA_VOICES[locale].map((name) => {
+                const chosen = paVoiceFor(locale, voiceNames) === name;
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    role="radio"
+                    aria-checked={chosen}
+                    onClick={() => {
+                      setVoiceName(locale, name);
+                      if (!isBenchmarkRuntime())
+                        void previewPAVoice(t('paVoiceSample', { name }), locale, name);
+                    }}
+                    className={`min-h-10 rounded-lg px-2 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400 ${
+                      chosen
+                        ? 'bg-cyan-500/20 text-cyan-200 ring-1 ring-cyan-400/50'
+                        : 'bg-slate-900/60 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
           )}
           <div className="flex items-center justify-between border-t border-white/5 pt-2">
             <span className="flex items-center gap-2 text-xs text-slate-200">

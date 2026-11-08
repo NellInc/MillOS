@@ -8,7 +8,6 @@ import { PAAnnouncementSystem } from './PAAnnouncementSystem';
 
 vi.mock('../../utils/audioManager', () => ({ audioManager: { muted: false } }));
 vi.mock('./shared', () => ({
-  usePAScheduler: vi.fn(),
   useEventAnnouncementScheduler: vi.fn(),
 }));
 vi.mock('../../hooks/useMobileDetection', () => ({

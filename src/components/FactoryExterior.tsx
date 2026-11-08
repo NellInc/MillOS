@@ -61,6 +61,7 @@ import {
   BULK_STORAGE_GALLERY,
   CANAL_BOAT_BERTH,
   GAS_STATION_SITE,
+  landmarkLocalToWorld,
   RIVER_FOOTBRIDGE_DECK,
   RIVER_FOOTBRIDGE_LANDINGS,
   SITE_LAYOUT,
@@ -70,6 +71,14 @@ import {
   createStationAccessMarkings,
   createStationAccessSurface,
 } from './exterior/stationAccessGeometry';
+import {
+  createRailwayRoadAprons,
+  createRailwayRoadMarkings,
+  createRailwayRoadSurface,
+  railwayRoadCrossing,
+  type StraightPath,
+} from './exterior/railwayRoadGeometry';
+import { RAILWAY_ROAD_VALLEY_EDGE_SEGMENTS } from '../constants/railwayRoadLayout';
 import { createDisplacedGeometry } from './terrain/TerrainGround';
 import { getTerrainGridSegments, TERRAIN_BOUNDS } from './terrain/terrainTypes';
 import { LAKE_BASIN } from './terrain/lakeBasin';
@@ -99,6 +108,7 @@ import {
 import { TANK_FARM_PAD_LAYOUT, TANK_FARM_PAD_SIZE } from '../textures/tankFarmPad';
 import { ServiceBuildingCraft, SERVICE_BUILDING_ENVELOPES } from './exterior/serviceBuildingCraft';
 import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
+import { Weighbridge } from './exterior/Weighbridge';
 import {
   approachEdgeLines,
   APPROACH_EDGE_OFFSET,
@@ -135,7 +145,9 @@ import {
   BUS_SHELTER_SITE,
   BUS_SHELTER_LIGHT,
   CAFE_COURT_LANTERN,
+  FARMHOUSE_NORTH_WALK,
   FRONT_POND_APPROACH,
+  LAKE_APPROACH_PATH,
 } from '../constants/publicRealmLayout';
 import { generateMachineORM } from '../textures';
 import { createCheckpointGateState, stepCheckpointGate } from './exterior/checkpointLogic';
@@ -213,7 +225,9 @@ import {
   CANAL_WEIR_PROFILE,
   canalEastBankSections,
   canalClosedEndSpec,
+  canalHeads,
   createCanalClosedEndGeometry,
+  createCanalWallGeometry,
   createCanalOutletSurface,
   createCanalWeirCurtain,
   createOutletStoneGeometry,
@@ -223,6 +237,7 @@ import { LakeAquaticLife } from './exterior/LakeAquaticLife';
 import { LakeDragonflies } from './exterior/LakeDragonflies';
 import { MineralFinish } from './scenery/MineralFinish';
 import { PondFrogModel } from './scenery/PondFrogModel';
+import { TacoTruckSign } from './exterior/TacoTruckSign';
 import { POND_LILY_GEOMETRIES, POND_LILY_MATERIAL } from './scenery/PondLilies';
 import { BROADLEAF_DEPTH } from './scenery/InstancedFoliage';
 import {
@@ -1392,25 +1407,30 @@ export const WaterAnimationManager: React.FC = () => {
   const reducedMotion = useReducedMotion();
   const { scene } = useThree();
   const skyRef = useRef<THREE.Mesh | null>(null);
-  const phase = useRef({ time: 0, previous: null as number | null, reduced: reducedMotion });
-  useFrame(() => {
-    const { gameDay, gameTime, weather, isTabVisible } = useGameSimulationStore.getState();
+  const phase = useRef({ time: 0 });
+  useFrame((_state, delta) => {
+    const { gameDay, gameTime, gameSpeed, weather, isTabVisible } =
+      useGameSimulationStore.getState();
     if (!isTabVisible) return;
+    // The water phase is render seconds, the convention NaturalDuckPond and the
+    // fountain already follow. It was game minutes x 0.38, a factor authored
+    // at the old 180x default pace (pace.ts); at today's 30x it ran at 0.19 s
+    // per second, so the lake bed's caustics took four minutes per cycle and
+    // read as a still print (2026-11-07, Nell: "Can we animate water please").
+    // It holds, keeping its phase, while the world is paused (benchmarks pause
+    // it unless `motion=1`), under reduced motion and in a hidden tab, and a
+    // `holdFrame` advances with delta 0. Clamping a long frame stops a jump.
+    // Working if water moves at one pace at every game pace and stands still
+    // under all four holds.
+    if (!reducedMotion && gameSpeed > 0 && delta > 0) {
+      phase.current.time += Math.min(delta, 0.1);
+    }
+    WATER_VISUAL_TIME.value = phase.current.time;
     WATER_RIPPLE_DETAIL.value = useGraphicsStore.getState().graphics.quality === 'low' ? 0 : 1;
     if (waterMaterials.size === 0) return;
     const atmosphere = sampleAtmosphere(gameDay, gameTime, weather, _waterAtmosphere);
     const celestial = sampleCelestial(atmosphere, _waterCelestial);
     const daylight = atmosphere.daylight * atmosphere.lightMultiplier;
-    const simulationTime = atmosphere.simulationMinutes * 0.38;
-    // Accumulate only moving frames. Freezing and resuming keeps the current
-    // phase instead of snapping to zero or catching up all the skipped time.
-    if (phase.current.previous === null) {
-      phase.current.time = reducedMotion ? 0 : simulationTime;
-    } else if (!reducedMotion && !phase.current.reduced) {
-      phase.current.time += simulationTime - phase.current.previous;
-    }
-    phase.current.previous = simulationTime;
-    phase.current.reduced = reducedMotion;
 
     _waterZenith.copy(WATER_ZENITH_NIGHT).lerp(WATER_ZENITH_DAY, daylight);
     _waterHorizon.copy(WATER_HORIZON_NIGHT).lerp(WATER_HORIZON_DAY, daylight);
@@ -1446,7 +1466,6 @@ export const WaterAnimationManager: React.FC = () => {
     if (cloudLit instanceof THREE.Color) WATER_CLOUD_TONE.value.copy(cloudLit);
     else WATER_CLOUD_TONE.value.copy(_waterHorizon);
 
-    WATER_VISUAL_TIME.value = phase.current.time;
     WATER_WIND.value = atmosphere.wind;
     waterMaterials.forEach((material) => {
       const uniforms = material.uniforms;
@@ -1492,6 +1511,11 @@ interface UnifiedWaterSurfaceMaterialProps {
   bedDepth?: number;
   /** Pin the supported outlet's northern edge to its curved crest datum. */
   outletApron?: boolean;
+  /**
+   * The main canal's east bank opens into the outlet over the mouth. Its depth
+   * there is measured to the bank ends, not to a bank that is not there.
+   */
+  canalMouth?: boolean;
   deep?: string;
   shallow?: string;
   reflection?: string;
@@ -1523,6 +1547,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
   kind = 'lake',
   bedDepth = 0,
   outletApron = false,
+  canalMouth = false,
   deep = '#153747',
   shallow = '#3f7f8c',
   reflection = '#b9dce3',
@@ -1569,6 +1594,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
             : {}),
         ...(weirImpact ? { MILLOS_WEIR_IMPACT: 1 } : {}),
         ...(outletApron ? { MILLOS_OUTLET_APRON: 1 } : {}),
+        ...(canalMouth ? { MILLOS_CANAL_MOUTH: 1 } : {}),
       },
       uniforms: {
         uWaterFinish: WATER_POLISH_GAIN,
@@ -1598,6 +1624,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uShallow: { value: new THREE.Color(shallow) },
         uReflection: { value: new THREE.Color(reflection) },
         uFlowDirection: { value: direction },
+        uDrift: { value: profile.drift },
         uCrossFlow: { value: crossFlow },
         uRippleA: { value: rippleA },
         uRippleB: { value: rippleB },
@@ -1745,6 +1772,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
         uniform vec4 uWeirImpact;
         uniform vec2 uBankRadii;
         uniform vec2 uFlowDirection;
+        uniform float uDrift;
         uniform float uWind;
         varying vec2 vUv;
         varying float vWave;
@@ -1885,12 +1913,15 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           const float frequencyC = 4.90;
           const float bendC = 0.85;
           const float bendA = 0.35;
-          float phaseC = dot(waterCoord, axisC) * frequencyC + uTime * uFlowSpeed * 0.63;
+          // The ripple field drifts downstream at the profile's drift; the
+          // trains still travel both ways inside it, so it flows, not slides.
+          vec2 rippleCoord = waterCoord - uFlowDirection * (uTime * uDrift);
+          float phaseC = dot(rippleCoord, axisC) * frequencyC + uTime * uFlowSpeed * 0.63;
           float rawC = cos(phaseC);
-          float phaseA = dot(waterCoord, uRippleA) * frequencyA + uTime * uFlowSpeed * 1.62
+          float phaseA = dot(rippleCoord, uRippleA) * frequencyA + uTime * uFlowSpeed * 1.62
             + rawC * bendC;
           float rawA = sin(phaseA);
-          float phaseB = dot(waterCoord, axisB) * frequencyB
+          float phaseB = dot(rippleCoord, axisB) * frequencyB
             - uTime * uFlowSpeed * 1.09 + rawA * bendA;
           // Screen derivatives filter only the finish, never its world phase.
           // Neighbouring segments keep continuous waves regardless of UV size.
@@ -1925,10 +1956,40 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // cross-stream distance to the bank; boxEdge also counts the two
           // ends, which is what a pond-shaped plane wants and a river does not.
           float crossEdge = min(vUv.x, 1.0 - vUv.x);
+          // 2026-11-07: where the canal meets its outlet both waters measured
+          // depth to a bank at the seam, so each drew its shallow ramp and wet
+          // margin along a line of open water: a pale stripe between two blues.
+          // Both now measure to the stone that is actually there, in metres
+          // over their own width, so the seam is deep on both sides.
+          #ifdef MILLOS_CANAL_MOUTH
+          {
+            float mouthZ = vWorldPosition.z;
+            float mouthNorth = ${(CANAL_OUTLET.south - CANAL_OUTLET.width).toFixed(3)};
+            float mouthSouth = ${CANAL_OUTLET.south.toFixed(3)};
+            if (mouthZ > mouthNorth && mouthZ < mouthSouth) {
+              float toEnd = min(mouthZ - mouthNorth, mouthSouth - mouthZ);
+              float toCorner = length(vec2(${CANAL_OUTLET.west.toFixed(3)} - vWorldPosition.x, toEnd));
+              crossEdge = min(vUv.x, toCorner / ${(CANAL_OUTLET.west - CANAL_OUTLET.canalOuterWest - 1).toFixed(3)});
+            }
+          }
+          #endif
           float boxEdge = min(crossEdge, min(vUv.y, 1.0 - vUv.y));
           float linearEdge = mix(boxEdge, crossEdge, uCrossOnly);
           float radialEdge = 1.0 - length(centred);
           float edge = max(mix(linearEdge, radialEdge, uRadial), 0.0);
+          #ifdef MILLOS_OUTLET_APRON
+          {
+            // Distance to the L's walls; its west end is open to the canal.
+            vec2 p = vWorldPosition.xz;
+            float innerX = ${(CANAL_OUTLET.east - CANAL_OUTLET.width).toFixed(3)};
+            float innerZ = ${(CANAL_OUTLET.south - CANAL_OUTLET.width).toFixed(3)};
+            float toWall = min(${CANAL_OUTLET.south.toFixed(3)} - p.y, ${CANAL_OUTLET.east.toFixed(3)} - p.x);
+            if (p.y < innerZ) toWall = min(toWall, p.x - innerX);
+            else if (p.x < innerX) toWall = min(toWall, p.y - innerZ);
+            else toWall = min(toWall, length(p - vec2(innerX, innerZ)));
+            edge = max(toWall, 0.0) / ${CANAL_OUTLET.width.toFixed(1)};
+          }
+          #endif
           float depth = clamp(smoothstep(0.0, 0.34, edge) + ripples * 0.012 * uRippleStrength, 0.0, 1.0);
           // Still water's deep end lifts toward the shallows on Medium
           // (WATER_NATURAL_PROFILE.deepLift): the fully deep core read as a
@@ -1967,12 +2028,12 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
           // Long-wave bends and a calm/rough envelope keep the two trains from
           // printing as parallel stripes (the first pass read as corrugation).
           if (uRippleDetail > 0.0) {
-            float macroBend = sin(dot(waterCoord, uRippleA) * 0.37) * 1.8;
-            float macroA = dot(waterCoord, axisB) * 2.1 + uTime * uFlowSpeed * 0.9 + macroBend;
-            float macroB = dot(waterCoord, axisC) * 3.3 - uTime * uFlowSpeed * 0.7
-              + sin(macroA) * 0.6 + cos(dot(waterCoord, uRippleA) * 0.53) * 1.4;
-            float macroGust = 0.5 + 0.5 * sin(dot(waterCoord, vec2(0.31, -0.95)) * 0.41
-              + sin(dot(waterCoord, axisB) * 0.23) * 2.0);
+            float macroBend = sin(dot(rippleCoord, uRippleA) * 0.37) * 1.8;
+            float macroA = dot(rippleCoord, axisB) * 2.1 + uTime * uFlowSpeed * 0.9 + macroBend;
+            float macroB = dot(rippleCoord, axisC) * 3.3 - uTime * uFlowSpeed * 0.7
+              + sin(macroA) * 0.6 + cos(dot(rippleCoord, uRippleA) * 0.53) * 1.4;
+            float macroGust = 0.5 + 0.5 * sin(dot(rippleCoord, vec2(0.31, -0.95)) * 0.41
+              + sin(dot(rippleCoord, axisB) * 0.23) * 2.0);
             vec2 macroFilter = 1.0 - smoothstep(vec2(0.70), vec2(2.40),
               vec2(fwidth(macroA), fwidth(macroB)));
             vec2 macroSlope = cos(macroA) * 2.1 * axisB * 0.007 * macroFilter.x
@@ -2253,6 +2314,13 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
               vec3 throughWater = exp(-uAbsorption * actualDepth / max(.2,opticalFacing));
               float transmitted = min(.68,dot(throughWater,vec3(.2126,.7152,.0722))*.72)
                 * (1.0-opticalFoam) * (1.0-opticalReflectance);
+              #ifdef MILLOS_OUTLET_APRON
+                // The main canal is opaque. Where the bywash meets it the apron
+                // fades in over 3 m, rather than ending on the water's seam as a
+                // hard line between grey-lit stone and canal blue (2026-11-07).
+                transmitted *= smoothstep(${CANAL_OUTLET.west.toFixed(3)},
+                  ${(CANAL_OUTLET.west + 3).toFixed(3)}, vWorldPosition.x);
+              #endif
             #endif
             surfaceAlpha = 1.0-transmitted*uWaterFinish;
           }
@@ -2278,7 +2346,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     // MANUALLY VERSIONED, never derived from time or randomness - see the
     // documented `Date.now()` cache-key bug. Bump this whenever the shader
     // source above changes or a stale cached program will be reused.
-    value.customProgramCacheKey = () => 'millos-unified-water-v35';
+    value.customProgramCacheKey = () => 'millos-unified-water-v36';
     value.userData.actualWaterBed = actualBed;
     if (weirImpact)
       value.onBeforeRender = (renderer, scene, camera) =>
@@ -2288,6 +2356,7 @@ export const UnifiedWaterSurfaceMaterial: React.FC<UnifiedWaterSurfaceMaterialPr
     actualBed,
     actualBedDepth,
     outletApron,
+    canalMouth,
     bankX,
     bankZ,
     crossOnly,
@@ -2351,6 +2420,7 @@ const StillCanalWater: React.FC<{
           kind="canal"
           opacity={0.9}
           crossOnly
+          canalMouth
           bankRadii={[safeWidth / 2, safeLength / 2]}
         />
       </mesh>
@@ -2372,19 +2442,49 @@ const Canal: React.FC<{
   const safeWidth = Number.isFinite(width) && width > 0 ? width : 12;
   const safeLength = Number.isFinite(length) && length > 0 ? length : 10;
   const closedEnd = canalClosedEndSpec(safeWidth, safeLength);
-  const closedEndGeometry = useMemo(() => createCanalClosedEndGeometry(safeWidth), [safeWidth]);
-  useEffect(() => () => closedEndGeometry.dispose(), [closedEndGeometry]);
+  // Both heads are closed; the water and the west bank run between their inner
+  // faces, and the east bank from the outlet's south wall to the closed head.
+  const centerZ = position[2];
+  const { heads, eastSections, closedEndGeometry, westGeometry, eastGeometries } = useMemo(() => {
+    const heads = canalHeads(safeLength, centerZ);
+    const eastSections = canalEastBankSections(safeLength, centerZ);
+    return {
+      heads,
+      eastSections,
+      closedEndGeometry: createCanalClosedEndGeometry(safeWidth),
+      westGeometry: createCanalWallGeometry([1, 1.5, heads.south - heads.north]),
+      eastGeometries: eastSections.map(([start, end]) =>
+        createCanalWallGeometry([1, 1.5, end - start])
+      ),
+    };
+  }, [safeWidth, safeLength, centerZ]);
+  useEffect(
+    () => () => {
+      closedEndGeometry.dispose();
+      westGeometry.dispose();
+      eastGeometries.forEach((geometry) => geometry.dispose());
+    },
+    [closedEndGeometry, westGeometry, eastGeometries]
+  );
 
   return (
     <group position={[position[0], position[1], position[2]]} rotation={[0, rotation, 0]}>
-      {/* Still shiny water surface for canal */}
-      <StillCanalWater width={safeWidth - 1} length={safeLength} position={[0, -0.15, 0]} />
+      {/* Still shiny water surface for canal, wall face to wall face */}
+      <StillCanalWater
+        width={safeWidth - 1}
+        length={heads.south - heads.north}
+        position={[0, -0.15, (heads.north + heads.south) / 2]}
+      />
       {/* No bed or depth-wash planes: the canal water is opaque and meets the
           wall faces edge to edge, so from above anything below it was overdrawn
           every frame. */}
       {/* Left canal wall */}
-      <mesh position={[-safeWidth / 2, 0.3, 0]} castShadow receiveShadow>
-        <boxGeometry args={[1, 1.5, safeLength]} />
+      <mesh
+        position={[-safeWidth / 2, 0.3, (heads.north + heads.south) / 2]}
+        geometry={westGeometry}
+        castShadow
+        receiveShadow
+      >
         <meshStandardMaterial
           color="#ffffff"
           map={CANAL_WALL_MAP}
@@ -2395,15 +2495,15 @@ const Canal: React.FC<{
         />
       </mesh>
       {/* Open the east bank into the overflow instead of drawing a wall
-          through the connection. The short north stub has a deep footing. */}
-      {canalEastBankSections(safeLength, position[2]).map(([start, end], index) => (
+          through the connection. */}
+      {eastSections.map(([start, end], index) => (
         <mesh
           key={start}
-          position={[safeWidth / 2, index === 0 ? -1.725 : 0.3, (start + end) / 2]}
+          position={[safeWidth / 2, 0.3, (start + end) / 2]}
+          geometry={eastGeometries[index]}
           castShadow
           receiveShadow
         >
-          <boxGeometry args={[1, index === 0 ? 5.55 : 1.5, end - start]} />
           <meshStandardMaterial
             color="#ffffff"
             map={CANAL_WALL_MAP}
@@ -2515,16 +2615,22 @@ function OutletStone({
  * same-facing face in one plane (`coplanarSweep.test.ts`).
  */
 export const CANAL_OUTLET_STONES = (() => {
-  const { west, east, north, south, width, foundation, wallTop } = CANAL_OUTLET;
+  const { west, east, north, south, width, foundation, wallTop, canalOuterWest } = CANAL_OUTLET;
   const height = wallTop - foundation;
   const walls = [
     {
       position: [(west + east + 0.8) / 2, (wallTop + foundation) / 2, south + 0.4],
       size: [east - west + 0.8, height, 0.8],
     },
+    // The north wall carries on west across the main canal's end to the outer
+    // face of its west bank, so it is also the canal's north head (canalHeads).
     {
-      position: [(west + east - width) / 2, (wallTop + foundation) / 2, south - width - 0.4],
-      size: [east - width - west, height, 0.8],
+      position: [
+        (canalOuterWest + east - width) / 2,
+        (wallTop + foundation) / 2,
+        south - width - 0.4,
+      ],
+      size: [east - width - canalOuterWest, height, 0.8],
     },
     // The two north-running walls butt into the south walls rather than
     // overlapping them, and their copings stop at the south copings' faces:
@@ -2607,6 +2713,7 @@ function CanalRiverOutlet() {
           shallow={WATER_COLORS.shallow}
           reflection="#86aeb5"
           kind="canal"
+          opacity={0.9}
           bedDepth={upperLevel - CANAL_OUTLET.apronLevel}
           outletApron
           flowDirection={[1, 0]}
@@ -4367,36 +4474,13 @@ const FoodTruck: React.FC<{
         <group position={[-0.3991, 0, 0.4375]}>
           <GeneratedModel asset="foodTruck" />
         </group>
-        {/* Measured outer awning edge, clear of the generated service window. */}
-        <mesh position={[-2.37, 1.86, -0.5]}>
-          <boxGeometry args={[0.035, 0.3, 1.8]} />
-          <meshStandardMaterial color="#343e36" roughness={0.7} />
-        </mesh>
-        <Text
-          position={[-2.39, 1.86, -0.5]}
-          rotation={[0, -Math.PI / 2, 0]}
-          fontSize={0.23}
-          surface="painted"
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          fontWeight="bold"
-        >
-          {name}
-        </Text>
-
-        {/* Decorative string lights (just little spheres) */}
-        {[-1.5, -1.0, -0.5, 0, 0.5].map((z, i) => (
-          <mesh key={`light-${i}`} position={[-2.4, 1.67, z]} castShadow>
-            <sphereGeometry args={[0.06, 8, 8]} />
-            <meshStandardMaterial
-              color={['#ffeb3b', '#ff7043', '#4fc3f7', '#ab47bc', '#ffeb3b'][i]}
-              emissive={['#ffeb3b', '#ff7043', '#4fc3f7', '#ab47bc', '#ffeb3b'][i]}
-              emissiveIntensity={0.3}
-              roughness={0.4}
-            />
-          </mesh>
-        ))}
+        {/* "La Molinita": roof board, awning valance (on the measured outer
+            awning edge, clear of the generated service window), festoon
+            bulbs and A-frame menu, painted from one atlas. Its own Suspense, so the truck shows
+            while the sign texture loads. */}
+        <React.Suspense fallback={null}>
+          <TacoTruckSign />
+        </React.Suspense>
 
         {/* Rear lights */}
         {[-1.0, 1.0].map((x, i) => (
@@ -4682,12 +4766,9 @@ export const CANAL_WEST_PATH = {
   width: 2.5,
 };
 
-/** The paved walk out to the lake; it continues as a curve into the lakeside loop. */
-export const LAKE_APPROACH_PATH = {
-  start: [95, 0, 85] as [number, number, number],
-  end: [120, 0, 92] as [number, number, number],
-  width: 2.5,
-};
+// The paved walk out to the lake now lives with the other world walks
+// (`publicRealmLayout.ts`), so the farm's ground cover can keep off it.
+export { LAKE_APPROACH_PATH };
 
 /** The gravel walk round the lake. */
 export const LAKE_LOOP_PATH = {
@@ -4718,12 +4799,24 @@ export const LAKE_APPROACH_TURN = {
   bias: 'standard' as const,
 };
 
-/** The carriageway from the front gate to the car park's south stub; it leaves the lake walk's start. */
-export const GATE_CAR_PARK_ROAD = {
-  start: [101, 0, 89] as [number, number, number],
-  end: [120, 0, 70] as [number, number, number],
-  width: 5,
-};
+/**
+ * The lake walk where the railway road (D-047) crosses it: cut 0.3 m short of
+ * each road edge, with a dropped-kerb apron of the same paving filling the
+ * rest, and a zebra between. It used to run straight across the old car park
+ * road at that road's own polygon offset. `LAKE_APPROACH_PATH` stays the walk.
+ */
+const LAKE_ROAD_CROSSING = railwayRoadCrossing(LAKE_APPROACH_PATH);
+export const LAKE_APPROACH_NORTH = LAKE_ROAD_CROSSING.before;
+export const LAKE_APPROACH_SOUTH = LAKE_ROAD_CROSSING.after;
+
+/** The farmhouse's north walk in world X/Z; it ends on the railway road's south edge. */
+const FARMHOUSE_NORTH_WALK_WORLD: StraightPath = (() => {
+  const farm = SITE_LAYOUT.landmarks.farm;
+  const [start, end] = [FARMHOUSE_NORTH_WALK.start, FARMHOUSE_NORTH_WALK.end].map(
+    ([x, z]) => [...landmarkLocalToWorld(farm, [x, 0, z])] as [number, number, number]
+  );
+  return { start, end, width: FARMHOUSE_NORTH_WALK.width * farm.scale };
+})();
 
 /**
  * A clipped hedge laid along one side of a path: same direction, `side` metres
@@ -4902,7 +4995,11 @@ const VALLEY_ROAD_EDGE_LINES: readonly EdgeLineSegment[] = [
     -APPROACH_EDGE_OFFSET,
     STATION_ROAD_EDGE_SEGMENTS
   ),
-  ...approachEdgeLines(SITE_LAYOUT.roadTunnels.south, APPROACH_EDGE_OFFSET, [[110, 280]]),
+  ...approachEdgeLines(
+    SITE_LAYOUT.roadTunnels.south,
+    APPROACH_EDGE_OFFSET,
+    RAILWAY_ROAD_VALLEY_EDGE_SEGMENTS
+  ),
   ...approachEdgeLines(SITE_LAYOUT.roadTunnels.north, -APPROACH_EDGE_OFFSET, [[-280, -110]]),
   ...approachEdgeLines(SITE_LAYOUT.roadTunnels.north, APPROACH_EDGE_OFFSET, [[-280, -110]]),
 ];
@@ -7717,37 +7814,48 @@ const RailwayTunnelMouth: React.FC<{
 });
 RailwayTunnelMouth.displayName = 'RailwayTunnelMouth';
 
-// Connecting road segment from tunnel to parking lot
-const ConnectingRoad: React.FC<{
-  start: [number, number, number];
-  end: [number, number, number];
-  width?: number;
-}> = ({ start, end, width = 6 }) => {
-  const dx = end[0] - start[0];
-  const dz = end[2] - start[2];
-  const length = Math.sqrt(dx * dx + dz * dz);
-  const angle = Math.atan2(dx, dz);
-  const midX = (start[0] + end[0]) / 2;
-  const midZ = (start[2] + end[2]) / 2;
-
-  // Ground datum for the carriageway, ground-overlay datum for the paint, with
-  // the existing negative offsets (-2 road, -3 lines) doing the separating
-  // against the terrain's `exteriorBase` +6. The literals these replace
-  // (0.08 / 0.09) cleared `TerrainGround`'s old 0.05 default, so the road has
-  // been standing 10 cm proud of the road the terrain splat paints beneath it.
-  //
-  // `CheckpointBarrier` draws its stop lines onto this carriageway and had to
-  // move with it - the two are one surface, in two components.
-  const roadY = EXTERIOR_LAYERS.ground;
-  const linesY = EXTERIOR_LAYERS.groundOverlay;
-
+/**
+ * The railway road (D-047): Riverside station's car park to the south valley
+ * road, one carriageway with a flared T junction, laid out in
+ * `constants/railwayRoadLayout.ts`. The surface is `moderate` like the paths
+ * it meets: the lake walk is cut at it with aprons that abut rather than
+ * overlap, the farmhouse walk's realm paving (`strong`) laps 0.15 m onto its
+ * edge, and the parkland stub (`exteriorTop`) runs under it. Paint is
+ * `carriagewayMarking` on the overlay datum. Vertices follow the rendered
+ * ground grid, as the footpaths' do.
+ */
+const RailwayRoad: React.FC = () => {
+  const quality = useGraphicsStore((state) => state.graphics.quality);
+  const { surface, aprons, white, yellow } = useMemo(() => {
+    const segments = getTerrainGridSegments(quality);
+    const ground = (x: number, z: number) => sampleTerrainGroundHeight(x, z, segments);
+    return {
+      surface: createRailwayRoadSurface(ground),
+      aprons: createRailwayRoadAprons([LAKE_ROAD_CROSSING], ground),
+      ...createRailwayRoadMarkings([LAKE_ROAD_CROSSING], [FARMHOUSE_NORTH_WALK_WORLD], ground),
+    };
+  }, [quality]);
+  useEffect(
+    () => () => {
+      surface.dispose();
+      aprons.dispose();
+      white.dispose();
+      yellow.dispose();
+    },
+    [surface, aprons, white, yellow]
+  );
   return (
-    <group>
-      {/* Write the opaque road before the current late terrain pass. */}
-      <mesh position={[midX, roadY, midZ]} rotation={[-Math.PI / 2, 0, angle]} receiveShadow>
-        <planeGeometry args={[width, length]} />
+    <group name="railway-road">
+      <mesh
+        name="railway-road-surface"
+        geometry={surface}
+        position-y={EXTERIOR_LAYERS.ground}
+        receiveShadow
+      >
+        {/* The bell mouth's tone blends into the valley road's (`bellMouthTone`). */}
         <meshStandardMaterial
           color="#ffffff"
+          vertexColors
           roughness={0.85}
           map={TARMAC_ROAD_MAP}
           roughnessMap={TARMAC_ROAD_ROUGHNESS}
@@ -7757,19 +7865,30 @@ const ConnectingRoad: React.FC<{
           polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
         />
       </mesh>
-
-      {/* Edge lines - slightly above road surface */}
       <mesh
-        position={[
-          midX - Math.cos(angle) * (width / 2 - 0.2),
-          linesY,
-          midZ + Math.sin(angle) * (width / 2 - 0.2),
-        ]}
-        rotation={[-Math.PI / 2, 0, angle]}
+        name="railway-road-crossing-aprons"
+        geometry={aprons}
+        position-y={EXTERIOR_LAYERS.ground}
+        receiveShadow
+      >
+        <meshStandardMaterial
+          color="#c9ced2"
+          roughness={0.95}
+          map={TARMAC_PATH_MAP}
+          roughnessMap={TARMAC_PATH_ROUGHNESS}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={POLYGON_OFFSET.moderate.factor}
+          polygonOffsetUnits={POLYGON_OFFSET.moderate.units}
+        />
+      </mesh>
+      <mesh
+        name="railway-road-paint"
+        geometry={white}
+        position-y={EXTERIOR_LAYERS.groundOverlay}
         renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       >
-        <planeGeometry args={[0.15, length]} />
         <meshStandardMaterial
           {...ROAD_PAINT_WHITE}
           polygonOffset
@@ -7778,49 +7897,19 @@ const ConnectingRoad: React.FC<{
         />
       </mesh>
       <mesh
-        position={[
-          midX + Math.cos(angle) * (width / 2 - 0.2),
-          linesY,
-          midZ - Math.sin(angle) * (width / 2 - 0.2),
-        ]}
-        rotation={[-Math.PI / 2, 0, angle]}
+        name="railway-road-centre-line"
+        geometry={yellow}
+        position-y={EXTERIOR_LAYERS.groundOverlay}
         renderOrder={RENDER_ORDER.floorMarkings}
         receiveShadow
       >
-        <planeGeometry args={[0.15, length]} />
         <meshStandardMaterial
-          {...ROAD_PAINT_WHITE}
+          {...ROAD_PAINT_YELLOW}
           polygonOffset
           polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
           polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
         />
       </mesh>
-
-      {/* Center dashed line - above road surface */}
-      {Array.from({ length: Math.floor(length / 4) }).map((_, i) => {
-        const t = (i * 4 + 2) / length;
-        const x = start[0] + dx * t;
-        const z = start[2] + dz * t;
-        return (
-          <mesh
-            key={`dash-${i}`}
-            position={[x, linesY, z]}
-            rotation={[-Math.PI / 2, 0, angle]}
-            renderOrder={RENDER_ORDER.floorMarkings}
-            receiveShadow
-          >
-            <planeGeometry args={[0.15, 2]} />
-            <meshStandardMaterial
-              {...ROAD_PAINT_YELLOW}
-              depthWrite={false}
-              polygonOffset
-              polygonOffsetFactor={POLYGON_OFFSET.carriagewayMarking.factor}
-              polygonOffsetUnits={POLYGON_OFFSET.carriagewayMarking.units}
-            />
-          </mesh>
-        );
-      })}
-      {/* Grass verges REMOVED - now handled by TerrainGround system */}
     </group>
   );
 };
@@ -7831,8 +7920,10 @@ const StationAccess: React.FC = () => {
   return (
     <group name="station-road-access">
       <mesh geometry={pavement} position-y={EXTERIOR_LAYERS.ground} receiveShadow>
+        {/* The bell mouth's tone blends into the valley road's (`bellMouthTone`). */}
         <meshStandardMaterial
           color="#ffffff"
+          vertexColors
           map={TARMAC_ROAD_MAP}
           roughnessMap={TARMAC_ROAD_ROUGHNESS}
           roughness={0.85}
@@ -9667,24 +9758,13 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
           (2026-11-03, D-018), so the old connector and its continuation would
           run into the station's front wall. */}
 
-      {/* Road from parking lot towards factory gate.
-          IT MUST STOP AT THE LOT, NOT CROSS IT. This ran (120,35) -> (120,70),
-          which is a 5 m carriageway with a dashed centre line laid straight
-          through the middle of `ParkingLot` at (120, 0, 50) - the lot spans
-          x 107.5..132.5 and z 40..60, and both surfaces sit on
-          `EXTERIOR_LAYERS.ground`, so the road drew over the bay markings at
-          the same datum. On the `carpark` review camera that reads as cars
-          parked across their lines with a yellow dash running through the
-          middle of the lot, which is exactly what it is. Measured rather than
-          eyeballed: the live scene reported two coplanar slabs at y -0.02
-          centred (120, 50) and (120, 52.5) with bounding radii 16.01 and 17.68,
-          and 17.68 is sqrt(2.5^2 + 17.5^2) - the road, to the centimetre.
-          Now one stub from the lot's south kerb to the gate road. Its twin
-          off the north kerb ran 11.5 m into the field and stopped there. */}
-      <ConnectingRoad start={[120, 0, 60.5]} end={[120, 0, 70]} width={5} />
-
-      {/* Road connecting parking area to front entrance gate */}
-      <ConnectingRoad {...GATE_CAR_PARK_ROAD} />
+      {/* The railway road (D-047), from the car park's south kerb past the
+          mill's south frontage and the farm to a T junction on the valley road
+          at z 156. It replaced the car park stub and the gate road, which
+          stopped in the grass at the yard's kerb corner. IT MUST STOP AT THE
+          LOT, NOT CROSS IT: an earlier road ran through the middle of
+          `ParkingLot` at the same datum and drew over its bay markings. */}
+      <RailwayRoad />
 
       {/* A few extra parked cars near the gas station for variety, on a layby
           rather than in the field they were standing in. */}
@@ -9717,39 +9797,10 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <GroundBlob position={[100, -100]} scale={18} scaleZ={14} />
 
       {/* ========== ADDITIONAL SMALL BUILDINGS ========== */}
-      {/* Weighbridge office */}
-      <group position={[30, 0, 120]}>
-        <GroundBlob position={[0, 0]} scale={7} scaleZ={6} />
-        <mesh position={[0, 1.5, 0]} castShadow receiveShadow>
-          <boxGeometry args={[4, 3, 3]} />
-          <meshStandardMaterial color="#90a4ae" {...OUTBUILDING_SURFACE} />
-        </mesh>
-        <mesh position={[0, 3.2, 0]} castShadow>
-          <boxGeometry args={[4.5, 0.4, 3.5]} />
-          <meshStandardMaterial color="#607d8b" {...OUTBUILDING_SURFACE} />
-        </mesh>
-        <mesh position={[0, 1.5, 1.55]}>
-          <planeGeometry args={[3, 2]} />
-          <meshStandardMaterial color="#81d4fa" metalness={0.3} roughness={0.2} />
-        </mesh>
-        <Text
-          position={[0, 2.8, 1.6]}
-          fontSize={0.3}
-          color="#ffffff"
-          anchorX="center"
-          anchorY="middle"
-          surface="painted"
-        >
-          WEIGHBRIDGE
-        </Text>
-        {/* Weighbridge platform, pit-set: its deck stands 2 cm proud of the
-            verge rather than 0.2 m, which read as a loose slab with bare dark
-            edges beside the carriageway. */}
-        <mesh position={[0, -0.1, 6]} receiveShadow>
-          <boxGeometry args={[4, 0.2, 8]} />
-          <meshStandardMaterial color="#616161" roughness={0.8} />
-        </mesh>
-      </group>
+      {/* Weighbridge: a flush steel deck in the shipping trucks' inbound lane,
+          ending at the checkpoint's stop line, and its office on a kerbed
+          island beside it (exterior/Weighbridge.tsx). */}
+      <Weighbridge />
 
       {/* Substation */}
       <group position={[-70, 0, -60]} name="site-substation">
@@ -9827,7 +9878,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       {/* Small decorative pond near the front office buildings */}
       <Pond {...SITE_LAYOUT.exteriorFeatures.ponds[0]} />
 
-      {/* Classic canal finds retain their original tilted, partly submerged placement. */}
+      {/* The canal finds, fished out onto the west bank beside the walk (D-046). */}
       <CanalTrolley />
       <CanalBicycle />
 
@@ -9890,7 +9941,8 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <GravelPath {...CANAL_WEST_PATH} type="gravel" />
 
       {/* Path to the lake area */}
-      <GravelPath {...LAKE_APPROACH_PATH} type="paved" />
+      <GravelPath {...LAKE_APPROACH_NORTH} type="paved" />
+      <GravelPath {...LAKE_APPROACH_SOUTH} type="paved" />
       <CurvedPath {...LAKE_APPROACH_TURN} />
 
       {/* Lakeside walking path - around the lake */}
@@ -10007,8 +10059,10 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
       <PicnicTable position={[150, 0, 130]} rotation={-Math.PI / 4} />
       <WasteBin position={[148, 0, 118]} />
 
-      {/* Picnic area by canal */}
-      <PicnicTable position={[-160, 0, 60]} rotation={Math.PI / 2} />
+      {/* Picnic area by canal, on the open bank north of the bin. At
+          (-160, 60) it stood on Pearl Cottage's front-garden paving, behind
+          the garden hedge, where the walk could not reach it. */}
+      <PicnicTable position={[-161.5, 0, 77]} rotation={Math.PI / 2} />
       <WasteBin position={[-158, 0, 70]} />
 
       {/* Benches along paths - now rendered via instanced components above */}

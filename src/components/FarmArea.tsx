@@ -1,6 +1,12 @@
 import { FarmFenceRun } from './scenery/FarmFenceRun';
 import type { FarmFenceEnd } from './scenery/farmFenceGeometry';
-import { FARM_FURROW_PITCH, FARM_REALM_PATHS, inRealmPath } from '../constants/publicRealmLayout';
+import {
+  FARM_FURROW_PITCH,
+  FARM_REALM_PATHS,
+  inRealmPath,
+  LAKE_APPROACH_PATH,
+  type RealmPath,
+} from '../constants/publicRealmLayout';
 import { FarmPublicRealm } from './scenery/WorldPublicRealm';
 import { ScarecrowCraft } from './scenery/ScarecrowCraft';
 import { ServiceEntranceLighting } from './exterior/ServiceEntranceLighting';
@@ -56,6 +62,7 @@ import { PlotGeometry } from '../utils/authoredPlotGeometry';
 import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../constants/renderLayers';
 import { SITE_LAYOUT } from '../constants/siteLayout';
+import { onRailwayRoad } from '../constants/railwayRoadLayout';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { createAtmosphereState, sampleAtmosphere } from '../simulation/atmosphere';
 import {
@@ -2446,8 +2453,24 @@ const FARM_ATTRACTORS: readonly (readonly [number, number])[] = [
   [-28, -25],
 ];
 
+const LAKE_WALK: RealmPath = {
+  start: [LAKE_APPROACH_PATH.start[0], LAKE_APPROACH_PATH.start[2]],
+  end: [LAKE_APPROACH_PATH.end[0], LAKE_APPROACH_PATH.end[2]],
+  width: LAKE_APPROACH_PATH.width,
+};
+
 export const FARM_CLUTTER: ClutterSpec = {
-  accepts: (x, z) => !FARM_REALM_PATHS.some((p) => inRealmPath(x, z, p, 0.45)),
+  // Farm-local; the farm is a half turn, so world is (75 - x, 120 - z). The
+  // clutter bounds reach the railway road (D-047) along the farm's north and
+  // west sides, and its tufts stood on the tarmac and the zebra. The lake walk
+  // (and the road crossing's aprons, which lie in its band) is kept clear too.
+  accepts: (x, z) => {
+    if (FARM_REALM_PATHS.some((p) => inRealmPath(x, z, p, 0.45))) return false;
+    const wx = SITE_LAYOUT.landmarks.farm.position[0] - x;
+    const wz = SITE_LAYOUT.landmarks.farm.position[2] - z;
+    // A tuft card spreads its blades about half a metre; keep its root 0.9 m off.
+    return !onRailwayRoad(wx, wz, 0.9) && !inRealmPath(wx, wz, LAKE_WALK, 0.45);
+  },
   count: 700,
   bounds: { minX: -38, maxX: 36, minZ: -30, maxZ: 32 },
   exclude: [...FARM_BLOCKERS, ...FARM_SWEPT_GROUND],

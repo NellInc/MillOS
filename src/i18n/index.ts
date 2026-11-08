@@ -59,9 +59,9 @@ function writeSavedLocale(locale: Locale): void {
 }
 
 /**
- * `?lang=` (a shared link) wins, then a saved choice, then the browser's own
- * language list. Only Portuguese is ever inferred; every other language, and
- * every environment without a window, is English.
+ * `?lang=` (a shared link) wins, then a saved choice, then English. The
+ * browser's own language list is never consulted: Portuguese appears only when
+ * someone asks for it (D-048). Every environment without a window is English.
  */
 export function detectLocale(): Locale {
   if (typeof window === 'undefined') return DEFAULT_LOCALE;
@@ -74,16 +74,6 @@ export function detectLocale(): Locale {
   if (fromUrl) return fromUrl;
   const saved = readSavedLocale();
   if (saved) return saved;
-  const languages =
-    typeof navigator === 'undefined'
-      ? []
-      : navigator.languages?.length
-        ? navigator.languages
-        : [navigator.language];
-  for (const language of languages) {
-    const locale = normalizeLocale(language);
-    if (locale) return locale;
-  }
   return DEFAULT_LOCALE;
 }
 

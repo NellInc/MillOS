@@ -39,6 +39,37 @@ export interface WorkerMotionState {
   seat?: WorkerSeatCue;
   /** Parent-owned crank angle in radians; no independent pedalling clock. */
   cyclePhase?: number;
+  /** The stop's own work loop, where a role has more than one; absent = default. */
+  workVariant?: WorkerWorkVariant;
+  /**
+   * A mobility aid the person uses (agreedAdjustments.ts). A wheelchair user
+   * also sets `cycling` (seated, wheeled, self-propelled) with `cyclePhase` as
+   * the push cycle; a long cane is held in the right hand. Absent for most.
+   */
+  mobility?: 'wheelchair' | 'long-cane';
+  /** Wheelchair: 0 hands on the push rims, 1 hands forward at the work surface. */
+  wheelReach?: number;
+  /** Long cane: the tip's sweep across the path, -1 (right) to 1 (left). */
+  caneSweep?: number;
+  /** Seated at a vehicle's controls: hands on its wheel, eyes on the way (forkliftCrew.ts). */
+  drive?: WorkerDriveCue;
+}
+
+/**
+ * A steering wheel in the actor's own metres (its root, before scale), the
+ * rim's turn, and where the head looks. Hands grip the rim at ten and two.
+ */
+export interface WorkerDriveCue {
+  wheelX: number;
+  wheelY: number;
+  wheelZ: number;
+  radius: number;
+  /** The wheel plane's tilt back from vertical, radians. */
+  tilt: number;
+  /** Radians the rim has turned; the hands go round with it. */
+  rimTurn: number;
+  /** Head yaw, radians. */
+  lookYaw: number;
 }
 
 export type HairStyle = 'bald' | 'short' | 'medium' | 'curly' | 'ponytail';
@@ -64,7 +95,12 @@ export type WorkerWorkAction =
   | 'radio'
   | 'garden'
   | 'bake'
+  | 'stocktake'
+  | 'cartcheck'
   | 'none';
+
+/** A second loop for a role at one particular stop (the baker at the street). */
+export type WorkerWorkVariant = 'serve';
 
 export interface WorkerAppearance {
   bodyType: WorkerBodyType;
@@ -396,6 +432,9 @@ export function getWorkerAppearance(role: string, color: string, id: string): Wo
     ...profile,
     uniformColor: color || base.uniformColor,
   };
+  // The courier wears the operator's kit but has her own work: checking the
+  // handcart. Assigned by role, so the mill operators keep their inspect clip.
+  if (role === 'Logistics') appearance.workAction = 'cartcheck';
   if (COMMUNITY_ROLES.has(role)) {
     Object.assign(appearance, {
       hairStyle:
@@ -424,7 +463,7 @@ export function getWorkerAppearance(role: string, color: string, id: string): Wo
         uniformColor: '#e4d4b3',
       });
     if (role === 'Shopkeeper')
-      Object.assign(appearance, { tool: 'clipboard', workAction: 'inspect' });
+      Object.assign(appearance, { tool: 'clipboard', workAction: 'stocktake' });
   }
   return appearance;
 }

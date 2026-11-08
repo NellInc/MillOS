@@ -9,15 +9,11 @@ export {
   type CameraFeedContextType,
 
   // Announcement constants
-  SAFETY_INCIDENT_ANNOUNCEMENTS,
-  FIRE_DRILL_ANNOUNCEMENTS,
   EMERGENCY_STOP_ANNOUNCEMENTS,
   FORKLIFT_STOP_ANNOUNCEMENTS,
   FORKLIFT_STOP_TOPIC,
   PLANT_STOP_TOPIC,
   SHARED_PA_CATALOG,
-  PA_ANNOUNCEMENT_COUNT,
-  getRandomMachineOfType,
 
   // Components
   PAAnnouncementSystem,

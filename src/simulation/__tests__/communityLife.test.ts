@@ -29,6 +29,7 @@ import {
   STANDARD_HOURS_PER_REAL_SECOND,
   communityPassengerWalkHours,
   COMMUNITY_COURIER_SCHEDULE,
+  COMMUNITY_BAKERY_SERVING_TASK,
   COMMUNITY_STREET_END_Z,
   MILL_ROUTINE_HOURS,
   communityRootYaw,
@@ -500,6 +501,31 @@ describe('inhabited world routines', () => {
     expect(sampleCommunityDelivery(inspecting).moving).toBe(false);
     expect(sampleCommunityDelivery((s.pull + s.gone) / 2).moving).toBe(true);
   });
+  it('puts the courier to work only at the cart: gripping it or standing at it to check', () => {
+    const s = COMMUNITY_COURIER_SCHEDULE;
+    const courier = COMMUNITY_ROSTER.find((p) => p.id === 'village-courier')!;
+    for (let h = s.start; h < s.gone; h += 0.0005) {
+      const pose = sampleCommunityPerson(courier, h),
+        cart = sampleCommunityDelivery(h);
+      if (pose.activity !== 'working') continue;
+      const atRail = h >= s.inspect && h < s.returning;
+      expect(!!cart.cartGrip || atRail, `courier working away from the cart at ${h}`).toBe(true);
+      // At the rail she faces the cart side, 0.35 m off it (cart sides +-0.4).
+      if (atRail && !cart.cartGrip) {
+        expect(pose.rotation).toBeCloseTo(Math.PI / 2, 9);
+        expect(cart.cartX - 0.4 - pose.position[0]).toBeCloseTo(0.35, 9);
+        expect(Math.abs(pose.position[2] - cart.cartZ)).toBeLessThan(1e-9);
+      }
+    }
+    // Turning on the spot before taking the handle is a stance, not work.
+    expect(sampleCommunityPerson(courier, (s.turn + s.pull) / 2).activity).toBe('idle');
+  });
+  it("gives the baker's counterless street stop its own task for its own loop", () => {
+    const baker = COMMUNITY_ROSTER.find((p) => p.id === 'village-baker')!;
+    expect(baker.stops.filter((stop) => stop.task === COMMUNITY_BAKERY_SERVING_TASK)).toHaveLength(
+      1
+    );
+  });
   it('walks the courier forwards at walking pace and turns before taking the cart', () => {
     const s = COMMUNITY_COURIER_SCHEDULE;
     expect(s.start).toBeGreaterThanOrEqual(9);
@@ -650,7 +676,8 @@ describe('inhabited world routines', () => {
         expect(release.activity, person.id).toBe('idle');
         expect(release.position).toEqual(stop.position);
         expect(release.rotation).toBe(stop.rotation);
-        expect(release.seated).toBe(false);
+        // A wheelchair user works seated in their own chair (agreedAdjustments).
+        expect(release.seated).toBe(person.mobility === 'wheelchair');
         for (const pace of [30, 120]) {
           const dt = 1 / 60,
             frames = Math.round((4 * STANDARD_GAME_SPEED * 60) / pace);
@@ -938,6 +965,8 @@ describe('inhabited world routines', () => {
     expect(village.map((p) => p.id).sort()).toEqual([
       'village-baker',
       'village-gardener',
+      'village-hall-clerk',
+      'village-hall-officer',
       'village-neighbour',
       'village-shopkeeper',
     ]);
@@ -961,7 +990,11 @@ describe('inhabited world routines', () => {
           Math.hypot(shown.position[0] - door[0], shown.position[2] - door[2]),
           `${person.id} at its door at ${h}`
         ).toBeLessThan(1e-6);
-        expect(shown.seated || !!shown.seat, `${person.id} standing at ${h}`).toBe(false);
+        // Standing, or in their own wheelchair: never on a seat cue at a door.
+        expect(!!shown.seat, `${person.id} off any seat at ${h}`).toBe(false);
+        expect(shown.seated, `${person.id} standing at ${h}`).toBe(
+          person.mobility === 'wheelchair'
+        );
       }
       expect(transitions, person.id).toBe(2);
     }
@@ -1375,7 +1408,8 @@ it('holds a greeting through centimetre-scale nearest-neighbour jitter and relea
 describe('analytic seat arrival and departure support', () => {
   it('places, lowers, rises and releases on every unchanged authored seat route', () => {
     // Looping routines; a village day (door to door) is checked in its own test.
-    for (const person of COMMUNITY_ROSTER.filter((p) => !p.day)) {
+    // A wheelchair user stays in their own chair: agreedAdjustments.test.ts.
+    for (const person of COMMUNITY_ROSTER.filter((p) => !p.day && p.mobility !== 'wheelchair')) {
       let start = -person.phase;
       for (let i = 0; i < person.stops.length; i++) {
         const node = person.stops[i],

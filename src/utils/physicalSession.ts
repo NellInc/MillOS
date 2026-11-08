@@ -172,7 +172,14 @@ const ADDED_PHYSICAL_FIELDS: Partial<
   Record<string, Record<string, (saved: Record<string, unknown>) => unknown>>
 > = {
   // Unknown for an older save: treat a hold as the player's, as before.
-  game: { stopHeldForklifts: () => false },
+  // Saves from before 23 October have no frozen time of day: it ran.
+  game: { stopHeldForklifts: () => false, timeOfDayHeld: () => false },
+  // Saves from before 18-19 October: the shift card's live failure costs (the
+  // next tick recomputes them) and the count of programmes started (none was).
+  operations: {
+    costRates: () => ({ maintenance: 0, demurrage: 0, late: 0 }),
+    programmeCount: () => 0,
+  },
   // The session counter began with the log; the kept log is the best count.
   safety: {
     sessionIncidentCount: (saved) =>

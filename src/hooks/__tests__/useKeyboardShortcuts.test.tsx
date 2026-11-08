@@ -129,21 +129,27 @@ describe('keyboard control ownership', () => {
     expect(camera.setPreset).toHaveBeenCalledWith(6);
   });
 
-  it('retains the forklift stop when the scene owns Space', () => {
+  it('Space no longer stops the forklifts; it is the first-person jump', () => {
     renderHook(() => useKeyboardShortcuts(config));
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(false);
+  });
+
+  it('retains the forklift stop on X when the scene has focus', () => {
+    renderHook(() => useKeyboardShortcuts(config));
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX' });
     expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(true);
     expect(audioManager.startEmergencyStopAlarm).toHaveBeenCalledTimes(1);
-    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX' });
     expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(false);
     expect(audioManager.stopEmergencyStopAlarm).toHaveBeenCalledTimes(1);
   });
 
   it('does not toggle the forklift stop on key auto-repeat', () => {
     renderHook(() => useKeyboardShortcuts(config));
-    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
-    fireEvent.keyDown(window, { key: ' ', code: 'Space', repeat: true });
-    fireEvent.keyDown(window, { key: ' ', code: 'Space', repeat: true });
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX' });
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX', repeat: true });
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX', repeat: true });
     expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(true);
     expect(audioManager.playEmergencyStop).toHaveBeenCalledTimes(1);
   });
@@ -152,7 +158,7 @@ describe('keyboard control ownership', () => {
     useSafetyStore.setState({ forkliftEmergencyStop: true });
     useGameSimulationStore.setState({ emergencyDrillMode: true });
     renderHook(() => useKeyboardShortcuts(config));
-    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX' });
     expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(true);
     expect(config.setQualityNotification).toHaveBeenCalledWith('DRILL INTERLOCK ACTIVE');
   });

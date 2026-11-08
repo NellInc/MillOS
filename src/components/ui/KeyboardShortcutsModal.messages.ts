@@ -39,7 +39,7 @@ export const keyboardShortcutsModalMessages = defineMessages({
     toggleEnergy: 'Toggle energy dashboard',
     toggleMultiObjective: 'Toggle multi-objective dashboard',
     toggleCost: 'Toggle cost estimation overlay',
-    toggleFullscreen: 'Toggle fullscreen (in first person beside a forklift: drive or leave it)',
+    toggleFullscreen: 'Toggle fullscreen',
     toggleMiniMap: 'Toggle GPS mini-map',
     toggleAutoRotate: 'Slow showcase orbit, off by default (outdoor views with a clear path)',
     blueprint: 'Blueprint mode (see-through walls)',
@@ -53,6 +53,11 @@ export const keyboardShortcutsModalMessages = defineMessages({
     ultraQuality: 'Ultra quality',
 
     forkliftStop: 'Forklift emergency stop / release (scene focused)',
+
+    categoryFirstPerson: 'First Person',
+    jump: 'Jump',
+    interact: 'Drive or leave a forklift',
+    forks: 'Raise / lower forks (driving)',
 
     pressBefore: 'Press',
     pressAfter: 'to toggle this panel',
@@ -95,8 +100,7 @@ export const keyboardShortcutsModalMessages = defineMessages({
     toggleEnergy: 'Mostrar/ocultar o painel de energia',
     toggleMultiObjective: 'Mostrar/ocultar o painel multiobjetivo',
     toggleCost: 'Mostrar/ocultar a sobreposição de estimativa de custos',
-    toggleFullscreen:
-      'Ativar/desativar a tela cheia (em primeira pessoa junto a uma empilhadeira: dirigir ou descer)',
+    toggleFullscreen: 'Ativar/desativar a tela cheia',
     toggleMiniMap: 'Mostrar/ocultar o minimapa GPS',
     toggleAutoRotate:
       'Volta lenta de exibição, desligada por padrão (vistas externas com caminho livre)',
@@ -111,6 +115,11 @@ export const keyboardShortcutsModalMessages = defineMessages({
     ultraQuality: 'Qualidade ultra',
 
     forkliftStop: 'Parada de emergência / liberação das empilhadeiras (com a cena em foco)',
+
+    categoryFirstPerson: 'Primeira pessoa',
+    jump: 'Pular',
+    interact: 'Dirigir ou descer da empilhadeira',
+    forks: 'Erguer / baixar garfos (dirigindo)',
 
     pressBefore: 'Pressione',
     pressAfter: 'para abrir ou fechar este painel',

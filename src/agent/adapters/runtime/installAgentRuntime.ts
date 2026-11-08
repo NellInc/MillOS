@@ -144,12 +144,33 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
     trace: (request) => {
       const observation = readService.trace(request);
       const trace = ledger.trace(request);
+      const completeness =
+        observation.completeness === 'degraded'
+          ? 'degraded'
+          : trace.completeCausalChain
+            ? 'complete'
+            : 'partial';
+      const warnings = observation.warnings.filter(
+        (warning) => warning.code !== 'CAUSAL_CHAIN_UNAVAILABLE'
+      );
+      if (!trace.completeCausalChain) {
+        warnings.push({
+          code: 'CAUSAL_HISTORY_UNCERTIFIED',
+          severity: 'warning',
+          message: 'Complete causal history cannot be certified from retained evidence.',
+          scope: 'evidence',
+          remediation:
+            'Treat these records as partial evidence. History may be compacted, imported, ' +
+            'or have unresolved predecessors; loss for this particular query is unknown.',
+        });
+      }
+
       return immutable({
         ...observation,
-        completeness: 'complete',
+        completeness,
         data: JSON.parse(
           JSON.stringify({
-            completeCausalChain: true,
+            completeCausalChain: trace.completeCausalChain,
             filters: {
               uri: request?.uri ?? null,
               correlationId: request?.correlationId ?? null,
@@ -159,9 +180,7 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
             evidenceFingerprint: ledger.export().evidenceFingerprint,
           })
         ),
-        warnings: observation.warnings.filter(
-          (warning) => warning.code !== 'CAUSAL_CHAIN_UNAVAILABLE'
-        ),
+        warnings,
       }) as AgentObservationEnvelope;
     },
     legalOptions: kernel.legalOptions,

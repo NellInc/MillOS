@@ -6,15 +6,11 @@ export { CameraFeedContext, useCameraFeedRefs, type CameraFeedContextType } from
 
 // Announcement constants (exported for use by other components)
 export {
-  SAFETY_INCIDENT_ANNOUNCEMENTS,
-  FIRE_DRILL_ANNOUNCEMENTS,
   EMERGENCY_STOP_ANNOUNCEMENTS,
   FORKLIFT_STOP_ANNOUNCEMENTS,
   FORKLIFT_STOP_TOPIC,
   PLANT_STOP_TOPIC,
   SHARED_PA_CATALOG,
-  PA_ANNOUNCEMENT_COUNT,
-  getRandomMachineOfType,
 } from './shared';
 
 // Components

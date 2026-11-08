@@ -343,12 +343,19 @@ No alarm is started by the drill; `endEmergencyDrill()` calls `stopEmergencyStop
 
 ### Service Egress Points (`SERVICE_EGRESS_POINTS`)
 
-| Zone | Position |
-|------|----------|
-| Front Service Egress | x=0, z=52 |
-| Back Service Egress | x=0, z=-52 |
-| West Service Egress | x=-62, z=0 |
-| East Service Egress | x=62, z=0 |
+| Zone | Position | Exit |
+|------|----------|------|
+| Front Service Egress | x=37, z=52 | Level personnel door beside the shipping dock |
+| Back Service Egress | x=37, z=-52 | Level personnel door beside the receiving dock |
+| West Service Egress | x=-42, z=-20 | West service door |
+| East Service Egress | x=42, z=-20 | East service door |
+
+Every zone verifies only on a clear step-free route (`src/systems/accessibleEgress.ts`).
+The dock decks are a metre up, so the front and back zones go out by the personnel
+doors (`PERSONNEL_DOORS` in `src/constants/accessibilityLayout.ts`, drawn by
+`accessibility/StepFreeExits.tsx`; the shell leaves their openings), at the end of
+the east walkway. A zone whose route has a stopped forklift on it verifies on its
+agreed alternative; with both blocked it waits and says why (D-062).
 
 ### Key Files
 
@@ -402,14 +409,22 @@ requires it. The retired seated-operator components stay banned by name.
 - A truck stops short of a forklift under manual control that its body would sweep over its
   stopping distance of route ahead (`manualForkliftInTruckPath`, `truckSweepAheadMeets`), and for
   no other; autopilot forklifts are the dock interlock's business.
-- First person, F boards any forklift in reach and leaves it (`forkliftDriveStore.ts`,
+- First person, E or a left click boards any forklift in reach and leaves it; in the cab R raises and Q lowers the forks, and Space jumps on foot (D-050) (`forkliftDriveStore.ts`,
   `forkliftManualDrive.ts`). On a phone a Drive button does it (`MobileControlsOverlay.tsx`,
   with the fork and Step down buttons) and the D-pad drives (`MobileFirstPersonController.tsx`); the forklift turns the camera with the cab, so a controller that
   writes the camera's rotation each frame must fold that turn in. A crewed forklift's operator
   steps off and waits; on leaving, the forklift steers back to its lane and returns to them.
 - CommunityLife steps the crew and places people; the forklift writes a seated operator's root
   after it moves (`forkliftCrewStore.ts`). If CommunityLife stops stepping (heartbeat), forklifts
-  work as if crewed, so nothing waits on an operator who is not there.
+  stand for 2.5 s, then work as if crewed, so nothing waits on an operator who is not there.
+- Every trip moves a load that stands at a station before and after it (D-060,
+  `forkliftCargoStations.ts`, drawn by `ForkliftCargoLoads.tsx`): a pick needs its load there, a
+  drop needs room, and the pallet changes hands at engagement, never fading. Picks and drops are
+  driven by `forkliftWork.ts` (stop a metre short, creep in, back 1.6 m out, then turn). An
+  operator finishes the job in hand: loaded, the forklift never reports itself parked, so the held
+  hour waits until the load is delivered or put back (`forkliftSpellEndTask`); people
+  on foot ahead stop it (`pedestrian-yield`). The seated operator's grip and gaze come from
+  `forkliftDriveCue` via `motion.drive` (`workerPose.ts` `applyDrive`).
 
 ## PA Voice
 
@@ -424,9 +439,13 @@ Phonon 40M models running on the device (`phonon-webgpu`, pinned to a commit tar
 - `src/audio/paSpeechText.ts` writes numbers, `%`, `£` and clock times as words in the active
   language; Phonon cannot. Test new kinds of PA copy there.
 - The player picks a voice per language in Settings (`src/audio/paVoiceCatalog.ts`, the catalogue
-  at Phonon's pinned revision; `voiceNames` in the PA store). Defaults: Edwin, Débora.
+  at Phonon's pinned revision; `voiceNames` in the PA store). Defaults: Lottie, Débora (D-061); Settings offers Lottie or Edwin.
 - PA copy is spoken, so keep each line to one short breath (about 50 characters in English):
-  one fact, or a fact and its consequence. `shared.messages.ts` is the main corpus.
+  one fact, or a fact and its consequence, worded as a person on the tannoy would say it (no
+  menu names or colons). The caption is the spoken text. `shared.messages.ts` is the main corpus.
+- The PA speaks only problems and pertinent updates (D-054): faults and recoveries, drills and
+  stops, shift ends, the day's target, the on-device AI's incident notices. Nothing is said on a
+  timer; `shared.test.ts` pins a nominal hour at zero lines.
 - `PAAnnouncementSystem.tsx` speaks each new line once, holds the caption until the voice ends,
   and stops the voice when the line leaves or audio is muted. Playback goes through
   `audioManager.playPAVoice` (tannoy band-pass, under master volume).
@@ -498,7 +517,7 @@ Every user-facing string goes through `src/i18n`. New copy is never hard-coded.
   designations, proper names, lyrics, painted signage, agent protocol, logs)
   live in `src/i18n/GLOSSARY.md`.
 - Language comes from `?lang=pt-BR`, then the saved `millos-locale` choice,
-  then the browser. Tests run in English.
+  then English. The browser language is never consulted (D-048). Tests run in English.
 
 ## Code Style Rules
 

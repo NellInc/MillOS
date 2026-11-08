@@ -37,6 +37,15 @@ import { metreTiled, RailwayGeometry, type V3 } from './railwayGeometry';
  * platforms stand at coach-floor height beside both tracks.
  */
 
+/**
+ * The station's lettering: Translink Northern Ireland's 2003-2021 signs were
+ * set in Monotype's Ocean Sans, which is commercial. This is Rosario (OFL,
+ * licence beside the font), the closest free humanist sans, given Ocean
+ * Sans's diamond tittle on i and j by `scripts/build-riverside-font.py`.
+ * TrueType outlines, as `SceneText` requires.
+ */
+export const RAILWAY_LETTERING_FONT = `${import.meta.env.BASE_URL}fonts/RiversideRosario-Regular.ttf`;
+
 const G = RAILWAY_LEVELS.ground;
 const P = RAILWAY_LEVELS.platformTop;
 const B = RAILWAY_STATION.building;
@@ -1689,6 +1698,7 @@ export const RailwayStation: React.FC = React.memo(() => {
 
       {/* Painted lettering, lit with the boards it is painted on. */}
       <SceneText
+        name="railway-gable-lettering"
         position={[GABLE.front - 0.145, 5.15, GABLE_MID]}
         rotation={[0, -Math.PI / 2, 0]}
         fontSize={0.44}
@@ -1696,12 +1706,14 @@ export const RailwayStation: React.FC = React.memo(() => {
         anchorX="center"
         anchorY="middle"
         surface="painted"
+        font={RAILWAY_LETTERING_FONT}
       >
         {`${RAILWAY_STATION.name} Station`}
       </SceneText>
       {RAILWAY_NAMEBOARDS.map(({ position: [x, y, z], facing }) => (
         <SceneText
           key={`railway-nameboard-${x}-${z}`}
+          name="railway-nameboard-lettering"
           position={[x + facing * 0.075, y + 2.21, z]}
           rotation={[0, (facing * Math.PI) / 2, 0]}
           fontSize={0.48}
@@ -1709,8 +1721,12 @@ export const RailwayStation: React.FC = React.memo(() => {
           anchorX="center"
           anchorY="middle"
           surface="painted"
+          font={RAILWAY_LETTERING_FONT}
         >
-          {RAILWAY_STATION.name.toUpperCase()}
+          {/* Mixed case, as Translink's Ocean Sans nameboards were: the
+              diamond tittle and the humanist lowercase are what make the
+              face recognisable; in capitals it read as a generic sans. */}
+          {RAILWAY_STATION.name}
         </SceneText>
       ))}
       <SceneText
@@ -1721,6 +1737,7 @@ export const RailwayStation: React.FC = React.memo(() => {
         anchorX="center"
         anchorY="middle"
         surface="painted"
+        font={RAILWAY_LETTERING_FONT}
       >
         1
       </SceneText>
@@ -1732,6 +1749,7 @@ export const RailwayStation: React.FC = React.memo(() => {
         anchorX="center"
         anchorY="middle"
         surface="painted"
+        font={RAILWAY_LETTERING_FONT}
       >
         2
       </SceneText>

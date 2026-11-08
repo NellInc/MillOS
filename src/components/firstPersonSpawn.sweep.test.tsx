@@ -27,6 +27,12 @@ import {
   walkingBlocks,
 } from '../utils/castleNavigation';
 import { WALKING_OBSTACLES, walkingObstacleAt } from '../utils/walkingObstacles';
+import {
+  PERSONNEL_DOORS,
+  TOWN_HALL_RAMP_RAILS,
+  TOWN_HALL_STEP_FREE_ROUTE,
+  townHallToWorld,
+} from '../constants/accessibilityLayout';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
 
 const h = vi.hoisted(() => ({
@@ -75,6 +81,21 @@ const SPAWNS: Spawn[] = [
   ...WALKING_OBSTACLES.map(
     (o) => [`over ${o.id}`, (o.minX + o.maxX) / 2, 20, (o.minZ + o.maxZ) / 2] as const
   ),
+  // The town hall ramp (D-058): over each point of its step-free route, and
+  // over the middle of each handrail, where a body has to be moved off.
+  ...TOWN_HALL_STEP_FREE_ROUTE.map(([x, y, z], i) => {
+    const [wx, , wz] = townHallToWorld(x, y, z);
+    return [`town hall route ${i}`, wx, 6, wz] as const;
+  }),
+  ...TOWN_HALL_RAMP_RAILS.map(({ from, to }, i) => {
+    const [wx, , wz] = townHallToWorld((from[0] + to[0]) / 2, 0, (from[1] + to[1]) / 2);
+    return [`over town hall ramp rail ${i}`, wx, 6, wz] as const;
+  }),
+  // The step-free personnel doors beside the docks: their markers and refuges.
+  ...PERSONNEL_DOORS.flatMap((door) => [
+    [`${door.id} personnel door marker`, door.marker[0], 3, door.marker[1]] as const,
+    [`${door.id} personnel door refuge`, door.refuge[0], 3, door.refuge[1]] as const,
+  ]),
 ];
 
 /** Why a body at (x, z) is not standing free, or null. */

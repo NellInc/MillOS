@@ -22,6 +22,16 @@ import {
   civicSourceSlot,
 } from '../../constants/civicSquareLighting';
 import {
+  TOWN_HALL_FRAME,
+  TOWN_HALL_RAIL_HALF_WIDTH,
+  TOWN_HALL_RAMP,
+  TOWN_HALL_RAMP_LAMP_HEIGHT,
+  TOWN_HALL_RAMP_LAMP_INSET,
+  TOWN_HALL_RAMP_LAMPS,
+  TOWN_HALL_RAMP_RAILS,
+  townHallRailPosts,
+} from '../../constants/accessibilityLayout';
+import {
   applyCivicLampShadows,
   civicUnderlyingHooks,
   injectCivicLampShadows,
@@ -122,6 +132,25 @@ describe('located concept lighting', () => {
       .map(([path]) => path);
     expect(stale).toEqual([]);
   });
+  it('was baked with the town hall ramp, rails and rail lamps that ship now', () => {
+    if (!CIVIC_SHADOW_BAKE_READY) return;
+    // The ramp is procedural, so no GLB pin covers it: it once grew over four
+    // lamps without failing anything. Its layout (flights, landing, apron,
+    // rails, posts) and the rail-lamp mounts are pinned here; rebake on change.
+    const layout = JSON.stringify({
+      frame: TOWN_HALL_FRAME,
+      ramp: TOWN_HALL_RAMP,
+      rails: TOWN_HALL_RAMP_RAILS,
+      railHalfWidth: TOWN_HALL_RAIL_HALF_WIDTH,
+      posts: TOWN_HALL_RAMP_RAILS.map(townHallRailPosts),
+      lamps: TOWN_HALL_RAMP_LAMPS,
+      lampHeight: TOWN_HALL_RAMP_LAMP_HEIGHT,
+      lampInset: TOWN_HALL_RAMP_LAMP_INSET,
+      mounts: CIVIC_LAMPS.filter((l) => l.kind === 'rail').map((l) => [l.position, l.mount]),
+    });
+    const meta = JSON.parse(readFileSync('public/textures/civic-square-lamp-depth.json', 'utf8'));
+    expect(meta.casterPins?.townHallRamp).toBe(createHash('sha256').update(layout).digest('hex'));
+  });
   it('uses a unique bounded lookup without a nested source scan, including float camera reconstruction', () => {
     const slots = CIVIC_WORLD_LIGHTS.map((source) => civicSourceSlot(source.position));
     expect(new Set(slots).size).toBe(CIVIC_WORLD_LIGHTS.length);
@@ -192,7 +221,19 @@ describe('located concept lighting', () => {
   it('retains unique finite bounded sources for mapped apertures and window spill', () => {
     expect(new Set(CIVIC_LAMPS.map((l) => l.id)).size).toBe(CIVIC_LAMPS.length);
     expect(CIVIC_LAMPS.filter((l) => l.kind === 'post')).toHaveLength(4);
-    expect(CIVIC_LAMPS.filter((l) => l.kind === 'garden')).toHaveLength(14);
+    // 2026-11-07: three of the 14 garden uplighters became the town hall ramp's
+    // rail-post lights when the ramp covered the verge they stood on (D-058).
+    expect(CIVIC_LAMPS.filter((l) => l.kind === 'garden')).toHaveLength(11);
+    expect(CIVIC_LAMPS.filter((l) => l.kind === 'rail')).toHaveLength(3);
+    // Each sits where the ramp's layout puts its post light (town hall frame
+    // to village: (x, z) -> (-x, 20 - z)).
+    CIVIC_LAMPS.filter((l) => l.kind === 'rail').forEach((lamp, i) => {
+      const { lens, post } = TOWN_HALL_RAMP_LAMPS[i];
+      const expected = [-lens[0], lens[1], 20 - lens[2], -post[0], 20 - post[1]];
+      [...lamp.position, ...lamp.mount!].forEach((v, k) =>
+        expect(Math.abs(v - expected[k]), lamp.id).toBeLessThan(1e-3)
+      );
+    });
     for (const lamp of CIVIC_LAMPS) {
       expect(lamp.position.every(Number.isFinite)).toBe(true);
       expect(lamp.reference.every((v) => v > 0 && v < 1)).toBe(true);

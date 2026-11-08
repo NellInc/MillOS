@@ -346,6 +346,7 @@ describe('real authored duty and gait transitions', () => {
         '[name="worker-held-tool"]'
       ) as unknown as THREE.Group;
       tool.position = new THREE.Vector3();
+      Object.assign(tool, { rotation: new THREE.Euler() });
       const camera = new THREE.PerspectiveCamera();
       camera.position.set(0, 1.7, 5);
       const positions = () =>
@@ -1537,6 +1538,7 @@ it('mounts garden rise/return, freezes mid-rise and releases stance for walking'
   const tool = container.querySelector('[name="worker-held-tool"]') as unknown as THREE.Group;
   // DOM portal mock has no Three position; supply only the ref field used here.
   tool.position = new THREE.Vector3();
+  Object.assign(tool, { rotation: new THREE.Euler() });
   const y = () => hips.getWorldPosition(new THREE.Vector3()).y;
   const crouched = y();
   expect(tool.visible).toBe(true);
@@ -1557,7 +1559,8 @@ it('mounts garden rise/return, freezes mid-rise and releases stance for walking'
   expect(tool.visible).toBe(false);
   for (let i = 0; i < 120; i++) harness.frame?.({}, 1 / 60);
   expect(tool.visible).toBe(true);
-  expect(y()).toBeCloseTo(crouched, 5);
+  // Back in the kneel; the dig loop only dips or sits back by a couple of cm.
+  expect(Math.abs(y() - crouched)).toBeLessThan(0.025 / appearance.heightScale);
   motion.activity = 'walking';
   motion.groundSpeed = 0.2;
   harness.frame?.({}, 1 / 60);
@@ -1567,7 +1570,8 @@ it('mounts garden rise/return, freezes mid-rise and releases stance for walking'
   motion.groundSpeed = 0;
   motion.enabled = false;
   harness.frame?.({}, 1 / 60);
-  expect(y()).toBeCloseTo(crouched, 5);
+  // Back in the kneel; the dig loop only dips or sits back by a couple of cm.
+  expect(Math.abs(y() - crouched)).toBeLessThan(0.025 / appearance.heightScale);
   expect(tool.visible).toBe(true);
   motion.activity = 'idle';
   harness.frame?.({}, 1 / 60);
@@ -1763,6 +1767,7 @@ describe('owned duty preparation and release', () => {
         '[name="worker-held-tool"]'
       ) as unknown as THREE.Group;
       tool.position = new THREE.Vector3();
+      Object.assign(tool, { rotation: new THREE.Euler() });
       const name = role === 'Baker' ? 'worker-break' : 'worker-inspect';
       expect(play.mock.contexts.find((a) => a.getClip().name === name)!.getEffectiveWeight()).toBe(
         1
@@ -1773,7 +1778,16 @@ describe('owned duty preparation and release', () => {
         expect.anything(),
         1
       );
-      harness.frame?.({}, 1 / 60);
+      for (let i = 0; i < 240; i++) harness.frame?.({}, 1 / 60);
+      if (role === 'Baker') {
+        // The tray group takes exactly the channels the hands were solved to.
+        const g = vi.mocked(controller!.applyDuty).mock.lastCall![1] as ReturnType<
+          typeof workerPoses.createWorkerGesture
+        >;
+        expect(tool.position.toArray()).toEqual([g.toolX, g.toolY, g.toolZ]);
+        expect(tool.rotation.toArray()).toEqual([g.toolPitch, g.toolYaw, g.toolRoll, 'YXZ']);
+        expect(Math.abs(g.toolY) + Math.abs(g.toolPitch) + Math.abs(g.lean)).toBeGreaterThan(0);
+      }
       // A shared worker-break clip must not keep a baker's duty fully active.
       motion.activity = 'break';
       harness.frame?.({}, 1 / 60);
@@ -2466,6 +2480,54 @@ it('fits both original ear tips inside the cavity and carries the band clear of 
   }
 });
 
+it('runs each villager loop by role and stop, not by outfit', () => {
+  const scene = new THREE.Group(),
+    body = new THREE.Group(),
+    hips = new THREE.Group();
+  body.name = 'Body';
+  hips.name = 'Hips';
+  scene.add(body);
+  body.add(hips);
+  harness.asset = {
+    scene,
+    animations: ['idle', 'walk', 'run', 'inspect', 'break'].map(
+      (name) =>
+        new THREE.AnimationClip(`worker-${name}`, 2, [
+          new THREE.NumberKeyframeTrack('Body.position[y]', [0, 2], [0, 0]),
+        ])
+    ),
+  };
+  const sample = vi.spyOn(workerPoses, 'sampleWorkerGesture');
+  const kindFor = (role: string, id: string, workVariant?: 'serve') => {
+    const motion: WorkerMotionState = {
+      activity: 'working',
+      groundSpeed: 0,
+      seated: false,
+      phase: 1,
+      enabled: true,
+      animationInterval: 1 / 60,
+      workVariant,
+    };
+    const view = render(
+      <WorkerModel appearance={getWorkerAppearance(role, '', id)} motion={motion} />
+    );
+    // The DOM harness has no Three transform on the held-prop group.
+    const tool = view.container.querySelector('[name="worker-held-tool"]');
+    if (tool) Object.assign(tool, { position: new THREE.Vector3(), rotation: new THREE.Euler() });
+    harness.frame?.({}, 1 / 60);
+    const kind = sample.mock.calls.at(-1)![0];
+    view.unmount();
+    return kind;
+  };
+  expect(kindFor('Baker', 'village-baker')).toBe('bake');
+  expect(kindFor('Baker', 'village-baker', 'serve')).toBe('serve');
+  expect(kindFor('Logistics', 'village-courier')).toBe('cartcheck');
+  expect(kindFor('Shopkeeper', 'village-shopkeeper')).toBe('stocktake');
+  // The street variant belongs to the baker's tray; it never re-labels other work.
+  expect(kindFor('Operator', 'mill-operator-west', 'serve')).toBe('operate');
+  sample.mockRestore();
+});
+
 it('admits briefing attention only in stationary idle, freezes it at pause and clears missing legacy cues', () => {
   const scene = new THREE.Group(),
     body = new THREE.Group(),
@@ -2627,6 +2689,7 @@ it.each(['masculine', 'feminine'] as const)(
       '[name="worker-held-tool"]'
     ) as unknown as THREE.Group;
     tool.position = new THREE.Vector3();
+    Object.assign(tool, { rotation: new THREE.Euler() });
     const actions = Object.fromEntries(play.mock.contexts.map((a) => [a.getClip().name, a]));
     // Mount must select the same neutral base as an admitted frame.
     expect(actions['worker-break'].getEffectiveWeight()).toBe(1);
@@ -3293,7 +3356,10 @@ it.each(['masculine', 'feminine'] as const)(
       const tool = view.container.querySelector(
         '[name="worker-held-tool"]'
       ) as unknown as THREE.Group;
-      if (tool) tool.position = new THREE.Vector3();
+      if (tool) {
+        tool.position = new THREE.Vector3();
+        Object.assign(tool, { rotation: new THREE.Euler() });
+      }
       const cloth = instances[0].getObjectByName(a.name) as THREE.SkinnedMesh;
       const start = cloth.geometry.attributes.position.array.slice();
       const disposed = vi.spyOn(cloth.geometry, 'dispose');

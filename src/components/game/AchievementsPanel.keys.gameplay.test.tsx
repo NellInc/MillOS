@@ -49,7 +49,7 @@ const config = {
 
 // The Achievements panel floats beside the plant with no backdrop. As an
 // aria-modal dialog it took every global shortcut with it whenever focus sat on
-// <body>: Space could not stop the forklifts and P could not pause while it
+// <body>: the stop key could not stop the forklifts and P could not pause while it
 // was merely open. Keys pressed inside it still belong to it.
 describe('the Achievements panel is a floating panel, not a modal', () => {
   beforeEach(() => {
@@ -68,7 +68,7 @@ describe('the Achievements panel is a floating panel, not a modal', () => {
     useAchievementsStore.getState().resetAchievements();
   });
 
-  it('leaves Space and P to the plant while focus is outside it', async () => {
+  it('leaves X and P to the plant while focus is outside it', async () => {
     const user = userEvent.setup();
     render(<AchievementsPanel onClose={vi.fn()} />);
     renderHook(() => useKeyboardShortcuts(config));
@@ -76,14 +76,14 @@ describe('the Achievements panel is a floating panel, not a modal', () => {
       (document.activeElement as HTMLElement | null)?.blur();
     });
     expect(document.activeElement).toBe(document.body);
-    await user.keyboard(' ');
+    await user.keyboard('x');
     expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(true);
     await user.keyboard('p');
     expect(selectClockHolder(useGameSimulationStore.getState())).not.toBeNull();
     expect(screen.getByRole('dialog', { name: 'Achievements' })).not.toHaveAttribute('aria-modal');
   });
 
-  it('keeps Space and P pressed inside it away from the plant', async () => {
+  it('keeps X and P pressed inside it away from the plant', async () => {
     const user = userEvent.setup();
     render(<AchievementsPanel onClose={vi.fn()} />);
     renderHook(() => useKeyboardShortcuts(config));
@@ -91,7 +91,7 @@ describe('the Achievements panel is a floating panel, not a modal', () => {
     // A click on its text focuses the panel itself (tabindex -1).
     await user.click(screen.getAllByText('Progress')[0]);
     expect(document.activeElement).toBe(panel);
-    await user.keyboard(' ');
+    await user.keyboard('x');
     await user.keyboard('p');
     expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(false);
     expect(selectClockHolder(useGameSimulationStore.getState())).toBeNull();

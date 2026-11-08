@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { VILLAGE_HOMES } from './VillageGardens';
 import { COMMUNITY_TRANSIT_GEOMETRY } from './CommunityTransit';
+import { buildRailwayCoachGeometry, buildRailwayEngineGeometry } from './RailwayTrain';
 import { TRAVEL_STOP_GEOMETRY } from './StationTravelStop';
 import { SHOP_KIT_GEOMETRY } from './StationSouvenirs';
 import { createSleepingCatGeometry } from './SleepingCatCraft';
@@ -270,6 +271,20 @@ describe('village bus', () => {
   it('keeps the bus body and door panels out of their trims’ planes', () => {
     expect(report(selfCoplanarPieces(COMMUNITY_TRANSIT_GEOMETRY.bus))).toEqual([]);
     expect(report(selfCoplanarPieces(COMMUNITY_TRANSIT_GEOMETRY.door))).toEqual([]);
+  });
+});
+
+describe('Riverside train', () => {
+  it('keeps the engine and coach panels, lining, plates and beams out of each other’s planes', () => {
+    for (const [kind, build] of [
+      ['engine', buildRailwayEngineGeometry],
+      ['coach', buildRailwayCoachGeometry],
+    ] as const) {
+      const { body, glass } = build();
+      expect(report(selfCoplanarPieces(body)), kind).toEqual([]);
+      body.dispose();
+      glass.dispose();
+    }
   });
 });
 

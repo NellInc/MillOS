@@ -192,9 +192,27 @@ const noticeCopy = (locale: Locale) => {
         problem,
       });
     },
-    // The PA caption: title and message, worded together in the reader's language.
-    paMessage: (p: NoticeParams) =>
-      t('paMessage', { title: copy.noticeTitle(p), message: copy.noticeMessage(p) }),
+    // The PA line, spoken word for word: the incident and what happens next,
+    // without the bell's queue name or outcome label. The key keeps its name,
+    // so a line restored from the transcript still resolves.
+    paMessage: (p: NoticeParams) => {
+      const incident = incidentTitle({ kind: p.kind as IncidentKind, title: p.title }, locale);
+      const outcome = p.outcome as OperatorOutcome;
+      const reason = p.reason as StandDown | '';
+      const key =
+        outcome === 'handled'
+          ? 'paHandled'
+          : outcome === 'misrouted'
+            ? 'paLeftForYou'
+            : outcome === 'stoodDown' && reason === 'emergency'
+              ? 'paAfterStop'
+              : outcome === 'stoodDown' && reason === 'drill'
+                ? 'paAfterDrill'
+                : outcome === 'stoodDown' && reason !== 'budget'
+                  ? 'paStandingBy'
+                  : 'paOpen';
+      return t(key, { incident });
+    },
   };
   return copy;
 };

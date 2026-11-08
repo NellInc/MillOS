@@ -12,6 +12,7 @@ import {
 import {
   STATION_DETAIL_LAYOUT,
   STATION_CANOPY_LIGHTS,
+  STATION_DOOR_GLASS,
   STATION_DOOR_LIGHT,
   STATION_DETAIL_GEOMETRY,
   STATION_RETAIL,
@@ -53,7 +54,9 @@ describe('forecourt detail envelope', () => {
   it('grounds the apron and faces the shop door out through its opening', () => {
     const source = readFileSync(resolve('src/components/GasStationInstanced.tsx'), 'utf8');
     expect(source).toContain('position={[0, EXTERIOR_LAYERS.ground, 0]}');
-    expect(source).toContain('<mesh position={[-12, 1.2, 5]}>');
+    expect(source).toContain(
+      '<mesh name="station-door-glass" position={STATION_DOOR_GLASS.position}>'
+    );
   });
 });
 
@@ -220,25 +223,43 @@ describe('instanced station finish', () => {
     material.dispose();
   });
 
-  it('seats the pull on the retained door and shelters its head without blocking the leaf', () => {
+  it('stands the glazed leaf open inside the shop, clear of the doorway and its hood', () => {
     const mesh = instances(STATION_DETAIL_LAYOUT.opaque);
-    const leaf = new THREE.Box3(
-      new THREE.Vector3(-12.6, 0, 4.99),
-      new THREE.Vector3(-11.4, 2.4, 5.001)
-    );
+    const isLeaf = (part: string) => part.startsWith('door-leaf') || part.startsWith('door-pull');
+    const leaf = new THREE.Box3();
     STATION_DETAIL_LAYOUT.opaque.forEach((detail, index) => {
-      if (detail.part.startsWith('door-hood') || detail.part === 'door-rain-hood') {
-        expect(instanceBounds(mesh, index).intersectsBox(leaf)).toBe(false);
-      }
-      // Seated through the double-sided leaf by 5 mm rather than flush on it,
-      // where the mount's back face and the leaf shared a plane.
-      if (detail.part === 'door-pull-mount')
-        expect(instanceBounds(mesh, index).min.z).toBeCloseTo(4.995, 5);
+      if (isLeaf(detail.part)) leaf.union(instanceBounds(mesh, index));
     });
-    const ray = new THREE.Raycaster(
-      new THREE.Vector3(-11.58, 1.13, 6),
-      new THREE.Vector3(0, 0, -1)
+    // Hung on the west pier's reveal (x -12.64), inside the wall's inner face
+    // (z 4.8), above the 0.08 m shop floor and under the 2.5 m header.
+    expect(leaf.min.x).toBeCloseTo(-12.64, 5);
+    expect(leaf.max.z).toBeLessThan(4.8);
+    expect(leaf.min.y).toBeGreaterThan(0.08);
+    expect(leaf.max.y).toBeLessThan(2.5);
+    // Past the leaf and its pull, the doorway to the east jamb stays wider than
+    // a 0.8 m walking body.
+    expect(-11.39 - leaf.max.x).toBeGreaterThan(0.8);
+    STATION_DETAIL_LAYOUT.opaque.forEach((detail, index) => {
+      if (!isLeaf(detail.part))
+        expect(instanceBounds(mesh, index).intersectsBox(leaf), detail.part).toBe(false);
+    });
+    // The clear glazing sits within the leaf's frame.
+    const glass = new THREE.Box3().setFromCenterAndSize(
+      new THREE.Vector3(...STATION_DOOR_GLASS.position),
+      new THREE.Vector3(...STATION_DOOR_GLASS.size)
     );
+    expect(leaf.containsBox(glass)).toBe(true);
+    // Open: a ray from the forecourt through the doorway meets no door part.
+    const ray = new THREE.Raycaster(
+      new THREE.Vector3(-12, 1.2, 6),
+      new THREE.Vector3(0, 0, -1),
+      0,
+      2.5
+    );
+    expect(ray.intersectObject(mesh, false)).toHaveLength(0);
+    // Seen from the doorway, the pull is the leaf's nearest part.
+    ray.set(new THREE.Vector3(-12, 1.13, 3.63), new THREE.Vector3(-1, 0, 0));
+    ray.far = Infinity;
     const hit = ray.intersectObject(mesh, false)[0];
     expect(STATION_DETAIL_LAYOUT.opaque[hit.instanceId!].part).toBe('door-pull');
     // The leaf ends at 2.4m. Seal the old 60mm opening below the header too.
@@ -741,10 +762,13 @@ describe('station retail contents and sightlines', () => {
       expect(partBox(side).max.y - liner.max.y).toBeGreaterThan(0.0099);
   });
 
-  it('passes the door pull mounts through the door leaf plane', () => {
-    // The leaf is a double-sided plane at z 5; the mounts' backs lay on it.
+  it('seats the door pull mounts into the leaf stile', () => {
+    // The open leaf's street face looks east (+x); a mount's back on the
+    // stile's face would share its plane.
+    const stiles = STATION_DETAIL_LAYOUT.opaque.filter((p) => p.part === 'door-leaf-stile');
+    const face = Math.max(...stiles.map((stile) => partBox(stile).max.x));
     for (const mount of STATION_DETAIL_LAYOUT.opaque.filter((p) => p.part === 'door-pull-mount'))
-      expect(5 - partBox(mount).min.z).toBeGreaterThanOrEqual(0.004);
+      expect(face - partBox(mount).min.x).toBeGreaterThanOrEqual(0.004);
   });
 
   it('ends the door threshold and head inside the jambs', () => {

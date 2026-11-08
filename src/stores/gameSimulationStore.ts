@@ -1,4 +1,5 @@
 import { SITE_LAYOUT } from '../constants/siteLayout';
+import { PERSONNEL_DOORS } from '../constants/accessibilityLayout';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
@@ -87,17 +88,23 @@ export interface DrillMetrics {
 }
 
 // `label` is a getter so it reads in the active language whenever it is used.
+// Front and back are marked outside the level personnel doors beside the docks
+// (PERSONNEL_DOORS, 2026-11-07); they were at x 0, in the dock channels.
+const personnelDoorMarker = (id: 'front' | 'back') => {
+  const [x, z] = PERSONNEL_DOORS.find((door) => door.id === id)!.marker;
+  return { x, z };
+};
 export const SERVICE_EGRESS_POINTS = [
   {
     id: 'front',
-    position: { x: 0, z: 52 },
+    position: personnelDoorMarker('front'),
     get label() {
       return translate(gameSimulationStoreMessages, 'egressFront');
     },
   },
   {
     id: 'back',
-    position: { x: 0, z: -52 },
+    position: personnelDoorMarker('back'),
     get label() {
       return translate(gameSimulationStoreMessages, 'egressBack');
     },
@@ -386,7 +393,7 @@ const restoreProduction = (statuses: Map<string, string>): void => {
 };
 
 // A drill, crisis or facility stop holds the forklifts; it releases only a hold
-// it applied, so a Space-bar stop the player set before survives the release.
+// it applied, so a X-key stop the player set before survives the release.
 // Store state, so the physical session carries it with the stop across a
 // reload; localStorage never does (merge clears it with the stop).
 const holdForkliftsForStop = (): void => {
@@ -408,16 +415,14 @@ const silenceAlarmUnlessForkliftStop = (): void => {
 const eventId = (kind: SafetyEventKind): string =>
   `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-/** The pace to persist: the player's choice underneath any session hold. */
+/**
+ * The pace to persist: the pace running underneath any pause or hold, never 0.
+ * Nell, 2026-11-07 (D-049): the sim starts with the clock ticking, so a pause
+ * (P, the pace menu or a session hold) lasts for its page and a reload resumes
+ * at the pace that was running before it.
+ */
 export function persistedGameSpeed(state: Pick<GameSimulationStore, 'gameSpeed' | 'clockHolds'>) {
-  const base = state.clockHolds[0];
-  if (state.gameSpeed > 0 || !base) return state.gameSpeed;
-  // Releasing every session hold would leave a player pause in place wherever
-  // it sits in the stack; otherwise the clock returns to the oldest resume pace.
-  // P pauses like the pace menu (and resumes like it), so both survive a reload.
-  return state.clockHolds.some((hold) => hold.holder === 'player' || hold.holder === 'shortcut')
-    ? 0
-    : base.resumeSpeed;
+  return selectPaceUnderPause(state) || STANDARD_GAME_SPEED;
 }
 
 /** Who holds the clock at 0, or null while it runs. Unrecorded holds read as the player's. */
@@ -951,6 +956,11 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         return {
           ...current,
           ...state,
+          // Saves written before D-049 may hold a pause; the clock still starts.
+          gameSpeed:
+            typeof state.gameSpeed === 'number' && state.gameSpeed > 0
+              ? state.gameSpeed
+              : STANDARD_GAME_SPEED,
           currentShift: getShiftForHour(gameTime),
           celebrations: sanitizeCelebrations(persistedRecord?.celebrations),
           preEmergencyMachineStatuses: new Map(),

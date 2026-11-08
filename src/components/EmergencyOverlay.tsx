@@ -39,7 +39,7 @@ export const EmergencyOverlay: React.FC = () => {
   // Either emergency type triggers the overlay
   const isEmergency = forkliftEmergencyStop || emergencyActive;
   const isDrill = emergencyDrillMode;
-  // The Space-bar stop holds only the forklifts; production keeps running.
+  // The X-key stop holds only the forklifts; production keeps running.
   const forkliftOnly = forkliftEmergencyStop && !emergencyActive;
   const accent = isDrill ? 'rgba(245, 158, 11, 0.82)' : 'rgba(239, 68, 68, 0.82)';
   const wash = isDrill ? 'rgba(245, 158, 11, 0.16)' : 'rgba(239, 68, 68, 0.24)';

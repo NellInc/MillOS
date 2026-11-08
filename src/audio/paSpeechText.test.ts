@@ -4,7 +4,19 @@ import { speakableText } from './paSpeechText';
 describe('speakableText', () => {
   it.each([
     ['Daily target 25% packed.', 'Daily target twenty-five percent packed.'],
-    ['Critical alarm at R.M. 101.', 'Critical alarm at R M one hundred and one.'],
+    ['Alarm on R.M. 101.', 'Alarm on roller mill one oh one.'],
+    [
+      'Warning on R.M. 104. Please take a look.',
+      'Warning on roller mill one oh four. Please take a look.',
+    ],
+    ['R.M. 112 is back up and running.', 'roller mill one twelve is back up and running.'],
+    [
+      'Warning on Plansifter A. Please take a look.',
+      'Warning on Plansifter ay. Please take a look.',
+    ],
+    ["Morning shift's done. We earned an A.", "Morning shift's done. We earned an ay."],
+    ["Night shift's done. We earned a B.", "Night shift's done. We earned a B."],
+    ['A drill is over.', 'A drill is over.'],
     ['Wear at 87.5%, limit 90%.', 'Wear at eighty-seven point five percent, limit ninety percent.'],
     ['6,000 bags', 'six thousand bags'],
     ['1,005 bags', 'one thousand and five bags'],
@@ -23,7 +35,13 @@ describe('speakableText', () => {
 
   it.each([
     ['Meta diária 25% embalada.', 'Meta diária vinte e cinco por cento embalada.'],
-    ['Alarme crítico em R.M. 101.', 'Alarme crítico em R M cento e um.'],
+    ['Alarme em R.M. 101.', 'Alarme em moinho cento e um.'],
+    ['Fim do turno da manhã. Tiramos nota A.', 'Fim do turno da manhã. Tiramos nota á.'],
+    ['Fim do turno da noite. Tiramos nota E.', 'Fim do turno da noite. Tiramos nota é.'],
+    [
+      'Alerta em Plansifter B. Deem uma olhada, por favor.',
+      'Alerta em Plansifter B. Deem uma olhada, por favor.',
+    ],
     ['Desgaste 87,5%', 'Desgaste oitenta e sete vírgula cinco por cento'],
     ['6.000 sacos', 'seis mil sacos'],
     ['1.100 sacos', 'mil e cem sacos'],

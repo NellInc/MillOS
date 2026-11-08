@@ -22,14 +22,13 @@ import { registerAlertCatalog } from '../i18n/alertCopy';
 import { formatFixed, translate } from '../i18n';
 import { keyboardShortcutsMessages } from './useKeyboardShortcuts.messages';
 import { safetyStoreMessages } from '../stores/safetyStore.messages';
-import { RESCUED_ATTRIBUTE } from '../utils/focusRescue';
 
 type KeyboardShortcutsMessages = typeof keyboardShortcutsMessages.en;
 type PlainMessageKey = {
   [K in keyof KeyboardShortcutsMessages]: KeyboardShortcutsMessages[K] extends string ? K : never;
 }[keyof KeyboardShortcutsMessages];
 
-// The Space-bar forklift stop's PA line (the only line of the forklift-stop
+// The X-key forklift stop's PA line (the only line of the forklift-stop
 // corpus), filed by key so it follows a language switch and a reload.
 const KEYBOARD_PA_CATALOG = 'keyboardShortcutsPA';
 const FORKLIFT_STOP_PA_KEY = 'forkliftStop';
@@ -213,25 +212,14 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
         return;
       }
 
-      // Emergency stop on Spacebar (use ref for current state).
-      // Space is also the native activation key for buttons/links/selects — if an
-      // interactive element has focus, let it handle the keypress instead of e-stopping.
-      // tabindex="-1" marks a programmatic focus target (a panel heading that
-      // takes focus when its opener unmounts), which has no Space action.
-      if (e.key === ' ' || e.code === 'Space') {
-        const isInteractive = (el: unknown): boolean =>
-          el instanceof HTMLElement &&
-          !!el.closest(
-            'button, summary, select, a[href], input, textarea, [contenteditable="true"], [role="button"], [role="checkbox"], [role="radio"], [tabindex]:not([tabindex="-1"])'
-          );
-        if (isInteractive(e.target) || isInteractive(document.activeElement)) {
-          return;
-        }
+      // X - Forklift emergency stop (use ref for current state). It moved off
+      // Space so Space can jump in first person (Nell, 2026-11-07, D-050).
+      // X is no control's activation key, so unlike Space it needs no focused-
+      // button exemption: a click leaves focus on its button, and the stop must
+      // still answer then. Inputs, modals and key-owning panels are excluded above.
+      if (e.code === 'KeyX' || e.key === 'x' || e.key === 'X') {
         e.preventDefault();
-        // Focus rests on the panel of a control that disabled itself while
-        // pressed (Maintain, Restart): this Space was meant for that control.
-        if (document.activeElement?.hasAttribute(RESCUED_ATTRIBUTE)) return;
-        // A held Space would otherwise toggle the stop at the key-repeat rate,
+        // A held X would otherwise toggle the stop at the key-repeat rate,
         // queueing a PA announcement and a safety incident on every other event.
         if (e.repeat) return;
         // Mirror the panel button's interlock: a fire drill holds the forklifts

@@ -107,4 +107,44 @@ describe('Riverside train geometry', () => {
       }
     }
   });
+
+  it('shows both sides of the engine from outside: no part is built inside out', () => {
+    // A mirrored span (`side * a .. side * b`) used to build a negative-size
+    // box, whose faces are reversed. The left tank then culled its outer wall
+    // and showed its inner one at x -0.72, with the boiler showing through.
+    const { body, glass } = buildRailwayEngineGeometry();
+    const mesh = new THREE.Mesh(body, new THREE.MeshBasicMaterial({ side: THREE.FrontSide }));
+    mesh.updateMatrixWorld(true);
+    const hit = (from: [number, number, number], to: [number, number, number]) => {
+      const origin = new THREE.Vector3(...from);
+      const direction = new THREE.Vector3(...to).sub(origin).normalize();
+      return new THREE.Raycaster(origin, direction, 0, 5).intersectObject(mesh)[0]?.point;
+    };
+    for (const side of [-1, 1]) {
+      // Tank side, cab side, bunker plate and tank plate, from outside.
+      expect(hit([side * 3, 2.0, 2.6], [0, 2.0, 2.6])?.x, `tank ${side}`).toBeCloseTo(
+        side * 1.32,
+        4
+      );
+      expect(hit([side * 3, 2.4, -1.5], [0, 2.4, -1.5])?.x, `cab ${side}`).toBeCloseTo(
+        side * 1.32,
+        4
+      );
+      expect(hit([side * 3, 2.1, -4.3], [0, 2.1, -4.3])?.x, `bunker plate ${side}`).toBeCloseTo(
+        side * 1.265,
+        4
+      );
+      expect(hit([side * 3, 2.0, 1.35], [0, 2.0, 1.35])?.x, `tank plate ${side}`).toBeCloseTo(
+        side * 1.335,
+        4
+      );
+      // The boiler handrail stands clear above the tank top.
+      expect(hit([side * 0.43, 3.5, 0.3], [side * 0.43, 2.0, 0.3])?.y, `rail ${side}`).toBeCloseTo(
+        2.898,
+        3
+      );
+    }
+    body.dispose();
+    glass.dispose();
+  });
 });

@@ -6,7 +6,11 @@ import { MILLOS_RIVER_CONFIG } from '../terrain/splatMapGenerator';
 // The branch footprint remains the shared woodland exclusion. Its western edge
 // meets the main canal's INNER bank; its northern mouth lies inside the river.
 const branch = SITE_LAYOUT.exteriorFeatures.canalBranch;
+const mainCanal = SITE_LAYOUT.exteriorFeatures.canal;
 export const CANAL_OUTLET = {
+  /** Outer face of the main canal's west bank: the outlet's north wall runs on
+   * across the canal's end to here and closes it (2026-11-07). */
+  canalOuterWest: mainCanal.position[0] - mainCanal.width / 2 - 0.5,
   west: branch.position[0] - branch.width / 2,
   east: branch.position[0] + branch.width / 2,
   north: branch.position[2] - branch.length / 2,
@@ -301,24 +305,44 @@ export function createOutletStoneGeometry(
   return geometry;
 }
 
-/** Close only the positive-Z head, opposite the negative-Z river branch.
- * The cap fits between the bank faces: their top surfaces meet at an edge,
- * rather than overlap. Working if water-level rays hit solid stone across
- * the head and the retained river mouth remains open.
+/** The positive-Z head. It spans the canal's full outer width and the banks
+ * stop at its inner face, so its outer face is flush with the bank ends and
+ * caps them, at the banks' height and thickness. It used to sit between the
+ * banks centred on their ends: 0.5 m proud of them outside, with the banks'
+ * 1 x 1.5 m end faces (110 texture repeats across 1 m) showing as pale blocks
+ * either side (2026-11-07, Nell: "The other end of the canal isn't flush").
+ * Working if the head and banks read as one coursed wall at both corners.
  */
 export function canalClosedEndSpec(width: number, length: number) {
   return {
-    position: [0, 0.3, length / 2] as [number, number, number],
-    size: [width - 1, 1.5, 1] as [number, number, number],
+    position: [0, 0.3, length / 2 - 0.5] as [number, number, number],
+    size: [width + 1, 1.5, 1] as [number, number, number],
   };
 }
 
-/** The existing bank maps repeat 110 times over 220 m, once over 1.5 m.
- * Compensate in geometry UVs so the short cap uses that same stone scale
- * without allocating another set of textures.
+/**
+ * Inner faces of the main canal's two heads, canal-local z. The south head is
+ * the closed end above; the north head is the outlet's north wall carried on
+ * across the canal (CANAL_OUTLET.canalOuterWest). The water and the west bank
+ * run between them. The canal used to run 1 m past the outlet to an open end:
+ * its water stopped in mid-air over the grass, beside a 1 m bank stub whose
+ * inner face shared a plane with the outlet wall's end (2026-11-07, Nell:
+ * "Canal end near river, end is fucked", "Z-fighting here also").
  */
-export function createCanalClosedEndGeometry(width: number) {
-  const geometry = new THREE.BoxGeometry(...canalClosedEndSpec(width, 1).size);
+export function canalHeads(length: number, centerZ: number) {
+  return {
+    north: CANAL_OUTLET.south - CANAL_OUTLET.width - centerZ,
+    south: length / 2 - 1,
+  };
+}
+
+/** The bank maps repeat 110 times over u = 1 and once over v = 1, authored for
+ * the 220 m bank's long faces. Remap every face to that metre scale (2 m by
+ * 1.5 m per tile) so a bank's top and ends, and every shorter piece, carry the
+ * same stone instead of 110 repeats squeezed across 1 m.
+ */
+export function createCanalWallGeometry(size: readonly [number, number, number]) {
+  const geometry = new THREE.BoxGeometry(...size);
   const p = geometry.getAttribute('position');
   const n = geometry.getAttribute('normal');
   const uv = geometry.getAttribute('uv');
@@ -330,17 +354,17 @@ export function createCanalClosedEndGeometry(width: number) {
   return geometry;
 }
 
-/**
- * How far each east-bank stub runs into the 0.8 m outlet wall it meets. Ending
- * flush with the wall's face left the stub's end face coplanar with it.
- */
-const BANK_STUB_EMBED = 0.02;
+export function createCanalClosedEndGeometry(width: number) {
+  return createCanalWallGeometry(canalClosedEndSpec(width, 1).size);
+}
 
+/**
+ * The east bank, canal-local z: from the outer face of the outlet's south wall,
+ * which owns the corner across the bank's thickness, to the closed head. It
+ * butts both: an end face meeting a face that points the other way, so no two
+ * visible faces share a plane. North of the mouth there is no bank any more;
+ * the outlet's north wall closes the canal there.
+ */
 export function canalEastBankSections(length: number, centerZ: number) {
-  const gapStart = CANAL_OUTLET.south - CANAL_OUTLET.width - centerZ - BANK_STUB_EMBED;
-  const gapEnd = CANAL_OUTLET.south - centerZ + BANK_STUB_EMBED;
-  return [
-    [-length / 2, gapStart],
-    [gapEnd, length / 2],
-  ] as const;
+  return [[CANAL_OUTLET.south + 0.8 - centerZ, canalHeads(length, centerZ).south]] as const;
 }

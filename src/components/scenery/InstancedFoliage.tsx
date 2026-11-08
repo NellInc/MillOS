@@ -1155,8 +1155,6 @@ export function clutterPlacements(spec: ClutterSpec) {
   const attractors = spec.attractors ?? [];
   const exclude = spec.exclude ?? [];
   const openExclude = spec.openExclude ?? [];
-  const cx = (minX + maxX) * 0.5;
-  const cz = (minZ + maxZ) * 0.5;
 
   const out: { x: number; y: number; z: number; s: number; rot: number; tint: number }[] = [];
   for (let i = 0; i < budget * 2 && out.length < budget; i++) {
@@ -1194,17 +1192,49 @@ export function clutterPlacements(spec: ClutterSpec) {
     });
   }
 
-  // Near-to-centre first, so a count prefix is also a distance prefix.
-  out.sort((a, b) => (a.x - cx) ** 2 + (a.z - cz) ** 2 - ((b.x - cx) ** 2 + (b.z - cz) ** 2));
+  // Left in Halton order, which is low-discrepancy at every prefix: dropping
+  // the tail of the list thins the whole field evenly (`clutterVisibleCount`)
+  // instead of eating it from the rim inward.
   return out;
+}
+
+/** Steps the visible share of a clutter field moves in. */
+const CLUTTER_COUNT_STEPS = 32;
+
+/**
+ * How many tufts of a field to draw at `distance` (camera to the field's
+ * bounding sphere): all of them inside 40% of `cullDistance`, none past it, and
+ * a straight ramp between, in 1/32 steps. The field thins a few scattered tufts
+ * at a time as the camera pulls back, where it used to drop 60% at half the
+ * cull distance and the rest at the cull distance.
+ *
+ * `current` is the count drawn now. The share moves only once the distance
+ * calls for a step three quarters away from it, so a camera parked on a step
+ * boundary cannot flick tufts in and out on the throttled sampler.
+ */
+export function clutterVisibleCount(
+  distance: number,
+  cullDistance: number,
+  total: number,
+  current: number
+): number {
+  if (total <= 0) return 0;
+  const safeCull = cullDistance > 0 ? cullDistance : 120;
+  const full = safeCull * 0.4;
+  const keep = 1 - THREE.MathUtils.clamp((distance - full) / (safeCull - full), 0, 1);
+  const wanted = keep * CLUTTER_COUNT_STEPS;
+  const held = (THREE.MathUtils.clamp(current, 0, total) / total) * CLUTTER_COUNT_STEPS;
+  const step = Math.abs(wanted - held) < 0.75 ? Math.round(held) : Math.round(wanted);
+  return Math.round((total * step) / CLUTTER_COUNT_STEPS);
 }
 
 /**
  * One instanced draw call of alpha-tested grass tufts.
  *
  * Fill rate, not triangles, is the cost here: cards are only ~0.5 m tall and
- * the instance count is prefixed by camera distance on a throttled frame, so
- * the field collapses to zero long before it can matter to a distant scene.
+ * the instance count thins with camera distance on a throttled frame
+ * (`clutterVisibleCount`), so the field fades to zero long before it can
+ * matter to a distant scene.
  * Never casts shadows; it receives existing shadows so tufts do not glow
  * beneath buildings. No extra shadow-pass draws.
  */
@@ -1243,12 +1273,7 @@ export const InstancedGrassClutter: React.FC<{ spec: ClutterSpec }> = React.memo
     _worldPos.copy(mesh.boundingSphere!.center).applyMatrix4(mesh.matrixWorld);
     const radius = mesh.boundingSphere!.radius * mesh.matrixWorld.getMaxScaleOnAxis();
     const dist = Math.max(0, _worldPos.distanceTo(state.camera.position) - radius);
-    const next =
-      dist > cullDistance
-        ? 0
-        : dist > cullDistance * 0.5
-          ? Math.floor(placements.length * 0.4)
-          : placements.length;
+    const next = clutterVisibleCount(dist, cullDistance, placements.length, mesh.count);
     if (mesh.count !== next) mesh.count = next;
   });
 

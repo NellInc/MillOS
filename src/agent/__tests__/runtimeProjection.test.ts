@@ -202,3 +202,94 @@ describe('MillOS runtime agent projection', () => {
     }
   });
 });
+
+describe('installed causal history assurance', () => {
+  it('keeps paging complete before default-bound compaction and reports actual preview overflow', async () => {
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    const target = frame.contentWindow;
+    if (!target) throw new Error('A genuine isolated window is required.');
+    const remove = installMillOSAgentRuntime(target);
+    try {
+      const agent = target.__MILLOS_AGENT__;
+      if (!agent) throw new Error('The genuine installed runtime is required.');
+      expect(agent.evidence().events).toHaveLength(0);
+      expect(agent.evidence().eventBound).toBe(1000);
+      const command = agent.draft({
+        capabilityId: 'simulation.set-speed',
+        targetUri: 'millos://simulation/local',
+        parameters: { speed: 1 },
+        reason: 'Synthetic causal retention regression, preview only.',
+      });
+      await agent.preview(command);
+      await agent.preview(command);
+      const page = agent.trace({ cursor: '1', limit: 1 });
+      const pageData = page.data as {
+        completeCausalChain: boolean;
+        records: Array<{ causationId: string | null }>;
+      };
+      expect(pageData.records[0].causationId).toBe(agent.evidence().events[0].eventId);
+      expect(pageData.completeCausalChain).toBe(true);
+      expect(page.completeness).toBe('complete');
+      expect(page.warnings.map((warning) => warning.code)).not.toContain(
+        'CAUSAL_HISTORY_UNCERTIFIED'
+      );
+
+      for (let index = 2; index < 1001; index += 1) await agent.preview(command);
+      const evidence = agent.evidence();
+      expect(evidence.events).toHaveLength(1000);
+      expect(evidence.compaction.discardedEvents).toBe(1);
+      expect(
+        evidence.events.every((event) =>
+          event.provenance.every((reference) => reference.kind !== 'import')
+        )
+      ).toBe(true);
+      const trace = agent.trace({ limit: 1 });
+      expect(trace.data).toMatchObject({ completeCausalChain: false });
+      expect(trace.completeness).toBe('partial');
+      expect(trace.warnings.map((warning) => warning.code)).toContain('CAUSAL_HISTORY_UNCERTIFIED');
+      expect(trace.warnings.map((warning) => warning.code)).not.toContain(
+        'CAUSAL_CHAIN_UNAVAILABLE'
+      );
+    } finally {
+      remove();
+      frame.remove();
+    }
+  });
+
+  it('accepts legacy evidence through the installed API and reports imported uncertainty', () => {
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    const target = frame.contentWindow;
+    if (!target) throw new Error('A genuine isolated window is required.');
+    const remove = installMillOSAgentRuntime(target);
+    try {
+      const agent = target.__MILLOS_AGENT__;
+      if (!agent) throw new Error('The genuine installed runtime is required.');
+      const value = {
+        schemaVersion: 1,
+        events: [
+          {
+            commandId: 'synthetic-installed-import',
+            correlationId: 'synthetic-import-correlation',
+            actorId: 'synthetic-controller',
+            domain: 'campaign',
+            kind: 'state-transition',
+            targetUri: 'millos://order/synthetic-order',
+            payload: { changed: false },
+          },
+        ],
+      };
+      expect(agent.importEvidence(value).imported).toBe(1);
+      expect(agent.importEvidence(value).imported).toBe(0);
+      expect(agent.evidence().compaction.discardedEvents).toBe(0);
+      const trace = agent.trace();
+      expect(trace.data).toMatchObject({ completeCausalChain: false });
+      expect(trace.completeness).toBe('partial');
+      expect(trace.warnings.map((warning) => warning.code)).toContain('CAUSAL_HISTORY_UNCERTIFIED');
+    } finally {
+      remove();
+      frame.remove();
+    }
+  });
+});

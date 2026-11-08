@@ -67,9 +67,12 @@ export interface KeyedLine {
  * resolve.
  */
 export function keyedText(copy: KeyedLine | undefined, fallback: string): string {
+  // A fallback that is the key itself was stored from a translate miss; it is
+  // never shown as text.
+  const safeFallback = copy && fallback.trim() === copy.key ? '' : fallback;
   const catalog = copy ? catalogs.get(copy.catalog) : undefined;
-  if (!copy || !catalog) return fallback;
-  return word(catalog, copy.key, copy.params, fallback);
+  if (!copy || !catalog) return safeFallback;
+  return word(catalog, copy.key, copy.params, safeFallback);
 }
 
 /** A persisted keyed line, or undefined when the stored shape is not one. */

@@ -311,8 +311,10 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     qualityVariants: ['low', 'medium', 'high', 'ultra'],
     uniformOwner:
       'UnifiedWaterSurfaceMaterial owns bed/film optics; WaterAnimationManager owns shared admitted phase; High/Ultra junction service owns cached incident reflection',
-    timeSource: 'simulation',
-    cacheKey: 'millos-unified-water-v35',
+    // Render seconds since 2026-11-07, held while paused, under reduced motion
+    // and during holdFrame; weather and daylight still follow the game clock.
+    timeSource: 'render-visual-only',
+    cacheKey: 'millos-unified-water-v36',
     disposalOwner: 'AnimatedWater cleanup effect disposes and deregisters',
     fallbackMaterial: 'flat calibrated deep-water colour',
   },
@@ -972,9 +974,49 @@ export const ACTIVE_SHADER_CONTRACTS: readonly ActiveShaderContract[] = [
     uniformOwner: 'MachineSteamParticle memoized material',
     timeSource: 'none',
     // Suffixed with the point-size cap in source (steam 128, dust/exhaust 64).
-    cacheKey: 'millos-machine-steam-v2',
+    // v3 (2026-11-07): each puff fades over the last quarter of its cull
+    // distance (`VENT_FADE_UNIFORMS`), so the plume no longer pops at the cull.
+    cacheKey: 'millos-machine-steam-v3',
     disposalOwner: 'MachineSteamParticle cleanup effect',
     fallbackMaterial: 'plain PointsMaterial with constant opacity',
+  },
+  {
+    id: 'facility-room-glow',
+    owner: 'facilities.StaffFacilities withRoomGlow',
+    sources: ['src/components/facilities/StaffFacilities.tsx'],
+    coordinateSpaces: ['per-vertex glow weight attribute'],
+    colorSpace: 'linear emissive added in proportion to the sRGB-decoded albedo',
+    toneMapping: 'three-chunk',
+    fog: 'three-chunk',
+    transparency: 'opaque',
+    depthBehavior: 'depthTest true, depthWrite true',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner: 'module-level FACILITY_ROOM_GLOW colour, shared by every room material',
+    timeSource: 'none',
+    cacheKey: 'facility-room-glow-v1',
+    disposalOwner: 'StaffFacilities module-level material map',
+    fallbackMaterial: 'the same MeshStandardMaterial without room glow (dark ceilings at night)',
+    notes:
+      "Stands in for the rooms' always-on lamps without adding lights to every program: emission = uFacilityRoomGlow * albedo * glow, glow 0 on hall-facing faces.",
+  },
+  {
+    id: 'lod-crossfade-dither',
+    owner: 'performance.crossfadeLodMaterial',
+    sources: ['src/components/performance/DistanceLod.tsx'],
+    coordinateSpaces: ['object or instance origin in world space', 'gl_FragCoord 4x4 cell'],
+    colorSpace: "unchanged: the base material's own pipeline",
+    toneMapping: 'material-pipeline',
+    fog: 'material-pipeline',
+    transparency: 'opaque',
+    depthBehavior: 'depthTest true, depthWrite true; discard only, no blending',
+    qualityVariants: ['low', 'medium', 'high', 'ultra'],
+    uniformOwner: 'crossfadeLodMaterial per-copy band uniforms; one shared enabled flag',
+    timeSource: 'none',
+    cacheKey: 'millos-lod-crossfade-v1',
+    disposalOwner: 'module-level LOD material copies (SleepingCatCraft, ScarecrowCraft)',
+    fallbackMaterial: 'hard LOD swap with hysteresis when the lod toggle disables the fade',
+    notes:
+      'Composed onto a clone of an uninjected base material; near and far copies share one program and split each pixel of the band between them.',
   },
   {
     id: 'firefly-billboard',

@@ -3,7 +3,9 @@
  *
  * The engine watches process equipment, production flow, safety interlocks,
  * logistics routes, weather, and the active strategic backend. It is
- * deliberately limited to equipment and process state.
+ * deliberately limited to equipment and process state, with one standing
+ * duty beside it: carrying out the adjustments colleagues asked for
+ * (aiAccommodation.ts), from the agreements and schedules alone.
  */
 
 import type { AIDecision, AlertData, MachineData } from '../types';
@@ -24,6 +26,7 @@ import { readPlantClock } from './timeFormatting';
 import { createTranslator, formatFixed, getLocale, translate, type Locale } from '../i18n';
 import { aiEngineMessages as msg } from './aiEngine.messages';
 import { alertText, sanitizeKeyedLine } from '../i18n/alertCopy';
+import { resetAccommodationDecisions, stepAccommodationDecisions } from './aiAccommodation';
 
 export const AI_ENGINE_TIMING = {
   tacticalDecisionInterval: 6000,
@@ -1303,6 +1306,9 @@ function aiLoop(): void {
   }
 
   sweepDeferredDecisions();
+  // Agreed adjustments: alarms as light and vibration, quiet-room bookings
+  // (aiAccommodation.ts, D-058). Runs while the clock is held, as alarms can.
+  stepAccommodationDecisions();
 
   // While the shift clock is held (P, Paused, tour, handoff, any holder) the
   // plant is frozen: no card about it and no request on the player's LLM key.
@@ -1371,6 +1377,7 @@ export function initializeAIEngine(): () => void {
     if (engineUsers > 0) return;
     if (loopInterval) clearInterval(loopInterval);
     loopInterval = null;
+    resetAccommodationDecisions();
     strategicRequestEpoch += 1;
     strategicDecisionPromise = null;
     strategicDecisionKey = null;

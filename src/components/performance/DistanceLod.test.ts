@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { DISTANCE_LOD, partitionInstances, SwitchableLOD } from './DistanceLod';
+import {
+  crossfadeLodMaterial,
+  DISTANCE_LOD,
+  partitionInstances,
+  SwitchableLOD,
+} from './DistanceLod';
+import { clutterVisibleCount } from '../scenery/InstancedFoliage';
+import { SCARECROW_FAR_GEOMETRY, SCARECROW_LOD } from '../scenery/ScarecrowCraft';
+import { createSleepingCatGeometry, SLEEPING_CAT_LOD } from '../scenery/SleepingCatCraft';
 
 /** Instances on the x axis at these distances from the origin camera. */
 const along = (...xs: number[]) => {
@@ -85,5 +93,118 @@ describe('switchable LOD', () => {
     }
     lod.update(camera);
     expect([near.visible, far.visible]).toEqual([false, true]);
+  });
+});
+
+describe('crossfaded LOD', () => {
+  const at = (lod: SwitchableLOD, z: number) => {
+    const camera = new THREE.PerspectiveCamera();
+    camera.position.set(0, 0, z);
+    camera.updateMatrixWorld();
+    lod.updateMatrixWorld();
+    lod.update(camera);
+    return lod.levels.map((level) => level.object.visible);
+  };
+
+  it('draws both levels only across the band past the switch distance', () => {
+    const lod = new SwitchableLOD();
+    lod.addLevel(new THREE.Object3D(), 0);
+    lod.addLevel(new THREE.Object3D(), 20);
+    lod.crossfade = 5;
+    expect(at(lod, 19.9)).toEqual([true, false]);
+    expect(at(lod, 20)).toEqual([true, true]);
+    expect(at(lod, 24.9)).toEqual([true, true]);
+    expect(lod.getCurrentLevel()).toBe(1);
+    expect(at(lod, 25)).toEqual([false, true]);
+    expect(at(lod, 22)).toEqual([true, true]);
+    try {
+      DISTANCE_LOD.enabled = false;
+      expect(at(lod, 60)).toEqual([true, false]);
+    } finally {
+      DISTANCE_LOD.enabled = true;
+    }
+  });
+
+  it('injects a complementary dither into one shared program per base', () => {
+    const base = new THREE.MeshStandardMaterial({ vertexColors: true });
+    const band = { start: 20, end: 25 };
+    const near = crossfadeLodMaterial(base, 'near', band);
+    const far = crossfadeLodMaterial(base, 'far', band);
+    expect(Object.hasOwn(base, 'onBeforeCompile')).toBe(false);
+    expect(near.customProgramCacheKey()).toBe(far.customProgramCacheKey());
+    expect(near.vertexColors).toBe(true);
+    for (const [material, side] of [
+      [near, 0],
+      [far, 1],
+    ] as const) {
+      const shader = {
+        uniforms: {} as Record<string, THREE.IUniform>,
+        vertexShader: THREE.ShaderLib.standard.vertexShader,
+        fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+      };
+      material.onBeforeCompile(shader as never, undefined as never);
+      // Every anchor must exist in three's source: a missed replace is silent.
+      expect(shader.vertexShader).toContain('vLodDistance = distance(');
+      expect(shader.fragmentShader).toContain('float lodBayer4(');
+      expect(shader.fragmentShader).toContain('lodThreshold >= lodFade : lodThreshold < lodFade');
+      expect(shader.uniforms.uLodFadeStart.value).toBe(20);
+      expect(shader.uniforms.uLodFadeEnd.value).toBe(25);
+      expect(shader.uniforms.uLodFadeFar.value).toBe(side);
+    }
+    expect(() => crossfadeLodMaterial(near, 'near', band)).toThrow(/already injects/);
+    expect(() => crossfadeLodMaterial(base, 'far', { start: 5, end: 5 })).toThrow(/empty band/);
+  });
+
+  it('places the cat and scarecrow bands where their swaps are small on screen', () => {
+    // Pixels for an object `size` metres across at `distance`, 1080 rows, fov 50.
+    const px = (size: number, distance: number) =>
+      (size * 1080) / (2 * distance * Math.tan((50 * Math.PI) / 360));
+    const extent = (geometries: THREE.BufferGeometry[]) => {
+      const box = new THREE.Box3();
+      for (const g of geometries) {
+        g.computeBoundingBox();
+        box.union(g.boundingBox!);
+      }
+      const size = box.getSize(new THREE.Vector3());
+      return Math.max(size.x, size.y, size.z);
+    };
+    const cat = createSleepingCatGeometry('#806040');
+    const catSize = extent(Object.values(cat));
+    Object.values(cat).forEach((g) => g.dispose());
+    expect(catSize).toBeGreaterThan(0.3);
+    expect(px(catSize, SLEEPING_CAT_LOD.distance)).toBeLessThan(30);
+    const scarecrowSize = extent([SCARECROW_FAR_GEOMETRY]);
+    expect(scarecrowSize).toBeGreaterThan(1);
+    expect(px(scarecrowSize, SCARECROW_LOD.distance)).toBeLessThan(56);
+    expect(SLEEPING_CAT_LOD.crossfade).toBeGreaterThan(0);
+    expect(SCARECROW_LOD.crossfade).toBeGreaterThan(0);
+  });
+});
+
+describe('grass clutter thinning', () => {
+  it('draws all inside 40% of the cull, none past it, and thins steadily between', () => {
+    expect(clutterVisibleCount(0, 100, 640, 640)).toBe(640);
+    expect(clutterVisibleCount(40, 100, 640, 640)).toBe(640);
+    expect(clutterVisibleCount(100, 100, 640, 0)).toBe(0);
+    expect(clutterVisibleCount(500, 100, 640, 20)).toBe(0);
+    let count = 640;
+    let largestDrop = 0;
+    for (let d = 40; d <= 100; d += 0.25) {
+      const next = clutterVisibleCount(d, 100, 640, count);
+      expect(next).toBeLessThanOrEqual(count);
+      largestDrop = Math.max(largestDrop, count - next);
+      count = next;
+    }
+    expect(count).toBe(0);
+    // One 1/32 step at a time: the old tiers dropped 60% at once.
+    expect(largestDrop).toBeLessThanOrEqual(20);
+  });
+
+  it('holds its step for a camera parked on a boundary', () => {
+    // 70 m is exactly half-way down the ramp: step 16 of 32.
+    const held = clutterVisibleCount(70, 100, 640, 640);
+    expect(held).toBe(320);
+    for (const d of [69.5, 70.4, 69.6, 70.3])
+      expect(clutterVisibleCount(d, 100, 640, held)).toBe(held);
   });
 });

@@ -37,10 +37,13 @@ import {
   COMMUNITY_WALK_SPEED_MPS,
   communityRootYaw,
   communityStillHour,
+  COMMUNITY_BAKERY_SERVING_TASK,
   type CommunityOperationsSnapshot,
 } from '../simulation/communityLife';
 import { EXTERIOR_LAYERS, POLYGON_OFFSET } from '../constants/renderLayers';
 import { BUS_TURNAROUND } from '../constants/publicRealmLayout';
+import { PROCEDURAL_TEXTURES } from '../utils/sharedMaterials';
+import { VALLEY_ROAD_TONE } from './exterior/railwayRoadGeometry';
 import { useT } from '../i18n';
 import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { communityLifeMessages } from './CommunityLife.messages';
@@ -48,6 +51,8 @@ import { FORKLIFT_CREW_SITES, type ForkliftCrewSite } from '../constants/forklif
 import type { Vec3Tuple } from '../constants/siteLayout';
 import {
   advanceForkliftCrew,
+  createForkliftDriveCue,
+  forkliftDriveCue,
   initialForkliftCrewState,
   isOperatorInCab,
   FORKLIFT_OPERATOR_SCALE,
@@ -66,10 +71,38 @@ import {
   truckHoldsBusDeparture,
 } from '../simulation/vehicles/southRoadTraffic';
 import { useForkliftDriveStore } from '../stores/forkliftDriveStore';
+import {
+  AlertPager,
+  MobilityAidProp,
+  advanceMobility,
+  createMobilityState,
+} from './accessibility/MobilityAids';
+import { hasAgreedAdjustment } from '../simulation/agreedAdjustments';
 
 const COLOURS = ['#596e72', '#53637c', '#9a7654', '#6b8568', '#bdad82', '#6b5871'];
 /** Real seconds a safety stop lets bodies blend into the held stance. */
 const SAFETY_SETTLE_SECONDS = 0.4;
+
+/**
+ * The shuttle turnaround is paved in the valley road's own tarmac. It was a
+ * flat untextured #34393a, which read as a near-black disc on the road's
+ * shoulders and the verge beyond (Nell, 2026-11-07: "Not sure why this black
+ * dot is there?"). The circle's UVs span its diameter, so the repeat is the
+ * diameter over a 10/3 m tile. The road's 16 m strip now covers all of it but
+ * the bay on the west verge, which must read as that strip: untinted at this
+ * roughness the disc read 79 grey against the strip's 82-85 in a noon top-down
+ * `shipping` capture, so it takes the side roads' gain, `VALLEY_ROAD_TONE`.
+ */
+const turnaroundTexture = (source: THREE.Texture) => {
+  const texture = source.clone();
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  const repeat = (BUS_TURNAROUND.apronRadius * 2) / (10 / 3);
+  texture.repeat.set(repeat, repeat);
+  return texture;
+};
+const TURNAROUND_MAP = turnaroundTexture(PROCEDURAL_TEXTURES.tarmacColor);
+const TURNAROUND_ROUGHNESS = turnaroundTexture(PROCEDURAL_TEXTURES.tarmacRoughness);
+const TURNAROUND_TINT = new THREE.Color(VALLEY_ROAD_TONE, VALLEY_ROAD_TONE, VALLEY_ROAD_TONE);
 const CYCLIST = COMMUNITY_ROSTER.find((person) => person.role === 'Cyclist')!;
 const COURIER = COMMUNITY_ROSTER.find((person) => person.id === 'village-courier')!;
 const CREW_SITE_BY_OPERATOR = new Map(FORKLIFT_CREW_SITES.map((site) => [site.operatorId, site]));
@@ -256,8 +289,19 @@ export function CommunityLife() {
         seated: pose.seated,
         enabled: false,
         phase: i * 1.731,
+        workVariant: pose.task === COMMUNITY_BAKERY_SERVING_TASK ? 'serve' : undefined,
       };
       updateSeatCue(motion, pose, pose.rotation);
+      // A wheelchair or a long cane, and the cues that pose the body for it.
+      const aid = createMobilityState(person.mobility);
+      if (aid)
+        advanceMobility(aid, motion, pose.position[0], pose.position[2], {
+          delta: 0,
+          moving: false,
+          working: pose.activity === 'working',
+          seated: pose.seated && person.mobility !== 'wheelchair',
+          cut: true,
+        });
       const crewSite = CREW_SITE_BY_OPERATOR.get(person.id);
       if (crewSite) {
         const live = forkliftCrewLive(crewSite.forkliftId);
@@ -268,6 +312,7 @@ export function CommunityLife() {
         person,
         crewSite,
         cabSeat: { amount: 1, support: 1, position: [0, 0, 0] as Vec3Tuple, rotation: 0 },
+        driveCue: createForkliftDriveCue(),
         // Reused every frame. The handover is scratch the forklift rewrites, so
         // it is copied on the one frame it is kept.
         crewInputs: {
@@ -289,6 +334,9 @@ export function CommunityLife() {
         },
         greeting: createCommunityGreeting(),
         appearance: getWorkerAppearance(person.role, COLOURS[i % COLOURS.length], person.id),
+        aid,
+        /** Alarms also reach this person as light and vibration (agreedAdjustments). */
+        pager: hasAgreedAdjustment(person.id, 'visual-alerts'),
       };
     });
   }, [initialHour, operations]);
@@ -542,11 +590,31 @@ export function CommunityLife() {
       root.visible = pose.visible;
       motion.activity = emergency && !pose.seated ? 'idle' : pose.activity;
       motion.seated = pose.seated;
+      // In the cab: hands on the wheel, eyes on the way it goes (forkliftCrew.ts).
+      motion.drive =
+        inCab && crewLive
+          ? forkliftDriveCue(
+              useGraphicsStore.getState().graphics.quality === 'low' ? 'compact' : 'authored',
+              crewLive.controls,
+              actor.driveCue
+            )
+          : undefined;
       updateSeatCue(motion, pose, root.rotation.y);
       motion.seatFloorOffset = actor.person.district === 'bus' ? 0.048 : 0;
       motion.cycling = actor.person.role === 'Cyclist';
       motion.cyclePhase = bicycle.pedalPhase;
       motion.cartGrip = actor.person.id === 'village-courier' ? drop.cartGrip : undefined;
+      // Wheels, pushes and the cane's sweep follow the ground actually covered.
+      if (actor.aid)
+        advanceMobility(actor.aid, motion, pose.position[0], pose.position[2], {
+          delta,
+          moving: moving && !jump && !reducedMotion,
+          working: pose.activity === 'working',
+          seated: pose.seated && actor.person.mobility !== 'wheelchair',
+          cut: reframe || jump || reducedMotion,
+        });
+      // The baker's street stop has no counter: it runs its own serving loop.
+      motion.workVariant = pose.task === COMMUNITY_BAKERY_SERVING_TASK ? 'serve' : undefined;
       // A faster pace is a time-lapse of the same walk: the gait stays a walk
       // while its cadence follows the ground covered (WorkerModel.workerGaitRates).
       motion.gaitScale = gaitScale;
@@ -583,7 +651,10 @@ export function CommunityLife() {
       Object.assign(root.userData, {
         activity: motion.activity,
         task,
-        seated: pose.seated,
+        // In their own wheelchair a person is not sitting on a seat: they are
+        // moving through the plant, and forklifts give way to them.
+        seated: pose.seated && actor.person.mobility !== 'wheelchair',
+        mobility: actor.person.mobility ?? null,
         greeting: false,
         groundSpeed: motion.groundSpeed,
         agreementMemberId: agreement?.memberId ?? null,
@@ -642,7 +713,7 @@ export function CommunityLife() {
   return (
     <>
       <group name="world-personnel" visible={enabled} userData={{ noStaticBatch: true }}>
-        {residents.map(({ person, appearance, motion, pose, userData }, index) => (
+        {residents.map(({ person, appearance, motion, pose, userData, aid, pager }, index) => (
           <group
             key={person.id}
             name={person.id}
@@ -657,6 +728,8 @@ export function CommunityLife() {
             userData={userData}
           >
             <WorkerModel appearance={appearance} motion={motion} />
+            {aid && <MobilityAidProp state={aid} />}
+            {pager && <AlertPager />}
             <group
               ref={(node) => {
                 labels.current[index] = node;
@@ -682,8 +755,10 @@ export function CommunityLife() {
         >
           <circleGeometry args={[BUS_TURNAROUND.apronRadius, 48]} />
           <meshStandardMaterial
-            color="#34393a"
-            roughness={0.96}
+            color={TURNAROUND_TINT}
+            map={TURNAROUND_MAP}
+            roughnessMap={TURNAROUND_ROUGHNESS}
+            roughness={0.85}
             polygonOffset
             polygonOffsetFactor={POLYGON_OFFSET.exteriorMid.factor}
             polygonOffsetUnits={POLYGON_OFFSET.exteriorMid.units}

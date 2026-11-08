@@ -1,12 +1,60 @@
 import * as THREE from 'three';
 
-/** Inland water: metres of swell and independent micro-slope, never slowed ocean waves. */
+/**
+ * Inland water: metres of swell and independent micro-slope, never slowed ocean waves.
+ *
+ * `speed` scales every travelling term's rate against WATER_VISUAL_TIME, which
+ * is render seconds. At 0.38 / 0.085 / 0.065 / 0.025 the lake's main ripple
+ * train took 60 s per cycle and its bed caustics 30-60 s, so water read as a
+ * still print even on the right clock (2026-11-07). These values give the lake
+ * an 8 s main ripple cycle and a 4-8 s caustic one, a river about twice that, and a
+ * pond that still breathes (its slope 0.055 -> 0.12, still under the canal's).
+ * Pond speed stays a multiple of 0.025 for NaturalDuckPond's wrap period.
+ * `drift` (m/s) carries the whole ripple field down `flowDirection`, so moving
+ * water reads as flowing rather than as chop travelling both ways.
+ * Working if every body visibly moves within two seconds of watching it.
+ */
 export const WATER_PROFILES = {
-  river: { speed: 0.38, waveHeight: 0.012, rippleStrength: 0.48, roughness: 0.14, shoreFoam: 0.12 },
-  canal: { speed: 0.085, waveHeight: 0.002, rippleStrength: 0.14, roughness: 0.075, shoreFoam: 0 },
-  lake: { speed: 0.065, waveHeight: 0.004, rippleStrength: 0.25, roughness: 0.1, shoreFoam: 0 },
-  pond: { speed: 0.025, waveHeight: 0.0005, rippleStrength: 0.055, roughness: 0.065, shoreFoam: 0 },
-  fountain: { speed: 0.7, waveHeight: 0.001, rippleStrength: 0.7, roughness: 0.18, shoreFoam: 0 },
+  river: {
+    speed: 0.9,
+    drift: 0.45,
+    waveHeight: 0.012,
+    rippleStrength: 0.48,
+    roughness: 0.14,
+    shoreFoam: 0.12,
+  },
+  canal: {
+    speed: 0.4,
+    drift: 0.03,
+    waveHeight: 0.002,
+    rippleStrength: 0.14,
+    roughness: 0.075,
+    shoreFoam: 0,
+  },
+  lake: {
+    speed: 0.5,
+    drift: 0,
+    waveHeight: 0.004,
+    rippleStrength: 0.25,
+    roughness: 0.1,
+    shoreFoam: 0,
+  },
+  pond: {
+    speed: 0.35,
+    drift: 0,
+    waveHeight: 0.0005,
+    rippleStrength: 0.12,
+    roughness: 0.065,
+    shoreFoam: 0,
+  },
+  fountain: {
+    speed: 0.7,
+    drift: 0,
+    waveHeight: 0.001,
+    rippleStrength: 0.7,
+    roughness: 0.18,
+    shoreFoam: 0,
+  },
 } as const;
 
 export type WaterKind = keyof typeof WATER_PROFILES;
@@ -194,7 +242,10 @@ export const WATER_SKY_DETAIL = { value: 1 };
 export const WATER_CLOUD_COVER = { value: 0.2 };
 export const WATER_CLOUD_TONE = { value: new THREE.Color('#f4f6f2') };
 
-/** Owned by WaterAnimationManager; small retained PBR surfaces share the same weather and pause. */
+/**
+ * Render seconds, owned by WaterAnimationManager; held while the world is paused,
+ * under reduced motion and during a frame hold. Small retained PBR surfaces share it.
+ */
 export const WATER_VISUAL_TIME = { value: 0 };
 export const WATER_WIND = { value: 0.2 };
 

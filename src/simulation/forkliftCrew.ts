@@ -462,3 +462,158 @@ export function nearestSpurTurnAhead(
   }
   return found ? out : null;
 }
+
+/**
+ * A seated operator's hands and eyes: both hands on the steering wheel at ten
+ * and two, turning with it, eyes on the way the forklift is going, and over
+ * the right shoulder while it backs out of a pick or a drop. Before this the
+ * operator sat in the 'rest' pose, hands in the lap like a passenger.
+ *
+ * The wheel is in the operator's own frame (the root CommunityLife places,
+ * before its scale): centre, rim radius, and the wheel plane's tilt back from
+ * vertical. Authored cab: forklift.glb's wheel (`forklift-handle-39`, centre
+ * (0, 1.121, 0.025), rim 0.098, about 54 degrees back) against the root at
+ * (0, 0.55, -0.4) and scale 0.88. Compact cab: the 0.13 m torus at
+ * (0, 1.3, -0.08), tilted 0.38 back, against the root at (0, 0.63, -0.4).
+ */
+export interface ForkliftWheelCue {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly radius: number;
+  readonly tilt: number;
+}
+export const FORKLIFT_OPERATOR_WHEEL = {
+  authored: {
+    x: 0,
+    y: (1.121 - FORKLIFT_OPERATOR_SEAT.authored[1]) / FORKLIFT_OPERATOR_SCALE.authored,
+    z: (0.025 - FORKLIFT_OPERATOR_SEAT.authored[2]) / FORKLIFT_OPERATOR_SCALE.authored,
+    radius: 0.098 / FORKLIFT_OPERATOR_SCALE.authored,
+    tilt: 0.94,
+  },
+  compact: {
+    x: 0,
+    y: (1.3 - FORKLIFT_OPERATOR_SEAT.compact[1]) / FORKLIFT_OPERATOR_SCALE.compact,
+    z: (-0.08 - FORKLIFT_OPERATOR_SEAT.compact[2]) / FORKLIFT_OPERATOR_SCALE.compact,
+    radius: 0.13,
+    tilt: 0.38,
+  },
+} as const satisfies Record<'compact' | 'authored', ForkliftWheelCue>;
+
+/** What the forklift tells its seated operator each frame (written by ForkliftSystem). */
+export interface ForkliftControls {
+  /** Road-wheel steering angle, radians (the controller's, up to 0.56). */
+  steer: number;
+  /** Backing out of a pick or a drop. */
+  reversing: boolean;
+}
+
+/** The seated operator's grip and gaze, in the shape WorkerModel reads (WorkerDriveCue). */
+export interface ForkliftDriveCue {
+  wheelX: number;
+  wheelY: number;
+  wheelZ: number;
+  radius: number;
+  tilt: number;
+  /** The rim's turn, radians: the hands go round with it. */
+  rimTurn: number;
+  /** Head yaw, radians: into the turn, or back over the right shoulder when reversing. */
+  lookYaw: number;
+}
+
+/** The steering wheel turns about four times the road wheels, within a hand-over-hand reach. */
+const RIM_TURN_PER_STEER = 2.2;
+const RIM_TURN_LIMIT = 1.1;
+/** Over the right shoulder (negative yaw turns the head right in the actor's frame). */
+const REVERSING_LOOK_YAW = -1.05;
+
+export const createForkliftDriveCue = (): ForkliftDriveCue => ({
+  wheelX: 0,
+  wheelY: 0,
+  wheelZ: 0,
+  radius: 0,
+  tilt: 0,
+  rimTurn: 0,
+  lookYaw: 0,
+});
+
+/** Fills `out` for a cab tier from the forklift's controls; allocates nothing. */
+export function forkliftDriveCue(
+  tier: 'compact' | 'authored',
+  controls: ForkliftControls | null,
+  out: ForkliftDriveCue
+): ForkliftDriveCue {
+  const wheel = FORKLIFT_OPERATOR_WHEEL[tier];
+  const steer = controls && Number.isFinite(controls.steer) ? controls.steer : 0;
+  out.wheelX = wheel.x;
+  out.wheelY = wheel.y;
+  out.wheelZ = wheel.z;
+  out.radius = wheel.radius;
+  out.tilt = wheel.tilt;
+  out.rimTurn = Math.max(-RIM_TURN_LIMIT, Math.min(RIM_TURN_LIMIT, steer * RIM_TURN_PER_STEER));
+  out.lookYaw = controls?.reversing ? REVERSING_LOOK_YAW : Math.max(-0.5, Math.min(0.5, steer));
+  return out;
+}
+
+/**
+ * The end of a driving spell: an operator finishes the job in hand before
+ * stepping down. With a load on the forks the spell does not end at the crew
+ * point (the forklift does not report itself parked there, so the operator's
+ * hour holds): the load is delivered if its drop is open, or held at the drop
+ * while its truck is on the way, or else put back where it was picked (FLT01's
+ * collection point, when nothing stands there), or, if none of those, held at
+ * the drop's hold point until the drop opens. Empty,
+ * no new job is started unless the forklift is already committed to it, and
+ * it goes to its crew point.
+ * Working if `forkliftCrewDrive.test.ts` finds no step where the operator is
+ * off, or climbing out, while the forklift carries a load or stands anywhere
+ * but parked at its crew point with its forks down.
+ */
+export type ForkliftSpellEndTask = 'work' | 'park' | 'deliver' | 'put-back' | 'hold';
+
+export function forkliftSpellEndTask({
+  wantsOff,
+  loaded,
+  dropOpen,
+  dropExpected = false,
+  committed,
+  canPutBack,
+}: {
+  wantsOff: boolean;
+  loaded: boolean;
+  dropOpen: boolean;
+  /** The drop will open soon (its truck is on its way in or at the dock): wait for it. */
+  dropExpected?: boolean;
+  committed: boolean;
+  canPutBack: boolean;
+}): ForkliftSpellEndTask {
+  if (!wantsOff) return 'work';
+  if (!loaded) return committed ? 'work' : 'park';
+  if (dropOpen || committed) return 'deliver';
+  return canPutBack && !dropExpected ? 'put-back' : 'hold';
+}
+
+/** The forks are down within this of the floor before an operator steps off. */
+export const FORKLIFT_PARKED_FORK_HEIGHT = 0.05;
+
+/**
+ * Whether the forklift may tell its operator it is parked for them: standing
+ * at the station, lined up with its lane, empty, forks down.
+ */
+export function forkliftParkedForCrew({
+  atStation,
+  aligned,
+  speed,
+  loaded,
+  forkHeight,
+}: {
+  atStation: boolean;
+  aligned: boolean;
+  speed: number;
+  loaded: boolean;
+  forkHeight: number;
+}): boolean {
+  return (
+    atStation && aligned && speed <= 0.01 && !loaded && forkHeight <= FORKLIFT_PARKED_FORK_HEIGHT
+  );
+}

@@ -23,7 +23,9 @@ export type ForkliftStopReason =
   | 'logistics-interlock'
   | 'load-operation'
   // Parked for its operator (crew change or break). SCADA already codes it 9.
-  | 'scheduled';
+  | 'scheduled'
+  // Someone on foot close ahead on its route (forkliftWork.ts). SCADA codes it 11.
+  | 'pedestrian-yield';
 
 /** Fleet priority can release a peer wait, never a safety or physical barrier hold.
  * A static obstruction on the route is 'route-blocked' (a near miss); another

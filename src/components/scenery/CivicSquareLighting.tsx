@@ -46,6 +46,22 @@ for (const lamp of CIVIC_LAMPS) {
       new THREE.ConeGeometry(0.25, 0.12, 4).rotateY(Math.PI / 4).translate(x, y + 0.21, z)
     );
     lenses.push(new THREE.BoxGeometry(0.21, 0.26, 0.21).translate(x, y, z));
+  } else if (lamp.kind === 'rail' && lamp.mount) {
+    // A low ramp light clamped to a handrail post: housing on the post, a
+    // hood over it, the lens on its face toward the ramp (-x, village frame).
+    const [px] = lamp.mount;
+    const back = px + 0.02;
+    fittings.push(
+      new THREE.BoxGeometry(back - x - 0.008, 0.11, 0.12).translate((back + x + 0.008) / 2, y, z)
+    );
+    fittings.push(
+      new THREE.BoxGeometry(back - x + 0.03, 0.012, 0.14).translate(
+        (back + x - 0.03) / 2,
+        y + 0.062,
+        z
+      )
+    );
+    lenses.push(new THREE.BoxGeometry(0.016, 0.07, 0.09).translate(x, y, z));
   } else if (lamp.kind === 'sign') {
     fittings.push(
       new THREE.CylinderGeometry(0.06, 0.06, 3.6, 8).rotateZ(Math.PI / 2).translate(x, y + 0.075, z)

@@ -596,3 +596,312 @@ Source: Nell, 2026-11-06: "Is this any good for us?", then "Let's test please.";
 `runs/browser-LFM3-1.7B-ONNX-q4f16-healthy.json`, the control
 `runs/browser-Qwen3.5-4B-q4f16_1-MLC-lane-healthy-lfm3-control.json`, and the smoke
 `runs/smoke-LFM3-1.7B-ONNX-q4f16.json`.
+
+### D-046 · The canal finds are out of the water · [Nell] · 2026-11-07
+
+The shopping trolley and the bicycle no longer lie tilted and half sunk in the canal
+(x -143 and -147.5, z 36.5 and 54). They stand on the grass of the west bank, behind
+the canal walk's kerb, either side of the waste bin at (-158, 70): the bicycle on a new
+side stand at (-157.9, 66.8), the trolley upright on its casters at (-158.4, 71.6)
+(`src/components/scenery/CanalFinds.tsx`, `CANAL_FINDS_LAYOUT`). They keep their silted,
+oxidised finish, as things pulled out of the water. This reverses the placement the
+code had recorded as intentional (the `FactoryExterior.tsx` mount comment and the
+`GroundAlignment.test.tsx` pins); no earlier entry here recorded it.
+Source: Nell, 2026-11-07: "Move the shopping cart and the bicycle out of the canal."
+
+### D-047 · A road joins Riverside station to the valley road · [Nell] · 2026-11-07
+
+Supersedes D-018's "no road leads there". The car park's road used to run 27 m south-west
+and stop in the grass at the mill yard's south-east kerb corner. It is now the railway road,
+one 5.5 m two-lane carriageway from the car park's south kerb (120, 60): south-west on the
+line x + z = 198, 2.1 m clear of the kerb corner; west along z 94, between the yard kerb
+(z 90.56) and the farm paddock (z 99); south along x 38, on the farm's west side; and west
+into a flared T junction on the south valley road's east side at z 156. The valley road's
+east edge line now breaks only across that bell mouth. Farm side: the farmhouse's north walk
+runs on to the road's south edge. Gas station side: the junction is 16 m south of the gas
+station's access road, on the same valley road. The lake walk crosses the road on a zebra,
+cut short of each edge with a dropped-kerb apron instead of lying across the tarmac at the
+road's own depth offset. The two front-parkland trees that stood in the new carriageway moved
+to (55.5, 100) and (86.5, 99.5). No navigation graph routes vehicles or villagers, so none
+was changed; the station forecourt already opened onto the car park with no railing between.
+Rejected: a crossroads opposite the gas station access at z 140, because the bus shelter
+and the shuttle's stop occupy that kerb; and a junction north of the shipping checkpoint
+(z 90-105), which would send station traffic through the shipping yard.
+Source: Nell, 2026-11-07: "Connect the train station to the road somehow. Ideally the farm
+side and gas station side both."; `src/constants/railwayRoadLayout.ts`,
+`src/components/exterior/railwayRoadGeometry.ts` and its test.
+
+### D-048 · The interface is English unless someone chooses Portuguese · [Nell] · 2026-11-07
+
+`detectLocale()` (`src/i18n/index.ts`) reads a `?lang=` link, then the saved
+`millos-locale` choice, then falls back to English. It no longer reads the browser's
+language list, so a browser that lists Portuguese no longer switches the interface by
+itself. Nell's console showed the session starting in pt-BR (`phonon-40m-pt ready`) and
+Chrome then translating the page pt to en. Supersedes the browser inference implied by
+D-009; the Portuguese catalogues are unchanged.
+Source: Nell, 2026-11-07: "I'm getting portuguse language when I don't have it selected
+(should be 100% by default)."; `src/i18n/__tests__/i18n.test.ts` ("ignores the browser
+language list").
+
+### D-049 · The sim starts with the clock ticking · [Nell] · 2026-11-07
+
+A pause (P, the pace menu, or any session hold) lasts only as long as its page.
+`persistedGameSpeed` saves the pace that was running underneath the pause, and the
+persist merge starts saves written while paused at standard pace. A restored physical
+session resumes the same way. The first-visit tour still holds the clock while it shows,
+and releases it when it ends.
+Source: Nell, 2026-11-07: "Start the sim with the time ticking please."; tests in
+`src/stores/__tests__/gameSimulationStore.test.ts` and `leadPass5.gameplay.test.ts`.
+
+### D-050 · First person: Space jumps, E or a click acts, X stops the forklifts · [Nell] · 2026-11-07
+
+The forklift emergency stop moved from Space to X, which is not a control's activation
+key, so it also works while a clicked button keeps focus. In first person, Space jumps
+(about 0.85 m; roofs and shelters stop the rise), and E, F or a left click boards or
+leaves the forklift in reach. In the cab the forks rise on R and lower on Q. E no longer
+flies the walker upward. The vertical field of view is 75 degrees, down from 105.
+Source: Nell, 2026-11-07: "Reduce FOV in first person view please. Find a different button
+for emergency stop so space can enable jump, and (e for activation/mouse click)."
+
+### D-051 · The station shop's side door stands open · [Nell] · 2026-11-07
+
+The shop door is a framed glass leaf swung 90 degrees inward, and the shop is walked as
+its separate walls, door jambs, open leaf and nine fixtures. This supersedes D-035's
+clause that the shut side door makes the shop solid.
+Source: Nell, 2026-11-07: "Make the gas station door clear and also open.";
+`src/components/GasStationInstanced.tsx`, `src/utils/walkingObstacles.ts` and its test.
+
+### D-052 · The graphics tier never changes by itself · [Nell] · 2026-11-07
+
+Adaptive quality is off in every preset, and the graphics store's v6 migration turns off
+the saved flag, which no control ever set, so a saved `true` was only the old default.
+After a stutter the tier stays as chosen; the FPS monitor may still suggest a change,
+which needs a click. A downgrade that adaptive quality applied earlier in a session is
+undone on the next load (`restoreSessionScopedQuality`).
+Source: Nell, 2026-11-07: "Don't switch graphics mode please. There was a stutter, and then
+all the gorgeousness went away."; `src/stores/__tests__/graphicsStore.test.ts`.
+
+### D-053 · F is only fullscreen; Riverside's nameboards are mixed case · [Nell] · 2026-11-07
+
+F no longer boards or leaves a forklift in first person; E or a left click does (D-050),
+so F is the fullscreen shortcut everywhere. Supersedes D-050's "E, F or a left click".
+The platform nameboards now read "Riverside" rather than "RIVERSIDE", as Translink's
+Ocean Sans boards did, so the diamond tittle and humanist lowercase that identify the face
+show on every station sign, not only the gable.
+Source: Nell, 2026-11-07: "F is fullscreen, but you use it for forklift also?" and
+"Railways station signs don't have the new font."; `FirstPersonController.forklift.test.tsx`,
+`KeyboardShortcutsModal.test.tsx`.
+
+### D-054 · The PA speaks only problems and pertinent updates, as a person would say them · [Nell] · 2026-11-07
+
+The timed PA corpus is gone: twenty all-is-well notices ("The mill is calm", "Packing line
+verified", "Lighting is tracking the sky") and the 25, 50, 75 and 90% target readouts. The PA
+now speaks only on events: a machine warning, alarm or recovery (the same machine and status
+again only after 180 s for warnings and recoveries, 30 s for alarms), drills and emergency or
+forklift stops, a shift's end, the day's target made, and the on-device AI's incident notices.
+Every line is worded as a person on a plant tannoy says it, with no menu names or colons, and
+the caption is the spoken text; where to find a review stays on the bell notice. A transcript
+row filed under a retired key, or a line whose text is only its key, is never queued, shown or
+restored. The Characterful PA mode no longer has any lines of its own. This narrows what D-025
+speaks; D-025 itself stands.
+Source: Nell, 2026-11-07: "PA system is talking a lot of bollocks for nominal conditions,
+instead of problems or pertinent updates.", "Doesn't sound very natural." (the PA had read
+"Morning shift closed: grade A. Review in Overview, Shift debrief.") and, of a caption showing
+"packingLineVerified", "Doesn't mean anything, looks broken and shitty.";
+`src/components/game/shared.test.ts` (a nominal hour says nothing),
+`src/stores/__tests__/announcementsStore.rawKey.test.ts`.
+
+### D-055 · The English PA voice is Bryony · [proposed] · 2026-11-07
+
+The default English PA voice is Bryony, a British, middle-aged female voice the catalogue
+describes as "full, rich mid-range tones, softly relaxed", chosen from that description
+because the tannoy band passes the mid-range, and not by ear. Brazilian Portuguese keeps
+Débora, already female. Nell asked for a female voice; the choice of Bryony is an agent's,
+made unheard, for her to confirm or swap. Edwin stays in Settings. Settings stores a voice
+only when the player picks one, so a player who never chose hears Bryony and one who picked
+Edwin keeps him.
+Source: Nell, 2026-11-07: "Can we try a female voice for the AI/PA?";
+`src/audio/paVoiceCatalog.ts` and its test.
+
+### D-056 · The taco truck trades as "La Molinita" · [proposed] · 2026-11-07
+
+The station-forecourt taco truck carries a painted identity instead of a plain "TACOS" band:
+an invented name, "La Molinita" ("the little mill"), a corn-tortilla stall beside a flour mill,
+on a shaped roof board with "TACOS DE MAÍZ" and two painted tacos, an awning valance
+("TACOS · QUESADILLAS · ELOTES") and an A-frame chalk menu priced in pounds. It is one raster
+atlas, like every other shop sign on the street, drawn by `scripts/author-taco-truck-sign.py`
+with lettering from two SIL OFL fonts (Shrikhand, Caveat Brush) that do not ship. The board is
+paint, unlit at night; its two gooseneck lenses and the festoon bulbs follow the lamp clock
+(D-044). Painted signage, so not translated.
+Source: Nell, 2026-11-07: "Taco truck could use a dedicated sign.";
+`src/components/exterior/tacoTruckSignLayout.ts` and its test.
+
+### D-057 · The hall has its staff facilities back, in two blocks south of the packing cell · [Nell] · 2026-11-07
+
+Toilets with an accessible WC, a locker room, a staff room with a kitchenette, the mill
+manager's office, a meeting room and a first-aid room stand on the hall floor again, as two
+single-storey blockwork blocks with flat roofs: welfare at x -25 to -10.6 and office at
+x 10.6 to 25, z -36.6 (office -34.6) to -28.6, either side of the receiving dock apron, with
+their doors on the north face onto open floor. They replace nothing live: the earlier rooms
+(break rooms, locker room, toilet block, manager's office) were in
+`infrastructure/FactoryWalls.tsx`, which stopped shipping on 2026-08-02 when `MillScene`
+moved to `OptimizedFactoryInfrastructure` (a87d07c7), and the driver break room and
+restroom left `TruckBay.tsx` with the v0.40 uncrewed release (7411bc36). Those files stay
+dead; this is new code (`src/components/facilities/`). Access: level floors, 1.1 m door
+openings (0.98 m clear with the leaf open), an accessible WC to Approved Document M's layout
+(1.5 m turning circle, pan 450 mm from the side wall, drop-down rail, lowered basin, pull
+cord to the floor, outward door), a lowered kitchenette section with knee space, and table
+ends left free for wheelchairs. The walls, leaves and larger fittings are first-person
+walking solids; seats and door approaches are exported for routing people. No light source
+is added: the hall's rows light the rooms, lamp faces are emissive, and each interior part
+carries a `glow` weight that adds the rooms' always-on lamplight as emission in proportion
+to its albedo (one shared uniform, `FACILITY_ROOM_GLOW`; ceilings take more of it, hall-side
+faces none). No resident's routine was changed. Sign lettering is painted signage, so not
+translated.
+Source: Nell, 2026-11-07: "Ages ago we had toilets, break areas etc, but they came out at
+some point. Manager's offices. Can you please add these back to the factory as appropriate,
+with upgrades to make them charming and beautiful."; `src/components/facilities/facilityLayout.ts`
+and its test.
+
+### D-058 · Disabled colleagues and residents, and the adjustments they asked for · [Nell] · 2026-11-07
+
+Five people use agreed adjustments, as anonymous roles in the existing roster (appended after
+the forklift crews, since saves restore residents by index), written in the social model:
+the register (`src/simulation/agreedAdjustments.ts`) names what each person asked for and who
+it was agreed with, never a condition, and holds no number about anyone.
+- `mill-quality-bench`, a quality technician who works from a manual wheelchair at a sit-stand
+  bench set to seated height (QC_BENCH, -20, 2.55) and takes tea at a table with no fixed chair.
+- `mill-operator-east` (existing) gets every alarm as light and vibration: a pager on the belt
+  and a strobe lamp at the rm-104 workpost.
+- `mill-packing-quiet`, a packing operator at packer 1 who takes breaks in a glazed quiet room
+  (-27, 9.6) booked 10:00-10:30 and 14:00-14:30.
+- `village-hall-clerk` (wheelchair, lunch 12:00-13:30) and `village-hall-officer` (long cane,
+  13:45-15:15) come out of the town hall's front door and go to the market stall.
+The town hall gets a two-flight 1:12 ramp from the front landing down its east side (the
+landing is 0.80 m up; a ramp in front would not fit), handrails both sides, corduroy hazard
+paving at the head and foot of the front steps and an induction-loop sign. The railway road's
+zebra gets red blister paving on both dropped kerbs; the station car park's empty bay nearest
+the station is an accessible bay with a transfer zone; the hall has twelve wall strobes (1 Hz,
+synchronised, steady under reduced motion). Wheelchair users count as pedestrians to the
+forklifts' give-way (`userData.seated` is false for them).
+The factory AI acts on the register and on schedules alone (`src/utils/aiAccommodation.ts`),
+never by watching anyone: it confirms each alarm went out as light and vibration, moves the
+air-line purge out of quiet-room bookings, and the egress drill verifies a zone only with a
+clear step-free way out (`src/systems/accessibleEgress.ts`). The two dock exits are a metre
+up, so those zones verify on a service door's step-free route; a zone whose route and
+alternative are both blocked by stopped forklifts stays unverified and says so. Cards are
+filed completed, in English and Brazilian Portuguese.
+Source: Nell, 2026-11-07: "Please add some people with disabilities, and show how they are
+accommodated, including by the factory AI."; tests in `src/simulation/__tests__/agreedAdjustments.test.ts`,
+`src/utils/__tests__/aiAccommodation.test.ts` and `src/systems/__tests__/accessibleEgress.test.ts`.
+
+### D-059 · Water moves on render seconds; the canal is closed at both heads · [proposed] · 2026-11-07
+
+The shared water phase (`WATER_VISUAL_TIME`) is render seconds, clamped at 0.1 s a frame,
+and holds its phase while the world is paused (P, a session hold, or a benchmark without
+`motion=1`), under reduced motion, in a hidden tab and during `holdFrame`. It was game
+minutes x 0.38, authored at the old 180x pace; at the 30x default it ran at 0.19 s per
+second, and with profile speeds of 0.025-0.38 the lake's bed caustics took minutes per
+cycle. `WATER_PROFILES` speeds are now river 0.9, canal 0.4, lake 0.5, pond 0.35, and a
+`drift` (river 0.45 m/s, canal 0.03 m/s) carries the ripple field downstream. Fish and
+dragonflies share the clock and now move at their authored rates.
+The main canal no longer runs 1 m past its outlet to an open end over the grass: the
+outlet's north wall carries on across the canal and closes it, the closed south head spans
+the canal's full outer width flush with the bank ends, and every bank carries world-scaled
+UVs. Where the canal meets the outlet both waters measure depth to the stone actually there,
+and the outlet's apron fades in over 3 m, so the seam is open water.
+Source: Nell, 2026-11-07: "Can we animate water please", "Canal end near river, end is
+fucked", "Z-fighting here also", "The other end of the canal isn't flush either."; tests in
+`src/components/exterior/WaterSurface.test.tsx` and `src/components/exterior/canalJoins.test.ts`.
+
+### D-060 · Forklifts work real loads between real places, with a driver at the wheel · [Nell] · 2026-11-07
+
+Every forklift trip now moves a load that stands somewhere before and after it
+(`src/simulation/forkliftCargoStations.ts`). FLT01 picks a pallet built at the end of the
+shipping conveyor, 12 bags, only while released flour is waiting to ship, and sets it on the
+shipping dock deck, from where it goes into the docked trailer. FLT02 carries packaging
+supplies (flat-packed sacks, banded and wrapped) from the docked grain trailer, which puts one
+pallet out per visit, to the packing-line store; grain itself stays bulk, so FLT02 no longer
+carries flour sacks inward. A pallet changes hands between station and forks at engagement and
+release; it no longer fades in or out on the forks. Every load has a visible end: a placed
+pallet slides into the trailer within 3 plant seconds, before its forklift can back out, turn
+and leave the dock lane (the truck keeps its doors open while it is in the lane); supplies at
+the store are drawn down from the top over 90 plant seconds and the bare pallet goes onto a
+stack beside it (at most six). FLT01 takes a pallet to the dock only for a truck on its way in
+or docked. An operator finishes the job in hand: with a load on the forks the spell does not end
+(the forklift does not report itself parked, so the held hour waits) until the load is delivered,
+held at the dock while its truck is on the way in, or else put back whole at the collection
+point when nothing stands there (the next pallet is built only once this one has left), or held
+at the dock until a trailer can take it; empty, no new job is started, and the operator steps
+off only with the forklift parked at its crew point, empty, forks down
+(`forkliftSpellEndTask`, `forkliftParkedForCrew`). A pick or drop reads as one is driven
+(`src/simulation/vehicles/forkliftWork.ts`): it slows to 1.5 m/s, stops a metre short with
+the forks set, creeps in, lifts or places, backs 1.6 m straight out, then turns. It waits for a
+pallet being built with its tines 3.5 m clear. Parked or held more than 2 s, it lowers its
+forks (and any load) to the floor and lifts them before moving. It stops for anyone on foot
+within 3.5 m of its route ahead (and the player walking in first person; anyone using a
+wheelchair or a long cane always counts, seated or not, with 0.4 m more room), slows within 6 m, and
+sounds its horn at most once every 20 seconds (SCADA stop code 11, `pedestrian-yield`). Its
+seated operator holds the wheel at ten and two, turns it with the steering and looks back
+over the right shoulder while backing out (`forkliftDriveCue`). The crew rules of D-002 hold:
+a forklift whose crew has not stepped stands still for 2.5 s before it falls back to working
+as if crewed; one whose operator is off when the session opens starts parked at its crew
+point; a forklift that unmounts carries on where it stood. Truck loading still runs at the
+dock's own rate (400 kg per plant second) independent of pallets, so a forklift carries one
+pallet into each truck's load rather than the whole 5 t; the dock rate stays as it is, so
+delivery deadlines are unchanged.
+Source: Nell, 2026-11-07: "Forklifts don't have anyone manning them, and don't appear to
+behave in a meaningful/intentional working fashion. Please audit and improve."; tests in
+`src/simulation/__tests__/forkliftCargoStations.test.ts`,
+`src/simulation/vehicles/forkliftWork.test.ts` and
+`src/simulation/__tests__/forkliftCrewDrive.test.ts`.
+
+### D-061 · Lottie or Edwin on the PA, and urgency that rises with a fault · [Nell] · 2026-11-07
+
+The English PA voice is Lottie, chosen by Nell by ear from rendered auditions of every
+female English voice through the tannoy filter; Bryony (D-055), picked from descriptions,
+sounded flat beside Edwin. Settings offers two voices per language as a choice that speaks
+when picked ("Hi, I'm Lottie..."): Lottie and Edwin in English, Débora and Marcelo in
+Portuguese. A voice saved from the older full list still plays. Supersedes D-055.
+Urgency follows the fault: warnings and alarms are worded with urgency ("Heads up! ...
+needs a look, please."), a fault still unresolved after 3 and 6 minutes of running clock
+is said again in rising terms ("still needs a look", "needs someone now"), and stops when
+the machine recovers; a paused or muted plant builds no urgency. Alarms are delivered at
+1.1x and warnings at 1.05x; good news is worded warmly. The Phonon 40M model has no style
+control, so urgency comes from wording and speed. The PA mode is On or Off: "Characterful"
+only differed by the filler D-054 removed, and a saved one reads as On.
+Source: Nell, 2026-11-07: "It sounds flat and shitty compared to the male voice we had.",
+"Lottie please", "Okay, yes please add urgency variations of such messages.", "offer the male
+voice we just had, as well as 'Lottie', as an option for the player please. Have it speak
+when switched"; `src/components/game/shared.test.ts`, `paVoiceCatalog.test.ts`.
+
+### D-062 · Level personnel doors beside both docks; the town hall ramp is walkable · [Nell] · 2026-11-07
+
+Each gable wall has a level personnel door beside its dock at x 37, the end of the east
+walkway (`PERSONNEL_DOORS`, `src/constants/accessibilityLayout.ts`): 1.0 m clear by 2.2 m,
+a steel frame through the plinth, a flush threshold, the leaf held open outward. The shell
+leaves the opening (`buildFactoryGlazing`, `buildFactoryLowerWallSegments`). Inside, the east
+walkway runs on to the wall with a yellow barrier along its last 5 m, an illuminated green
+exit sign over the door and a directional one where the barrier begins; outside, a lit
+bulkhead, a level landing with corner bollards, a painted green walk (the back one joins
+the paved cross path behind the hall, `REAR_CROSS_PATH`) and an assembly point 14 m out with
+its sign (`accessibility/StepFreeExits.tsx`). Both stay clear of the forklift lanes (west of
+x 1.4), dock platforms (to x 18), staging and truck paths, and each door's 3 m approach is a
+protected egress corridor (`protectedEgressApproaches`). The front and back egress markers
+move to 2 m outside these doors, (37, ±52), and those zones verify on their own step-free
+route again; the "verified on its alternative because the dock is a metre up" path is gone,
+superseding that part of D-058. A stopped forklift on a route still sends the zone to its
+alternative, and blocks it when both are blocked. The feed names the door in both languages.
+The town hall ramp is walked, not walked through: the walking height includes its flights,
+landings and both porticos, the 0.23 m step rule applies there, and the handrails and
+portico columns are solid (`townHallWalkingHeight`, `townHallBlocks`). The portico's east
+column base stands 0.12 m off the wall, so the ramp's top landing reaches the door in front
+of it, on an apron over the east end of the steps (now 3.75 m wide); the clerks' route and
+the hazard paving follow. The three civic ground lamps the ramp covered are low lights on
+its outer rail posts, 0.4 m above the surface (`RAMP_LAMP_MOUNTS`); the civic lamp shadow
+bake needs re-running for them.
+Source: Nell, 2026-11-07, best judgement on the accessibility agent's finding that the front
+and back exits run through docks a metre up; and on first-person walking passing through
+the ramp. Tests: `accessibleEgress.test.ts`, `aiAccommodation.test.ts`,
+`capsuleWalk.routes.test.ts` (ramp and door walks), `agreedAdjustments.test.ts`,
+`firstPersonSpawn.sweep.test.tsx`, `civicLampShadows.test.ts`.

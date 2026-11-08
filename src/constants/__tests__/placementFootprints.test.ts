@@ -26,6 +26,11 @@ import { sampleCommunityBus } from '../../simulation/communityLife';
 import { COMMUNITY_BUS_LAYOUT } from '../../components/scenery/CommunityTransit';
 import { SERVICE_BUILDING_ENVELOPES } from '../../components/exterior/serviceBuildingCraft';
 import {
+  WEIGHBRIDGE_DECK,
+  WEIGHBRIDGE_ISLAND,
+  WEIGHBRIDGE_OFFICE_ENVELOPE,
+} from '../../components/exterior/Weighbridge';
+import {
   apartmentFacadeLayout,
   type ApartmentFloors,
 } from '../../components/exterior/apartmentFacadeLayout';
@@ -80,18 +85,16 @@ const pointGap = (x: number, z: number, b: Box) =>
 
 // ---- Inline placements, parsed from the JSX that renders them ----
 
+// 2026-11-07: the weighbridge moved into its own module (Nell: "Weighbridge
+// looks like shit"). Its office envelope (hut, plinth, roof, canopies, steps)
+// and its kerbed island are the constants that module places from, and
+// FactoryExterior must still mount it.
 function weighbridgeOffice(): Box {
-  const m = /Weighbridge office \*\/\}\s*<group position=\{\[([^\]]+)\]\}>/.exec(EXTERIOR);
-  expect(m, 'weighbridge office placement').not.toBeNull();
-  const [x, , z] = numbers(m![1]);
-  // Its roof slab is the widest part: boxGeometry [4.5, 0.4, 3.5].
-  expect(EXTERIOR).toContain('<boxGeometry args={[4.5, 0.4, 3.5]} />');
-  return placed('weighbridge-office', [x, z], 0, {
-    minX: -2.25,
-    maxX: 2.25,
-    minZ: -1.75,
-    maxZ: 1.75,
-  });
+  expect(EXTERIOR, 'weighbridge mounted').toMatch(/<Weighbridge \/>/);
+  return { id: 'weighbridge-office', ...WEIGHBRIDGE_OFFICE_ENVELOPE };
+}
+function weighbridgeIsland(): Box {
+  return { id: 'weighbridge-island', ...WEIGHBRIDGE_ISLAND };
 }
 
 /** Shipping checkpoint: booth, both posts and both arms CLOSED (they open for trucks only). */
@@ -197,7 +200,12 @@ function glbBounds(path: string) {
 }
 
 describe('village shuttle turnaround', () => {
-  const obstacles = [weighbridgeOffice(), ...shippingCheckpoint(), busShelter()];
+  const obstacles = [
+    weighbridgeOffice(),
+    weighbridgeIsland(),
+    ...shippingCheckpoint(),
+    busShelter(),
+  ];
   const halfW = COMMUNITY_BUS_LAYOUT.width / 2,
     halfL = COMMUNITY_BUS_LAYOUT.length / 2 + 0.02;
 
@@ -218,6 +226,34 @@ describe('village shuttle turnaround', () => {
         }
     }
     for (const b of obstacles) expect(nearest.get(b.id), b.id).toBeGreaterThanOrEqual(1);
+  });
+
+  // 2026-11-07, lead review: the first deck lay where the shuttle pulls out of
+  // its stop and turns; a passenger bus must never drive on the weighbridge.
+  it('never puts the bus body on the weigh deck or its surround', () => {
+    const d = WEIGHBRIDGE_DECK;
+    const pad = d.surround + d.joint;
+    const deck: Box = {
+      id: 'weigh-deck',
+      minX: d.centreX - d.halfWidth - pad,
+      maxX: d.centreX + d.halfWidth + pad,
+      minZ: d.minZ - pad,
+      maxZ: d.maxZ + pad,
+    };
+    let nearest = Infinity;
+    for (let hour = 6; hour < 10; hour += 0.0002) {
+      const bus = sampleCommunityBus(hour);
+      if (!bus.visible) continue;
+      const c = Math.cos(bus.rotation),
+        s = Math.sin(bus.rotation);
+      for (let lx = -halfW; lx <= halfW + 1e-9; lx += halfW / 4)
+        for (let lz = -halfL; lz <= halfL + 1e-9; lz += halfL / 16)
+          nearest = Math.min(
+            nearest,
+            pointGap(bus.x + lx * c + lz * s, bus.z - lx * s + lz * c, deck)
+          );
+    }
+    expect(nearest).toBeGreaterThan(1);
   });
 
   it('paves only ground clear of the weighbridge office', () => {

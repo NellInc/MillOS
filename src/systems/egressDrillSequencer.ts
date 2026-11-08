@@ -13,6 +13,8 @@
 import { SERVICE_EGRESS_POINTS, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { MAX_GAME_SPEED, STANDARD_GAME_SPEED } from '../simulation/pace';
 import { centralTick, TICK_PRIORITY, type TickContext } from './CentralTickSystem';
+import { checkStepFreeEgress, readStoppedVehicles } from './accessibleEgress';
+import { fileEgressAccessCheck } from '../utils/aiAccommodation';
 
 /** Game seconds between verified zones: 4 real seconds at standard pace. */
 export const EGRESS_ZONE_INTERVAL_GAME_SECONDS = 4 * STANDARD_GAME_SPEED;
@@ -68,9 +70,20 @@ export function createEgressDrillSequencer(): (ctx: TickContext) => void {
 
     // startEmergencyDrill clamps totalZones, so a pending zone exists until
     // verification completes; if none does, hold rather than spin.
-    const zone = SERVICE_EGRESS_POINTS.slice(0, drillMetrics.totalZones).find(
-      (point) => !drillMetrics.verifiedZoneIds.includes(point.id)
-    );
+    // A zone is verified only with a clear step-free way out (accessibleEgress.ts):
+    // the first pending zone that has one is verified this interval, and a
+    // zone whose route and alternative are both blocked waits, saying why.
+    const vehicles = readStoppedVehicles();
+    let zone: (typeof SERVICE_EGRESS_POINTS)[number] | undefined;
+    for (const point of SERVICE_EGRESS_POINTS.slice(0, drillMetrics.totalZones)) {
+      if (drillMetrics.verifiedZoneIds.includes(point.id)) continue;
+      const access = checkStepFreeEgress(point.id, vehicles);
+      fileEgressAccessCheck(drillMetrics.startTime, access);
+      if (access.status !== 'blocked') {
+        zone = point;
+        break;
+      }
+    }
     if (!zone) return;
     state.markZoneVerified(zone.id);
     // The completion hold starts from the last verification, not mid-interval.

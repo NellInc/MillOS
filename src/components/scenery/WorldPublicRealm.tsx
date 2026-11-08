@@ -407,19 +407,34 @@ function drain(
 function villageRealm() {
   const paving = new PlotGeometry(),
     solid = new PlotGeometry();
-  VILLAGE_REALM_PATHS.forEach((p) => route(paving, p));
+  // Thresholds and margins are laid whole and the paths are cut around them,
+  // so every point of the square has one paving surface. All of it is one
+  // merged mesh at one datum and bias, where polygon offset cannot order two
+  // finishes: laid over the east path, the brick margin z-fought it for 20 m.
+  // Butted pieces meet edge to edge. Working if a ray anywhere in the square
+  // meets one paving face.
+  const finished: RealmPatch[] = [];
+  const lay = (x: number, z: number, width: number, depth: number, colour?: string) => {
+    if (colour) patch(paving, x, z, width, depth, colour);
+    else flagstones(paving, x, z, width, depth);
+    finished.push({ x, z, halfX: width / 2, halfZ: depth / 2 });
+  };
   // Shop thresholds and square margins bring the frontages into one civic room.
-  for (const z of [-10, 5]) flagstones(paving, 16.2, z, 2.5, 6.3);
-  flagstones(paving, -16.2, 30, 2.3, 6.2);
+  // The east thresholds start at the brick margin's outer edge (x 14.975).
+  for (const z of [-10, 5]) lay(16.2125, z, 2.475, 6.3);
+  lay(-16.2, 30, 2.3, 6.2);
+  // The side margins run to the cross margin's far edge (z -10.83); the cross
+  // margin stops at their inner edges (x ±14.625).
   for (const x of [-14.8, 14.8]) {
-    patch(paving, x, 4, 0.35, 29, P.brick);
+    lay(x, 3.835, 0.35, 29.33, P.brick);
     drain(solid, x, 4, 20);
   }
-  patch(paving, 0, -10.65, 29.7, 0.36, P.brick);
-  flagstones(paving, 0, 10.5, 12.8, 1.4);
+  lay(0, -10.65, 29.25, 0.36, P.brick);
+  lay(0, 10.5, 12.8, 1.4);
   // A calm central rectangle frames the fountain and markets, with open ends.
-  for (const z of [-0.7, 12.6]) patch(paving, 0, z, 23, 0.32, P.stone);
-  for (const x of [-11.5, 11.5]) patch(paving, x, 5.95, 0.32, 13, P.stone);
+  for (const z of [-0.7, 12.6]) lay(0, z, 23, 0.32, P.stone);
+  for (const x of [-11.5, 11.5]) lay(x, 5.95, 0.32, 12.98, P.stone);
+  VILLAGE_REALM_PATHS.forEach((p) => route(paving, p, flat, false, finished));
   // Churchyard enclosure. Broad gate aligns with the actual front portal.
   wall(solid, [-9.4, -50.6], [-9.4, -29], 0.68);
   wall(solid, [9.4, -50.6], [9.4, -29], 0.68);
@@ -724,9 +739,23 @@ export function createFarmCultivationGeometry(): THREE.BufferGeometry {
 function farmRealm() {
   const paving = new PlotGeometry(),
     solid = new PlotGeometry();
-  FARM_REALM_PATHS.forEach((p) => route(paving, p, flat, true));
-  // A gravel shoulder joins the barn court to the working track and windmill.
-  patch(paving, 5.3, -8.4, 8.7, 1.8, '#9a8b71');
+  // The windmill spur is cut where it meets the working track (x 6.4..9.6),
+  // as the world paths are, rather than laid over it at the same datum. Only
+  // axis-aligned paths can be cut (`outsideFinishedSurfaces`).
+  const track = FARM_REALM_PATHS[0];
+  const trackFootprint: RealmPatch = {
+    x: track.start[0],
+    z: (track.start[1] + track.end[1]) / 2,
+    halfX: track.width / 2,
+    halfZ: Math.abs(track.end[1] - track.start[1]) / 2,
+  };
+  FARM_REALM_PATHS.forEach((p) => {
+    const axisAligned = p.start[0] === p.end[0] || p.start[1] === p.end[1];
+    route(paving, p, flat, true, p !== track && axisAligned ? [trackFootprint] : []);
+  });
+  // A gravel shoulder joins the barn court to the working track and windmill,
+  // ending at the track's west edge (x 6.4) rather than lying across it.
+  patch(paving, 3.675, -8.4, 5.45, 1.8, '#9a8b71');
   wall(solid, [5.7, -10.5], [5.7, -26.4], 0.28);
   wall(solid, [10.3, -10.5], [10.3, -13.5], 0.28);
   wall(solid, [10.3, -16.5], [10.3, -26.4], 0.28);

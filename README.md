@@ -130,10 +130,11 @@ Automated emergency egress verification:
 
 Immersive walkthrough experience with:
 - **WASD movement** with collision detection against machines
-- **Q/E vertical movement** for elevated inspection
+- **Space to jump**; ladders climb with W/S
+- **E or a left click** to drive or leave a forklift in reach (R/Q raise and lower the forks)
 - **Sprint mode** (Shift key) for faster exploration
 - **Mouse look** with pointer lock controls
-- **105° FOV** for immersive factory tours
+- **75° vertical FOV**, wide without fish-eye edges
 - **Physical boundaries** preventing access beyond world edges
 
 ### Weather System
@@ -428,7 +429,7 @@ MODBUS_PORT=502
 | Input | Action |
 |-------|--------|
 | **P** | Pause/Resume production |
-| **Spacebar** | Emergency Stop (all forklifts) |
+| **X** | Emergency Stop (all forklifts) |
 | **C** | Toggle auto-rotation |
 | **F** | Toggle fullscreen |
 | **+/-** | Adjust production speed |

@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { GENERATED_ASSETS } from './normalize-model-assets.mjs';
 import { decodeRGB } from './refine-authored-png.mjs';
 import sharp from 'sharp';
+import { SCHOOL_BELL_PIVOT } from '../src/components/scenery/schoolBellGeometry';
 
 const civic = GENERATED_ASSETS.filter(
   (s) => s.preparationScript === 'scripts/blender/refine_civic_props.py'
@@ -979,9 +980,12 @@ test('v0.30 village landmarks recover their distinct silhouettes and clear entra
         expect(ray([0, 0.49, 20], [0, 0, -1]).point.z).toBeLessThan(3.14);
       } else {
         expect(size.y).toBeGreaterThan(12.7);
-        // The bell is in a real open belfry, not painted on a solid tower.
+        // A real open belfry, not painted on a solid tower. Since 2026-11-07
+        // the bell itself swings at runtime (SchoolBell), so the belfry is
+        // open right through where it hangs; its bearings stay in the GLB.
         expect(ray([0.65, 9.9, 20], [0, 0, -1])).toBeUndefined();
-        expect(ray([0, 9.8, 20], [0, 0, -1])).toBeDefined();
+        expect(ray([0, 9.8, 20], [0, 0, -1])).toBeUndefined();
+        expect(ray([0.64, 10.39, 20], [0, 0, -1])).toBeDefined();
         expect(ray([0, 1.74, 20], [0, 0, -1]).point.z).toBeLessThan(3.62);
       }
     } finally {
@@ -990,47 +994,109 @@ test('v0.30 village landmarks recover their distinct silhouettes and clear entra
   }
 });
 
-test('school bell has a front-facing inner casting and a closed crown above its open mouth', async () => {
+// 2026-11-07: the bell, headstock and clapper moved out of school.glb into the
+// runtime SchoolBell so they can swing; its casting rays live with that
+// geometry (src/components/scenery/schoolBellGeometry.test.ts). The GLB keeps
+// the two iron bearings the headstock turns in, and must leave the swing clear.
+test('school belfry keeps the yoke bearings on the runtime bell axis and its swing clear', async () => {
   const { doc, meshes } = await assembly('village-school');
   try {
     expect(doc.getRoot().listMeshes()).toHaveLength(1);
     expect(doc.getRoot().listMaterials()).toHaveLength(1);
     for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
-    // Rays originate inside the real hollow, off the central clapper. The old
-    // outer-only bell has no front-facing inner wall, so these must fail there.
-    for (const [x, z, dx, dz] of [
-      [0.2, 0.1, 1, 0],
-      [-0.2, 0.1, -1, 0],
-      [0.1, 0.2, 0, 1],
-      [0.1, -0.2, 0, -1],
-    ]) {
-      const hit = new THREE.Raycaster(
-        new THREE.Vector3(x, 9.72, z),
-        new THREE.Vector3(dx, 0, dz),
+    const cast = (origin, direction, far = 40) =>
+      new THREE.Raycaster(
+        new THREE.Vector3(...origin),
+        new THREE.Vector3(...direction),
         0,
-        0.4
+        far
       ).intersectObjects(meshes, false)[0];
-      expect(hit, 'visible inward-facing bronze casting').toBeDefined();
-      expect(hit.distance).toBeGreaterThan(0.1);
+    // Nothing baked inside the swept volume of the bell (r 0.62, y 9.4-10.3).
+    for (const y of [9.5, 9.7, 9.9, 10.1, 10.25]) {
+      expect(cast([20, y, 0], [-1, 0, 0]), `x ray at ${y}`).toBeUndefined();
+      expect(cast([0, y, 20], [0, 0, -1]), `z ray at ${y}`).toBeUndefined();
     }
-    const up = new THREE.Raycaster(
-      new THREE.Vector3(0.1, 9.74, 0.08),
-      new THREE.Vector3(0, 1, 0),
-      0,
-      0.6
-    ).intersectObjects(meshes, false)[0];
-    expect(up, 'closed inner crown').toBeDefined();
-    expect(up.point.y).toBeGreaterThan(10.2);
-    expect(up.point.y).toBeLessThan(10.3);
-    const down = new THREE.Raycaster(
-      new THREE.Vector3(0.2, 9.72, 0.1),
-      new THREE.Vector3(0, -1, 0),
-      0,
-      0.5
-    ).intersectObjects(meshes, false);
-    expect(down, 'open mouth below the inner casting').toHaveLength(0);
+    // Both bearings: their front faces, and their top and bottom straddle the
+    // runtime yoke line.
+    for (const x of [-0.64, 0.64]) {
+      const front = cast([x, SCHOOL_BELL_PIVOT[1], 20], [0, 0, -1]);
+      expect(front, `bearing at ${x}`).toBeDefined();
+      expect(front.point.z).toBeCloseTo(0.12, 2);
+      const under = cast([x, 9.5, 0], [0, 1, 0], 2);
+      expect(under.point.y).toBeLessThan(SCHOOL_BELL_PIVOT[1]);
+      expect(under.point.y).toBeGreaterThan(SCHOOL_BELL_PIVOT[1] - 0.1);
+    }
   } finally {
     dispose(meshes);
+  }
+});
+
+// 2026-11-07, Nell: "Door at town hall look fucked up." frame()'s door stiles
+// stood at +-0.25 of the width while each panel was centred at +-0.23, so a
+// dark stile ran down the middle of every panel, on every door. Doors are now
+// framed leaves (door_leaves): scan across each door at a fifth of its height
+// (inside the lower panels) and read the depth profile. A pair shows one
+// narrow joint on the centre line; every panel's field is one unbroken run,
+// centred in its bay.
+const villageDoors = {
+  townhall: { width: 2.6, height: 3.5, y: 2.55, pair: true },
+  school: { width: 1.39, height: 2.69, y: 1.46, pair: true },
+  pub: { width: 1.48, height: 2.43, y: 1.32, pair: true },
+  church: { width: 2.0, height: 3.55, y: 1.92, pair: true },
+  cottage: { width: 0.87, height: 1.87, y: 1.06, pair: false },
+};
+test('village doors hang framed leaves: one meeting joint, every panel whole', async () => {
+  for (const [slug, door] of Object.entries(villageDoors)) {
+    const { meshes } = await assembly('village-' + slug);
+    try {
+      for (const mesh of meshes) mesh.material.side = THREE.FrontSide;
+      const hu = door.width / 2 - 0.0425;
+      const y = door.y - door.height / 2 + 0.0425 + (door.height - 0.085) * 0.2;
+      const samples = [];
+      for (let u = -hu + 0.004; u <= hu - 0.004; u += 0.0025) {
+        const hit = new THREE.Raycaster(
+          new THREE.Vector3(u, y, 30),
+          new THREE.Vector3(0, 0, -1)
+        ).intersectObjects(meshes, false)[0];
+        samples.push({ u, z: hit?.point.z ?? -Infinity });
+      }
+      const members = Math.max(...samples.map((s) => s.z));
+      const runs = (match) => {
+        const out = [];
+        for (const s of samples) {
+          const last = out[out.length - 1];
+          if (!match(s)) continue;
+          if (last && s.u - last.end < 0.004) last.end = s.u;
+          else out.push({ start: s.u, end: s.u });
+        }
+        return out.map((r) => ({ ...r, centre: (r.start + r.end) / 2, width: r.end - r.start }));
+      };
+      // Raised fields sit 22 mm behind the members' common face; the open
+      // joint shows the back plate 68 mm behind it (the sunk channel round
+      // each panel bottoms out at 42 mm, so it is neither).
+      const fields = runs((s) => Math.abs(members - s.z - 0.022) < 0.0035);
+      const joints = runs((s) => members - s.z > 0.055);
+      expect(fields, `${slug} panel fields`).toHaveLength(2);
+      if (door.pair) {
+        expect(joints, `${slug} meeting joint`).toHaveLength(1);
+        expect(Math.abs(joints[0].centre), `${slug} joint on the centre line`).toBeLessThan(0.005);
+        expect(joints[0].width, `${slug} joint width`).toBeLessThan(0.012);
+        // One field per leaf, centred in its leaf.
+        for (const [field, sign] of [
+          [fields[0], -1],
+          [fields[1], 1],
+        ]) {
+          expect(Math.abs(field.centre - (sign * (hu + 0.003)) / 2), slug).toBeLessThan(0.012);
+        }
+      } else {
+        expect(joints, `${slug} has no joint`).toHaveLength(0);
+        // Two columns either side of the centre muntin, mirror images.
+        expect(Math.abs(fields[0].centre + fields[1].centre), slug).toBeLessThan(0.006);
+        expect(Math.abs(fields[0].width - fields[1].width), slug).toBeLessThan(0.006);
+      }
+    } finally {
+      dispose(meshes);
+    }
   }
 });
 

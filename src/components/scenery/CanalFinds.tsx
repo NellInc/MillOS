@@ -3,9 +3,20 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 
 type Point = readonly [number, number, number];
+/**
+ * Fished out of the canal and left on the west bank (D-046), either side of
+ * the waste bin at (-158, 70): the bicycle on its stand, the trolley upright
+ * on its casters. Both stand on the -0.02 ground datum, on the grass behind the
+ * canal walk's kerb (x -156.3), north of the cottage hedge (z 62.5) and clear
+ * of the walk, the lamps and the bin.
+ * The bicycle leans 8 degrees onto its stand (local -z), which faces west,
+ * away from the walk: Euler order YXZ leans it about its own length first.
+ */
 export const CANAL_FINDS_LAYOUT = {
-  bicycle: { position: [-147.5, 0.05, 54], rotation: [0.25, 0.7, 0.1] },
-  trolley: { position: [-143, 0.1, 36.5], rotation: [Math.PI * 0.85, 0.35, 0.2] },
+  bicycle: { position: [-157.9, 0.005, 66.8], rotation: [-0.14, Math.PI / 2, 0, 'YXZ'] },
+  trolley: { position: [-158.4, 0.32, 71.6], rotation: [0, 0.35, 0] },
+  /** Kickstand pivot by the chainstay, and its foot, in the bicycle's metres. */
+  stand: { pivot: [-0.12, 0.27, -0.05], foot: [-0.24, 0.012, -0.2] },
   wheels: [
     [-0.45, 0.35, 0],
     [0.45, 0.35, 0],
@@ -146,6 +157,8 @@ export const CANAL_BICYCLE_GEOMETRY = (() => {
     );
   }
   tube(metal, [-0.05, 0.29, -0.07], [-0.05, 0.29, 0.07], 0.014, STEEL, 6);
+  // Side stand on the non-drive side, down to the ground the frame leans on.
+  tube(metal, CANAL_FINDS_LAYOUT.stand.pivot, CANAL_FINDS_LAYOUT.stand.foot, 0.009, STEEL, 6);
   for (const side of [-1, 1]) {
     tube(
       metal,

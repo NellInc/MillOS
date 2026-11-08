@@ -48,13 +48,14 @@ describe('interlocked crisis and the incident log', () => {
   });
 });
 
-// P and the pace menu now pause and resume alike; a reload treated them apart.
-// Working if either pause survives reload as a pause.
-describe('a P pause survives reload like a menu pause', () => {
-  it('persists 0 under a shortcut hold', () => {
+// P and the pace menu pause and resume alike, and neither survives a reload:
+// the sim starts with the clock ticking (Nell, 2026-11-07, D-049).
+// Working if a reload after either pause resumes the pace that was running.
+describe('a P pause ends with its page like a menu pause', () => {
+  it('persists the pace underneath a shortcut hold', () => {
     useGameSimulationStore.getState().setGameSpeed(60);
     useGameSimulationStore.getState().holdClock('shortcut');
-    expect(persistedGameSpeed(useGameSimulationStore.getState())).toBe(0);
+    expect(persistedGameSpeed(useGameSimulationStore.getState())).toBe(60);
   });
   it('still persists the chosen pace under a tour hold', () => {
     useGameSimulationStore.getState().setGameSpeed(60);

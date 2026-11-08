@@ -22,7 +22,11 @@ import {
 import { SITE_LAYOUT, getSiloAssemblyScale } from '../constants/siteLayout';
 import { useUIStore } from '../stores/uiStore';
 import { useT } from '../i18n';
-import { forkliftPromptMessages, fpsInstructionsMessages } from './FirstPersonController.messages';
+import {
+  forkliftPromptMessages,
+  fpsInstructionsMessages,
+  interactPromptMessages,
+} from './FirstPersonController.messages';
 import {
   FIRST_PERSON_EYE_HEIGHT,
   clampNavigationDelta,
@@ -37,13 +41,28 @@ import {
   useForkliftDriveStore,
 } from '../stores/forkliftDriveStore';
 import { forkliftInReach, forkliftStepDownPoint } from '../utils/forkliftBoarding';
+import {
+  activateAimedInteractable,
+  clearAimedInteractable,
+  updateAimedInteractable,
+  useAimedInteractableStore,
+} from '../utils/worldInteractables';
+
+/** View direction scratch for the activation's aim test (no per-frame allocation). */
+const _aimDirection = new THREE.Vector3();
 
 // Movement configuration
 const MOVE_SPEED = 12; // Units per second (walking speed)
 const SPRINT_MULTIPLIER = 3.6; // Speed multiplier when sprinting (doubled for fast gameplay)
 const PLAYER_HEIGHT = FIRST_PERSON_EYE_HEIGHT;
 const PLAYER_RADIUS = 0.4; // Collision radius
-const FPS_FOV = 105; // Wide FOV for immersive first-person view
+// Vertical FOV. 105 was a fish-eye (~140 degrees across at 16:9); 75 is about
+// 106 degrees across, still wide but without stretched edges (Nell, 2026-11-07).
+const FPS_FOV = 75;
+/** Take-off speed of a Space jump, in metres per second (about 0.85 m of rise). */
+const JUMP_SPEED = 4.5;
+/** Downward acceleration while airborne, in metres per second squared. */
+const JUMP_GRAVITY = 12;
 const MOUSE_SENSITIVITY = 1.875; // Mouse look speed multiplier (increased 25%)
 
 // Shared footprints keep first-person navigation aligned with all five bins.
@@ -134,9 +153,7 @@ const exitForklift = (camera: THREE.Camera, id: string): number | null => {
   return height;
 };
 
-/** Vertical travel rate for Q/E, in units per second. */
-const VERTICAL_SPEED = 8;
-/** Ceiling for Q/E ascent, high enough to clear the roof but not the sky. */
+/** Ceiling for the eye in the air, high enough to clear the roof but not the sky. */
 const MAX_FREE_HEIGHT = 60;
 
 /**
@@ -176,6 +193,9 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   const forwardRef = useRef(new THREE.Vector3());
   const rightRef = useRef(new THREE.Vector3());
   const isLocked = useRef(false);
+  // Space asks for a jump; the frame loop takes off only from the ground.
+  const jumpRequested = useRef(false);
+  const verticalSpeed = useRef(0);
   const previousSegments = useRef(
     getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
   );
@@ -231,40 +251,69 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   // leaves movement completely dead for those users. `code` is positional and
   // identical on every layout, which is why it is the standard choice for
   // game movement. It is also immune to Shift and AltGr changing the character.
+  /**
+   * The activation: board the forklift in reach, or leave the one being driven;
+   * otherwise use what the player is looking at (the school bell). Forklifts
+   * keep precedence. E and a left click do it; F is only fullscreen (Nell,
+   * 2026-11-07). True when it acted.
+   */
+  const interact = useCallback((): boolean => {
+    const drive = useForkliftDriveStore.getState();
+    if (drive.drivenId) {
+      const height = exitForklift(camera, drive.drivenId);
+      if (height !== null) currentHeight.current = height;
+      verticalSpeed.current = 0;
+      seatedInRef.current = null;
+      drive.exit();
+      return true;
+    }
+    if (drive.inReachId) {
+      drive.board(drive.inReachId);
+      return true;
+    }
+    camera.getWorldDirection(_aimDirection);
+    return activateAimedInteractable(camera.position, _aimDirection);
+  }, [camera]);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // F boards the forklift in reach, or leaves the one being driven. With
-      // neither, F stays the fullscreen shortcut (useKeyboardShortcuts).
-      if (
-        e.code === 'KeyF' &&
-        !e.repeat &&
-        isLocked.current &&
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !e.altKey
-      ) {
-        const drive = useForkliftDriveStore.getState();
-        if (drive.drivenId) {
-          e.preventDefault();
-          const height = exitForklift(camera, drive.drivenId);
-          if (height !== null) currentHeight.current = height;
-          seatedInRef.current = null;
-          drive.exit();
-          return;
-        }
-        if (drive.inReachId) {
-          e.preventDefault();
-          drive.board(drive.inReachId);
-          return;
-        }
+      const plain = isLocked.current && !e.ctrlKey && !e.metaKey && !e.altKey;
+      // E boards the forklift in reach, or leaves the one being driven. F is
+      // left to the fullscreen shortcut (useKeyboardShortcuts) everywhere.
+      if (plain && !e.repeat && e.code === 'KeyE') {
+        e.preventDefault();
+        interact();
+        return;
+      }
+      // Space jumps (the forklift stop moved to X). Held Space does not bounce.
+      if (plain && e.code === 'Space') {
+        e.preventDefault();
+        if (!e.repeat) jumpRequested.current = true;
+        return;
+      }
+      // R raises the forks from the cab (E is the activation key there too).
+      if (plain && e.code === 'KeyR') {
+        e.preventDefault();
+        pressedKeys.add(e.code);
+        return;
       }
       if (shouldHandleNavigationKey(e)) {
         pressedKeys.add(e.code);
         if (shouldPreventNavigationDefault(e.code)) e.preventDefault();
       }
     },
-    [camera]
+    [interact]
   );
+
+  // A left click while the mouse is captured is the activation too.
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0 || !isLocked.current || !document.pointerLockElement) return;
+      if (interact()) e.preventDefault();
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    return () => window.removeEventListener('mousedown', onMouseDown);
+  }, [interact]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     pressedKeys.delete(e.code);
@@ -291,6 +340,7 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
       pressedKeys.clear();
       useForkliftDriveStore.getState().exit();
       useForkliftDriveStore.getState().setInReach(null);
+      clearAimedInteractable();
     };
   }, [handleKeyDown, handleKeyUp, handleBlur, handleVisibilityChange]);
 
@@ -319,17 +369,18 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     const keyboardIntent = getNavigationIntent(pressedKeys);
 
     // In a forklift's seat the keys are its controls and the forklift carries
-    // the camera (ForkliftSystem): W/S drive, A/D steer, Q/E lower and raise.
+    // the camera (ForkliftSystem): W/S drive, A/D steer, R/Q raise and lower.
     const drivenId = useForkliftDriveStore.getState().drivenId;
     if (drivenId) {
       seatedInRef.current = drivenId;
+      jumpRequested.current = false;
       manualForkliftInput.throttle = keyboardIntent.forward;
       manualForkliftInput.steer = keyboardIntent.strafe;
-      manualForkliftInput.lift = keyboardIntent.vertical;
+      manualForkliftInput.lift = Number(pressedKeys.has('KeyR')) - Number(pressedKeys.has('KeyQ'));
       return;
     }
     if (seatedInRef.current) {
-      // Out of the seat without F (a save restored, the forklift gone): onto
+      // Out of the seat without E (a save restored, the forklift gone): onto
       // the ground beside it, or beneath the eye where it no longer stands.
       const height = exitForklift(camera, seatedInRef.current);
       if (height === null) {
@@ -355,6 +406,9 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
           getTerrainGridSegments(useGraphicsStore.getState().graphics.quality)
         )
       );
+    // What the view ray is on, for the crosshair prompt (the school bell).
+    camera.getWorldDirection(_aimDirection);
+    updateAimedInteractable(camera.position, _aimDirection);
 
     // Get movement input
     direction.current.set(keyboardIntent.strafe, 0, -keyboardIntent.forward);
@@ -368,8 +422,9 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     const speedScale = keyboardIntent.sprint ? SPRINT_MULTIPLIER : 1;
     const speed = MOVE_SPEED * speedScale;
 
-    // Q descends, E ascends. Held separately from the horizontal direction so a
-    // diagonal walk does not dilute the climb rate when both are pressed.
+    // On a ladder Q descends (E is the activation key, so it no longer climbs;
+    // W/S do). Held apart from the horizontal direction so a diagonal walk does
+    // not dilute the climb rate when both are pressed.
     const verticalInput = keyboardIntent.vertical;
 
     // Calculate world-space movement based on camera direction
@@ -398,9 +453,11 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     if (isClimbing.current && ladderMaxHeight !== null) {
       // CLIMBING PHYSICS: W/S moves Up/Down
       const climbSpeed = speed * 0.8;
+      jumpRequested.current = false;
+      verticalSpeed.current = 0;
 
       velocity.current.y += keyboardIntent.forward * climbSpeed * movementDelta;
-      // Q/E climb the ladder too, so the vertical binding is consistent.
+      // Q climbs down the ladder too.
       velocity.current.y += verticalInput * climbSpeed * movementDelta;
 
       // Allow some horizontal movement to guide onto/off ladder
@@ -440,12 +497,14 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
       velocity.current.addScaledVector(forward, -direction.current.z * speed * movementDelta);
       velocity.current.addScaledVector(right, direction.current.x * speed * movementDelta);
 
+      // A jump keeps the walker's ground rules (no stepping onto water), and
+      // its raised feet let it hop onto a ledge a plain step could not climb.
       moveWalkingPosition(
         camera.position,
         velocity.current.x,
         velocity.current.z,
         terrainSegments,
-        walkingOnGround && verticalInput === 0,
+        true,
         PLAYER_HEIGHT,
         checkCollision
       );
@@ -454,16 +513,23 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
         PLAYER_HEIGHT +
         sampleWalkingGroundHeight(camera.position.x, camera.position.z, terrainSegments);
 
-      // Vertical: Q/E lift the eye off the ground and hold it there. Without
-      // this the next line would snap the camera straight back down, which is
-      // why an unconditional ground-snap and a fly control cannot coexist.
-      if (verticalInput !== 0) {
-        const nextHeight = THREE.MathUtils.clamp(
-          currentHeight.current + verticalInput * VERTICAL_SPEED * speedScale * movementDelta,
-          floorHeight,
+      // Space takes off from the ground. On the ground the eye stays glued to
+      // the mesh (stairs and slopes, as before); only a jump, or an eye left
+      // above the ground (a ladder top, a cab), falls under gravity.
+      if (jumpRequested.current) {
+        jumpRequested.current = false;
+        if (walkingOnGround && verticalSpeed.current === 0) verticalSpeed.current = JUMP_SPEED;
+      }
+      if (verticalSpeed.current === 0 && walkingOnGround) {
+        currentHeight.current = floorHeight;
+      } else {
+        verticalSpeed.current -= JUMP_GRAVITY * movementDelta;
+        const nextHeight = Math.min(
+          currentHeight.current + verticalSpeed.current * movementDelta,
           MAX_FREE_HEIGHT
         );
-        currentHeight.current =
+        // Roofs and shelters stop the rise, as they stopped the old fly key.
+        const clamped =
           PLAYER_HEIGHT +
           clampShelterVerticalMovement(
             camera.position.x,
@@ -471,11 +537,15 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
             currentHeight.current - PLAYER_HEIGHT,
             nextHeight - PLAYER_HEIGHT
           );
+        if (clamped < nextHeight && verticalSpeed.current > 0) verticalSpeed.current = 0;
+        currentHeight.current = clamped;
       }
 
-      // Walking follows the actual mesh; free flight keeps its chosen altitude.
-      if ((walkingOnGround && verticalInput === 0) || currentHeight.current < floorHeight)
+      // Landing: walking follows the actual mesh.
+      if (currentHeight.current <= floorHeight) {
         currentHeight.current = floorHeight;
+        verticalSpeed.current = 0;
+      }
       camera.position.y = currentHeight.current;
     }
   });
@@ -491,6 +561,7 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     pressedKeys.clear();
     resetManualForkliftInput();
     useForkliftDriveStore.getState().exit();
+    clearAimedInteractable();
     onLockChange?.(false);
 
     // Exit FPS mode when pointer lock is lost
@@ -516,17 +587,21 @@ export const FPSCrosshair: React.FC<{ touch?: boolean }> = ({ touch = false }) =
   const fpsMode = useUIStore((state) => state.fpsMode);
   const drivenId = useForkliftDriveStore((state) => state.drivenId);
   const inReachId = useForkliftDriveStore((state) => state.inReachId);
+  const aimedPrompt = useAimedInteractableStore((state) => state.prompt);
   const t = useT(forkliftPromptMessages);
+  const tInteract = useT(interactPromptMessages);
 
   if (!fpsMode) return null;
 
-  // A touch player has buttons for this (MobileControlsOverlay), not an F key.
-  const promptId = touch ? null : (drivenId ?? inReachId);
+  // A touch player has buttons for this (MobileControlsOverlay), not an E key.
+  const promptId = touch ? null : (drivenId ?? inReachId ?? aimedPrompt);
   const prompt = drivenId
     ? t('leave')
     : inReachId
       ? t('drive', { tag: FORKLIFT_FLEET_TAGS[inReachId] ?? inReachId })
-      : null;
+      : aimedPrompt
+        ? tInteract(aimedPrompt)
+        : null;
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
@@ -537,7 +612,7 @@ export const FPSCrosshair: React.FC<{ touch?: boolean }> = ({ touch = false }) =
           data-testid="forklift-drive-prompt"
           className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-8 flex items-center gap-2 rounded-lg bg-slate-900/80 px-3 py-1.5 text-sm text-white"
         >
-          <kbd className="px-2 py-0.5 bg-slate-700 rounded font-mono">F</kbd>
+          <kbd className="px-2 py-0.5 bg-slate-700 rounded font-mono">E</kbd>
           <span>{prompt}</span>
         </div>
       )}
@@ -642,10 +717,11 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
 
           <div className="bg-slate-800/50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
-              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">Q</kbd>
-              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">E</kbd>
+              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">
+                {t('keySpace')}
+              </kbd>
             </div>
-            <span className="text-slate-400 text-sm">{t('moveDownUp')}</span>
+            <span className="text-slate-400 text-sm">{t('jump')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3">
@@ -666,7 +742,10 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
 
           <div className="bg-slate-800/50 rounded-lg p-3">
             <div className="flex items-center gap-2 mb-2">
-              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">F</kbd>
+              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">E</kbd>
+              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">
+                {t('keyClick')}
+              </kbd>
             </div>
             <span className="text-slate-400 text-sm">{t('forklift')}</span>
           </div>

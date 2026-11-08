@@ -6,12 +6,14 @@ export const fpsInstructionsMessages = defineMessages({
     captureFailed: 'Mouse capture unavailable. Click to retry or press V to leave.',
     clickToEnter: 'Click anywhere to enter first-person exploration mode',
     moveAround: 'Move around',
-    moveDownUp: 'Move down / up',
+    jump: 'Jump',
     mouse: 'Mouse',
     lookAround: 'Look around',
     sprint: 'Sprint',
     exitFirstPerson: 'Exit first-person',
-    forklift: 'Drive or leave a forklift',
+    forklift: 'Drive or leave a forklift, ring the school bell',
+    keyClick: 'Click',
+    keySpace: 'Space',
     returnToOverview: 'Return to overview',
     pressEsc: 'Press ESC anytime to return to orbit camera',
   },
@@ -21,12 +23,14 @@ export const fpsInstructionsMessages = defineMessages({
       'Captura do mouse indisponível. Clique para tentar de novo ou pressione V para sair.',
     clickToEnter: 'Clique em qualquer lugar para entrar no modo de exploração em primeira pessoa',
     moveAround: 'Mover-se',
-    moveDownUp: 'Descer / subir',
+    jump: 'Pular',
     mouse: 'Mouse',
     lookAround: 'Olhar ao redor',
     sprint: 'Correr',
     exitFirstPerson: 'Sair da visão em primeira pessoa',
-    forklift: 'Dirigir ou descer da empilhadeira',
+    forklift: 'Dirigir ou descer da empilhadeira, tocar o sino da escola',
+    keyClick: 'Clique',
+    keySpace: 'Espaço',
     returnToOverview: 'Voltar à visão geral',
     pressEsc: 'Pressione ESC a qualquer momento para voltar à câmera orbital',
   },
@@ -44,5 +48,15 @@ export const forkliftPromptMessages = defineMessages({
     leave: 'Descer',
     raiseForks: 'Erguer garfos',
     lowerForks: 'Baixar garfos',
+  },
+});
+
+/** Crosshair prompts for world targets (`utils/worldInteractables`), after E. */
+export const interactPromptMessages = defineMessages({
+  en: {
+    ringBell: 'Ring the school bell',
+  },
+  'pt-BR': {
+    ringBell: 'Tocar o sino da escola',
   },
 });

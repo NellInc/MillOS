@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   capitalizeIn,
   createTranslator,
@@ -51,6 +51,19 @@ describe('locale detection', () => {
     window.localStorage.setItem(LOCALE_STORAGE_KEY, 'fr');
     window.history.replaceState(null, '', '/');
     expect(detectLocale()).toBe('en');
+  });
+
+  // Nell, 2026-11-07: English 100% by default. A Portuguese browser alone
+  // must not switch the interface; only ?lang= or a saved choice does.
+  it('ignores the browser language list', () => {
+    const languages = vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['pt-BR', 'en']);
+    const language = vi.spyOn(navigator, 'language', 'get').mockReturnValue('pt-BR');
+    try {
+      expect(detectLocale()).toBe('en');
+    } finally {
+      languages.mockRestore();
+      language.mockRestore();
+    }
   });
 
   it('saves the choice and labels the document', () => {

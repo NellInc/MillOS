@@ -20,6 +20,7 @@ import {
   CIVIC_ENTRY_LANTERN_GEOMETRY,
 } from './VillageSignage';
 import { NodeIO } from '@gltf-transform/core';
+import { TRAILER_ACCENT_BANDS, TRAILER_IDENTITY_PANEL } from '../truckbay/OptimizedTruckBay';
 import { describe, expect, it } from 'vitest';
 
 describe('delivered heritage print', () => {
@@ -67,17 +68,18 @@ describe('delivered heritage print', () => {
   });
 
   it('seats both trailer panels outside the accent strip that previously obscured them', () => {
+    // 2026-11-07: the panel and band sizes moved into exported constants
+    // (TRAILER_IDENTITY_PANEL, TRAILER_ACCENT_BANDS) the JSX reads; this checks
+    // the same clearance on them instead of on the JSX literals.
     const source = readFileSync('src/components/truckbay/OptimizedTruckBay.tsx', 'utf8');
-    const panels = [
-      ...source.matchAll(
-        /name="trailer-identity-(?:left|right)"\s+position=\{\[(-?[\d.]+), 2.55, -5.65\]\}/g
-      ),
-    ];
-    expect(panels).toHaveLength(2);
-    for (const panel of panels)
-      expect(Math.abs(Number(panel[1])) - 0.035 / 2).toBeGreaterThan(1.3 + 0.06 / 2);
-    expect(source.match(/scale=\{\[8.2, 2.05, 0.035\]\}/g)).toHaveLength(2);
-    expect(source.match(/scale=\{\[0.06, 0.56, 9.6\]\}/g)).toHaveLength(2);
+    expect(source.match(/name="trailer-identity-(?:left|right)"/g)).toHaveLength(2);
+    expect(source.match(/scale=\{\[\.\.\.TRAILER_IDENTITY_PANEL\.scale\]\}/g)).toHaveLength(2);
+    expect(TRAILER_IDENTITY_PANEL.scale).toEqual([8.2, 2.05, 0.035]);
+    expect(TRAILER_ACCENT_BANDS).toHaveLength(2);
+    for (const band of TRAILER_ACCENT_BANDS)
+      expect(TRAILER_IDENTITY_PANEL.x - TRAILER_IDENTITY_PANEL.scale[2] / 2).toBeGreaterThan(
+        Math.abs(band.position[0]) + band.scale[0] / 2
+      );
   });
 
   it('restores distinct shop identities and removes the obsolete school burial', () => {

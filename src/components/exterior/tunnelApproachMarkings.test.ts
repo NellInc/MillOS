@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { SITE_LAYOUT, STATION_ROAD_EDGE_SEGMENTS } from '../../constants/siteLayout';
+import { RAILWAY_ROAD_VALLEY_EDGE_SEGMENTS } from '../../constants/railwayRoadLayout';
 import { ROAD_TUNNEL_BORE, ROAD_TUNNEL_ROAD } from '../scenery/Tunnel';
 import {
   approachEdgeLines,
@@ -21,7 +22,11 @@ const ROADS = [
         -APPROACH_EDGE_OFFSET,
         STATION_ROAD_EDGE_SEGMENTS
       ),
-      approachEdgeLines(SITE_LAYOUT.roadTunnels.south, APPROACH_EDGE_OFFSET, [[110, 280]]),
+      approachEdgeLines(
+        SITE_LAYOUT.roadTunnels.south,
+        APPROACH_EDGE_OFFSET,
+        RAILWAY_ROAD_VALLEY_EDGE_SEGMENTS
+      ),
     ],
   },
   {

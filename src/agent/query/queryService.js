@@ -244,7 +244,7 @@ export function createAgentQueryService(dependencies) {
             link('domain', 'millos://query/domain/evidence', 'Inspect bounded evidence state'),
             link('capabilities', 'millos://query/capabilities', 'Inspect capabilities'),
           ],
-          'partial'
+          snapshot.capture.completeness === 'degraded' ? 'degraded' : 'partial'
         ),
         configured.level1MaximumBytes,
         'evidence'

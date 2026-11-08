@@ -43,6 +43,8 @@ import { applyVehicleSurface } from '../../utils/vehicleSurface';
 import { applyWorldSurface } from '../../utils/worldSurface';
 import { PROCEDURAL_TEXTURES } from '../../utils/sharedMaterials';
 import { RENDER_ORDER } from '../../constants/renderLayers';
+import type { ForkliftLoadKind } from '../../simulation/forkliftCargoStations';
+import { SuppliesLoad } from './forkliftLoads';
 import {
   getFlourPalletGeometry,
   getFlourSackMaterial,
@@ -280,7 +282,21 @@ interface ForkliftModelProps {
   outerSteeringAngleRef?: React.MutableRefObject<number>;
   /** Road/mill-floor film strength, 0..1. Per fleet vehicle, not shared. */
   grime?: number;
+  /** What it carries: finished flour out, or packaging supplies in. */
+  load?: ForkliftLoadKind;
 }
+
+/** The vehicle's own load, the same at every detail tier. */
+const CarriedLoad: React.FC<{
+  load?: ForkliftLoadKind;
+  opacity?: number;
+  materialRefs?: React.MutableRefObject<THREE.MeshStandardMaterial[]>;
+}> = ({ load = 'flour', opacity, materialRefs }) =>
+  load === 'supplies' ? (
+    <SuppliesLoad />
+  ) : (
+    <FlourPallet opacity={opacity} materialRefs={materialRefs} />
+  );
 
 /** The same carried product at every detail tier, with per-vehicle fading. */
 const FlourPallet: React.FC<{
@@ -672,6 +688,7 @@ const setCompactInstances = (
 
 const CompactForklift: React.FC<ForkliftModelProps> = ({
   cargoPresenceRef,
+  load,
   forkHeightRef,
   mastTiltRef,
   steeringAngleRef,
@@ -862,7 +879,9 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
       <mesh
         geometry={compactForkliftGeometry.steeringWheel}
         material={compactForkliftMaterial.dark}
-        position={[0, 1.33, -0.28]}
+        // Where its operator's hands reach it (forkliftCrew.ts
+        // FORKLIFT_OPERATOR_WHEEL): at z -0.28 it stood in their lap.
+        position={[0, 1.3, -0.08]}
         rotation={[-0.38, 0, 0]}
         castShadow
         receiveShadow
@@ -910,7 +929,8 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
             position={COMPACT_FORK_LOAD.palletPosition}
             visible={(cargoPresenceRef?.current ?? 0) > 0.01}
           >
-            <FlourPallet
+            <CarriedLoad
+              load={load}
               opacity={cargoPresenceRef?.current ?? 0}
               materialRefs={cargoMaterialsRef}
             />
@@ -1016,6 +1036,7 @@ const measureWheelRadius = (node: THREE.Object3D): number => {
 
 const GLTFForklift: React.FC<ForkliftModelProps> = ({
   cargoPresenceRef,
+  load,
   isMoving,
   forkHeightRef,
   mastTiltRef,
@@ -1248,7 +1269,11 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
           position={AUTHORED_PALLET_POSITION}
           visible={(cargoPresenceRef?.current ?? 0) > 0.01}
         >
-          <FlourPallet opacity={cargoPresenceRef?.current ?? 0} materialRefs={cargoMaterialsRef} />
+          <CarriedLoad
+            load={load}
+            opacity={cargoPresenceRef?.current ?? 0}
+            materialRefs={cargoMaterialsRef}
+          />
         </group>
       </group>
     </group>
@@ -1261,6 +1286,7 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
 // Procedural fallback (improved from original)
 const ProceduralForklift: React.FC<ForkliftModelProps> = ({
   cargoPresenceRef,
+  load,
   forkHeightRef,
   mastTiltRef,
   steeringAngleRef,
@@ -1579,7 +1605,11 @@ const ProceduralForklift: React.FC<ForkliftModelProps> = ({
           position={[0, 0.06, 0.7]}
           visible={(cargoPresenceRef?.current ?? 0) > 0.01}
         >
-          <FlourPallet opacity={cargoPresenceRef?.current ?? 0} materialRefs={cargoMaterialsRef} />
+          <CarriedLoad
+            load={load}
+            opacity={cargoPresenceRef?.current ?? 0}
+            materialRefs={cargoMaterialsRef}
+          />
         </group>
       </group>
     </group>
@@ -1603,7 +1633,7 @@ const DetailedForkliftModel: React.FC<ForkliftModelProps> = (props) => {
 
 // Main export. Low keeps the compact fallback. Medium and above use the
 // normalized authored vehicle so the default experience has a credible
-// uncrewed control station, mast, tyres, and hydraulic hardware.
+// control station for its operator, mast, tyres, and hydraulic hardware.
 export const ForkliftModel: React.FC<ForkliftModelProps> = (props) => {
   const quality = useGraphicsStore((state) => state.graphics.quality);
 

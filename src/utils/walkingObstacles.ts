@@ -7,6 +7,7 @@ import {
 } from '../constants/siteLayout';
 import { CANAL_FOOTBRIDGE_ACCESS } from '../constants/publicRealmLayout';
 import { RIVERBANK_HEDGE_TRANSLATION_XZ } from '../components/exterior/riverbankHedgeGrounding';
+import { facilityWalkingSolids } from '../components/facilities/facilityLayout';
 
 /**
  * WALKING SOLIDS THE OTHER PREDICATES DO NOT KNOW.
@@ -25,8 +26,9 @@ import { RIVERBANK_HEDGE_TRANSLATION_XZ } from '../components/exterior/riverbank
  * rule) and none is overhead. Openings are what the geometry leaves open: each
  * garden gate (1.63 m between the pillar caps), each allotment gate, the
  * cottage front-door approach up to the wall face, the perimeter's vehicle
- * gates and its canal pedestrian gate. The shop is closed on every side: its
- * frontage is glazed and its side door is shut.
+ * gates and its canal pedestrian gate. The station shop's glazed frontage is
+ * closed; its side door stands open, so the shop is walked as its walls and
+ * fixtures.
  *
  * Where a datum is exported it is used (plots, allotment, perimeter line,
  * station site, footbridge, landscape hedges). Plot-, allotment- and
@@ -197,14 +199,41 @@ export const PERIMETER_FENCE_RUNS: readonly (readonly [
 /**
  * The gas-station shop in station-local metres (`GasStation`'s group, which
  * `FactoryExterior` mounts at `GAS_STATION_SITE.position` with yaw 0). The
- * shell is the `[-12, 0, 0]` group's walls: back wall outer face x -16, glazed
- * frontage x -8.0 with its mullions and kickplate to -7.904, side walls to
- * z ±5.0. The side door (z 5) is closed; its jambs stand to z 5.08.
+ * shell is the envelope of the `[-12, 0, 0]` group's walls: back wall outer
+ * face x -16, glazed frontage x -8.0 with its mullions and kickplate to
+ * -7.904, side walls to z ±5.0. The shop is entered through its open side
+ * door, so the shell is walked as its walls (0.2 m thick; the glazing box is
+ * x -8.2..-8.0) and the interior as its fixtures. The doorway is the gap
+ * between the north wall's piers (x -12.64..-11.36), narrowed only by its
+ * jambs (inner faces -12.61 and -11.39, standing to z 5.08) and the open leaf
+ * (`STATION_DOOR_LEAF` in GasStationInstanced: x -12.64..-12.495 with its
+ * pull, z 3.59..4.79). Fixtures are their delivered GLBs' footprints at their
+ * mounted positions (counter 1.6 x 2.6, shelving 0.65 x 6, coffee machine 0.8
+ * x 0.8, slushie 0.7 x 0.5, grill 0.6 x 0.5, magazine rack 0.8 x 0.4), the
+ * drinks cabinet from its frame and glass front, and the snack endcap from
+ * `StationTravelStop`'s shelves.
  */
 export const STATION_SHOP_LOCAL = {
   yaw: 0,
   shell: { minX: -16, maxX: -7.904, minZ: -5, maxZ: 5 },
-  doorSurround: { minX: -12.71, maxX: -11.29, minZ: 5, maxZ: 5.08 },
+  solids: [
+    { id: 'back-wall', minX: -16, maxX: -15.8, minZ: -5, maxZ: 5 },
+    { id: 'south-wall', minX: -16, maxX: -7.904, minZ: -5, maxZ: -4.8 },
+    { id: 'frontage', minX: -8.2, maxX: -7.904, minZ: -5, maxZ: 5 },
+    { id: 'north-wall-west', minX: -16, maxX: -12.64, minZ: 4.8, maxZ: 5 },
+    { id: 'north-wall-east', minX: -11.36, maxX: -7.904, minZ: 4.8, maxZ: 5 },
+    { id: 'door-jamb-west', minX: -12.71, maxX: -12.61, minZ: 4.95, maxZ: 5.08 },
+    { id: 'door-jamb-east', minX: -11.39, maxX: -11.29, minZ: 4.95, maxZ: 5.08 },
+    { id: 'door-leaf', minX: -12.64, maxX: -12.495, minZ: 3.59, maxZ: 4.79 },
+    { id: 'counter', minX: -9.8, maxX: -8.2, minZ: -2.3, maxZ: 0.3 },
+    { id: 'shelving', minX: -15.15, maxX: -14.5, minZ: -3, maxZ: 3 },
+    { id: 'drinks-cabinet', minX: -14.02, maxX: -9.98, minZ: -4.8, maxZ: -3.52 },
+    { id: 'coffee-machine', minX: -9.96, maxX: -9.16, minZ: -3.9, maxZ: -3.1 },
+    { id: 'slushie', minX: -10.52, maxX: -9.82, minZ: -2.25, maxZ: -1.75 },
+    { id: 'grill', minX: -10.3, maxX: -9.7, minZ: -0.75, maxZ: -0.25 },
+    { id: 'magazine-rack', minX: -10.9, maxX: -10.1, minZ: 2.8, maxZ: 3.2 },
+    { id: 'snack-endcap', minX: -13.62, maxX: -13.08, minZ: 0.45, maxZ: 1.65 },
+  ],
 } as const;
 
 /**
@@ -644,8 +673,7 @@ function buildWalkingObstacles(): WalkingSolid[] {
   solids.push(...perimeterSolids());
   const toStation = groupToParent(GAS_STATION_SITE.position, STATION_SHOP_LOCAL.yaw);
   solids.push(
-    worldBox('station-shop', STATION_SHOP_LOCAL.shell, toStation),
-    worldBox('station-shop-door-surround', STATION_SHOP_LOCAL.doorSurround, toStation),
+    ...STATION_SHOP_LOCAL.solids.map((box) => worldBox(`station-shop-${box.id}`, box, toStation)),
     // The ice chest and vending machine stand against the south wall
     // (GasStationInstanced, 2026-11-06), outside the shop shell at z -5.
     worldBox(
@@ -660,6 +688,9 @@ function buildWalkingObstacles(): WalkingSolid[] {
     )
   );
   solids.push(...villageCivicSolids(), ...hedgeSolids());
+  // The staff facilities in the hall: walls with their doorways left open,
+  // the open door leaves and the larger fittings (facilityLayout.ts).
+  solids.push(...facilityWalkingSolids());
   return solids;
 }
 

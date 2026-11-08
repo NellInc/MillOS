@@ -93,11 +93,10 @@ describe('on-device operator notices follow the language', () => {
     for (let i = 0; i < 8; i++) await settle();
     const line = useAnnouncementsStore.getState().announcements[0];
     expect(line).toBeDefined();
-    expect(keyedText(line!.copy, line!.message)).toContain('acknowledged and mitigated');
+    expect(keyedText(line!.copy, line!.message)).toBe('Site power sag. The AI has dealt with it.');
     setLocale('pt-BR');
     const caption = keyedText(line!.copy, line!.message);
-    expect(caption).toContain('IA no dispositivo');
-    expect(caption).toContain('reconhecida e mitigada');
+    expect(caption).toBe('Queda de tensão na unidade. A IA já resolveu.');
   });
 
   it('reads a stand-down notice in Portuguese after the switch', async () => {

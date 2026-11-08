@@ -282,6 +282,14 @@ export const RENDER_ORDER = {
 
   /** Water floating objects (lily pads, etc.) */
   waterFloating: 9,
+
+  /**
+   * Airborne smoke and steam (the engine's plume). One instanced mesh sorts
+   * by its own origin, not by its puffs, so it takes a fixed slot after the
+   * water and ground layers it drifts over, which would otherwise paint over
+   * it (it writes no depth).
+   */
+  steamPlume: 12,
 } as const;
 
 /**

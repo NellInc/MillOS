@@ -15,6 +15,7 @@ import {
 import { STAGING_LAYOUT } from '../components/truckbay/palletStagingLayout';
 import { hallDressingSolids } from '../components/infrastructure/hallDressingLayout';
 import { DOCK_DECK_FORK_HEIGHT } from '../constants/dockLoading';
+import { PERSONNEL_DOORS } from '../constants/accessibilityLayout';
 import {
   createRoundedForkliftRoute,
   FORKLIFT_CORNER_SETBACK,
@@ -141,12 +142,14 @@ export function stagingBounds(dock: Dock, origin: Vec3Tuple): PlanningBounds {
       };
 }
 
-/** Dedicated 3 m pedestrian approaches at docks; full service-exit approaches.
+/** Dedicated 3 m pedestrian approaches at docks; full service-exit approaches;
+ * and the 3 m walkway to each step-free personnel door beside a dock, 8 m
+ * either side of its wall (PERSONNEL_DOORS, 2026-11-07).
  * Working if a fixed staging proposal cannot occupy these protected corridors.
  * Vehicle crossings remain transient conflicts, never an evacuation certificate.
  */
 export function protectedEgressApproaches(): Array<PlanningBounds & { id: string }> {
-  return Object.values(SITE_LAYOUT.portals).map((portal) => {
+  const portals = Object.values(SITE_LAYOUT.portals).map((portal) => {
     const [x, , z] = portal.centre;
     const depth = portal.transitionDepth;
     const width = portal.id.endsWith('service') ? portal.halfWidth : 1.5;
@@ -154,6 +157,14 @@ export function protectedEgressApproaches(): Array<PlanningBounds & { id: string
       ? { id: portal.id, minX: x - depth, maxX: x + depth, minZ: z - width, maxZ: z + width }
       : { id: portal.id, minX: x - width, maxX: x + width, minZ: z - depth, maxZ: z + depth };
   });
+  const doors = PERSONNEL_DOORS.map((door) => ({
+    id: `${door.id}-personnel-door`,
+    minX: door.x - 1.5,
+    maxX: door.x + 1.5,
+    minZ: door.wallZ - 8,
+    maxZ: door.wallZ + 8,
+  }));
+  return [...portals, ...doors];
 }
 
 /**

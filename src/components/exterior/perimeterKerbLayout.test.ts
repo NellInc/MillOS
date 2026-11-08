@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
+import { RAILWAY_ROAD_WAYS } from '../../constants/railwayRoadLayout';
 import { SPLAT_BOUNDS, TerrainChannel } from '../terrain/terrainTypes';
 import {
   generateSplatMap,
@@ -57,7 +58,14 @@ async function factoryExteriorPaths() {
       };
     }
   );
-  return [...literal, ...spread];
+  // The railway road (D-047) is its own mesh, mounted as `<RailwayRoad />`.
+  expect(source).toContain('<RailwayRoad />');
+  const railwayRoad = RAILWAY_ROAD_WAYS.map(({ start, end, width }) => ({
+    start: [start[0], start[2]] as const,
+    end: [end[0], end[2]] as readonly [number, number],
+    width,
+  }));
+  return [...literal, ...spread, ...railwayRoad];
 }
 
 /** Where a segment crosses (or touches within its half-width) a kerb run's line. */

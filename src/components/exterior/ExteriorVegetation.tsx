@@ -885,9 +885,11 @@ export const PARKLAND_BENCHES: BenchInstanceData[] = [
 // ============================================================
 
 export const FRONT_PARKLAND_TREES: TreeInstanceData[] = [
-  // Group position [75, 0, 100] + relative positions
-  { position: [67, 0, 95], scale: 1.2 }, // [-8, 0, -5] relative
-  { position: [81, 0, 92], scale: 0.9 }, // [6, 0, -8] relative
+  // They stood at (67, 95) and (81, 92), where the railway road (D-047) now
+  // runs (z 91.25-96.75). Moved south of it, either side of the paddock
+  // (x 60-80, north rail z 99), still facing the two benches.
+  { position: [55.5, 0, 100], scale: 1.2 },
+  { position: [86.5, 0, 99.5], scale: 0.9 },
 ];
 
 export const FRONT_PARKLAND_BENCHES: BenchInstanceData[] = [

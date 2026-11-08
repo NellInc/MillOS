@@ -33,6 +33,11 @@ import {
   railwayStationBlocks,
   railwayStationWalkingHeight,
 } from '../constants/railwayLayout';
+import {
+  nearTownHall,
+  townHallBlocks,
+  townHallWalkingHeight,
+} from '../constants/accessibilityLayout';
 
 const site = SITE_LAYOUT.landmarks.castle;
 const c = Math.cos(site.rotation[1]),
@@ -153,6 +158,9 @@ export function sampleWalkingGroundHeight(x: number, z: number, segments: number
   if (riverBridge !== null) return Math.max(terrain, riverBridge);
   const bridge = canalBridgeWalkingHeight(x, z);
   if (bridge !== null) return Math.max(terrain, bridge);
+  // The town hall's ramp, its landings and both porticos (D-058).
+  const townHall = townHallWalkingHeight(x, z);
+  if (townHall !== null) return Math.max(terrain, townHall);
   if (!nearCastle(x, z)) return terrain;
   const [lx, lz] = castleLocalPosition(x, z);
   const stair = stairHeight(lx, lz) ?? approachHeight(lx, lz, segments);
@@ -232,7 +240,8 @@ export function walkingBlocks(
   return (
     castleBlocks(x, z, feet, radius) ||
     busShelterBlocks(x, z, feet, radius, bodyHeight) ||
-    railwayStationBlocks(x, z, feet, radius, bodyHeight)
+    railwayStationBlocks(x, z, feet, radius, bodyHeight) ||
+    townHallBlocks(x, z, feet, radius)
   );
 }
 
@@ -277,7 +286,9 @@ export function moveWalkingPosition(
           nearRiverFootbridge(x, z) ||
           nearRiverFootbridge(position.x, position.z) ||
           nearRailwayStation(x, z) ||
-          nearRailwayStation(position.x, position.z)) &&
+          nearRailwayStation(position.x, position.z) ||
+          nearTownHall(x, z) ||
+          nearTownHall(position.x, position.z)) &&
         Math.abs(floor - feet) > 0.23
       )
         continue;

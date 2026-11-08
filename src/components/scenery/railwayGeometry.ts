@@ -37,11 +37,16 @@ export class RailwayGeometry {
     return this;
   }
 
-  /** Axis-aligned box from its two corners. */
-  span(min: V3, max: V3, colour: string): this {
+  /**
+   * Axis-aligned box from two opposite corners, in either order. A negative
+   * size makes `BoxGeometry` inside out (each face lands on the far side with
+   * its winding reversed), so a mirrored `side * a .. side * b` call drew the
+   * engine's left tank as its own inner wall, with the boiler showing through.
+   */
+  span(a: V3, b: V3, colour: string): this {
     return this.box(
-      [max[0] - min[0], max[1] - min[1], max[2] - min[2]],
-      [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2],
+      [Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]), Math.abs(b[2] - a[2])],
+      [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2],
       colour
     );
   }

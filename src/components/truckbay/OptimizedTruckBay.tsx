@@ -9,6 +9,7 @@ import {
 } from '../scenery/HeritageSignage';
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { selectSafetyHoldActive, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
@@ -385,6 +386,51 @@ interface TruckVisualProps {
   readonly loadRatio?: number;
 }
 
+/**
+ * Signwriting panel centre (|x|, y, z) and its box scale BEFORE the quarter
+ * turn about y: 8.2 m along the trailer, 2.05 m tall, 3.5 cm thick across it.
+ */
+export const TRAILER_IDENTITY_PANEL = {
+  x: 1.35,
+  y: 2.55,
+  z: -5.65,
+  scale: [8.2, 2.05, 0.035],
+} as const;
+
+/** Accent bands along both trailer sides, under the signwriting. */
+export const TRAILER_ACCENT_BANDS: readonly DetailInstance[] = [-1.3, 1.3].map((x) => ({
+  position: [x, 2.45, -5.35] as const,
+  scale: [0.06, 0.56, 9.6] as const,
+}));
+
+/** The cab's flat parts that are not driven by a layout table elsewhere. */
+export const TRUCK_CAB_PARTS = {
+  /** Roof fairing base (rounded) in the accent colour. */
+  roofAccent: { position: [0, 3.74, 3.08], scale: [2.7, 0.32, 3.15] },
+  backWall: { position: [0, 2.78, 1.48], scale: [2.55, 1.62, 0.18] },
+  pillars: [-1.18, 1.18].flatMap((x) =>
+    [4.83, 1.58].map((z) => ({
+      // Up from 1.98, not 1.97: the back wall's underside is at 1.97.
+      position: [x, 2.725, z] as const,
+      scale: [0.18, 1.49, 0.18] as const,
+    }))
+  ),
+  windscreen: { position: [0, 2.55, 4.91], scale: [2.18, 1.25, 0.06] },
+  windscreenBar: { position: [0, 2.55, 4.96], scale: [0.09, 1.28, 0.08] },
+  /** Rounded. */
+  bumper: { position: [0, 0.68, 4.78], scale: [2.7, 0.28, 0.38] },
+  mirrorHeads: [-1.55, 1.55].map((x) => ({
+    position: [x, 2.62, 4.05] as const,
+    scale: [0.06, 0.68, 0.26] as const,
+  })),
+  tankStraps: [-1, 1].flatMap((side) =>
+    [1.05, 2.15].map((z) => ({
+      position: [side * 0.92, 0.72, z] as const,
+      scale: [0.8, 0.05, 0.08] as const,
+    }))
+  ),
+} as const satisfies Record<string, DetailInstance | readonly DetailInstance[]>;
+
 function TruckIdentityDecals({
   company,
   plateNumber,
@@ -465,18 +511,18 @@ function TruckIdentityDecals({
         geometry={UNIT_BOX}
         material={material}
         name="trailer-identity-left"
-        position={[-1.35, 2.55, -5.65]}
+        position={[-TRAILER_IDENTITY_PANEL.x, TRAILER_IDENTITY_PANEL.y, TRAILER_IDENTITY_PANEL.z]}
         rotation={[0, -Math.PI / 2, 0]}
-        scale={[8.2, 2.05, 0.035]}
+        scale={[...TRAILER_IDENTITY_PANEL.scale]}
         receiveShadow
       />
       <mesh
         geometry={UNIT_BOX}
         material={material}
         name="trailer-identity-right"
-        position={[1.35, 2.55, -5.65]}
+        position={[TRAILER_IDENTITY_PANEL.x, TRAILER_IDENTITY_PANEL.y, TRAILER_IDENTITY_PANEL.z]}
         rotation={[0, Math.PI / 2, 0]}
-        scale={[8.2, 2.05, 0.035]}
+        scale={[...TRAILER_IDENTITY_PANEL.scale]}
         receiveShadow
       />
     </>
@@ -523,7 +569,7 @@ const applyDetailInstances = (
 // dock deck is built to (TRAILER_BED_Y, constants/dockLoading).
 // ---------------------------------------------------------------------------
 
-const TRAILER_SKIN_DETAILS: readonly DetailInstance[] = [
+export const TRAILER_SKIN_DETAILS: readonly DetailInstance[] = [
   // Wheel arches over each tandem axle. Width spans x 1.245-1.595, which
   // reaches past the outer tyre face at 1.57 - a fender narrower than its tyre
   // is worse than none, because it draws the eye to the overhang.
@@ -541,7 +587,7 @@ export const TRAILER_UNDERRIDE_GUARD: DetailInstance = {
   scale: [2.4, 0.18, 0.12],
 };
 
-const TRAILER_FRAME_DETAILS: readonly DetailInstance[] = [
+export const TRAILER_FRAME_DETAILS: readonly DetailInstance[] = [
   // Sliding tandem slide rails.
   { position: [-1.05, 0.42, -6.7], scale: [0.14, 0.2, 5.6] },
   { position: [1.05, 0.42, -6.7], scale: [0.14, 0.2, 5.6] },
@@ -551,8 +597,132 @@ const TRAILER_FRAME_DETAILS: readonly DetailInstance[] = [
   { position: [0.85, 0.9, -11.58], scale: [0.12, 0.74, 0.1] },
 ];
 
-/** Closed rear door leaves (one each side of the centre line), 0.1 m thick. */
-export const TRAILER_REAR_DOOR = { z: -11.38, depth: 0.1 } as const;
+/**
+ * Closed rear door leaves (one each side of the centre line), 0.1 m thick.
+ * Each leaf hangs from the corner post's inner face (`hingeX`) and runs to
+ * 2 cm short of the centre line.
+ *
+ * THE SLOTS, NOT A COPLANAR PAIR (2026-11-07). From the yard the doors showed
+ * dots and broken seams that crawled as the truck moved. Nothing at the rear is
+ * flush: the leaves' outer face stands 8 cm proud of the trailer end (z -11.43
+ * against -11.35). What flickered were two open slots: the 4 cm
+ * centre gap and the 2 cm gap between each leaf and its corner post, through
+ * which the shaded trailer end showed. At 18-30 m a 4 cm slot is about one
+ * pixel, so it rasterised as a dotted line that broke up under any movement.
+ * The leaves now reach the posts, and the right leaf carries the astragal that
+ * covers the centre gap (`TRAILER_DOOR_HARDWARE`), as on a real box trailer.
+ */
+export const TRAILER_REAR_DOOR = {
+  z: -11.38,
+  depth: 0.1,
+  /** |x| of each leaf's hinge line: the corner posts' inner face. */
+  hingeX: 1.28,
+  /** Leaf width, from the hinge line to 2 cm short of the centre. */
+  width: 1.26,
+  centreY: 2.45,
+  height: 3.78,
+} as const;
+
+/** Door hardware: rods, guides, handles and hinges on both leaves; the astragal on the right. */
+export interface TrailerDoorHardwarePart extends DetailInstance {
+  readonly leaf: 'left' | 'right';
+  readonly part: 'astragal' | 'lock-rod' | 'rod-guide' | 'handle' | 'hinge';
+}
+
+/**
+ * Closed-door hardware in trailer-local metres. Everything stands proud of the
+ * leaves' outer face (z -11.43) and is seated into it, never flush with any
+ * other part's face:
+ *
+ * - The astragal (6 cm aluminium strip) covers the centre slot, seated 5 mm
+ *   into the leaves with its front face 2 cm proud. It starts above the bed
+ *   frame, whose rear face is also z -11.45, so the two never share a plane
+ *   over the same area.
+ * - Lock rods, 3.5 cm square, stand 1.75-5.25 cm proud. The inner pair runs
+ *   up the 7 cm gap between the reverse and brake housings; the outer pair runs
+ *   through the brake housings, 7.5 mm behind their lens faces.
+ * - Rod guides wrap the rods (at least 1.25 cm larger every way) and are
+ *   seated 5 mm into the leaf; handles cross the rods.
+ * - Hinges sit 5 mm into the leaf and 1.5 cm proud of the corner post's rear
+ *   face, clear of the signal lamp housings.
+ */
+export const TRAILER_DOOR_HARDWARE: readonly TrailerDoorHardwarePart[] = (() => {
+  const face = TRAILER_REAR_DOOR.z - TRAILER_REAR_DOOR.depth / 2;
+  const parts: TrailerDoorHardwarePart[] = [
+    {
+      leaf: 'right',
+      part: 'astragal',
+      position: [0, 2.53, face - 0.0075],
+      scale: [0.06, 3.58, 0.025],
+    },
+  ];
+  for (const side of [-1, 1] as const) {
+    const leaf = side < 0 ? 'left' : 'right';
+    for (const rodX of [0.445, 0.86]) {
+      parts.push({
+        leaf,
+        part: 'lock-rod',
+        position: [side * rodX, 2.51, face - 0.035],
+        scale: [0.035, 3.54, 0.035],
+      });
+      for (const y of [0.8, 1.8, 2.9, 4.1]) {
+        parts.push({
+          leaf,
+          part: 'rod-guide',
+          position: [side * rodX, y, face - 0.03],
+          scale: [0.06, 0.05, 0.07],
+        });
+      }
+      parts.push({
+        leaf,
+        part: 'handle',
+        position: [side * (rodX + 0.1275), 1.55, face - 0.065],
+        scale: [0.255, 0.04, 0.04],
+      });
+    }
+    for (const y of [0.78, 1.75, 3.0, 4.12]) {
+      parts.push({
+        leaf,
+        part: 'hinge',
+        position: [side * 1.21, y, face - 0.02],
+        scale: [0.18, 0.1, 0.05],
+      });
+    }
+  }
+  return parts;
+})();
+
+/** One leaf's hardware merged into a single geometry, in that leaf's hinge-local frame. */
+function doorHardwareGeometry(leaf: 'left' | 'right'): THREE.BufferGeometry {
+  const side = leaf === 'left' ? -1 : 1;
+  const boxes = TRAILER_DOOR_HARDWARE.filter((part) => part.leaf === leaf).map(
+    ({ position: [x, y, z], scale: [w, h, d] }) =>
+      new THREE.BoxGeometry(w, h, d).translate(
+        x - side * TRAILER_REAR_DOOR.hingeX,
+        y - TRAILER_REAR_DOOR.centreY,
+        z - TRAILER_REAR_DOOR.z
+      )
+  );
+  const merged = mergeGeometries(boxes);
+  boxes.forEach((box) => box.dispose());
+  if (!merged) throw new Error('trailer door hardware did not merge');
+  return merged;
+}
+
+const DOOR_HARDWARE_GEOMETRY = {
+  left: doorHardwareGeometry('left'),
+  right: doorHardwareGeometry('right'),
+} as const;
+
+/** A closed leaf as a unit-box instance in trailer-local metres. */
+export const TRAILER_DOOR_LEAVES: readonly DetailInstance[] = [-1, 1].map((side) => ({
+  position: [
+    side * (TRAILER_REAR_DOOR.hingeX - TRAILER_REAR_DOOR.width / 2),
+    TRAILER_REAR_DOOR.centreY,
+    TRAILER_REAR_DOOR.z,
+  ] as const,
+  scale: [TRAILER_REAR_DOOR.width, TRAILER_REAR_DOOR.height, TRAILER_REAR_DOOR.depth] as const,
+}));
 
 /** Rear lamp cluster, mounted on the closed doors' outer face (z -11.43). Each
  * 0.08 m housing is seated 2 cm into the door leaf, so its lens stands 6 cm
@@ -618,11 +788,12 @@ export const TRAILER_MUDFLAPS: readonly DetailInstance[] = [
 /**
  * Aluminium corner posts on all four vertical edges, outboard of the skin
  * (x 1.28-1.36) so the rear door hinges at x 1.28 still swing clear. The rear
- * pair runs 2 cm past the door face; the front pair stops short of the first
- * conspicuity strip.
+ * pair runs 3 cm past the door face: at 2 cm its rear face was z -11.45, flush
+ * with the under-frame's over each bottom corner. The front pair stops short of
+ * the first conspicuity strip.
  */
 export const TRAILER_CORNER_POSTS: readonly DetailInstance[] = [-1, 1].flatMap((side) => [
-  { position: [side * 1.32, 2.45, -11.35] as const, scale: [0.08, 4.25, 0.2] as const },
+  { position: [side * 1.32, 2.45, -11.355] as const, scale: [0.08, 4.25, 0.21] as const },
   { position: [side * 1.32, 2.45, -0.18] as const, scale: [0.08, 4.25, 0.14] as const },
 ]);
 
@@ -695,9 +866,11 @@ export const TRUCK_CAB_SIDE_GLASS = { x: 1.29, y: [1.95, 3.15], z: [2.2, 4.4] } 
  * final4 med-12 shipping read the cab as a hollow wire frame under a floating
  * roof: above the shell its sides were open but for one 0.55-opacity pane,
  * with the far window, the sky and the gap under the roof showing through.
+ * The strip above the window starts where the quarters end (y 3.15): it used
+ * to overlap them by 1 cm, flush on both faces (2026-11-07 coplanar sweep).
  */
 export const TRUCK_CAB_SIDE_PANELS: readonly DetailInstance[] = [-1, 1].flatMap((side) => [
-  { position: [side * 1.255, 3.37, 3.11] as const, scale: [0.05, 0.46, 3.26] as const },
+  { position: [side * 1.255, 3.375, 3.11] as const, scale: [0.05, 0.45, 3.26] as const },
   { position: [side * 1.255, 2.575, 1.84] as const, scale: [0.05, 1.15, 0.73] as const },
   { position: [side * 1.255, 2.575, 4.57] as const, scale: [0.05, 1.15, 0.35] as const },
 ]);
@@ -735,7 +908,56 @@ export const CAB_DETAILS: readonly DetailInstance[] = [
 ];
 
 /** Grille bar heights over the 0.62 m grille plate (y 0.89-1.51). */
-const TRUCK_GRILLE_BARS = [0.98, 1.1, 1.22, 1.34, 1.46] as const;
+export const TRUCK_GRILLE_BARS = [0.98, 1.1, 1.22, 1.34, 1.46] as const;
+
+/**
+ * The cab front's flat parts as unit boxes. The grille bars stand 3.5-4.5 cm
+ * proud of the plate; the posts frame it; the headlamp lenses sit on the plate
+ * and stand 1.5 cm proud of the bars they overlap. The lenses' face lay at z 5.02, exactly on the
+ * grille posts' face over 175 cm2 at each inner corner, and the bars' face 5 mm
+ * in front of it (2026-11-07 coplanar sweep).
+ */
+export const TRUCK_GRILLE_PLATE: DetailInstance = {
+  position: [0, 1.2, 4.94],
+  scale: [1.7, 0.62, 0.08],
+};
+export const TRUCK_GRILLE_BAR_PARTS: readonly DetailInstance[] = TRUCK_GRILLE_BARS.map((y) => ({
+  position: [0, y, 5.0] as const,
+  scale: [1.62, 0.045, 0.05] as const,
+}));
+export const TRUCK_GRILLE_POSTS: readonly DetailInstance[] = [-0.875, 0.875].map((x) => ({
+  position: [x, 1.2, 4.99] as const,
+  scale: [0.07, 0.7, 0.06] as const,
+}));
+export const TRUCK_HEADLAMPS: readonly DetailInstance[] = [-0.74, 0.74].map((x) => ({
+  position: [x, 0.96, 5.01] as const,
+  scale: [0.48, 0.28, 0.06] as const,
+}));
+
+/**
+ * Chassis rails and the crossmember between them. The crossmember was 1.1 m
+ * wide, its ends exactly on the rails' outer faces (x +/-0.55): two meshes
+ * whose object-space grime mottle differs, flush over 350 cm2 per side. It now
+ * stops 2 cm inside each rail.
+ */
+export const TRUCK_CHASSIS_RAILS: readonly DetailInstance[] = [-0.45, 0.45].map((x) => ({
+  position: [x, 0.82, 2.05] as const,
+  scale: [0.2, 0.3, 4.3] as const,
+}));
+export const TRUCK_CROSSMEMBER: DetailInstance = {
+  position: [0, 0.82, 0.05],
+  scale: [1.06, 0.22, 0.16],
+};
+
+/** The trailer's under-frame (its top is the cargo bed) and roof cap. */
+export const TRAILER_UNDERFRAME: DetailInstance = {
+  position: [0, TRAILER_BED_Y - 0.09, -5.75],
+  scale: [2.68, 0.18, 11.4],
+};
+export const TRAILER_ROOF_CAP: DetailInstance = {
+  position: [0, 4.62, -5.75],
+  scale: [2.62, 0.12, 11.3],
+};
 
 /**
  * The two corner deflectors: 0.62 m chamfers from the cab side (x 1.29,
@@ -748,7 +970,7 @@ export const TRUCK_CORNER_DEFLECTORS = [-1, 1].map((side) => ({
 }));
 
 /** Amber DOT side markers plus the two front upper clearance lamps. */
-const AMBER_MARKERS: readonly DetailInstance[] = [
+export const AMBER_MARKERS: readonly DetailInstance[] = [
   ...([-1.6, -4.4, -7.2, -10.0] as const).flatMap((z) => [
     { position: [-1.31, 1.45, z] as const, scale: [0.05, 0.1, 0.24] as const },
     { position: [1.31, 1.45, z] as const, scale: [0.05, 0.1, 0.24] as const },
@@ -758,7 +980,7 @@ const AMBER_MARKERS: readonly DetailInstance[] = [
 ];
 
 /** Red rear clearance lamps and the three-lamp identification bar. */
-const RED_MARKERS: readonly DetailInstance[] = [
+export const RED_MARKERS: readonly DetailInstance[] = [
   { position: [-1.28, 4.46, -11.1], scale: [0.06, 0.12, 0.18] },
   { position: [1.28, 4.46, -11.1], scale: [0.06, 0.12, 0.18] },
   { position: [-0.3, 4.52, -11.32], scale: [0.14, 0.1, 0.08] },
@@ -774,7 +996,7 @@ const RED_MARKERS: readonly DetailInstance[] = [
  * call. `instanceColor` multiplies `diffuseColor` only, which is exactly right
  * here - the tape is albedo, not emissive.
  */
-const CONSPICUITY_TAPE = (() => {
+export const CONSPICUITY_TAPE = (() => {
   const strips: { instance: DetailInstance; red: boolean }[] = [];
   for (let index = 0; index < 11; index += 1) {
     const z = -0.7 - index * 1.0;
@@ -1298,39 +1520,29 @@ export function OptimizedTruckVisual({
         <mesh
           geometry={ROUNDED_BOX}
           material={accentMaterial}
-          position={[0, 3.74, 3.08]}
-          scale={[2.7, 0.32, 3.15]}
+          position={[...TRUCK_CAB_PARTS.roofAccent.position]}
+          scale={[...TRUCK_CAB_PARTS.roofAccent.scale]}
           castShadow
           receiveShadow
         />
         <mesh
           geometry={UNIT_BOX}
           material={cabMaterial}
-          position={[0, 2.78, 1.48]}
-          scale={[2.55, 1.62, 0.18]}
+          position={[...TRUCK_CAB_PARTS.backWall.position]}
+          scale={[...TRUCK_CAB_PARTS.backWall.scale]}
           castShadow
           receiveShadow
         />
         {/* 0.18 m window pillars. They sit inside the greenhouse the roof
             fairing already shadows, so they neither read nor cast at range. */}
         <group ref={registerNearDetail}>
-          {[-1.18, 1.18].map((x) => (
+          {TRUCK_CAB_PARTS.pillars.map(({ position, scale }) => (
             <mesh
-              key={`front-pillar-${x}`}
+              key={`pillar-${position.join(',')}`}
               geometry={UNIT_BOX}
               material={cabMaterial}
-              position={[x, 2.72, 4.83]}
-              scale={[0.18, 1.5, 0.18]}
-              receiveShadow
-            />
-          ))}
-          {[-1.18, 1.18].map((x) => (
-            <mesh
-              key={`rear-pillar-${x}`}
-              geometry={UNIT_BOX}
-              material={cabMaterial}
-              position={[x, 2.72, 1.58]}
-              scale={[0.18, 1.5, 0.18]}
+              position={[...position]}
+              scale={[...scale]}
               receiveShadow
             />
           ))}
@@ -1340,8 +1552,8 @@ export function OptimizedTruckVisual({
         <mesh
           geometry={UNIT_BOX}
           material={MATERIALS.glass}
-          position={[0, 2.55, 4.91]}
-          scale={[2.18, 1.25, 0.06]}
+          position={[...TRUCK_CAB_PARTS.windscreen.position]}
+          scale={[...TRUCK_CAB_PARTS.windscreen.scale]}
           renderOrder={VEHICLE_GLASS_RENDER_ORDER}
         />
         {[-1, 1].map((side) => (
@@ -1392,8 +1604,8 @@ export function OptimizedTruckVisual({
           <mesh
             geometry={UNIT_BOX}
             material={MATERIALS.chrome}
-            position={[0, 2.55, 4.96]}
-            scale={[0.09, 1.28, 0.08]}
+            position={[...TRUCK_CAB_PARTS.windscreenBar.position]}
+            scale={[...TRUCK_CAB_PARTS.windscreenBar.scale]}
             receiveShadow
           />
           <mesh
@@ -1421,30 +1633,30 @@ export function OptimizedTruckVisual({
         <mesh
           geometry={UNIT_BOX}
           material={MATERIALS.grille}
-          position={[0, 1.2, 4.94]}
-          scale={[1.7, 0.62, 0.08]}
+          position={[...TRUCK_GRILLE_PLATE.position]}
+          scale={[...TRUCK_GRILLE_PLATE.scale]}
           castShadow
           receiveShadow
         />
         {/* Grille bars and surround, standing 3-5 cm proud of the dark grille
             plate, so the front reads as a grille rather than a painted panel. */}
-        {TRUCK_GRILLE_BARS.map((y) => (
+        {TRUCK_GRILLE_BAR_PARTS.map(({ position, scale }) => (
           <mesh
-            key={`grille-bar-${y}`}
+            key={`grille-bar-${position[1]}`}
             geometry={UNIT_BOX}
             material={MATERIALS.chrome}
-            position={[0, y, 5.0]}
-            scale={[1.62, 0.045, 0.05]}
+            position={[...position]}
+            scale={[...scale]}
             receiveShadow
           />
         ))}
-        {[-0.875, 0.875].map((x) => (
+        {TRUCK_GRILLE_POSTS.map(({ position, scale }) => (
           <mesh
-            key={`grille-post-${x}`}
+            key={`grille-post-${position[0]}`}
             geometry={UNIT_BOX}
             material={cabMaterial}
-            position={[x, 1.2, 4.99]}
-            scale={[0.07, 0.7, 0.06]}
+            position={[...position]}
+            scale={[...scale]}
             receiveShadow
           />
         ))}
@@ -1466,25 +1678,21 @@ export function OptimizedTruckVisual({
         <mesh
           geometry={ROUNDED_BOX}
           material={MATERIALS.chrome}
-          position={[0, 0.68, 4.78]}
-          scale={[2.7, 0.28, 0.38]}
+          position={[...TRUCK_CAB_PARTS.bumper.position]}
+          scale={[...TRUCK_CAB_PARTS.bumper.scale]}
           castShadow
           receiveShadow
         />
-        <mesh
-          geometry={UNIT_BOX}
-          material={headlightMaterial}
-          position={[-0.74, 0.96, 4.99]}
-          scale={[0.48, 0.28, 0.06]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={headlightMaterial}
-          position={[0.74, 0.96, 4.99]}
-          scale={[0.48, 0.28, 0.06]}
-          receiveShadow
-        />
+        {TRUCK_HEADLAMPS.map(({ position, scale }) => (
+          <mesh
+            key={`headlamp-${position[0]}`}
+            geometry={UNIT_BOX}
+            material={headlightMaterial}
+            position={[...position]}
+            scale={[...scale]}
+            receiveShadow
+          />
+        ))}
         {/* Ground spill, not light volumes. Deliberately NOT a `spotLight`: this
             component mounts lazily, mid-session, and taking NUM_SPOT_LIGHTS
             from 0 to 2 changes the program cache key of every material in the
@@ -1503,20 +1711,16 @@ export function OptimizedTruckVisual({
         {/* Mirror glass, 0.06 m thick. The mirror ARMS live in `CAB_DETAILS`
             and are not gated, so the mirror silhouette survives. */}
         <group ref={registerNearDetail}>
-          <mesh
-            geometry={UNIT_BOX}
-            material={MATERIALS.chrome}
-            position={[-1.55, 2.62, 4.05]}
-            scale={[0.06, 0.68, 0.26]}
-            receiveShadow
-          />
-          <mesh
-            geometry={UNIT_BOX}
-            material={MATERIALS.chrome}
-            position={[1.55, 2.62, 4.05]}
-            scale={[0.06, 0.68, 0.26]}
-            receiveShadow
-          />
+          {TRUCK_CAB_PARTS.mirrorHeads.map(({ position, scale }) => (
+            <mesh
+              key={`mirror-${position[0]}`}
+              geometry={UNIT_BOX}
+              material={MATERIALS.chrome}
+              position={[...position]}
+              scale={[...scale]}
+              receiveShadow
+            />
+          ))}
         </group>
         {/* Fenders, mirror arms, steps, sun visor, roof extenders - one call. */}
         <instancedMesh
@@ -1536,13 +1740,13 @@ export function OptimizedTruckVisual({
         />
         {/* Two chassis rails with a crossmember, not a 2.35 m slab: the gap
             between the cab back and the trailer nose shows a frame. */}
-        {[-0.45, 0.45].map((x) => (
+        {TRUCK_CHASSIS_RAILS.map(({ position, scale }) => (
           <mesh
-            key={`rail-${x}`}
+            key={`rail-${position[0]}`}
             geometry={UNIT_BOX}
             material={frameMaterial}
-            position={[x, 0.82, 2.05]}
-            scale={[0.2, 0.3, 4.3]}
+            position={[...position]}
+            scale={[...scale]}
             castShadow
             receiveShadow
           />
@@ -1550,23 +1754,21 @@ export function OptimizedTruckVisual({
         <mesh
           geometry={UNIT_BOX}
           material={frameMaterial}
-          position={[0, 0.82, 0.05]}
-          scale={[1.1, 0.22, 0.16]}
+          position={[...TRUCK_CROSSMEMBER.position]}
+          scale={[...TRUCK_CROSSMEMBER.scale]}
           receiveShadow
         />
         {/* Fuel tank straps, from the rails out to the tanks. */}
-        {[-1, 1].flatMap((side) =>
-          [1.05, 2.15].map((z) => (
-            <mesh
-              key={`strap-${side}-${z}`}
-              geometry={UNIT_BOX}
-              material={frameMaterial}
-              position={[side * 0.92, 0.72, z]}
-              scale={[0.8, 0.05, 0.08]}
-              receiveShadow
-            />
-          ))
-        )}
+        {TRUCK_CAB_PARTS.tankStraps.map(({ position, scale }) => (
+          <mesh
+            key={`strap-${position.join(',')}`}
+            geometry={UNIT_BOX}
+            material={frameMaterial}
+            position={[...position]}
+            scale={[...scale]}
+            receiveShadow
+          />
+        ))}
         {/* Fuel tanks run FORE-AFT along the frame rails. The old
             `rotation={[0, 0, Math.PI / 2]}` laid the 1.65 m cylinder across the
             truck, so each tank stuck a metre out past the cab skin. */}
@@ -1611,25 +1813,21 @@ export function OptimizedTruckVisual({
         />
         {/* Accent bands lie 0.06 m proud of a trailer skin that already casts;
             their own shadow is entirely inside the trailer's. */}
-        <mesh
-          geometry={UNIT_BOX}
-          material={accentMaterial}
-          position={[-1.3, 2.45, -5.35]}
-          scale={[0.06, 0.56, 9.6]}
-          receiveShadow
-        />
-        <mesh
-          geometry={UNIT_BOX}
-          material={accentMaterial}
-          position={[1.3, 2.45, -5.35]}
-          scale={[0.06, 0.56, 9.6]}
-          receiveShadow
-        />
+        {TRAILER_ACCENT_BANDS.map(({ position, scale }) => (
+          <mesh
+            key={`accent-${position[0]}`}
+            geometry={UNIT_BOX}
+            material={accentMaterial}
+            position={[...position]}
+            scale={[...scale]}
+            receiveShadow
+          />
+        ))}
         <mesh
           geometry={UNIT_BOX}
           material={frameMaterial}
-          position={[0, TRAILER_BED_Y - 0.09, -5.75]}
-          scale={[2.68, 0.18, 11.4]}
+          position={[...TRAILER_UNDERFRAME.position]}
+          scale={[...TRAILER_UNDERFRAME.scale]}
           castShadow
           receiveShadow
         />
@@ -1710,30 +1908,44 @@ export function OptimizedTruckVisual({
         <mesh
           geometry={UNIT_BOX}
           material={frameMaterial}
-          position={[0, 4.62, -5.75]}
-          scale={[2.62, 0.12, 11.3]}
+          position={[...TRAILER_ROOF_CAP.position]}
+          scale={[...TRAILER_ROOF_CAP.scale]}
           receiveShadow
         />
-        <group ref={leftDoorRef} position={[-1.28, 2.45, TRAILER_REAR_DOOR.z]}>
-          <mesh
-            geometry={UNIT_BOX}
-            material={trailerMaterial}
-            position={[0.64, 0, 0]}
-            scale={[1.24, 3.78, TRAILER_REAR_DOOR.depth]}
-            castShadow
-            receiveShadow
-          />
-        </group>
-        <group ref={rightDoorRef} position={[1.28, 2.45, TRAILER_REAR_DOOR.z]}>
-          <mesh
-            geometry={UNIT_BOX}
-            material={trailerMaterial}
-            position={[-0.64, 0, 0]}
-            scale={[1.24, 3.78, TRAILER_REAR_DOOR.depth]}
-            castShadow
-            receiveShadow
-          />
-        </group>
+        {/* Each leaf hangs from its hinge line and carries its own hardware, so
+            rods, handles and the astragal swing with it at the dock. The
+            hardware is never distance-gated: the astragal is what closes the
+            centre slot, and the slot only aliases from far away. */}
+        {(['left', 'right'] as const).map((leaf) => {
+          const side = leaf === 'left' ? -1 : 1;
+          return (
+            <group
+              key={leaf}
+              ref={leaf === 'left' ? leftDoorRef : rightDoorRef}
+              position={[
+                side * TRAILER_REAR_DOOR.hingeX,
+                TRAILER_REAR_DOOR.centreY,
+                TRAILER_REAR_DOOR.z,
+              ]}
+            >
+              <mesh
+                geometry={UNIT_BOX}
+                material={trailerMaterial}
+                position={[-side * (TRAILER_REAR_DOOR.width / 2), 0, 0]}
+                scale={[TRAILER_REAR_DOOR.width, TRAILER_REAR_DOOR.height, TRAILER_REAR_DOOR.depth]}
+                castShadow
+                receiveShadow
+              />
+              {/* 3.5 cm rods and hinges standing on a leaf that already casts. */}
+              <mesh
+                name={`trailer-door-hardware-${leaf}`}
+                geometry={DOOR_HARDWARE_GEOMETRY[leaf]}
+                material={frameMaterial}
+                receiveShadow
+              />
+            </group>
+          );
+        })}
         {/* REAR LAMP CLUSTER - inside `trailerRef`, not beside it.
             These meshes used to sit at the root, so they did not take
             `trailerAngle`. The trailer yaws up to 0.176 rad and the cluster is
@@ -1812,17 +2024,15 @@ const PARKED_FRAME_PARTS: readonly TrailerPart[] = [
   { position: [1.1, 0.62, -1.85], scale: [0.3, 0.04, 0.04] },
   { position: [0, 0.62, -1.85], scale: [1.84, 0.06, 0.06] },
   // Under-frame and roof cap, as on the towed trailer.
-  { position: [0, TRAILER_BED_Y - 0.09, -5.75], scale: [2.68, 0.18, 11.4] },
-  { position: [0, 4.62, -5.75], scale: [2.62, 0.12, 11.3] },
+  TRAILER_UNDERFRAME,
+  TRAILER_ROOF_CAP,
+  // The rear corner posts the leaves hang from, and the leaves' hardware: the
+  // same parts as the towed trailer, so the closed doors show no open slot.
+  ...TRAILER_CORNER_POSTS.filter(({ position }) => position[2] < -11),
+  ...TRAILER_DOOR_HARDWARE,
 ];
-const PARKED_ACCENTS: readonly TrailerPart[] = [-1.3, 1.3].map((x) => ({
-  position: [x, 2.45, -5.35] as const,
-  scale: [0.06, 0.56, 9.6] as const,
-}));
-const PARKED_DOORS: readonly TrailerPart[] = [-0.64, 0.64].map((x) => ({
-  position: [x, 2.45, TRAILER_REAR_DOOR.z] as const,
-  scale: [1.24, 3.78, TRAILER_REAR_DOOR.depth] as const,
-}));
+const PARKED_ACCENTS: readonly TrailerPart[] = TRAILER_ACCENT_BANDS;
+const PARKED_DOORS: readonly TrailerPart[] = TRAILER_DOOR_LEAVES;
 /** Only the trailer's own flaps: the pair at z -0.42 trail the tractor's drive axle. */
 const PARKED_MUDFLAPS = TRAILER_MUDFLAPS.filter(({ position }) => position[2] < -1);
 const PARKED_WHEELS = TRUCK_WHEEL_LAYOUT.filter(([, , , isTrailer]) => isTrailer);
