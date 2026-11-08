@@ -161,6 +161,36 @@ describe('saves written before a saved field was added', () => {
     expect(saved.game.timeOfDayHeld).toBe(false);
   });
 
+  // Nell's console, 2026-11-08: "restore failed: Incomplete physical domain
+  // game.clockHolds", a save from before 18 October; past that field, the same
+  // save carried maintenance.lastBreakdownTime, deleted on 19 October. Saves
+  // written by every daily deployed build from 4 October on were decoded against
+  // this code when it was fixed; each record from before 19 October has this shape.
+  it('restores a save that predates clockHolds and still carries lastBreakdownTime', () => {
+    const record = capturePhysicalSession();
+    const older = JSON.parse(encodePhysicalSession(record)) as {
+      game: Record<string, unknown>;
+      maintenance: Record<string, unknown>;
+    };
+    delete older.game.clockHolds;
+    older.maintenance.lastBreakdownTime = 0;
+    const raw = JSON.stringify(older);
+    const saved = decodePhysicalSession(raw);
+    expect(saved.game.clockHolds).toEqual([]);
+    expect('lastBreakdownTime' in saved.maintenance).toBe(false);
+    localStorage.setItem(PHYSICAL_SESSION_KEY, raw);
+    resetPlant();
+    dispose = installPhysicalSession();
+    expect(isPhysicalSessionRestoring()).toBe(true);
+    expect(useGameSimulationStore.getState().clockHolds.map((hold) => hold.holder)).not.toContain(
+      'restoreFailed'
+    );
+    expect(useUIStore.getState().alerts.map((alert) => alert.id)).not.toContain(
+      'physical-save-unavailable'
+    );
+    expect(useMaterialFlowStore.getState().sessionId).toBe(record.material.sessionId);
+  });
+
   it('pins the saved field set (add a fallback for any field added here)', () => {
     const capture = capturePhysicalSession() as unknown as Record<string, object>;
     const keys = Object.fromEntries(

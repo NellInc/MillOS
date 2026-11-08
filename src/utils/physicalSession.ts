@@ -173,7 +173,13 @@ const ADDED_PHYSICAL_FIELDS: Partial<
 > = {
   // Unknown for an older save: treat a hold as the player's, as before.
   // Saves from before 23 October have no frozen time of day: it ran.
-  game: { stopHeldForklifts: () => false, timeOfDayHeld: () => false },
+  // Saves from before 18 October have no hold stack; an unrecorded pause
+  // reads as the player's (holderOf), which is what it was.
+  game: {
+    stopHeldForklifts: () => false,
+    timeOfDayHeld: () => false,
+    clockHolds: () => [],
+  },
   // Saves from before 18-19 October: the shift card's live failure costs (the
   // next tick recomputes them) and the count of programmes started (none was).
   operations: {
@@ -185,6 +191,13 @@ const ADDED_PHYSICAL_FIELDS: Partial<
     sessionIncidentCount: (saved) =>
       Array.isArray(saved.safetyIncidents) ? saved.safetyIncidents.length : 0,
   },
+};
+
+// Saved-store fields since deleted from their stores. An older save still
+// carries them; they are dropped, not the record.
+const REMOVED_PHYSICAL_FIELDS: Partial<Record<string, readonly string[]>> = {
+  // 69c35ecd (19 October) deleted the random-breakdown rate limit.
+  maintenance: ['lastBreakdownTime'],
 };
 
 function validateTree(value: unknown, budget: { left: number }, depth = 0): void {
@@ -256,6 +269,7 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
       expected = defaults[domain];
     if (!saved || typeof saved !== 'object' || Array.isArray(saved))
       throw new Error('Missing physical domain');
+    for (const key of REMOVED_PHYSICAL_FIELDS[domain] ?? []) Reflect.deleteProperty(saved, key);
     for (const [key, entry] of Object.entries(saved)) {
       if (!(key in expected) || typeof (expected as Record<string, unknown>)[key] === 'function')
         throw new Error(`Unknown physical field ${domain}.${key}`);
