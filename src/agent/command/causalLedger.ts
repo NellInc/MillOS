@@ -14,6 +14,10 @@ export class AgentCausalLedger {
   private lessons: AgentLesson[] = [];
   private discardedEvents = 0;
   private sequence = 0;
+  // Dedupe keys of imported events that carried no wallTime of their own, by
+  // event id. Such an event is stamped with the import clock, so its stored
+  // wallTime says nothing about the source and cannot identify it again.
+  private readonly untimedImportKeys = new Map<string, string>();
   private readonly eventBound: number;
   private readonly lessonBound: number;
   private readonly now: () => Date;
@@ -32,11 +36,7 @@ export class AgentCausalLedger {
       schemaVersion: 2,
     };
     this.events.push(fullEvent);
-    if (this.events.length > this.eventBound) {
-      const overflow = this.events.length - this.eventBound;
-      this.events.splice(0, overflow);
-      this.discardedEvents += overflow;
-    }
+    this.enforceEventBound();
     return structuredClone(fullEvent);
   }
 
@@ -175,7 +175,9 @@ export class AgentCausalLedger {
     // causation and correlation references must be rewritten through the same
     // map or every chain would point at unrelated local events.
     const idMap = new Map<string, string>();
-    const known = new Set(this.events.map((event) => importIdentity(event)));
+    const known = new Set(
+      this.events.map((event) => this.untimedImportKeys.get(event.eventId) ?? importIdentity(event))
+    );
     const staged: Array<{ event: AgentCausalEvent; sourceId: string | null }> = [];
     for (const candidate of sourceEvents) {
       const event = normalizeImportedEvent(candidate, source.schemaVersion, this.now());
@@ -187,7 +189,8 @@ export class AgentCausalLedger {
         });
         continue;
       }
-      const identity = importIdentity(event);
+      const untimed = typeof (candidate as { wallTime?: unknown }).wallTime !== 'string';
+      const identity = untimed ? untimedImportIdentity(event) : importIdentity(event);
       if (known.has(identity)) {
         duplicates += 1;
         continue;
@@ -202,6 +205,7 @@ export class AgentCausalLedger {
       this.sequence += 1;
       const eventId = `evt-${String(this.sequence).padStart(8, '0')}`;
       if (sourceId) idMap.set(sourceId, eventId);
+      if (untimed) this.untimedImportKeys.set(eventId, identity);
       staged.push({ event: { ...event, eventId }, sourceId });
     }
     for (const { event } of staged) {
@@ -219,12 +223,17 @@ export class AgentCausalLedger {
         message: `${duplicates} already-retained event(s) were not imported again.`,
       });
     }
-    if (this.events.length > this.eventBound) {
-      const overflow = this.events.length - this.eventBound;
-      this.events.splice(0, overflow);
-      this.discardedEvents += overflow;
-    }
+    this.enforceEventBound();
     return { imported, problems };
+  }
+
+  private enforceEventBound(): void {
+    if (this.events.length <= this.eventBound) return;
+    const overflow = this.events.length - this.eventBound;
+    for (const evicted of this.events.splice(0, overflow)) {
+      this.untimedImportKeys.delete(evicted.eventId);
+    }
+    this.discardedEvents += overflow;
   }
 
   promoteLesson(
@@ -270,6 +279,27 @@ export class AgentCausalLedger {
 
 function importIdentity(event: Pick<AgentCausalEvent, 'commandId' | 'kind' | 'wallTime'>): string {
   return `${event.commandId}|${event.kind}|${event.wallTime}`;
+}
+
+/**
+ * Identity of an imported event that had no wallTime: its content as the
+ * source gave it, never the import clock that stamped it. Re-importing the same
+ * legacy export later must still find it a duplicate.
+ */
+function untimedImportIdentity(event: AgentCausalEvent): string {
+  const content = revisionFor({
+    correlationId: event.correlationId,
+    causationId: event.causationId,
+    actorUri: event.actorUri,
+    grantId: event.grantId,
+    domain: event.domain,
+    simulationTime: event.simulationTime,
+    beforeRevision: event.beforeRevision,
+    afterRevision: event.afterRevision,
+    targetUri: event.targetUri,
+    payload: event.payload,
+  });
+  return `${event.commandId}|${event.kind}|untimed|${content}`;
 }
 
 function normalizeImportedEvent(

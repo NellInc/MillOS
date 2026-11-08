@@ -1098,7 +1098,9 @@ test('village doors hang framed leaves: one meeting joint, every panel whole', a
       dispose(meshes);
     }
   }
-});
+  // Assembles five whole village buildings: about 3 s locally, past the 10 s
+  // default on the two-core CI runner under coverage.
+}, 60_000);
 
 test('narrowboat chimney has an open outlet below its supported rain hood', async () => {
   const { meshes } = await assembly('world-canal-boat');

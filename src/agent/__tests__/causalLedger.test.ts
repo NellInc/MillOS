@@ -125,4 +125,32 @@ describe('causal history assurance', () => {
     expect(destination.export().compaction.discardedEvents).toBe(0);
     expect(destination.trace().completeCausalChain).toBe(false);
   });
+
+  it('recognises a re-imported legacy event that carried no wallTime of its own', () => {
+    // Each read of the clock is a millisecond later, so an import stamp can
+    // never stand in for the source event's identity (CI saw the second
+    // import of the same export accepted once the millisecond rolled over).
+    let tick = Date.parse('2026-11-08T00:00:00.000Z');
+    const ledger = new AgentCausalLedger({ now: () => new Date((tick += 1)) });
+    const untimed = (payload: unknown) => ({
+      schemaVersion: 1,
+      events: [
+        {
+          commandId: 'legacy-untimed',
+          correlationId: 'legacy-correlation',
+          domain: 'campaign',
+          kind: 'state-transition',
+          targetUri: 'millos://order/legacy-order',
+          payload,
+        },
+      ],
+    });
+    expect(ledger.import(untimed({ changed: false })).imported).toBe(1);
+    const again = ledger.import(untimed({ changed: false }));
+    expect(again.imported).toBe(0);
+    expect(again.problems.map((problem) => problem.code)).toContain('EVIDENCE_EVENT_DUPLICATE');
+    // Different content under the same command and kind is a different event.
+    expect(ledger.import(untimed({ changed: true })).imported).toBe(1);
+    expect(ledger.trace().page.total).toBe(2);
+  });
 });
