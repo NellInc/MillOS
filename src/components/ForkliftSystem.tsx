@@ -18,7 +18,11 @@ import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useShallow } from 'zustand/react/shallow';
 import { getForkliftWarningColor } from '../utils/statusColors';
 import { ForkliftModel } from './models';
-import { applyCargoPresence, FORKLIFT_PALLET_REACH_METRES } from './models/ForkliftModel';
+import {
+  applyCargoPresence,
+  AUTHORED_PALLET_POSITION,
+  FORKLIFT_PALLET_REACH_METRES,
+} from './models/ForkliftModel';
 import {
   FORKLIFT_BEACON,
   FORKLIFT_LOADED_TRAVEL_FORK_HEIGHT,
@@ -93,6 +97,9 @@ import {
 import { forkliftCrewSite, type ForkliftCrewSite } from '../constants/forkliftCrewLayout';
 import {
   forkliftCrewDuty,
+  forkliftParkedForCrew,
+  forkliftSpellEndTask,
+  initialForkliftCrewState,
   isOperatorInCab,
   FORKLIFT_OPERATOR_SCALE,
   operatorSeatPosition,
@@ -102,6 +109,7 @@ import {
   type ForkliftCrewStation,
 } from '../simulation/forkliftCrew';
 import { forkliftCrewLive, isForkliftCrewActive } from '../stores/forkliftCrewStore';
+import { COMMUNITY_ROSTER } from '../simulation/communityLife';
 import { useUIStore } from '../stores/uiStore';
 import {
   FORKLIFT_FLEET_TAGS,
@@ -111,6 +119,36 @@ import {
 } from '../stores/forkliftDriveStore';
 import { sampleWalkingGroundHeight } from '../utils/castleNavigation';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
+import {
+  cargoStationAllows,
+  cargoStationTakesBack,
+  cargoStationWorkable,
+  FORKLIFT_LOAD_KIND,
+  FORKLIFT_STATION_KIND,
+  type ForkliftLoadKind,
+  placeCargo,
+  stepCargoStation,
+  takeCargo,
+} from '../simulation/forkliftCargoStations';
+import { forkliftCargoStation, type CargoStationLive } from '../stores/forkliftCargoStore';
+import {
+  FORKLIFT_APPROACH_METRES,
+  FORKLIFT_APPROACH_SPEED,
+  FORKLIFT_INSERT_METRES,
+  FORKLIFT_PEDESTRIAN_LOOKAHEAD,
+  FORKLIFT_PEDESTRIAN_SLOW_SPEED,
+  FORKLIFT_PEDESTRIAN_STOP,
+  FORKLIFT_REVERSE_METRES,
+  FORKLIFT_STATION_WAIT_METRES,
+  forkliftGiveWayExtra,
+  forkliftWorkAlong,
+  forkliftWorkOffset,
+  isSpurMarker,
+  markerArrivalHeading,
+  nearestPedestrianAhead,
+  type PedestrianPoint,
+} from '../simulation/vehicles/forkliftWork';
+import { ForkliftCargoLoads } from './ForkliftCargoLoads';
 
 /**
  * Manual control of one forklift. 'driven': the player is in the seat.
@@ -230,6 +268,196 @@ const travelForkHeight = (plan: ForkliftRoutePlan, routeDistance: number, loaded
   return loaded
     ? Math.max(FORKLIFT_LOADED_TRAVEL_FORK_HEIGHT, surface + FORKLIFT_PALLET_CLEARANCE)
     : surface;
+};
+
+/**
+ * With people in the world, a forklift whose crew has not stepped for this
+ * long (CommunityLife remounting, the first frames of a load) stands still
+ * rather than work unmanned. Only after it does it fall back to working as if
+ * crewed (forkliftCrewStore). Before this a forklift that mounted on its
+ * pickup started a full pick in the frame before its crew first stepped, with
+ * its operator on a break, and finished it with nobody aboard.
+ */
+const CREW_FALLBACK_GRACE_MS = 2500;
+/** Real seconds between horn blasts: a courtesy, not a running commentary. */
+const HORN_COOLDOWN_MS = 20000;
+/** Plant seconds standing at a hold or its crew point before the forks go down. */
+const FORKS_DOWN_AFTER_SECONDS = 2;
+
+/**
+ * What a forklift was doing when it unmounted (a scene reload, an error
+ * boundary reset, a hot reload in development), so it carries on where it
+ * stood rather than reappearing at its route's start with its load gone.
+ */
+interface ForkliftMemory {
+  pathLength: number;
+  motion: ReturnType<typeof createInitialForkliftMotion>;
+  actionMarkerIndex: number;
+  hasCargo: boolean;
+  operation: ForkliftOperationPhase;
+  operationTimer: number;
+  operationDuration: number;
+  forkHeight: number;
+  mastTilt: number;
+  work: ForkliftWorkState;
+  position: [number, number, number];
+  heading: number;
+}
+const forkliftMemory = new Map<string, ForkliftMemory>();
+
+/**
+ * Where a forklift starts: its route's first point, unless that is on top of
+ * its first job (the shipping lane starts at the collection point), when it
+ * starts where it would wait for that job instead, tines clear of the load.
+ */
+const initialWorkMotion = (
+  plan: ForkliftRoutePlan,
+  position: readonly [number, number, number],
+  forkliftId: string
+) => {
+  const motion = createInitialForkliftMotion(plan, [...position]);
+  // Its operator is off on foot when the session opens (between spells):
+  // it stands parked at its crew point, rather than set off unmanned for it.
+  const site = forkliftCrewSite(forkliftId);
+  const person = site
+    ? COMMUNITY_ROSTER.find((candidate) => candidate.id === site.operatorId)
+    : undefined;
+  if (site && person) {
+    const game = useGameSimulationStore.getState();
+    const live = forkliftCrewLive(forkliftId);
+    const state = live.state ?? initialForkliftCrewState(person, game.gameDay * 24 + game.gameTime);
+    if (!isOperatorInCab(state)) {
+      const routeDistance = crewRouteDistance(plan, site);
+      const at = sampleArcLengthPath(plan.path, routeDistance);
+      return {
+        ...motion,
+        routeDistance,
+        x: at.x,
+        z: at.z,
+        heading: forkliftRouteHeading(plan, routeDistance),
+      };
+    }
+  }
+  const first = plan.markers[0];
+  if (!first || (first.action.type !== 'pickup' && first.action.type !== 'dropoff')) return motion;
+  const kind = FORKLIFT_STATION_KIND[forkliftId]?.[first.action.type];
+  const wait = FORKLIFT_INSERT_METRES + (kind === 'build' ? FORKLIFT_STATION_WAIT_METRES : 0);
+  const ahead = distanceAheadOnClosedPath(plan.path, motion.routeDistance, first.distance);
+  if (ahead >= wait) return motion;
+  const total = plan.path.totalLength;
+  const routeDistance = (((first.distance - wait) % total) + total) % total;
+  const at = sampleArcLengthPath(plan.path, routeDistance);
+  return {
+    ...motion,
+    routeDistance,
+    x: at.x,
+    z: at.z,
+    heading: forkliftRouteHeading(plan, routeDistance),
+  };
+};
+
+/** The pick or drop under way: the marker, the forks' line, and the way out. */
+interface ForkliftWorkState {
+  markerDistance: number;
+  heading: number;
+  spur: boolean;
+  /** Which of its stations the load comes from or goes to (a put-back goes to the pickup's). */
+  station?: 'pickup' | 'dropoff';
+  /** Fork height of the work surface there (the dock deck, or 0 on the floor). */
+  surface?: number;
+}
+
+/**
+ * Where each station's load stands for this route: on the forks' line, a
+ * pallet reach beyond the marker, at the work surface. Rewritten when the
+ * route plan changes.
+ */
+const publishStationPose = (
+  plan: ForkliftRoutePlan,
+  marker: ForkliftRoutePlan['markers'][number],
+  entry: CargoStationLive | null
+): void => {
+  if (!entry) return;
+  const heading = markerArrivalHeading(plan, marker.distance);
+  const at = sampleArcLengthPath(plan.path, marker.distance);
+  const reach = FORKLIFT_PALLET_REACH_METRES.authored;
+  const pose = entry.pose ?? (entry.pose = { x: 0, y: 0, z: 0, heading: 0 });
+  pose.x = at.x + Math.sin(heading) * reach;
+  pose.z = at.z + Math.cos(heading) * reach;
+  pose.y = AUTHORED_PALLET_POSITION[1] + (marker.action.surfaceForkHeight ?? 0);
+  pose.heading = heading;
+};
+
+/**
+ * People a forklift gives way to: everyone on foot in the world, and the
+ * player when walking in first person. Gathered once per frame for the fleet
+ * into a fixed scratch list.
+ */
+const PEDESTRIAN_CAPACITY = 96;
+interface PedestrianSlot extends PedestrianPoint {
+  owner: THREE.Object3D | null;
+}
+const pedestrianScratch: PedestrianSlot[] = Array.from({ length: PEDESTRIAN_CAPACITY }, () => ({
+  x: 0,
+  z: 0,
+  extra: 0,
+  owner: null,
+}));
+const pedestrianFrame = { frame: -Infinity, count: 0 };
+let personnelGroup: THREE.Object3D | null = null;
+let personnelLookupFrame = -Infinity;
+/**
+ * The people in front of forklifts this frame, in `pedestrianScratch`; returns
+ * how many to read. `exclude` (the forklift's own operator, who stands at its
+ * cab to board it) is moved past the end of the count rather than copied out.
+ */
+const gatherPedestrians = (
+  scene: THREE.Object3D,
+  camera: THREE.Camera,
+  frame: number,
+  exclude: THREE.Object3D | null
+): number => {
+  if (pedestrianFrame.frame !== frame) {
+    pedestrianFrame.frame = frame;
+    if ((!personnelGroup || !personnelGroup.parent) && frame - personnelLookupFrame > 2) {
+      personnelLookupFrame = frame;
+      personnelGroup = scene.getObjectByName('world-personnel') ?? null;
+    }
+    let count = 0;
+    const group = personnelGroup;
+    if (group?.visible) {
+      for (const person of group.children) {
+        if (count >= PEDESTRIAN_CAPACITY - 1) break;
+        const extra = forkliftGiveWayExtra(person);
+        if (extra < 0) continue;
+        const slot = pedestrianScratch[count];
+        slot.x = person.position.x;
+        slot.z = person.position.z;
+        slot.extra = extra;
+        slot.owner = person;
+        count += 1;
+      }
+    }
+    if (useUIStore.getState().fpsMode && !useForkliftDriveStore.getState().drivenId) {
+      const slot = pedestrianScratch[count];
+      slot.x = camera.position.x;
+      slot.z = camera.position.z;
+      slot.extra = 0;
+      slot.owner = null;
+      count += 1;
+    }
+    pedestrianFrame.count = count;
+  }
+  const count = pedestrianFrame.count;
+  if (!exclude) return count;
+  for (let index = 0; index < count; index += 1) {
+    if (pedestrianScratch[index].owner !== exclude) continue;
+    const slot = pedestrianScratch[index];
+    pedestrianScratch[index] = pedestrianScratch[count - 1];
+    pedestrianScratch[count - 1] = slot;
+    return count - 1;
+  }
+  return count;
 };
 import {
   vehicleTelemetryRegistry,
@@ -572,9 +800,10 @@ const BILLBOARD_MATERIALS = {
   ),
 };
 
-const ForkliftBillboard: React.FC<{ cargoPresenceRef: React.MutableRefObject<number> }> = ({
-  cargoPresenceRef,
-}) => {
+const ForkliftBillboard: React.FC<{
+  cargoPresenceRef: React.MutableRefObject<number>;
+  load: ForkliftLoadKind;
+}> = ({ cargoPresenceRef, load }) => {
   // The far tier draws the same pallet presence as the near models.
   const cargoMeshRef = useRef<THREE.Mesh>(null);
   const cargoMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -651,7 +880,7 @@ const ForkliftBillboard: React.FC<{ cargoPresenceRef: React.MutableRefObject<num
             cargoMaterialRef.current = mat;
             if (mat) applyWorldSurface(mat, 'fabric');
           }}
-          color="#fef3c7"
+          color={load === 'supplies' ? '#b79a6c' : '#fef3c7'}
           roughness={0.7}
           metalness={0}
           transparent
@@ -982,6 +1211,8 @@ export const ForkliftSystem: React.FC<ForkliftSystemProps> = ({
       {forklifts.map((f) => (
         <Forklift key={f.id} data={f} onSelect={onSelectForklift} />
       ))}
+      {/* What stands at their pickups and dropoffs. */}
+      <ForkliftCargoLoads />
     </group>
   );
 };
@@ -998,23 +1229,48 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     [data.path, data.pathActions]
   );
   const routePlanRef = useRef(initialRoutePlan);
-  const motionStateRef = useRef(createInitialForkliftMotion(initialRoutePlan, data.position));
+  // Carry on from where it stood if it unmounted on this same route.
+  const [memory] = useState(() => {
+    const saved = forkliftMemory.get(data.id);
+    return saved && Math.abs(saved.pathLength - initialRoutePlan.path.totalLength) < 1e-6
+      ? saved
+      : null;
+  });
+  const motionStateRef = useRef(
+    memory?.motion ?? initialWorkMotion(initialRoutePlan, data.position, data.id)
+  );
   const dock = data.id === 'forklift-1' ? 'shipping' : 'receiving';
-  const actionMarkerIndexRef = useRef(0);
+  const actionMarkerIndexRef = useRef(memory?.actionMarkerIndex ?? 0);
   const actionCommittedRef = useRef(false);
   const [isStopped, setIsStopped] = useState(false);
   const [distanceTier, setDistanceTier] = useState<'close' | 'far'>('close'); // LOD tier for rendering
   // The fleet tag hides once its em is too few rows to hold together (see
   // SCENE_TEXT_MIN_EM_PIXELS): a group flag, written from useFrame, no render.
   const labelGroupRef = useRef<THREE.Group>(null);
-  const [hasCargo, setHasCargo] = useState(data.cargo === 'pallet');
-  const [currentOperation, setCurrentOperation] = useState<ForkliftOperation>('traveling');
-  const forkHeightRef = useRef(0); // Ref for fork animation - avoids re-renders
-  const hasCargoRef = useRef(data.cargo === 'pallet'); // Ref mirror for useFrame access
-  // The one pallet visibility every render tier reads (sampleForkliftLoadPose's
-  // cargoPresence during an operation), so no tier fades on its own clock.
-  const cargoPresenceRef = useRef(data.cargo === 'pallet' ? 1 : 0);
-  const operationRef = useRef<ForkliftOperation>('traveling'); // Ref mirror for useFrame access
+  const initialCargo = memory?.hasCargo ?? data.cargo === 'pallet';
+  const [hasCargo, setHasCargo] = useState(initialCargo);
+  const [currentOperation, setCurrentOperation] = useState<ForkliftOperation>(
+    memory?.operation ?? 'traveling'
+  );
+  const forkHeightRef = useRef(memory?.forkHeight ?? 0); // Ref for fork animation - avoids re-renders
+  const hasCargoRef = useRef(initialCargo); // Ref mirror for useFrame access
+  // The one pallet visibility every render tier reads: on the forks or not.
+  // A station draws the load whenever it is not (ForkliftCargoLoads).
+  const cargoPresenceRef = useRef(initialCargo ? 1 : 0);
+  const operationRef = useRef<ForkliftOperation>(memory?.operation ?? 'traveling'); // Ref mirror for useFrame access
+  // The pick or drop under way (forkliftWork.ts), set when it starts.
+  const workRef = useRef<ForkliftWorkState>(
+    memory?.work ?? { markerDistance: 0, heading: 0, spur: false }
+  );
+  const workOffsetScratch = useRef({ insert: 0, reverse: 0 });
+  const stationInputsScratch = useRef({ stockToShip: false, transferReady: false });
+  const crewAbsentSinceRef = useRef<number | null>(null);
+  const lastHornRef = useRef(-Infinity);
+  const standingSecondsRef = useRef(0);
+  const posedPlanRef = useRef<ForkliftRoutePlan | null>(null);
+  const loadKind = FORKLIFT_LOAD_KIND[data.id] ?? 'flour';
+  const pickupStation = useMemo(() => forkliftCargoStation(data.id, 'pickup'), [data.id]);
+  const dropoffStation = useMemo(() => forkliftCargoStation(data.id, 'dropoff'), [data.id]);
   const loadPhaseRef = useRef<ForkliftLoadPhase>('idle');
   const stopReasonRef = useRef<ForkliftStopReason>('none');
   const cameraDistanceRef = useRef(0); // Track distance to camera
@@ -1042,13 +1298,15 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     forkliftsNearby: [] as EntityPosition[],
   });
   const crossingTimerRef = useRef(0); // Time spent waiting at crossing
-  const operationTimerRef = useRef(0); // Time spent on current loading/unloading operation
-  const operationDurationRef = useRef(0); // Target duration for current operation
+  const operationTimerRef = useRef(memory?.operationTimer ?? 0); // Time spent on current loading/unloading operation
+  const operationDurationRef = useRef(memory?.operationDuration ?? 0); // Target duration for current operation
   const currentSpeedRef = useRef(0);
   const steeringAngleRef = useRef(0);
   const innerSteeringAngleRef = useRef(0);
   const outerSteeringAngleRef = useRef(0);
-  const mastTiltRef = useRef(resolveForkliftMastTilt('traveling', data.cargo === 'pallet'));
+  const mastTiltRef = useRef(
+    memory?.mastTilt ?? resolveForkliftMastTilt('traveling', data.cargo === 'pallet')
+  );
   const manualModeRef = useRef<ManualMode>('none');
   // Its operator (forkliftCrew.ts): when active, it works only while they are
   // seated, and otherwise waits for them at its crew point or handover spot.
@@ -1067,6 +1325,15 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   } | null>(null);
   const manualFrameRef = useRef<ManualWorldFrame>({ originGround: 0, segments: 0 });
   const spurTurnScratch = useRef({ stopDistance: 0, turnTo: 0 });
+  const spurTwinScratch = useRef<(number | null)[]>([]);
+  // People on its route ahead (forkliftWork.ts), refreshed with the collision checks.
+  const pedestrianBaseRef = useRef(0);
+  const pedestrianAheadRef = useRef(Infinity);
+  const pedestrianSampler = useMemo(
+    () => (distance: number) =>
+      sampleArcLengthPath(routePlanRef.current.path, pedestrianBaseRef.current + distance),
+    []
+  );
   // The manual step's options, filled each frame rather than built.
   const manualOptionsRef = useRef({
     lane: {
@@ -1104,6 +1371,16 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       receiving: state.truckSchedule.receiving.transferReady,
     }))
   );
+  // FLT01 takes a finished pallet to the dock only for a truck that is on its
+  // way in or at the dock: it no longer waits loaded at the door through the
+  // gap between trucks, and so never ends a spell with a load it cannot place.
+  const shippingTruckExpected = useTruckScheduleStore((state) => {
+    const phase = state.truckSchedule.shipping.lifecyclePhase;
+    return (
+      state.truckSchedule.shipping.truckActive &&
+      (phase === 'approaching' || phase === 'docked' || phase === 'servicing')
+    );
+  });
   const dispatchExecution = useOperationsCampaignStore(
     useShallow((state) => ({
       releasedFinishedKg: state.execution.releasedFinishedKg,
@@ -1115,17 +1392,30 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   );
   const canPerformWaypointAction = useCallback(
     (action: 'pickup' | 'dropoff'): boolean => {
-      return canPerformForkliftLogisticsAction({
-        forkliftId: data.id,
-        action,
-        shippingDocked: truckTransferReady.shipping,
-        receivingDocked: truckTransferReady.receiving,
-        releasedFinishedKg: dispatchExecution.releasedFinishedKg,
-        dispatchLoadStatus: dispatchExecution.loadStatus,
-      });
+      // The plant must want the trip, and the load must be there to take (or
+      // the place clear to put it): a pick never lifts a pallet that is not
+      // standing at its source.
+      const entry = action === 'pickup' ? pickupStation : dropoffStation;
+      const stationAllows = cargoStationAllows(action, entry?.pose ? entry.station : null);
+      const truckForIt = data.id !== 'forklift-1' || action !== 'pickup' || shippingTruckExpected;
+      return (
+        stationAllows &&
+        truckForIt &&
+        canPerformForkliftLogisticsAction({
+          forkliftId: data.id,
+          action,
+          shippingDocked: truckTransferReady.shipping,
+          receivingDocked: truckTransferReady.receiving,
+          releasedFinishedKg: dispatchExecution.releasedFinishedKg,
+          dispatchLoadStatus: dispatchExecution.loadStatus,
+        })
+      );
     },
     [
       data.id,
+      pickupStation,
+      dropoffStation,
+      shippingTruckExpected,
       dispatchExecution.loadStatus,
       dispatchExecution.releasedFinishedKg,
       truckTransferReady.receiving,
@@ -1195,7 +1485,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   const initializedRef = useRef(false);
   useEffect(() => {
     if (ref.current && !initializedRef.current) {
-      ref.current.position.set(...data.position);
+      const motion = motionStateRef.current;
+      ref.current.position.set(motion.x, data.position[1], motion.z);
+      ref.current.rotation.y = motion.heading;
       // The autopilot never writes height: this is its height for good.
       routeYRef.current = data.position[1];
       initializedRef.current = true;
@@ -1205,6 +1497,24 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
   // Cleanup: unregister from position registry on unmount
   useEffect(() => {
     return () => {
+      // Remember where it was, unless a player had it (that starts afresh).
+      if (manualModeRef.current === 'none') {
+        const motion = motionStateRef.current;
+        forkliftMemory.set(data.id, {
+          pathLength: routePlanRef.current.path.totalLength,
+          motion,
+          actionMarkerIndex: actionMarkerIndexRef.current,
+          hasCargo: hasCargoRef.current,
+          operation: operationRef.current,
+          operationTimer: operationTimerRef.current,
+          operationDuration: operationDurationRef.current,
+          forkHeight: forkHeightRef.current,
+          mastTilt: mastTiltRef.current,
+          work: { ...workRef.current },
+          position: [motion.x, routeYRef.current, motion.z],
+          heading: motion.heading,
+        });
+      } else forkliftMemory.delete(data.id);
       positionRegistry.unregister(data.id);
       vehicleTelemetryRegistry.unregister(data.id);
       forkliftBoardable.delete(data.id);
@@ -1267,6 +1577,16 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             return translate(forkliftSystemMessages, 'routeCornerAmbiguous', { id: data.id });
           return () => {
             routePlanRef.current = next;
+            // A pick or drop under way follows its marker onto the new plan.
+            const workMarker = next.markers[actionMarkerIndexRef.current];
+            const working =
+              operationRef.current === 'loading' || operationRef.current === 'unloading';
+            if (working && workMarker)
+              workRef.current = {
+                markerDistance: workMarker.distance,
+                heading: markerArrivalHeading(next, workMarker.distance),
+                spur: isSpurMarker(next, workMarker.distance),
+              };
             if (change.motion) motionStateRef.current = change.motion;
             // A lane return in progress was steering for the old route.
             else laneReturnRef.current = createLaneReturnState();
@@ -1304,6 +1624,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           innerSteeringAngleRef: innerSteeringAngleRef.current,
           outerSteeringAngleRef: outerSteeringAngleRef.current,
           stoppedMirrorRef: stoppedMirrorRef.current,
+          workRef: { ...workRef.current },
+          pickupStation: pickupStation ? { ...pickupStation.station } : null,
+          dropoffStation: dropoffStation ? { ...dropoffStation.station } : null,
           transform: ref.current
             ? {
                 position: ref.current.position.toArray(),
@@ -1341,18 +1664,27 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           innerSteeringAngleRef.current = snapshot.innerSteeringAngleRef;
           outerSteeringAngleRef.current = snapshot.outerSteeringAngleRef;
           stoppedMirrorRef.current = snapshot.stoppedMirrorRef;
-          // Derived, so not in the snapshot: mid-operation it follows the
-          // operation's progress, otherwise the cargo flag.
+          // Derived, so not in the snapshot: the cargo flag where a station
+          // draws the load off the forks, otherwise the operation's progress.
+          if (snapshot.workRef) workRef.current = { ...snapshot.workRef };
+          const replayStation = operationRef.current === 'loading' ? pickupStation : dropoffStation;
           cargoPresenceRef.current =
-            operationRef.current === 'loading' || operationRef.current === 'unloading'
-              ? sampleForkliftLoadPose(
+            replayStation?.pose ||
+            (operationRef.current !== 'loading' && operationRef.current !== 'unloading')
+              ? hasCargoRef.current
+                ? 1
+                : 0
+              : sampleForkliftLoadPose(
                   operationRef.current === 'loading' ? 'pickup' : 'dropoff',
                   operationTimerRef.current / Math.max(0.1, operationDurationRef.current),
                   FORK_LIFT_HEIGHT
-                ).cargoPresence
-              : hasCargoRef.current
-                ? 1
-                : 0;
+                ).cargoPresence;
+          // Its stations as they stood at the capture.
+          for (const [entry, saved] of [
+            [pickupStation, snapshot.pickupStation],
+            [dropoffStation, snapshot.dropoffStation],
+          ] as const)
+            if (entry && saved) Object.assign(entry.station, saved);
           setHasCargo(hasCargoRef.current);
           setCurrentOperation(operationRef.current);
           setIsStopped(stoppedMirrorRef.current);
@@ -1389,7 +1721,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           replayPresentationRef.current();
         },
       }),
-    [data.id]
+    [data.id, pickupStation, dropoffStation]
   );
 
   useFrame((state, delta) => {
@@ -1433,6 +1765,31 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     }
 
     const framePaused = isForkliftSimulationPaused(useGameSimulationStore.getState().gameSpeed);
+
+    // Its stations: where their loads stand on this route, and what the plant
+    // has put there this frame (forkliftCargoStations.ts), on plant time.
+    if (posedPlanRef.current !== routePlan) {
+      posedPlanRef.current = routePlan;
+      for (const marker of routePlan.markers) {
+        if (marker.action.type === 'pickup') publishStationPose(routePlan, marker, pickupStation);
+        else if (marker.action.type === 'dropoff')
+          publishStationPose(routePlan, marker, dropoffStation);
+      }
+    }
+    if (!framePaused && !isWorkplaceReplayRestoring()) {
+      const execution = useOperationsCampaignStore.getState().execution;
+      const stationInputs = stationInputsScratch.current;
+      // The next pallet starts once this one has left the forks for the dock,
+      // so the collection point is free to take it back at the end of a spell.
+      stationInputs.stockToShip =
+        execution.releasedFinishedKg > 0 &&
+        execution.dispatchLoad.status !== 'ready' &&
+        !hasCargoRef.current;
+      stationInputs.transferReady =
+        useTruckScheduleStore.getState().truckSchedule[dock].transferReady;
+      if (pickupStation) stepCargoStation(pickupStation.station, stationInputs, simulationDelta);
+      if (dropoffStation) stepCargoStation(dropoffStation.station, stationInputs, simulationDelta);
+    }
 
     // Manual control. Boardable only between load operations, so the player
     // never interrupts a lift half-way.
@@ -1718,8 +2075,20 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     }
 
     // The crew's duty: work the route, or stand at a station on the lane.
+    const nowMs = performance.now();
+    const crewActive =
+      !!crewSite && !!crewLive.state && isForkliftCrewActive(crewLive, nowMs, delta * 1000);
+    if (crewActive || !crewSite) crewAbsentSinceRef.current = null;
+    else crewAbsentSinceRef.current ??= nowMs;
+    // People are in the world but its crew has not stepped yet (or has just
+    // stopped): it stands where it is for a moment rather than work unmanned.
+    const crewGrace =
+      !crewActive &&
+      !!crewSite &&
+      !useGraphicsStore.getState().graphics.perfDebug.disableCommunityLife &&
+      nowMs - (crewAbsentSinceRef.current ?? nowMs) < CREW_FALLBACK_GRACE_MS;
     const crewDuty: ForkliftCrewDuty | null =
-      crewSite && crewLive.state && isForkliftCrewActive(crewLive, performance.now(), delta * 1000)
+      crewActive && crewLive.state
         ? forkliftCrewDuty(
             crewLive.state,
             crewRouteDistance(routePlan, crewSite),
@@ -1727,7 +2096,11 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             crewDutyScratch.current.station
           )
         : null;
-    const crewStation = crewDuty?.station ?? null;
+    // At the end of a spell with a load on the forks, the job in hand comes
+    // first: the crew point waits until the load is delivered or put back.
+    const wantsOff = crewLive.state?.phase === 'wants-off' && crewDuty !== null;
+    const keepWorking = wantsOff && hasCargoRef.current;
+    const crewStation = keepWorking ? null : (crewDuty?.station ?? null);
     // Wrapped: a handover recorded before a layout edit can exceed the new length.
     const routeLength = routePlan.path.totalLength;
     const stationDistance = crewStation
@@ -1746,11 +2119,33 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       (stationAhead <= 0.06 || (stationBehind ?? Infinity) <= stationReach);
     const stationStop = stationAhead === null ? null : atStation ? 0 : stationAhead;
 
-    const marker = routePlan.markers[actionMarkerIndexRef.current];
-    const markerAction =
-      marker?.action.type === 'pickup' || marker?.action.type === 'dropoff'
+    // What the end of a spell leaves to do (forkliftCrew.ts forkliftSpellEndTask):
+    // carry on, park, deliver the load, put it back where it was picked, or
+    // hold it at the drop until the drop opens.
+    const pickupMarkerIndex = routePlan.markers.findIndex(
+      (candidate) => candidate.action.type === 'pickup'
+    );
+    const spellTask = forkliftSpellEndTask({
+      wantsOff,
+      loaded: hasCargoRef.current,
+      dropOpen: hasCargoRef.current && canPerformWaypointAction('dropoff'),
+      dropExpected: data.id === 'forklift-1' && shippingTruckExpected,
+      committed: actionCommittedRef.current,
+      canPutBack:
+        pickupMarkerIndex >= 0 &&
+        cargoStationTakesBack(pickupStation?.pose ? pickupStation.station : null),
+    });
+    const putBack = spellTask === 'put-back';
+    const targetIndex = putBack ? pickupMarkerIndex : actionMarkerIndexRef.current;
+    const marker = routePlan.markers[targetIndex];
+    const markerAction = putBack
+      ? 'dropoff'
+      : marker?.action.type === 'pickup' || marker?.action.type === 'dropoff'
         ? marker.action.type
         : null;
+    // The station the load comes from or goes to: a put-back's is the pickup's.
+    const targetEntry =
+      putBack || markerAction === 'pickup' ? pickupStation : markerAction ? dropoffStation : null;
     const cargoRelevant =
       markerAction === 'pickup'
         ? !hasCargoRef.current
@@ -1760,24 +2155,19 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     const distanceToMarker = marker
       ? distanceAheadOnClosedPath(routePlan.path, motionBefore.routeDistance, marker.distance)
       : Infinity;
-    // At the end of a spell the operator drops a task that is not permitted and
-    // lies before the crew point, rather than sit waiting for it in a held hour.
-    const lastTaskBlocked =
-      crewLive.state?.phase === 'wants-off' &&
-      crewDuty !== null &&
-      cargoRelevant &&
-      markerAction !== null &&
-      stationAhead !== null &&
-      distanceToMarker < stationAhead &&
-      !(canPerformWaypointAction(markerAction) || actionCommittedRef.current);
-    // Unmanned (or dropping its last task) it works nothing: no pickup, no dropoff.
-    const crewWorks = (crewDuty?.works ?? true) && !lastTaskBlocked;
+    // Unmanned it works nothing; at the end of a spell, empty, it starts no new job.
+    const crewWorks = (crewDuty?.works ?? !crewGrace) && spellTask !== 'park';
     const markerRelevant = crewWorks && cargoRelevant;
 
     // An e-stop or drill freezes a lift/place cycle where it is, as well as travel.
     const emergencyStopped = forkliftEmergencyStop || emergencyDrillMode;
 
     if (operationRef.current === 'loading' || operationRef.current === 'unloading') {
+      const work = workRef.current;
+      const action = operationRef.current === 'loading' ? 'pickup' : 'dropoff';
+      const stationEntry = (work.station ?? action) === 'pickup' ? pickupStation : dropoffStation;
+      const workDirX = Math.sin(work.heading);
+      const workDirZ = Math.cos(work.heading);
       if (emergencyStopped) {
         stopReasonRef.current = 'emergency-stop';
         motionStateRef.current = {
@@ -1791,8 +2181,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           data.id,
           motionBefore.x,
           motionBefore.z,
-          direction.x,
-          direction.z,
+          workDirX,
+          workDirZ,
           true,
           vehicle.position.y
         );
@@ -1801,41 +2191,67 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       }
       operationTimerRef.current += simulationDelta;
       const duration = Math.max(0.1, operationDurationRef.current);
-      const action = operationRef.current === 'loading' ? 'pickup' : 'dropoff';
+      const progress = operationTimerRef.current / duration;
       const loadPose = sampleForkliftLoadPose(
         action,
-        operationTimerRef.current / duration,
+        progress,
         FORK_LIFT_HEIGHT,
-        marker?.action.surfaceForkHeight ?? 0
+        work.surface ?? marker?.action.surfaceForkHeight ?? 0
       );
       loadPhaseRef.current = loadPose.phase;
       forkHeightRef.current = loadPose.forkHeight;
       mastTiltRef.current = loadPose.mastTilt;
-      cargoPresenceRef.current = loadPose.cargoPresence;
       stopReasonRef.current = 'load-operation';
 
+      // The load changes hands where it stands: the station's pallet becomes
+      // the forks' at engagement, and the station's again at release.
       if (action === 'pickup' && loadPose.cargoEngaged && !hasCargoRef.current) {
         hasCargoRef.current = true;
+        if (stationEntry) takeCargo(stationEntry.station);
         setHasCargo(true);
       } else if (action === 'dropoff' && !loadPose.cargoEngaged && hasCargoRef.current) {
         hasCargoRef.current = false;
+        if (stationEntry) placeCargo(stationEntry.station);
         setHasCargo(false);
       }
+      cargoPresenceRef.current = stationEntry?.pose
+        ? hasCargoRef.current
+          ? 1
+          : 0
+        : loadPose.cargoPresence;
 
+      // In along the forks' line, then straight back out (forkliftWork.ts).
+      const along = forkliftWorkAlong(
+        forkliftWorkOffset(action, progress, workOffsetScratch.current)
+      );
+      const total = routePlan.path.totalLength;
+      const markerSample = sampleArcLengthPath(routePlan.path, work.markerDistance);
+      const workX = markerSample.x + workDirX * along;
+      const workZ = markerSample.z + workDirZ * along;
+      const travelled = Math.hypot(workX - motionBefore.x, workZ - motionBefore.z);
+      const workSpeed = simulationDelta > 0 ? travelled / simulationDelta : 0;
       motionStateRef.current = {
         ...motionBefore,
-        speed: 0,
+        routeDistance: (((work.markerDistance + along) % total) + total) % total,
+        x: workX,
+        z: workZ,
+        heading: work.heading,
+        speed: workSpeed,
         acceleration: 0,
+        wheelTravel: motionBefore.wheelTravel + travelled,
         stopReason: 'load-operation',
       };
-      currentSpeedRef.current = 0;
+      vehicle.position.x = workX;
+      vehicle.position.z = workZ;
+      vehicle.rotation.y = work.heading;
+      currentSpeedRef.current = workSpeed;
       positionRegistry.register(
         data.id,
-        motionBefore.x,
-        motionBefore.z,
-        direction.x,
-        direction.z,
-        true,
+        workX,
+        workZ,
+        workDirX,
+        workDirZ,
+        workSpeed <= 0.01,
         vehicle.position.y
       );
 
@@ -1845,16 +2261,41 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         operationRef.current = 'traveling';
         loadPhaseRef.current = hasCargoRef.current ? 'carrying' : 'idle';
         setCurrentOperation('traveling');
-        actionMarkerIndexRef.current =
-          routePlan.markers.length > 0
+        // A load put back where it was picked is that pickup's to take again.
+        const putBackDone = action === 'dropoff' && work.station === 'pickup';
+        actionMarkerIndexRef.current = putBackDone
+          ? Math.max(
+              0,
+              routePlan.markers.findIndex((candidate) => candidate.action.type === 'pickup')
+            )
+          : routePlan.markers.length > 0
             ? (actionMarkerIndexRef.current + 1) % routePlan.markers.length
             : 0;
+        // Backed out: on a spur that is exactly a point on the way back, so
+        // it carries on from there; elsewhere it turns standing where it is
+        // and eases onto its lane over the first metres it drives.
+        const resume = work.spur
+          ? (work.markerDistance + FORKLIFT_REVERSE_METRES) % total
+          : work.markerDistance;
+        const resumeSample = sampleArcLengthPath(routePlan.path, resume);
+        motionStateRef.current = {
+          ...motionStateRef.current,
+          routeDistance: resume,
+          x: resumeSample.x,
+          z: resumeSample.z,
+          speed: 0,
+          acceleration: 0,
+          stopReason: 'none',
+        };
+        rejoinBlendRef.current = {
+          x: workX - resumeSample.x,
+          z: workZ - resumeSample.z,
+          startTravel: motionStateRef.current.wheelTravel,
+          // Not while it turns standing: only the metres it drives fade it.
+          seconds: work.spur ? 0 : -REJOIN_BLEND_SECONDS,
+        };
         // A raised surface keeps the forks at its height until the vehicle has backed off.
-        forkHeightRef.current = travelForkHeight(
-          routePlan,
-          motionBefore.routeDistance,
-          hasCargoRef.current
-        );
+        forkHeightRef.current = travelForkHeight(routePlan, resume, hasCargoRef.current);
         mastTiltRef.current = resolveForkliftMastTilt('traveling', hasCargoRef.current);
       }
       publishMotionTelemetry();
@@ -1865,15 +2306,28 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     // the dock door's pedestrian approach for a dock-side action.
     // Once it has left the hold point with permission it finishes the action
     // while its truck is still docked, rather than stopping in the doorway.
-    const holdLeg = markerHoldLegs(routePlan)[actionMarkerIndexRef.current] ?? 0;
-    const ownPermission = markerAction ? canPerformWaypointAction(markerAction) : false;
+    // A pallet being built is waited for short of it, its tines clear of the bags.
+    const stationKind = targetEntry?.station.kind;
+    const holdLeg = Math.max(
+      markerHoldLegs(routePlan)[targetIndex] ?? 0,
+      stationKind === 'build' ? FORKLIFT_STATION_WAIT_METRES + FORKLIFT_INSERT_METRES : 0
+    );
+    // Every stop is measured to where the insert begins, a metre short of the
+    // marker: it stops there, then creeps in as the pick or drop starts.
+    const workDistance = Math.max(0, distanceToMarker - FORKLIFT_INSERT_METRES);
+    const workHoldLeg = Math.max(0, holdLeg - FORKLIFT_INSERT_METRES);
+    const ownPermission = putBack
+      ? true
+      : markerAction
+        ? canPerformWaypointAction(markerAction)
+        : false;
     actionCommittedRef.current =
       markerRelevant &&
       nextForkliftActionCommitment({
         committed: actionCommittedRef.current,
         permitted: ownPermission,
-        distanceToMarker,
-        holdLeg,
+        distanceToMarker: workDistance,
+        holdLeg: workHoldLeg,
       });
     const actionPermitted = forkliftActionPermitted({
       permitted: ownPermission,
@@ -1882,46 +2336,95 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     });
     const actionStop =
       marker && markerRelevant && markerAction
-        ? resolveForkliftActionStop({ distanceToMarker, holdLeg, permitted: actionPermitted })
+        ? resolveForkliftActionStop({
+            distanceToMarker: workDistance,
+            holdLeg: workHoldLeg,
+            permitted: actionPermitted,
+          })
         : null;
-    // Not working, it never goes up a dock spur: it turns at the hold point.
-    // Every spur ahead counts, not only the next marker's: an unloaded forklift
-    // bound for a pickup passes the dropoff spur first.
-    const spurTurn = crewWorks
-      ? null
-      : nearestSpurTurnAhead(
-          routePlan,
-          motionBefore.routeDistance,
-          markerHoldLegs(routePlan),
-          markerSpurTwins(routePlan),
-          stationAhead,
-          spurTurnScratch.current
-        );
+    // It never goes up a dock spur it has no work at: it turns at the hold
+    // point. Every spur ahead counts, not only the next marker's: an unloaded
+    // forklift bound for a pickup passes the dropoff spur first, and went up
+    // to the shut door whenever it set off from its crew point empty.
+    const spurTwins = markerSpurTwins(routePlan);
+    const turnTwins = spurTwinScratch.current;
+    turnTwins.length = spurTwins.length;
+    for (let index = 0; index < spurTwins.length; index += 1)
+      turnTwins[index] = markerRelevant && index === targetIndex ? null : spurTwins[index];
+    const spurTurn = nearestSpurTurnAhead(
+      routePlan,
+      motionBefore.routeDistance,
+      markerHoldLegs(routePlan),
+      turnTwins,
+      stationAhead,
+      spurTurnScratch.current
+    );
     const logisticsInterlock = !emergencyStopped && (actionStop?.interlocked ?? false);
-    if (marker && markerRelevant && distanceToMarker <= 0.06 && markerAction && !emergencyStopped) {
-      if (actionPermitted) {
-        const markerSample = sampleArcLengthPath(routePlan.path, marker.distance);
-        motionStateRef.current = {
-          ...motionBefore,
-          routeDistance: marker.distance,
-          x: markerSample.x,
-          z: markerSample.z,
-          speed: 0,
-          acceleration: 0,
-          stopReason: 'load-operation',
-        };
-        vehicle.position.x = markerSample.x;
-        vehicle.position.z = markerSample.z;
-        operationTimerRef.current = 0;
-        operationDurationRef.current = marker.action.duration;
-        operationRef.current = markerAction === 'pickup' ? 'loading' : 'unloading';
-        loadPhaseRef.current = 'aligning';
-        setCurrentOperation(operationRef.current);
-        currentSpeedRef.current = 0;
-        publishMotionTelemetry();
-        return;
-      }
+    if (
+      marker &&
+      markerRelevant &&
+      distanceToMarker <= FORKLIFT_INSERT_METRES + 0.06 &&
+      markerAction &&
+      !emergencyStopped &&
+      actionPermitted &&
+      // At a trailer it waits at the insert point, in the lane, for the
+      // pallet to reach the tail.
+      cargoStationWorkable(markerAction, targetEntry?.pose ? targetEntry.station : null)
+    ) {
+      // Lined up a metre short with the forks set: the pick or drop begins
+      // with the creep in (forkliftWork.ts).
+      const total = routePlan.path.totalLength;
+      const heading = markerArrivalHeading(routePlan, marker.distance);
+      workRef.current = {
+        markerDistance: marker.distance,
+        heading,
+        spur: isSpurMarker(routePlan, marker.distance),
+        station: putBack ? 'pickup' : markerAction,
+        surface: marker.action.surfaceForkHeight ?? 0,
+      };
+      const startDistance = (((marker.distance - FORKLIFT_INSERT_METRES) % total) + total) % total;
+      const startSample = sampleArcLengthPath(routePlan.path, startDistance);
+      motionStateRef.current = {
+        ...motionBefore,
+        routeDistance: startDistance,
+        x: startSample.x,
+        z: startSample.z,
+        heading,
+        speed: 0,
+        acceleration: 0,
+        stopReason: 'load-operation',
+      };
+      vehicle.position.x = startSample.x;
+      vehicle.position.z = startSample.z;
+      vehicle.rotation.y = heading;
+      rejoinBlendRef.current = null;
+      operationTimerRef.current = 0;
+      operationDurationRef.current = marker.action.duration;
+      operationRef.current = markerAction === 'pickup' ? 'loading' : 'unloading';
+      loadPhaseRef.current = 'aligning';
+      setCurrentOperation(operationRef.current);
+      currentSpeedRef.current = 0;
+      publishMotionTelemetry();
+      return;
     }
+
+    // People ahead on its route: it slows for them, and stops short of them.
+    // Headless and replay frames can pass a state without a scene or clock.
+    if (shouldCheckCollisions && state.scene && state.camera) {
+      pedestrianBaseRef.current = motionBefore.routeDistance;
+      const count = gatherPedestrians(
+        state.scene,
+        state.camera,
+        state.clock?.elapsedTime ?? Number.NaN,
+        crewLive.operatorRoot
+      );
+      pedestrianAheadRef.current = nearestPedestrianAhead(
+        pedestrianSampler,
+        pedestrianScratch,
+        count
+      );
+    }
+    const pedestrianAhead = pedestrianAheadRef.current;
 
     const resolvedStopReason = resolveForkliftStopReason({
       id: data.id,
@@ -1932,9 +2435,15 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       obstaclePathClear,
       nearby: forkliftsNearby,
     });
-    // Standing at its station for its operator is a scheduled stop.
+    // Someone on foot close ahead on its route has the right of way. Standing
+    // at its station for its operator, or briefly for a crew that has not
+    // stepped yet, is a scheduled stop.
     const stopReason: ForkliftStopReason =
-      resolvedStopReason === 'none' && atStation ? 'scheduled' : resolvedStopReason;
+      resolvedStopReason === 'none' && pedestrianAhead <= FORKLIFT_PEDESTRIAN_STOP
+        ? 'pedestrian-yield'
+        : resolvedStopReason === 'none' && (atStation || crewGrace)
+          ? 'scheduled'
+          : resolvedStopReason;
 
     const requestedStopped = stopReason !== 'none';
     if (requestedStopped !== isStopped) {
@@ -1950,7 +2459,15 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         // a near miss.
         // Working if a yield never raises 'Near-Miss Avoided' or lowers the
         // safety score, while a blocked route still records one.
-        if (stopReason === 'route-blocked' || stopReason === 'vehicle-yield') {
+        // The horn is for someone who may not have seen it: a person ahead, a
+        // blocked route, a vehicle it yields to. Once, then not again for a while.
+        if (
+          (stopReason === 'route-blocked' ||
+            stopReason === 'vehicle-yield' ||
+            stopReason === 'pedestrian-yield') &&
+          nowMs - lastHornRef.current >= HORN_COOLDOWN_MS
+        ) {
+          lastHornRef.current = nowMs;
           audioManager.playHorn(data.id);
         }
         if (stopReason === 'route-blocked') {
@@ -1983,6 +2500,19 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       )
     );
     if (crewDuty?.walkingPace) targetSpeed = Math.min(targetSpeed, UNMANNED_SPEED);
+    // Coming up to a pick or a drop it eases right down before the creep in.
+    if (actionStop && actionPermitted && workDistance < FORKLIFT_APPROACH_METRES)
+      targetSpeed = Math.min(targetSpeed, FORKLIFT_APPROACH_SPEED);
+    if (pedestrianAhead <= FORKLIFT_PEDESTRIAN_LOOKAHEAD)
+      targetSpeed = Math.min(targetSpeed, FORKLIFT_PEDESTRIAN_SLOW_SPEED);
+    if (crewGrace) targetSpeed = 0;
+    // A load set down while it waited is lifted clear before it moves.
+    const travelHeight = travelForkHeight(
+      routePlan,
+      motionBefore.routeDistance,
+      hasCargoRef.current
+    );
+    if (forkHeightRef.current < travelHeight - 0.06) targetSpeed = 0;
     const travelLimit = Math.min(
       actionStop?.stopDistance ?? Infinity,
       spurTurn?.stopDistance ?? Infinity,
@@ -2005,8 +2535,21 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       // turned onto it: one handed back across its lane stood crosswise there.
       holdHeading: logisticsInterlock || (atStation && alignedWithLane(routePlan, motionBefore)),
     });
+    // Parked for its operator. To be let off at the end of a spell it is also
+    // empty with its forks down (forkliftParkedForCrew): never a load left on
+    // the forks of a forklift nobody is in.
+    const aligned = alignedWithLane(routePlan, nextMotion);
     crewLive.parkedAt =
-      crewStation && atStation && nextMotion.speed <= 0.01 && alignedWithLane(routePlan, nextMotion)
+      crewStation &&
+      (wantsOff && crewStation.kind === 'crew'
+        ? forkliftParkedForCrew({
+            atStation,
+            aligned,
+            speed: nextMotion.speed,
+            loaded: hasCargoRef.current,
+            forkHeight: forkHeightRef.current,
+          })
+        : atStation && nextMotion.speed <= 0.01 && aligned)
         ? crewStation.kind
         : null;
     if (
@@ -2069,8 +2612,14 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     vehicle.rotation.y = nextMotion.heading;
     vehicle.rotation.z += (targetRoll - vehicle.rotation.z) * poseResponse;
     vehicle.rotation.x += (targetPitch - vehicle.rotation.x) * poseResponse;
+    // Parked or waiting a while, the load goes down onto the floor and the
+    // forks stay down; they come back up before it moves off.
+    const standing =
+      nextMotion.speed <= 0.01 &&
+      (stopReason === 'scheduled' || stopReason === 'logistics-interlock');
+    standingSecondsRef.current = standing ? standingSecondsRef.current + simulationDelta : 0;
     forkHeightRef.current +=
-      (travelForkHeight(routePlan, nextMotion.routeDistance, hasCargoRef.current) -
+      ((standingSecondsRef.current > FORKS_DOWN_AFTER_SECONDS ? 0 : travelHeight) -
         forkHeightRef.current) *
       poseResponse;
     mastTiltRef.current +=
@@ -2161,6 +2710,16 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         )
     );
     crewLive.vehicleHeartbeat = performance.now();
+    // The operator steers with it, and looks back over a shoulder while it
+    // backs out of a pick or a drop (forkliftCrew.ts forkliftDriveCue).
+    const controls = crewLive.controls ?? (crewLive.controls = { steer: 0, reversing: false });
+    controls.steer = steeringAngleRef.current;
+    controls.reversing =
+      (operationRef.current === 'loading' || operationRef.current === 'unloading') &&
+      (loadPhaseRef.current === 'retracting' ||
+        loadPhaseRef.current === 'carrying' ||
+        loadPhaseRef.current === 'withdrawing' ||
+        loadPhaseRef.current === 'resetting');
     const root = crewLive.operatorRoot;
     const crew = crewLive.state;
     if (root && crew && isOperatorInCab(crew) && crewActive) {
@@ -2217,9 +2776,10 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           innerSteeringAngleRef={innerSteeringAngleRef}
           outerSteeringAngleRef={outerSteeringAngleRef}
           grime={forkliftGrime}
+          load={loadKind}
         />
       ) : (
-        <ForkliftBillboard cargoPresenceRef={cargoPresenceRef} />
+        <ForkliftBillboard cargoPresenceRef={cargoPresenceRef} load={loadKind} />
       )}
 
       {/* Warning light - always mounted so the point-light count is constant;

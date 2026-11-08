@@ -4,15 +4,17 @@ This directory contains the focused simulation interface modules re-exported by
 `src/components/GameFeatures.tsx`.
 
 The notification system captions every line and speaks it with the on-device
-PA voice (`src/audio/paVoice.ts`, D-025), and uses an autonomous plant corpus.
-It reports production milestones, machine states, logistics sequencing, safety
-interlocks, weather adaptation, and day or night facility state. No embodied
-characters, workforce rankings, or host voice services are part of the runtime.
+PA voice (`src/audio/paVoice.ts`, D-025). It speaks only problems and pertinent
+updates (D-054): machine faults and recoveries, drills and emergency stops, the
+end of a shift, the day's target made and the on-device AI's incident notices.
+Nothing is said on a timer, and a plant running as it should is not announced.
+No embodied characters, workforce rankings, or host voice services are part of
+the runtime.
 
 Key modules:
 
-- `shared.tsx`: machine-only notice corpus, schedulers, event mappings, and the
-  camera-feed context.
+- `shared.tsx`: the event-driven PA scheduler, its corpus (`shared.messages.ts`)
+  and the camera-feed context.
 - `PAAnnouncementSystem.tsx`: priority-aware accessible caption presentation.
 - `MiniMap.tsx`: factory, vehicle, and zone overview.
 - `IncidentReplayControls.tsx`: historical event playback.

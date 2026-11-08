@@ -488,7 +488,7 @@ const App: React.FC = () => {
           audioManager.startCompressorCycling(); // Industrial air compressor cycling
           audioManager.startMetalClanks(); // Random metal clanks from factory floor
           audioManager.startMusic(); // Background music (respects musicEnabled setting)
-          // A reload restores the Space-bar forklift stop but not its klaxon,
+          // A reload restores the X-key forklift stop but not its klaxon,
           // which only the engaging keypress or button starts. A facility
           // emergency holding the forklifts owns its own sound.
           // Working if a reload mid-stop sounds the klaxon at the first gesture.

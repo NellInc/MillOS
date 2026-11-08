@@ -74,9 +74,17 @@ export const PA_VOICES: Record<PAVoiceGroup, readonly string[]> = {
   ],
 };
 
-/** Even, firm voices that hold up through a band-limited tannoy. */
+/**
+ * Female voices that hold up through a band-limited tannoy. Lottie was chosen
+ * by Nell by ear from rendered auditions of every female English voice through
+ * the tannoy filter (D-056); Bryony, picked from the descriptions alone
+ * (D-055), sounded flat next to the old male default. Débora: "low-set and resonant, with firm even phrasing and short
+ * decisive sentences". A saved choice is only ever a voice the player picked
+ * (Settings writes voiceNames on a change), so a player who never chose follows
+ * this default, and one who picked Edwin keeps him.
+ */
 export const DEFAULT_PA_VOICE: Record<Locale, string> = {
-  en: 'Edwin',
+  en: 'Lottie',
   'pt-BR': 'Débora',
 };
 
@@ -88,6 +96,16 @@ export function isPAVoiceFor(locale: Locale, name: unknown): name is string {
 }
 
 /** The player's choice for a language when it is one of its voices, else the default. */
+/**
+ * The two voices Settings offers per language, the default first. Nell chose
+ * Lottie by ear and asked for Edwin, the previous male default, beside her
+ * (D-061). A voice saved from the older full list still plays.
+ */
+export const FEATURED_PA_VOICES: Record<Locale, readonly [string, string]> = {
+  en: ['Lottie', 'Edwin'],
+  'pt-BR': ['Débora', 'Marcelo'],
+};
+
 export function paVoiceFor(locale: Locale, chosen: Partial<Record<Locale, string>>): string {
   const name = chosen[locale];
   return isPAVoiceFor(locale, name) ? name : DEFAULT_PA_VOICE[locale];

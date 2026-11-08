@@ -1075,6 +1075,23 @@ export const AtmosphericHaze: React.FC = () => {
 const VENT_MAX_POINT_PIXELS = 64;
 
 /**
+ * Camera distance over which every vent puff fades out, in metres, set by
+ * `MachineSteamVents` from its quality's cull distance. Each puff fades by its
+ * own distance in the vertex shader, so a plume thins away as the camera pulls
+ * back and is already clear when the vent is culled, rather than vanishing
+ * whole at the cull line. One shared pair of uniforms for every vent.
+ */
+export const VENT_FADE_UNIFORMS = {
+  uVentFadeStart: { value: 30 },
+  uVentFadeEnd: { value: 40 },
+};
+
+/** The fade band for a cull distance: the last quarter of it. */
+export function ventFadeBand(cullDistance: number): { start: number; end: number } {
+  return { start: cullDistance * 0.75, end: cullDistance };
+}
+
+/**
  * Steam material with per-point life response.
  *
  * `lifetimes` is bound straight to the geometry as `aLife`, so the shader can
@@ -1082,7 +1099,7 @@ const VENT_MAX_POINT_PIXELS = 64;
  * this, `lifetimes` only decided when to respawn: every puff popped to full
  * opacity the instant it recycled.
  */
-const createMachineSteamMaterial = (
+export const createMachineSteamMaterial = (
   color: string,
   size: number,
   opacity: number,
@@ -1101,11 +1118,14 @@ const createMachineSteamMaterial = (
   });
 
   material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, VENT_FADE_UNIFORMS);
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
         `#include <common>
         attribute float aLife;
+        uniform float uVentFadeStart;
+        uniform float uVentFadeEnd;
         varying float vLifeAlpha;`
       )
       .replace(
@@ -1116,6 +1136,8 @@ const createMachineSteamMaterial = (
         gl_PointSize *= 1.0 + 1.6 * aLife;
         gl_PointSize = clamp( gl_PointSize, 1.0, ${maxPoint} );
         vLifeAlpha = smoothstep( 0.0, 0.12, aLife ) * ( 1.0 - smoothstep( 0.55, 1.0, aLife ) );
+        float ventDistance = distance( ( modelMatrix * vec4( transformed, 1.0 ) ).xyz, cameraPosition );
+        vLifeAlpha *= 1.0 - smoothstep( uVentFadeStart, uVentFadeEnd, ventDistance );
         #include <logdepthbuf_vertex>`
       );
 
@@ -1133,7 +1155,7 @@ const createMachineSteamMaterial = (
   };
 
   // Stable per configuration: the cap is the only thing that changes the source.
-  material.customProgramCacheKey = () => `millos-machine-steam-v2-${maxPoint}`;
+  material.customProgramCacheKey = () => `millos-machine-steam-v3-${maxPoint}`;
   return material;
 };
 
@@ -1361,8 +1383,15 @@ export const MachineSteamVents: React.FC = () => {
   // Machines stop under a fire drill or emergency stop, and so do their vents.
   const safetyHold = useGameSimulationStore(selectSafetyHoldActive);
 
-  // Distance threshold for culling steam sources (in world units)
+  // Distance threshold for culling steam sources (in world units). The puffs
+  // have faded out by here (`VENT_FADE_UNIFORMS`), so the cull draws nothing
+  // different; it only stops paying for invisible plumes.
   const cullDistance = quality === 'ultra' ? 60 : quality === 'high' ? 50 : 40;
+  useEffect(() => {
+    const band = ventFadeBand(cullDistance);
+    VENT_FADE_UNIFORMS.uVentFadeStart.value = band.start;
+    VENT_FADE_UNIFORMS.uVentFadeEnd.value = band.end;
+  }, [cullDistance]);
 
   // On medium quality, render half the sources. Depends on `quality` only, so
   // the child list is stable between renders.

@@ -210,7 +210,7 @@ function supportFixture(quality: string) {
   full.add(road);
   for (const [coordinate, dimensions, owner] of [
     ['[0, EXTERIOR_LAYERS.ground, -30]', '[60, 60]', 'receiving-yard'],
-    ['[-20, EXTERIOR_LAYERS.ground, -115]', '[10, 120]', 'receiving-road'],
+    ['[-20, EXTERIOR_LAYERS.ground, -115]', '[16, 120]', 'receiving-road'],
   ]) {
     const mesh = objectFromRecord(
       expression(

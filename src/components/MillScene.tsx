@@ -12,6 +12,7 @@ import { MachineSimulationController } from './machines/MachineSimulationControl
 import { DustParticles, GrainFlow, MachineSteamVents, DustAnimationManager } from './DustParticles';
 import { OptimizedFactoryInfrastructure } from './infrastructure/OptimizedFactoryInfrastructure';
 import { HallDressing } from './infrastructure/HallDressing';
+import { StaffFacilities } from './facilities/StaffFacilities';
 import type { ForkliftData } from './ForkliftSystem';
 import { OptimizedFactoryEnvironment } from './environment/OptimizedFactoryEnvironment';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
@@ -96,6 +97,7 @@ import { SITE_LAYOUT } from '../constants/siteLayout';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useT } from '../i18n';
 import { millSceneMessages } from './MillScene.messages';
+import { AccessFittings } from './accessibility/AccessFittings';
 
 /**
  * Authored `wireframe` values of the materials the toggle has overridden, so
@@ -846,6 +848,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
       <group name="world-factory-infrastructure">
         <OptimizedFactoryInfrastructure showZones={showZones} />
         <HallDressing revision={staticBatchRevision} />
+        <StaffFacilities />
       </group>
 
       {/* Dynamic Elements - Respect perfDebug toggles */}
@@ -960,6 +963,10 @@ export const MillScene: React.FC<MillSceneProps> = ({
 
       {/* Fire Drill Exit Markers - shown during active drill */}
       <ServiceEgressMarkers />
+
+      {/* Ramps, tactile paving, visual alarms, the quiet room and the
+          accessible bay (D-058, accessibility/AccessFittings.tsx). */}
+      {authoredSiteReady && <AccessFittings />}
 
       {/* AI Cascade Visualization - shows production flow stress (default OFF, toggle with 'K').
           Its chunk is first fetched on demand after the world is ready, so it

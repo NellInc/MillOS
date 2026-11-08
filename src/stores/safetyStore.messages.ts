@@ -14,7 +14,7 @@ export const safetyStoreMessages = defineMessages({
     zoneReceivingDockDoor: 'Receiving Dock Door',
     zoneShippingCrewPoint: 'Shipping Crew Point',
     forkliftRouteBlocked: 'Forklift stopped for a blocked route',
-    keyboardEmergencyStop: 'Emergency stop activated via keyboard (Spacebar)',
+    keyboardEmergencyStop: 'Emergency stop activated via keyboard (X)',
     facilityStop: 'Facility emergency stop triggered from the Safety panel',
   },
   'pt-BR': {
@@ -30,7 +30,7 @@ export const safetyStoreMessages = defineMessages({
     zoneReceivingDockDoor: 'Porta da doca de recebimento',
     zoneShippingCrewPoint: 'Ponto da equipe de expedição',
     forkliftRouteBlocked: 'Empilhadeira parada por rota bloqueada',
-    keyboardEmergencyStop: 'Parada de emergência acionada pelo teclado (barra de espaço)',
+    keyboardEmergencyStop: 'Parada de emergência acionada pelo teclado (X)',
     facilityStop: 'Parada de emergência da unidade acionada pelo painel de Segurança',
   },
 });

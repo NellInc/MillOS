@@ -37,6 +37,13 @@ interface OutdoorLayerNodes {
 const proximity = (x: number, z: number, targetX: number, targetZ: number, range: number): number =>
   Math.max(0, 1 - Math.hypot(x - targetX, z - targetZ) / range);
 
+/** No playhead movement and no download progress for this long is a stall. */
+const MUSIC_STALL_MS = 10_000;
+/** Reloads of one song before the watchdog gives way to the next song. */
+const MUSIC_STALL_RELOADS = 2;
+/** A stall this close to a song's end skips to the next song instead. */
+const MUSIC_STALL_TAIL_SECONDS = 3;
+
 const VILLAGE_POND_POSITION = landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [20, 0, 25]);
 const TOWN_HALL_CLOCK_POSITION = landmarkLocalToWorld(SITE_LAYOUT.landmarks.village, [0, 12, 20]);
 
@@ -237,6 +244,17 @@ class AudioManager {
   // advancing instead of spinning through the playlist as fast as requests fail.
   private consecutiveMusicLoadFailures = 0;
   private mediaSessionConfigured = false;
+  // Stall watchdog. A media request the host leaves hanging fires 'stalled',
+  // not 'error', so the song sat "playing" in silence and never reached
+  // 'ended' (Nell, 2026-11-07: "The music stopped, and didn't repeat at all";
+  // reproduced on millos.net, a tail range request timing out after 15 s).
+  // Working if a song whose playhead and download both stop for
+  // MUSIC_STALL_MS is reloaded where it was, and one that keeps stalling, or
+  // stalls in its last seconds, gives way to the next song.
+  private musicStallTimer: ReturnType<typeof setInterval> | null = null;
+  private musicLastPlayhead = -1;
+  private musicLastActivityAt = 0;
+  private musicStallRecoveries = 0;
 
   // Playlist of the songs not hidden. Album order is authoritative unless shuffle is enabled.
   private musicTracks: MusicTrack[];
@@ -981,8 +999,57 @@ class AudioManager {
       clearInterval(this.musicProgressTimer);
       this.musicProgressTimer = null;
     }
+    this.syncMusicStallWatchdog();
     this.updateMediaSession();
     this.notifyListeners();
+  }
+
+  /** Runs while a song should be sounding; see musicStallTimer. */
+  private syncMusicStallWatchdog(): void {
+    if (this.musicPlaying && !this.musicStallTimer) {
+      this.markMusicActivity();
+      this.musicStallTimer = setInterval(() => this.checkMusicStall(), 2000);
+    } else if (!this.musicPlaying && this.musicStallTimer) {
+      clearInterval(this.musicStallTimer);
+      this.musicStallTimer = null;
+    }
+  }
+
+  private markMusicActivity(): void {
+    this.musicLastActivityAt = Date.now();
+    this.musicLastPlayhead = this.musicAudio?.currentTime ?? -1;
+  }
+
+  private checkMusicStall(): void {
+    const audio = this.musicAudio;
+    if (!audio || !this.musicPlaying || audio.seeking) return;
+    if (audio.currentTime !== this.musicLastPlayhead) {
+      this.markMusicActivity();
+      return;
+    }
+    if (Date.now() - this.musicLastActivityAt < MUSIC_STALL_MS) return;
+    const duration = Number.isFinite(audio.duration)
+      ? audio.duration
+      : (this.currentTrack.durationSeconds ?? 0);
+    const nearEnd = duration > 0 && duration - audio.currentTime <= MUSIC_STALL_TAIL_SECONDS;
+    if (nearEnd || this.musicStallRecoveries >= MUSIC_STALL_RELOADS) {
+      audioLog.warn('Music stalled; moving on to the next song');
+      this.nextTrack(true);
+      return;
+    }
+    this.musicStallRecoveries += 1;
+    audioLog.warn('Music stalled; reloading the song where it stopped');
+    const position = audio.currentTime;
+    audio.load();
+    const resume = () => {
+      audio.removeEventListener('loadedmetadata', resume);
+      if (position > 0) audio.currentTime = position;
+    };
+    audio.addEventListener('loadedmetadata', resume);
+    this.markMusicActivity();
+    audio.play().catch((error) => {
+      audioLog.warn('Music playback failed after a stall', error);
+    });
   }
 
   private configureMusicAudio(audio: HTMLAudioElement): void {
@@ -1004,6 +1071,10 @@ class AudioManager {
     audio.addEventListener('canplay', () => {
       this.consecutiveMusicLoadFailures = 0;
     });
+    // Bytes arriving are not a stall, however slowly the playhead starts.
+    audio.addEventListener('progress', () => {
+      this.musicLastActivityAt = Date.now();
+    });
     for (const event of ['play', 'pause', 'seeked', 'loadedmetadata', 'durationchange']) {
       audio.addEventListener(event, stateHandler);
     }
@@ -1019,6 +1090,8 @@ class AudioManager {
     }
     this.musicAudio.src = this.currentTrack.file;
     this.musicAudio.currentTime = 0;
+    this.musicStallRecoveries = 0;
+    this.markMusicActivity();
     this.updateMusicVolume();
     this.updateMediaSession();
     if (autoplay) {
@@ -1026,6 +1099,8 @@ class AudioManager {
       // pause, so a returning tab resumes it as startMusic() would.
       this._userPausedMusic = false;
       this.musicAudio.play().catch((error) => {
+        // A newer load (the next song, or a stall reload) superseded this play.
+        if ((error as { name?: string } | null)?.name === 'AbortError') return;
         audioLog.warn('Music playback failed (likely autoplay policy)', error);
       });
     }

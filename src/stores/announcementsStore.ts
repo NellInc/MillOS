@@ -131,6 +131,58 @@ function announcementLineKey(line: Pick<Announcement, 'message' | 'copy'>): stri
     : line.message;
 }
 
+/**
+ * A line whose text is its own catalogue key ('packingLineVerified'): made
+ * while the key did not resolve (a translate miss returns the key), so its
+ * stored message is no fallback either. It is never queued, shown or restored.
+ * Working if no PA caption or transcript row ever reads as a camelCase key.
+ */
+export function isUnresolvedPALine(line: { message: string; copy?: KeyedLine }): boolean {
+  const text = line.message.trim();
+  return text.length === 0 || (line.copy !== undefined && text === line.copy.key);
+}
+
+/*
+ * The timed all-is-well notices and the 25-90% target readouts were retired
+ * (D-054). A transcript row filed under one of these keys is dropped on
+ * restore rather than shown in the English it was stored in.
+ */
+const RETIRED_PA_KEYS: Readonly<Record<string, ReadonlySet<string>>> = {
+  gameSharedPA: new Set([
+    'processPathVerified',
+    'siloInventoryReconciled',
+    'rollerGapStable',
+    'plansifterPressureNominal',
+    'packingLineVerified',
+    'dockSequencingCleared',
+    'forkliftRoutesDeconflicted',
+    'geofencesMatch',
+    'dustExtractionStable',
+    'waterwayHealthy',
+    'weatherFeedChecked',
+    'millIsCalm',
+    'vibrationTrendReviewed',
+    'constraintAnalysisUpdated',
+    'cycleTimeVarianceCorrected',
+    'housekeepingComplete',
+    'daylightControlActive',
+    'solarLoadingApplied',
+    'nightProfileActive',
+    'lightingTrackingSky',
+    'milestone25',
+    'milestone50',
+    'milestone75',
+    'milestone90',
+    'safetyInterlockLogged',
+    'nearMissTriggered',
+    'vehicleProximity',
+    'drillSensorsUnderTest',
+  ]),
+};
+
+const isRetiredPALine = (copy: KeyedLine | undefined): boolean =>
+  copy !== undefined && RETIRED_PA_KEYS[copy.catalog]?.has(copy.key) === true;
+
 function sanitizePersistedAnnouncements(value: unknown): Announcement[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -138,6 +190,12 @@ function sanitizePersistedAnnouncements(value: unknown): Announcement[] {
       (entry): entry is Record<string, unknown> =>
         !!entry && typeof entry === 'object' && typeof entry.message === 'string'
     )
+    .filter((entry) => {
+      const copy = sanitizeKeyedLine(entry.copy);
+      return (
+        !isRetiredPALine(copy) && !isUnresolvedPALine({ message: String(entry.message), copy })
+      );
+    })
     .slice(-MAX_ANNOUNCEMENTS)
     .map((entry, index) => {
       const parsedTimestamp = new Date(String(entry.timestamp ?? Date.now()));
@@ -215,6 +273,9 @@ export const useAnnouncementsStore = create<AnnouncementsStore>()(
           const tone = announcement.tone ?? (channel === 'flavor' ? 'characterful' : 'literal');
           const priority = Math.min(4, Math.max(1, announcement.priority));
           const isSafetyCritical = announcement.type === 'emergency' || priority >= 4;
+
+          // A line that is only its key has nothing to say; better silence.
+          if (isUnresolvedPALine(announcement)) return;
 
           if (state.mode === 'off' && !isSafetyCritical) return;
           if (state.mode === 'focused' && channel === 'flavor') return;
@@ -376,12 +437,14 @@ export const useAnnouncementsStore = create<AnnouncementsStore>()(
           return {
             ...current,
             announcements: sanitizePersistedAnnouncements(restored.announcements),
+            // 'characterful' only added the timed filler the PA no longer
+            // speaks (D-054); Settings now offers on and off, so it reads as on.
             mode:
-              restored.mode === 'off' ||
-              restored.mode === 'focused' ||
-              restored.mode === 'characterful'
+              restored.mode === 'off' || restored.mode === 'focused'
                 ? restored.mode
-                : current.mode,
+                : restored.mode === 'characterful'
+                  ? 'focused'
+                  : current.mode,
             captionsEnabled:
               typeof restored.captionsEnabled === 'boolean'
                 ? restored.captionsEnabled

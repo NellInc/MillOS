@@ -48,6 +48,8 @@ import {
   sampleWorkerGreeting,
   createWorkerGaze,
   sampleWorkerGaze,
+  WORKER_TRAY_MOUNT,
+  WORKER_TROWEL_MOUNT,
   type WorkerEyeSurface,
 } from '../workers/workerPose';
 export type { WorkerAppearance, WorkerMotionState } from '../workers/workerTypes';
@@ -453,6 +455,11 @@ const TASK_CLIPS: Record<WorkerWorkAction, WorkerClipName> = {
   radio: 'worker-radio',
   garden: 'worker-break',
   bake: 'worker-break',
+  // The shop's stock count keeps the inspect clip's stance; the arms are
+  // re-solved onto the clipboard (workerPose applyWork).
+  stocktake: 'worker-inspect',
+  // The courier's cart check: same standing clip, arms re-solved onto the rail.
+  cartcheck: 'worker-inspect',
   none: 'worker-idle',
 };
 
@@ -1111,6 +1118,19 @@ export function createWorkerHairMaterial(hairColor: string) {
   });
 }
 
+/** A root-mounted prop's base point in the scaled actor's own units: the mount
+ * group undoes the person's scale, so the shared metre constants stay exact. */
+function heldMountPosition(
+  mount: readonly [number, number, number],
+  appearance: Pick<WorkerAppearance, 'bodyScale' | 'heightScale'>
+): [number, number, number] {
+  return [
+    mount[0] / appearance.bodyScale,
+    mount[1] / appearance.heightScale,
+    mount[2] / appearance.bodyScale,
+  ];
+}
+
 const WorkerAccessories: React.FC<{
   appearance: WorkerAppearance;
   model: THREE.Group;
@@ -1344,15 +1364,12 @@ const WorkerAccessories: React.FC<{
           name={`worker-tool-${appearance.tool}`}
           position={
             handheldMount?.position ??
-            (appearance.tool === 'bread-tray'
-              ? [0, 1.09 / appearance.heightScale, 0.28 / appearance.bodyScale]
-              : appearance.tool === 'trowel'
-                ? [
-                    0.12 / appearance.bodyScale,
-                    0.326 / appearance.heightScale,
-                    0.5205 / appearance.bodyScale,
-                  ]
-                : [0, 0.035, 0.025])
+            (appearance.tool === 'bread-tray' || appearance.tool === 'trowel'
+              ? heldMountPosition(
+                  appearance.tool === 'bread-tray' ? WORKER_TRAY_MOUNT : WORKER_TROWEL_MOUNT,
+                  appearance
+                )
+              : [0, 0.035, 0.025])
           }
           rotation={
             handheldMount?.rotation ??
@@ -1854,13 +1871,17 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     actionsRef.current = actions;
     lastPose.current = {};
     mixer.update(0);
-    if (motion.cycling) seatedPose.applyCycling(motion.cyclePhase ?? 0);
-    else if (
+    if (motion.cycling) {
+      // A wheelchair user is a seated, wheeled, self-propelled rider too.
+      if (motion.mobility === 'wheelchair')
+        seatedPose.applyWheelchair(motion.cyclePhase ?? 0, motion.wheelReach ?? 0);
+      else seatedPose.applyCycling(motion.cyclePhase ?? 0);
+    } else if (
       validWorkerSeatCue(motion.seat) &&
       !motion.cartGrip &&
       (motion.seated || motion.activity === 'walking')
     )
-      seatedPose.applySeat(motion.seat, motion.seatFloorOffset ?? 0);
+      seatedPose.applySeat(motion.seat, motion.seatFloorOffset ?? 0, undefined, motion.drive);
     else if (motion.seated) seatedPose.apply(motion.seatFloorOffset ?? 0);
     else if (motion.cartGrip) seatedPose.applyTask(motion.cartGrip);
     else if (motion.activity === 'working' && !moving && appearance.workAction === 'garden')
@@ -1869,6 +1890,8 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       seatedPose.applyDuty(appearance.workAction, gesture, 1);
     else if (moving) seatedPose.applyWalkingLook(gesture);
     else seatedPose.applyIdle(gesture);
+    if (motion.mobility === 'long-cane' && !motion.seated && !motion.cycling)
+      seatedPose.applyLongCane(motion.caneSweep ?? 0);
     if (
       !motion.seated &&
       !motion.cycling &&
@@ -1931,7 +1954,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       if (faceRef.current) {
         prepared.model.getWorldPosition(_center);
         const wasVisible = faceRef.current.visible;
-        faceRef.current.visible = state.camera.position.distanceToSquared(_center) < 18 * 18;
+        // Out at 22 m, back inside 19 m: the face is ~9 px tall there on 1080
+        // rows at fov 50, its eyes about a pixel, and a camera on the line
+        // cannot blink it on and off (it was a bare 18 m test).
+        const faceReach = wasVisible ? 22 : 19;
+        faceRef.current.visible =
+          state.camera.position.distanceToSquared(_center) < faceReach * faceReach;
         // A paused hidden worker may have resolved a new semantic pose. Reveal
         // its real skin attachment without advancing any expression clock.
         if (!wasVisible && faceRef.current.visible) prepared.faceExpression.refreshAttachment();
@@ -2019,7 +2047,9 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
         : briefing
           ? 'briefing'
           : motion.activity === 'working'
-            ? appearance.workAction
+            ? appearance.workAction === 'bake' && motion.workVariant === 'serve'
+              ? 'serve'
+              : appearance.workAction
             : 'idle',
       gestureTime.current,
       sampledGesture
@@ -2151,8 +2181,12 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       !motion.cartGrip &&
       (motion.activity === 'working' || motion.activity === 'idle');
     if (!stationaryGarden) seatedPose.releaseGarden();
-    if (motion.cycling) seatedPose.applyCycling(motion.cyclePhase ?? 0);
-    else if (seat) seatedPose.applySeat(seat, motion.seatFloorOffset ?? 0, gesture);
+    if (motion.cycling) {
+      // A wheelchair user is a seated, wheeled, self-propelled rider too.
+      if (motion.mobility === 'wheelchair')
+        seatedPose.applyWheelchair(motion.cyclePhase ?? 0, motion.wheelReach ?? 0);
+      else seatedPose.applyCycling(motion.cyclePhase ?? 0);
+    } else if (seat) seatedPose.applySeat(seat, motion.seatFloorOffset ?? 0, gesture, motion.drive);
     else if (motion.seated) seatedPose.apply(motion.seatFloorOffset ?? 0, gesture);
     else if (motion.cartGrip) seatedPose.applyTask(motion.cartGrip);
     else if (
@@ -2179,6 +2213,9 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       closureMix < 0.99999
     )
       seatedPose.closeDutyTransition(closureMix);
+    // The cane arm goes over the gait or stance; the legs underneath stay the clip's.
+    if (motion.mobility === 'long-cane' && !motion.seated && !motion.cycling && !seat)
+      seatedPose.applyLongCane(motion.caneSweep ?? 0);
     if (
       !motion.seated &&
       !motion.cycling &&
@@ -2199,7 +2236,19 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       const heldTask =
         motion.activity === 'working' &&
         (appearance.workAction === 'bake' || appearance.workAction === 'garden');
-      toolRef.current.position.set(0, heldTask ? gesture.toolY : 0, heldTask ? gesture.toolZ : 0);
+      // The same channels place both palms (workerHeldToolGrip), so the prop
+      // follows the hands through every tilt and turn.
+      toolRef.current.position.set(
+        heldTask ? gesture.toolX : 0,
+        heldTask ? gesture.toolY : 0,
+        heldTask ? gesture.toolZ : 0
+      );
+      toolRef.current.rotation.set(
+        heldTask ? gesture.toolPitch : 0,
+        heldTask ? gesture.toolYaw : 0,
+        heldTask ? gesture.toolRoll : 0,
+        'YXZ'
+      );
     }
     if (toolRef.current)
       toolRef.current.visible =

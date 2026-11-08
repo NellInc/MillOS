@@ -3844,12 +3844,16 @@ export const TruckBay: React.FC = () => {
             `exteriorOverlay`. Both carried literal clearances (0.07 / 0.09) for
             `TerrainGround`'s old 0.05 default and NEITHER had a polygonOffset,
             so the offsets are new and are now what holds them off the terrain. */}
+        {/* The full 16 m carriageway (`VALLEY_ROAD_HALF_WIDTH`), x 12-28, z
+            105-225. It was 10 m on the 16 m terrain road, so the 3 m either
+            side, edge lines included, showed the darker terrain tarmac and
+            every lane was two-tone (2026-11-07). */}
         <mesh
           position={[20, EXTERIOR_LAYERS.ground, 115]}
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
         >
-          <planeGeometry args={[10, 120]} />
+          <planeGeometry args={[16, 120]} />
           <meshStandardMaterial {...ROAD_TARMAC_SURFACE} />
         </mesh>
         {/* Road center line */}
@@ -4242,12 +4246,14 @@ export const TruckBay: React.FC = () => {
             `exteriorOverlay`. Both carried literal clearances (0.07 / 0.09) for
             `TerrainGround`'s old 0.05 default and NEITHER had a polygonOffset,
             so the offsets are new and are now what holds them off the terrain. */}
+        {/* The full 16 m carriageway, x -28 to -12, z -225 to -105: see the
+            shipping road above (2026-11-07). */}
         <mesh
           position={[-20, EXTERIOR_LAYERS.ground, -115]}
           rotation={[-Math.PI / 2, 0, 0]}
           receiveShadow
         >
-          <planeGeometry args={[10, 120]} />
+          <planeGeometry args={[16, 120]} />
           <meshStandardMaterial {...ROAD_TARMAC_SURFACE} />
         </mesh>
         {/* Road center line */}

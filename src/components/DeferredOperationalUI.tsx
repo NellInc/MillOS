@@ -146,7 +146,7 @@ export const DeferredOperationalUI: React.FC<DeferredOperationalUIProps> = ({
   enableAudioReactive,
 }) => {
   const t = useT(deferredOperationalUIMessages);
-  // The Space-bar stop's notice, in the language it was raised in, marks the
+  // The X-key stop's notice, in the language it was raised in, marks the
   // emergency styling; an English literal missed it in pt-BR.
   const tShortcuts = useT(keyboardShortcutsMessages);
   const forkliftCargo = useLiveForkliftCargo(selectedForklift);

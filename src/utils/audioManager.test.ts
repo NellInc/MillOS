@@ -96,6 +96,86 @@ describe('music playlist', () => {
     ids.forEach((id) => audioManager.setMusicTrackHidden(id, false));
     expect(audioManager.trackCount).toBe(8);
   });
+
+  // Nell, 2026-11-07: "The music stopped, and didn't repeat at all." On
+  // millos.net a range request hung, the element fired 'stalled' (not 'error')
+  // and the song never reached 'ended'. Working if a stalled song is reloaded
+  // where it stopped, and gives way to the next song if it keeps stalling.
+  it('recovers a song whose download hangs, then moves on if it keeps stalling', () => {
+    class FakeAudio extends EventTarget {
+      src = '';
+      paused = true;
+      ended = false;
+      seeking = false;
+      currentTime = 0;
+      duration = 289.5;
+      volume = 1;
+      muted = false;
+      loop = false;
+      loads = 0;
+      constructor(src?: string) {
+        super();
+        if (src) this.src = src;
+      }
+      play() {
+        this.paused = false;
+        this.dispatchEvent(new Event('play'));
+        return Promise.resolve();
+      }
+      pause() {
+        this.paused = true;
+        this.dispatchEvent(new Event('pause'));
+      }
+      load() {
+        this.loads += 1;
+        this.pause();
+      }
+    }
+    vi.useFakeTimers();
+    vi.stubGlobal('Audio', FakeAudio);
+    const internals = audioManager as unknown as { musicAudio: FakeAudio | null };
+    try {
+      audioManager.musicShuffle = false;
+      audioManager.selectMusicTrack(0);
+      internals.musicAudio = null;
+      audioManager.startMusic();
+      const audio = internals.musicAudio as unknown as FakeAudio;
+      expect(audio.paused).toBe(false);
+      audio.currentTime = 120;
+
+      // Playhead frozen and no bytes arriving: reload in place, twice.
+      vi.advanceTimersByTime(12_000);
+      expect(audio.loads).toBe(1);
+      expect(audio.paused).toBe(false);
+      expect(audioManager.currentTrack.id).toBe('millos_the_mill_wakes');
+      vi.advanceTimersByTime(12_000);
+      expect(audio.loads).toBe(2);
+
+      // Downloading slowly is not a stall.
+      for (let i = 0; i < 6; i++) {
+        audio.dispatchEvent(new Event('progress'));
+        vi.advanceTimersByTime(4_000);
+      }
+      expect(audio.loads).toBe(2);
+
+      // A third stall on the same song gives way to the next one.
+      vi.advanceTimersByTime(12_000);
+      expect(audioManager.currentTrack.id).toBe('millos_grain_at_the_gate');
+      expect(audio.src).toContain('02-grain-at-the-gate');
+      expect(audio.paused).toBe(false);
+
+      // A stall in a song's last seconds skips straight on.
+      audio.currentTime = audio.duration - 1;
+      vi.advanceTimersByTime(12_000);
+      expect(audioManager.currentTrack.id).toBe('millos_between_the_rolls');
+      expect(audio.loads).toBe(2);
+    } finally {
+      audioManager.stopMusic();
+      internals.musicAudio = null;
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('vehicle engine spatial level', () => {

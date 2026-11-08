@@ -52,6 +52,8 @@ import { hedgeCrownTransforms } from '../../components/exterior/HedgeFoliage';
 import { RIVERBANK_HEDGE_TRANSLATION_XZ } from '../../components/exterior/riverbankHedgeGrounding';
 import { instanceScale, instanceYaw } from '../../components/models/GeneratedModel';
 import { PATH_HEDGES } from '../../components/FactoryExterior';
+import { STATION_DETAIL_LAYOUT } from '../../components/GasStationInstanced';
+import { STATION_APPLIANCE_SHIFT } from '../../components/scenery/StationRetailDetails';
 
 vi.mock('../critterAudio', () => ({ playCritterSound: vi.fn() }));
 
@@ -238,7 +240,8 @@ describe('walking obstacles: the station shop agrees with GasStationInstanced', 
     );
     expect(STATION_SHOP_LOCAL.yaw).toBe(0);
   });
-  it('reproduces the shell walls, glazing, frontage trim and door surround', () => {
+  const shopSolid = (id: string) => STATION_SHOP_LOCAL.solids.find((box) => box.id === id)!;
+  it('reproduces the shell walls, glazing, frontage trim and door jambs', () => {
     for (const literal of [
       '<group position={[-12, 0, 0]}>',
       'size={[0.2, 5, 10]}',
@@ -257,7 +260,6 @@ describe('walking obstacles: the station shop agrees with GasStationInstanced', 
       "add('shop-kickplate', [-7.972, 0.16, 0], [0.136, 0.32, 9.62], charcoal);",
       'for (const x of [-12.66, -11.34]) {',
       "add('door-jamb', [x, 1.23, 5.015], [0.1, 2.46, 0.13], charcoal);",
-      '<mesh position={[-12, 1.2, 5]}>',
     ])
       expect(station, literal).toContain(literal);
     const shell = STATION_SHOP_LOCAL.shell;
@@ -268,23 +270,88 @@ describe('walking obstacles: the station shop agrees with GasStationInstanced', 
     );
     expect(shell.minZ).toBeCloseTo(-4.9 - 0.2 / 2, 9);
     expect(shell.maxZ).toBeCloseTo(4.9 + 0.2 / 2, 9);
-    const door = STATION_SHOP_LOCAL.doorSurround;
-    expect(door.minX).toBeCloseTo(-12.66 - 0.1 / 2, 9);
-    expect(door.maxX).toBeCloseTo(-11.34 + 0.1 / 2, 9);
-    expect(door.maxZ).toBeCloseTo(5.015 + 0.13 / 2, 9);
+    // The walls are the shell's 0.2 m faces; the north wall stops at the piers.
+    expect(shopSolid('back-wall').minX).toBe(shell.minX);
+    expect(shopSolid('back-wall').maxX).toBeCloseTo(-12 - 3.9 + 0.1, 9);
+    expect(shopSolid('south-wall').minZ).toBe(shell.minZ);
+    expect(shopSolid('south-wall').maxZ).toBeCloseTo(-4.9 + 0.1, 9);
+    expect(shopSolid('frontage').minX).toBeCloseTo(-12 + 3.9 - 0.1, 9);
+    expect(shopSolid('frontage').maxX).toBe(shell.maxX);
+    expect(shopSolid('north-wall-west').maxX).toBeCloseTo(-12 - 2.32 + 3.36 / 2, 9);
+    expect(shopSolid('north-wall-east').minX).toBeCloseTo(-12 + 2.32 - 3.36 / 2, 9);
+    for (const [id, x] of [
+      ['door-jamb-west', -12.66],
+      ['door-jamb-east', -11.34],
+    ] as const) {
+      const jamb = shopSolid(id);
+      expect(jamb.minX).toBeCloseTo(x - 0.1 / 2, 9);
+      expect(jamb.maxX).toBeCloseTo(x + 0.1 / 2, 9);
+      expect(jamb.minZ).toBeCloseTo(5.015 - 0.13 / 2, 9);
+      expect(jamb.maxZ).toBeCloseTo(5.015 + 0.13 / 2, 9);
+    }
   });
-  it('stands the shop in the world at the station site', () => {
-    const shop = WALKING_OBSTACLES.find((o) => o.id === 'station-shop')!;
+  it('reproduces the open door leaf from its rendered parts', () => {
+    const leaf = new THREE.Box3();
+    for (const part of STATION_DETAIL_LAYOUT.opaque)
+      if (part.part.startsWith('door-leaf') || part.part.startsWith('door-pull'))
+        leaf.union(
+          new THREE.Box3().setFromCenterAndSize(
+            new THREE.Vector3(...part.position),
+            new THREE.Vector3(...part.size)
+          )
+        );
+    const solid = shopSolid('door-leaf');
+    expect(solid.minX).toBeCloseTo(leaf.min.x, 9);
+    expect(solid.maxX).toBeCloseTo(leaf.max.x, 9);
+    expect(solid.minZ).toBeCloseTo(leaf.min.z, 9);
+    expect(solid.maxZ).toBeCloseTo(leaf.max.z, 9);
+  });
+  it('places the interior fixtures where the shop mounts them', () => {
+    for (const literal of [
+      '<group position={[3, 0, -1]}>',
+      '<group position={[-3, 0, 0]}>',
+      '<group position={[0.175, 0, 0]}>',
+      '<group position={[0, 0, -4]}>',
+      '<group position={[2 + STATION_APPLIANCE_SHIFT.coffee, 0, -3.5]}>',
+      '<group position={[2 + STATION_APPLIANCE_SHIFT.slush, 0, -2]}>',
+      '<group position={[2, 0, -0.5]}>',
+      '<group position={[1.5, 0, 3]}>',
+    ])
+      expect(station, literal).toContain(literal);
+    const centre = (id: string) => {
+      const box = shopSolid(id);
+      return [(box.minX + box.maxX) / 2, (box.minZ + box.maxZ) / 2];
+    };
+    for (const [id, x, z] of [
+      ['counter', -12 + 3, -1],
+      ['shelving', -12 - 3 + 0.175, 0],
+      ['coffee-machine', -12 + 2 + STATION_APPLIANCE_SHIFT.coffee, -3.5],
+      ['slushie', -12 + 2 + STATION_APPLIANCE_SHIFT.slush, -2],
+      ['grill', -12 + 2, -0.5],
+      ['magazine-rack', -12 + 1.5, 3],
+    ] as const) {
+      expect(centre(id)[0], id).toBeCloseTo(x, 9);
+      expect(centre(id)[1], id).toBeCloseTo(z, 9);
+    }
+  });
+  it('stands the shop in the world at the station site and opens its side door', () => {
     const [sx, , sz] = GAS_STATION_SITE.position;
-    expect(shop).toEqual({
-      id: 'station-shop',
-      minX: sx + STATION_SHOP_LOCAL.shell.minX,
-      maxX: sx + STATION_SHOP_LOCAL.shell.maxX,
-      minZ: sz + STATION_SHOP_LOCAL.shell.minZ,
-      maxZ: sz + STATION_SHOP_LOCAL.shell.maxZ,
-    });
-    expect(walkingObstacleAt(sx - 12, sz + 5.08 + R + 0.01)).toBeNull();
-    expect(walkingObstacleAt(sx - 12, sz)?.id).toBe('station-shop');
+    for (const box of STATION_SHOP_LOCAL.solids)
+      expect(WALKING_OBSTACLES.find((o) => o.id === `station-shop-${box.id}`)).toEqual({
+        id: `station-shop-${box.id}`,
+        minX: sx + box.minX,
+        maxX: sx + box.maxX,
+        minZ: sz + box.minZ,
+        maxZ: sz + box.maxZ,
+      });
+    // A body walks from the forecourt through the doorway to the shop floor.
+    for (let z = sz + 5.08 + R + 0.5; z >= sz + 1; z -= 0.05)
+      expect(walkingObstacleAt(sx - 12, z), `z ${z}`).toBeNull();
+    // Walls and fixtures still stand.
+    expect(walkingObstacleAt(sx - 15.9, sz)?.id).toBe('station-shop-back-wall');
+    expect(walkingObstacleAt(sx - 8, sz + 2)?.id).toBe('station-shop-frontage');
+    expect(walkingObstacleAt(sx - 14, sz + 4.9)?.id).toBe('station-shop-north-wall-west');
+    expect(walkingObstacleAt(sx - 9, sz - 1)?.id).toBe('station-shop-counter');
   });
 });
 

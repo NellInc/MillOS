@@ -48,6 +48,9 @@ VERTS, FACES, UVS, PARTS = [], [], [], []
 # as free corner normals over Blender's angle-derived ones; corners not listed
 # keep exactly the normals they had.
 BOAT_CORNER_NORMALS = {}
+# (doorway centre in game axes, metres per swatch) while door_frame() lays its
+# joinery; None everywhere else, so every other part keeps solid()'s mapping.
+DOOR_UV = None
 
 
 # Forge masonry grid (metres, game axes). Faces of forge stone are cut on these
@@ -496,6 +499,15 @@ def solid(name, points, faces, key):
         axes = sorted(range(3), key=lambda k: spans[k], reverse=True)[:2]
         if 1 in axes:
             axes = [k for k in axes if k != 1] + [1]
+        if DOOR_UV is not None:
+            # Door joinery is laid in metres about the doorway centre (see
+            # door_frame), so a 1.3 m leaf and a 9 cm stile read the swatch at
+            # one density instead of each stretching the whole oak grain.
+            ref, P = DOOR_UV
+            UVS.append([((tile % 4 + .03 + .94 * min(1, max(0, .5 + (v[axes[0]] - ref[axes[0]]) / P))) / 4,
+                         (tile // 4 + .03 + .94 * min(1, max(0, .5 + (v[axes[1]] - ref[axes[1]]) / P))) / 4)
+                        for v in vertices])
+            continue
         lows = [min(v[k] for v in vertices) for k in axes]
         UVS.append([((tile % 4 + .03 + .94 * (v[axes[0]] - lows[0]) / max(spans[axes[0]], 1e-8)) / 4,
                      (tile // 4 + .03 + .94 * (v[axes[1]] - lows[1]) / max(spans[axes[1]], 1e-8)) / 4) for v in vertices])
@@ -652,7 +664,130 @@ def roof(name, x, z, width, depth, eave, ridge, key='slate', rows=6):
               z + end * (depth / 2 - .12), z + end * (depth / 2 - .24), 'plaster')
 
 
+# Doorways at least this wide (frame width, m) hang a pair of leaves meeting on
+# a centre joint: the town hall, church, school and pub. Narrower ones hang one.
+DOOR_PAIR_MIN = 1.3
+# Joinery depths in the frame's outward w (m). Leaves stand inside the
+# architrave, 8 cm back from its face. A pair's centre line is the open joint
+# over the back plate (w 0), which the town hall delivery ray checks.
+# Panels sit in a 4 cm sunk channel and rise to a field 2.2 cm behind the
+# members: deep enough for the portico's shade to read them (2026-11-07).
+DOOR_MEMBER_W = (.012, .068)   # stiles, rails and muntins
+DOOR_PANEL_W = (.026, .046)    # raised panel: back buried in the members' depth
+DOOR_MEETING_GAP = .006        # dark joint between a pair of leaves
+DOOR_UV_METRES = 12.0          # metres per atlas swatch for door joinery
+
+
+def door_leaves(name, local, part, hu, hv):
+    """Hang the leaves in an opening u in [-hu, hu], v in [-hv, hv].
+
+    Each leaf is framed joinery: two stiles running full height, top, lock and
+    bottom rails between them (and a frieze rail on tall leaves), a centre
+    muntin on a single leaf, and one raised and fielded panel centred in every
+    bay those members leave. A pair of leaves meets on a 6 mm joint at u=0, each
+    with its own meeting stile and pull handle; a single leaf carries its handle
+    on the lock stile. Members share one front plane, so nothing overlaps a
+    panel and no two faces of the door lie within a millimetre of each other.
+    """
+    pair = hu * 2 + .085 >= DOOR_PAIR_MIN
+    gap = DOOR_MEETING_GAP / 2
+    leaves = [(-hu, -gap, 1), (gap, hu, -1)] if pair else [(-hu, hu, 1)]
+    m0, m1 = DOOR_MEMBER_W
+    mw, md = (m0 + m1) / 2, m1 - m0
+    p0, p1 = DOOR_PANEL_W
+    v0, v1 = -hv, hv
+    lh = v1 - v0
+    for u0, u1, lock in leaves:
+        lw = u1 - u0
+        sw = min(.16, max(.085, lw * .13))
+        tr, br, lr = sw, min(sw * 1.7, lh * .09), sw * 1.3
+        v_lock = v0 + lh * .36
+        rails = [(v0, v0 + br), (v_lock - lr / 2, v_lock + lr / 2)]
+        if lh > 2.9:
+            v_frieze = v0 + lh * .74
+            rails.append((v_frieze - sw / 2, v_frieze + sw / 2))
+        rails.append((v1 - tr, v1))
+        for su in (u0 + sw / 2, u1 - sw / 2):
+            part('door stile', su, 0, mw, (sw, lh, md), 'oak')
+        a, b = u0 + sw, u1 - sw
+        for r0, r1 in rails:
+            part('door rail', (a + b) / 2, (r0 + r1) / 2, mw, (b - a, r1 - r0, md), 'oak')
+        if pair:
+            columns = [(a, b)]
+        else:
+            mu = sw * .75
+            columns = [(a, (a + b) / 2 - mu / 2), ((a + b) / 2 + mu / 2, b)]
+        for (_, r_top), (r_bottom, _) in zip(rails, rails[1:]):
+            if not pair:
+                part('door muntin', (a + b) / 2, (r_top + r_bottom) / 2, mw, (mu, r_bottom - r_top, md), 'oak')
+            for c0, c1 in columns:
+                bevel = min(.045, .18 * min(c1 - c0, r_bottom - r_top))
+                back = [(c0, r_top), (c1, r_top), (c1, r_bottom), (c0, r_bottom)]
+                field = [(c0 + bevel, r_top + bevel), (c1 - bevel, r_top + bevel),
+                         (c1 - bevel, r_bottom - bevel), (c0 + bevel, r_bottom - bevel)]
+                # The bevel is a darker oak (timber) so the panels read in the
+                # portico's shade, where uniform sky light flattens a 25 degree
+                # slope to the field's own tone; the field is an oak board 2 mm
+                # proud of the bevel's top, which it buries.
+                solid(name + ' panel bevel',
+                      [local(u, v, p0) for u, v in back] + [local(u, v, p1 - .002) for u, v in field],
+                      CUBE_FACES, 'timber')
+                (f0, g0), (f1, g1) = field[0], field[2]
+                part('raised panel field', (f0 + f1) / 2, (g0 + g1) / 2, p1 - .003,
+                     (f1 - f0, g1 - g0, .006), 'oak')
+        # Pull handle on the meeting stile (pair) or the lock stile (single):
+        # a brass back plate, two standoffs and a bar, clear of the panels.
+        hu_ = u0 + sw / 2 if lock < 0 else u1 - sw / 2
+        length = .34 if lh > 2.9 else .2
+        part('handle plate', hu_, v_lock, .070, (.05, length + .07, .012), 'brass')
+        for end in (-1, 1):
+            part('handle standoff', hu_, v_lock + end * (length / 2 - .02), .0925, (.016, .016, .037), 'brass')
+        part('handle bar', hu_, v_lock, .118, (.022, length, .022), 'brass')
+
+
+def door_frame(name, x, y, z, width, height, yaw, trim, sill):
+    """A doorway: architrave, dark back plate, threshold rail, sill and leaves.
+
+    The architrave (jambs and a head that oversails them) runs back 8 cm into
+    the wall so no gap opens behind it, and stands 15 cm (head 17 cm) proud of
+    the frame plane; the leaves hang 8 cm back inside it. The ink back plate
+    fills only the opening, behind the leaves, and shows only through the
+    meeting joint. Joinery UVs are metric (DOOR_UV) so the oak grain keeps one
+    density on every member instead of stretching across a 1.3 m panel.
+    """
+    global DOOR_UV
+
+    def local(u, v, w):
+        return (x + u * math.cos(yaw) + w * math.sin(yaw), y + v, z - u * math.sin(yaw) + w * math.cos(yaw))
+
+    def part(label, u, v, w, dims, key):
+        box(name + ' ' + label, local(u, v, w), dims, key, yaw)
+    DOOR_UV = (local(0, 0, 0), DOOR_UV_METRES)
+    try:
+        hu, hv = width / 2 - .0425, height / 2 - .0425
+        aw = .085 if width < 1.8 else .15
+        back, front = -.08, .15
+        part('back plate', 0, 0, (back + 0) / 2, (2 * hu + .01, 2 * hv + .01, -back), 'ink')
+        jamb_bottom, jamb_top = -height / 2 - .09, hv + aw
+        for side in (-1, 1):
+            part('jamb', side * (hu + aw / 2), (jamb_bottom + jamb_top) / 2, (back + front) / 2,
+                 (aw, jamb_top - jamb_bottom, front - back), trim)
+        part('head', 0, hv + (aw + .03) / 2, (back + front + .02) / 2,
+             (2 * (hu + aw + .03), aw + .03, front + .02 - back), trim)
+        part('threshold rail', 0, -height / 2, (back + front) / 2, (2 * hu, .085, front - back), trim)
+        if sill:
+            part('sill', 0, -height / 2 - .065, .09, (width + .32, .12, .26), 'stone')
+        door_leaves(name, local, part, hu, hv)
+    finally:
+        DOOR_UV = None
+
+
 def frame(name, x, y, z, width=1, height=1.3, yaw=0, trim='cream', glass='glass', door=False, sill=True):
+    if door and name != 'Cabin glazed doors':
+        # The narrowboat's glazed cabin doors keep their own joinery below.
+        door_frame(name, x, y, z, width, height, yaw, trim, sill)
+        return
+
     def part(label, u, v, w, dims, key):
         box(name + ' ' + label, (x + u * math.cos(yaw) + w * math.sin(yaw), y + v,
             z - u * math.sin(yaw) + w * math.cos(yaw)), dims, key, yaw)
@@ -1045,8 +1180,9 @@ def shop_casement(name, x, y, z, width, height, yaw, wall, trim='cream', door=Fa
     between frame and plaster. Glass inset, glazing bars, linen folds and the
     stone sill keep frame()'s exact dimensions, so the glazing anchor the night
     shader reads and the raw extents (the sill sets the x envelope) are unchanged.
-    The display keeps its shelf, upper shadow and five loaves, and the door its
-    stiles, fielded panels and latch, at frame()'s exact positions (runtime anchors).
+    The display keeps its shelf, upper shadow and five loaves at frame()'s exact
+    positions (runtime anchors). The door hangs door_leaves()'s framed leaf in
+    the reveal (2026-11-07: the old stiles crossed the middle of each panel).
     """
     def local(u, v, w):
         return (x + u * math.cos(yaw) + w * math.sin(yaw), y + v, z - u * math.sin(yaw) + w * math.cos(yaw))
@@ -1064,18 +1200,17 @@ def shop_casement(name, x, y, z, width, height, yaw, wall, trim='cream', door=Fa
     faces = [(c * n + i, c * n + (i + 1) % n, (c + 1) % 4 * n + (i + 1) % n, (c + 1) % 4 * n + i)
              for c in range(4) for i in range(n)]
     solid(name + ' lofted architrave', points, faces, trim)
-    part('inset', 0, 0, .046, (width - .09, height - .09, .025), 'oak' if door else 'glass')
+    if not door:
+        part('inset', 0, 0, .046, (width - .09, height - .09, .025), 'glass')
     part('sill', 0, -height / 2 - .065, .09, (width + .32, .12, .26), 'stone')
     if door:
-        for side in (-1, 1):
-            part('door stile', side * width * .25, -.03, .066, (.035, height - .2, .022), 'timber')
-        for side in (-1, 1):
-            for row in (-1, 1):
-                u, v = side * width * .23, row * height * .235
-                pw, ph = width * .34, height * .34
-                part('panel shadow', u, v, .061, (pw, ph, .012), 'timber')
-                part('fielded oak panel', u, v, .069, (max(.055, pw - .055), max(.09, ph - .055), .012), 'oak')
-        part('latch', width * .3, -.06, .088, (.065, .14, .025), 'brass')
+        # The leaf fills the architrave's reveal (door_leaves), laid in metres.
+        global DOOR_UV
+        DOOR_UV = (local(0, 0, 0), DOOR_UV_METRES)
+        try:
+            door_leaves(name, local, part, U0, V0)
+        finally:
+            DOOR_UV = None
         return
     part('mullion', 0, 0, .076, (.045, height, .04), trim)
     part('transom', 0, .09, .076, (width, .045, .04), trim)
@@ -2758,30 +2893,15 @@ def school():
             box('Open belfry turned post',(x,9.75,z),(.21,1.69,.21),'cream')
             box('Belfry post capital',(x,10.57,z),(.32,.15,.32),'cream')
     box('Belfry crown',(0,10.75,0),(2.3,.23,2.3),'cream')
-    beam('Bell oak yoke',(-.75,10.38,0),(.75,10.38,0),.16,'timber')
-    # A cast shell folds over its rolled sound bow and returns up the inside.
-    # The crown closes above the clapper; the mouth remains open. No two-sided
-    # material or separate runtime mesh hides missing bronze.
-    # Working if front-face delivery rays see the inner wall and crown from
-    # the hollow, while a downward off-centre ray clears the open mouth.
-    lathe('School open bronze bell',0,0,[
-        (.515,9.46),(.60,9.48),(.62,9.53),(.61,9.59),(.55,9.625),
-        (.48,9.69),(.38,9.84),(.295,10.1),(.24,10.24),(.16,10.32),
-        (.08,10.34),(0,10.34),(0,10.255),(.14,10.255),(.19,10.205),
-        (.245,10.08),(.335,9.82),(.425,9.66),(.515,9.54),(.515,9.46)
-    ],'brass',28)
-    # Hung iron bearings connect the old oak yoke to the crown overhead.
-    # Their supports enter both pieces rather than floating beside the bell.
+    # The bell, its oak headstock, straps, crown bolt and clapper swing, so they
+    # are no longer baked here: the runtime SchoolBell (src/components/scenery/
+    # schoolBellGeometry.ts) hangs them on this yoke line, x along the axis at
+    # y 10.38, turning in the two iron bearings below. Its lathe profile is
+    # the one this function used to cast (2026-11-07, Nell: the bell rings).
+    # Hung iron bearings connect the swinging yoke's gudgeons to the crown overhead.
     for side in (-1,1):
         box('Bell crown hanger',(side*.64,10.55,0),(.075,.23,.14),'iron')
         box('Bell yoke bearing',(side*.64,10.39,0),(.14,.15,.24),'iron')
-        box('Bell yoke strap',(side*.18,10.38,0),(.065,.19,.195),'iron')
-    beam('Bell crown mounting bolt',(0,10.32,0),(0,10.43,0),.08,'iron')
-    beam('Bell clapper',(0,9.43,0),(0,10.255,0),.055,'iron')
-    lathe('Bell clapper ball',0,0,[
-        (0,9.34),(.047,9.35),(.081,9.385),(.096,9.43),
-        (.081,9.475),(.047,9.51),(0,9.52)
-    ],'iron',12)
     lathe('School swept bell cap',0,0,[(1.6,10.90),(1.56,11.0),(1.22,11.14),(.94,11.38),(.71,11.67),(.48,11.98),(.27,12.28),(.07,12.55),(0,12.63)],'slate',24)
     lathe('Belfry gilt finial',0,0,[(.035,12.5),(.1,12.65),(0,12.83)],'brass',12)
 

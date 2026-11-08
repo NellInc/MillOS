@@ -24,8 +24,18 @@ describe('PA voice catalogue', () => {
   });
 
   it('falls back to the default for a missing or unknown choice', () => {
-    expect(paVoiceFor('en', {})).toBe('Edwin');
+    expect(paVoiceFor('en', {})).toBe('Lottie');
     expect(paVoiceFor('en', { en: 'Zoey' })).toBe('Zoey');
     expect(paVoiceFor('pt-BR', { 'pt-BR': 'Edwin' })).toBe('Débora');
+  });
+
+  // D-055: the default became a female voice. Nothing is stored until the
+  // player picks one, so an untouched save follows the new default and a
+  // player who chose Edwin keeps him.
+  it('moves an untouched save to Lottie and keeps a player who chose Edwin', () => {
+    expect(DEFAULT_PA_VOICE).toEqual({ en: 'Lottie', 'pt-BR': 'Débora' });
+    expect(paVoiceFor('en', {})).toBe('Lottie');
+    expect(paVoiceFor('en', { en: 'Edwin' })).toBe('Edwin');
+    expect(isPAVoiceFor('en', 'Edwin')).toBe(true);
   });
 });

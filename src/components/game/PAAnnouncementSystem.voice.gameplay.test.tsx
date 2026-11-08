@@ -14,6 +14,7 @@ const voice = vi.hoisted(() => ({
   releasePAVoice: vi.fn(),
   stopPAVoice: vi.fn(),
   speakPAVoice: vi.fn(async () => ({ seconds: state.seconds, ended: new Promise<void>(() => {}) })),
+  paDeliverySpeed: vi.fn(() => 1),
 }));
 
 vi.mock('../../audio/paVoice', () => voice);
@@ -25,7 +26,6 @@ vi.mock('../../runtime/runtimeMode', async (importOriginal) => ({
   isBenchmarkRuntime: () => state.benchmark,
 }));
 vi.mock('./shared', () => ({
-  usePAScheduler: vi.fn(),
   useEventAnnouncementScheduler: vi.fn(),
 }));
 vi.mock('../../hooks/useMobileDetection', () => ({
@@ -93,21 +93,26 @@ describe('PA voice', () => {
       await vi.advanceTimersByTimeAsync(10_001);
     });
     expect(voice.speakPAVoice).toHaveBeenCalledTimes(1);
-    expect(voice.speakPAVoice).toHaveBeenCalledWith('Packing L2 restarted', 'en', 'Edwin');
+    expect(voice.speakPAVoice).toHaveBeenCalledWith('Packing L2 restarted', 'en', 'Lottie', 1);
   });
 
   it('speaks in Brazilian Portuguese when that is the language', async () => {
     setLocale('pt-BR');
     await showCaption();
     expect(voice.preparePAVoice).toHaveBeenCalledWith('pt-BR');
-    expect(voice.speakPAVoice).toHaveBeenCalledWith('Ensaque L2 reiniciado', 'pt-BR', 'Débora');
+    expect(voice.speakPAVoice).toHaveBeenCalledWith('Ensaque L2 reiniciado', 'pt-BR', 'Débora', 1);
   });
 
   it("speaks in the player's chosen voice for the language", async () => {
     useAnnouncementsStore.getState().setVoiceName('en', 'Master Aldric');
     useAnnouncementsStore.getState().setVoiceName('pt-BR', 'Otávio');
     await showCaption();
-    expect(voice.speakPAVoice).toHaveBeenCalledWith('Packing L2 restarted', 'en', 'Master Aldric');
+    expect(voice.speakPAVoice).toHaveBeenCalledWith(
+      'Packing L2 restarted',
+      'en',
+      'Master Aldric',
+      1
+    );
   });
 
   it('ignores a voice that is not in the catalogue for that language', () => {

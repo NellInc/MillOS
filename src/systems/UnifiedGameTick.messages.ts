@@ -47,19 +47,18 @@ export const unifiedGameTickMessages = defineMessages({
       `${capitalise(p.shift)} shift closed: nothing due yet, an incident still open`,
     shiftClosedMessage:
       'Its review is in Overview, under Shift debrief: which orders were on time, what held the grade back and what to try next.',
-    // The PA caption, also spoken: the bell notice's title and where to find the review.
+    // The PA caption, spoken word for word, as a person on the tannoy would say
+    // it. The bell notice keeps the title and where the review is.
     shiftClosedCaption: (p: ShiftCaptionParams) =>
-      `${
+      `${capitalise(p.shift)} shift's done. ${
         p.variant === 'graded'
-          ? `${capitalise(p.shift)} shift closed: grade ${p.grade ?? ''}`
-          : p.variant === 'incident'
-            ? `${capitalise(p.shift)} shift closed: no customer commitments, an incident still open`
-            : p.variant === 'nothingDueIncident'
-              ? `${capitalise(p.shift)} shift closed: nothing due yet, an incident still open`
-              : p.variant === 'nothingDue'
-                ? `${capitalise(p.shift)} shift closed: nothing due yet`
-                : `${capitalise(p.shift)} shift closed: no customer commitments`
-      }. Review in Overview, Shift debrief.`,
+          ? `We earned ${/^[AEF]/.test(p.grade ?? '') ? 'an' : 'a'} ${p.grade ?? ''}.`
+          : p.variant === 'incident' || p.variant === 'nothingDueIncident'
+            ? 'An incident is still open.'
+            : p.variant === 'nothingDue'
+              ? 'No orders were due yet.'
+              : 'We had no orders to fill.'
+      }`,
     dailyTargetReached: 'Daily target reached: {target} bags!',
     dailyTargetMilestone: 'Daily target {threshold}% complete',
     certificationExpired: 'Quality certification is expired.',
@@ -104,17 +103,15 @@ export const unifiedGameTickMessages = defineMessages({
     shiftClosedMessage:
       'A revisão está na Visão geral, em Balanço do turno: quais pedidos chegaram no prazo, o que impediu uma nota melhor e o que tentar a seguir.',
     shiftClosedCaption: (p: ShiftCaptionParams) =>
-      `${
+      `Fim do turno ${PT_SHIFT_OF[p.shift] ?? p.shift}. ${
         p.variant === 'graded'
-          ? `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: nota ${p.grade ?? ''}`
-          : p.variant === 'incident'
-            ? `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: sem compromissos com clientes, ocorrência ainda aberta`
-            : p.variant === 'nothingDueIncident'
-              ? `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: nada venceu ainda, ocorrência ainda aberta`
-              : p.variant === 'nothingDue'
-                ? `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: nada venceu ainda`
-                : `Turno ${PT_SHIFT_OF[p.shift] ?? p.shift} encerrado: sem compromissos com clientes`
-      }. Revisão em Visão geral, Balanço do turno.`,
+          ? `Tiramos nota ${p.grade ?? ''}.`
+          : p.variant === 'incident' || p.variant === 'nothingDueIncident'
+            ? 'Ainda há uma ocorrência aberta.'
+            : p.variant === 'nothingDue'
+              ? 'Nenhum pedido venceu ainda.'
+              : 'Não tínhamos pedidos para atender.'
+      }`,
     dailyTargetReached: 'Meta diária atingida: {target} sacos!',
     dailyTargetMilestone: 'Meta diária: {threshold}% concluída',
     certificationExpired: 'A certificação de qualidade está vencida.',

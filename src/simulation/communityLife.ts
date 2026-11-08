@@ -20,6 +20,16 @@ import { improvementArrangement } from './workplaceImprovement';
 import { translate } from '../i18n';
 import { communityAgreementMessages } from './communityLife.messages';
 import { STANDARD_GAME_SPEED } from './pace';
+import type { MobilityAid } from './agreedAdjustments';
+import { QUIET_ROOM_BOOKINGS } from './agreedAdjustments';
+import {
+  QC_BENCH,
+  QC_BREAK_TABLE,
+  QUIET_ROOM,
+  TOWN_HALL_DOOR_LOCAL,
+  TOWN_HALL_STEP_FREE_ROUTE,
+  townHallToWorld,
+} from '../constants/accessibilityLayout';
 
 export type CommunityActivity = 'working' | 'walking' | 'break' | 'idle';
 export interface CommunityStop {
@@ -35,6 +45,8 @@ export interface CommunityPerson {
   role: string;
   district: 'mill' | 'village' | 'bus';
   phase: number;
+  /** A mobility aid the person uses (agreedAdjustments.ts); absent for most people. */
+  mobility?: MobilityAid;
   machineId?: string;
   stops: readonly CommunityStop[];
   /** A village day: out of `door` at `open`, along `approach` to stops[0], whole
@@ -577,6 +589,84 @@ const forkliftOperatorRoutine = (site: (typeof FORKLIFT_CREW_SITES)[number]): Co
  * bench waypoints stay fixed. Only the short terminal approaches change.
  * Working if the pairwise separation test finds every pair at least 0.6 m apart.
  */
+/** The baker's street stop, with no counter in front: it has its own loop
+ * (offering the tray to passers-by), chosen by this task in CommunityLife. */
+export const COMMUNITY_BAKERY_SERVING_TASK = 'Serving at the bakery';
+
+/** The quality technician works from a wheelchair at a bench set to seated
+ * height, and takes tea at a table with no fixed chair at their place. Every
+ * leg is on the level hall floor, clear of the raised process pads. */
+const QUALITY_BENCH_ROUTINE = fitPeriod([
+  stop(QC_BENCH.post, 0, 0, 'Testing flour samples at the quality bench'),
+  via([QC_BENCH.post[0], 0, 0.4]),
+  via([QC_BREAK_TABLE.place[0], 0, 0.4]),
+  stop(QC_BREAK_TABLE.place, 0, 0.8, 'Tea break', 'break', true),
+  via([QC_BREAK_TABLE.place[0], 0, 0.4]),
+  via([QC_BENCH.post[0], 0, 0.4]),
+]);
+/** A packing operator who asked for a quiet room for breaks, in place of the
+ * busy benches by the west wall. */
+/** A metre short of the room's door, on the open floor in front of it. */
+const QUIET_ROOM_APPROACH_Z = QUIET_ROOM.centre[2] - QUIET_ROOM.depth / 2 - 1;
+const QUIET_ROOM_ROUTINE = fitPeriod([
+  stop([1, 0, -6.95], PI, 0, 'Checking the packing line'),
+  via([1, 0, -4.4]),
+  via([QUIET_ROOM.doorX, 0, -4.4]),
+  via([QUIET_ROOM.doorX, 0, QUIET_ROOM_APPROACH_Z]),
+  stop(QUIET_ROOM.seat, PI, 0.5, 'Break in the quiet room', 'break', true),
+  via([QUIET_ROOM.doorX, 0, QUIET_ROOM_APPROACH_Z]),
+  via([QUIET_ROOM.doorX, 0, -4.4]),
+  via([1, 0, -4.4]),
+]);
+/** Game hours from the start of a loop to the dwell at `index` (no `distance`
+ * yet: it is declared after the roster). */
+function hoursToDwell(stops: readonly CommunityStop[], index: number): number {
+  let hours = 0;
+  for (let i = 0; i < index; i++) {
+    const a = stops[i].position,
+      b = stops[i + 1].position;
+    hours += stops[i].hours + Math.hypot(a[0] - b[0], a[2] - b[2]) * WALK_HOURS_PER_METRE;
+  }
+  return hours;
+}
+/** The quiet-room break begins as the room's booking does (QUIET_ROOM_BOOKINGS). */
+const QUIET_ROOM_PHASE = (() => {
+  const breakAt = hoursToDwell(
+    QUIET_ROOM_ROUTINE,
+    QUIET_ROOM_ROUTINE.findIndex((s) => s.task === 'Break in the quiet room')
+  );
+  const booked = QUIET_ROOM_BOOKINGS[0].start;
+  return (((breakAt - booked) % MILL_ROUTINE_HOURS) + MILL_ROUTINE_HOURS) % MILL_ROUTINE_HOURS;
+})();
+
+/** The two town hall clerks' lunch: out of the front door, along the landing,
+ * down the ramp on the east side, through the privet gap and up the street.
+ * Village frame: village (x, z) is world (-190 + x, z). */
+const villagePoint = (x: number, y: number, z: number): Vec3Tuple => [-190 + x, y, z];
+const hallStreet = (z: number) => villagePoint(10.5, 0, z);
+const HALL_DOOR = townHallToWorld(...TOWN_HALL_DOOR_LOCAL);
+// A wheelchair is about a metre long: centred on the door plane it stood half
+// through the closed leaf as the clerk came and went. Its front meets the door
+// 0.55 m out on the landing (town hall local +z is out of the door).
+const HALL_DOOR_WHEELCHAIR = townHallToWorld(
+  TOWN_HALL_DOOR_LOCAL[0],
+  TOWN_HALL_DOOR_LOCAL[1],
+  TOWN_HALL_DOOR_LOCAL[2] + 0.55
+);
+// Round the front of the east column on the ramp's apron: the column base
+// stands 0.12 m off the wall, so the way along the landing behind it was
+// through the column (TOWN_HALL_STEP_FREE_ROUTE, 2026-11-07).
+const HALL_RAMP_APPROACH: readonly Vec3Tuple[] = [
+  ...TOWN_HALL_STEP_FREE_ROUTE.map(([x, y, z]) => townHallToWorld(x, y, z)),
+  hallStreet(27),
+];
+const HALL_POSTBOX_STOP = villagePoint(10.6, 0, 25);
+const HALL_OFFICER_TO_FOUNTAIN: readonly Vec3Tuple[] = [
+  villagePoint(9.45, 0, 11.9),
+  villagePoint(6.6, 0, 11.9),
+  villagePoint(6.6, 0, 11.2),
+  villagePoint(2.4, 0, 11.2),
+];
 export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
   {
     id: 'mill-operator-west',
@@ -653,7 +743,7 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
     phase: 0.1,
     stops: [
       stop(A.bakeryCustomer.position, PI / 2, 1.4, 'Setting out fresh bread'),
-      stop([-175.1, 0, 5], PI / 2, 0.7, 'Serving at the bakery'),
+      stop([-175.1, 0, 5], PI / 2, 0.7, COMMUNITY_BAKERY_SERVING_TASK),
       stop([-177, 0, 5], PI, 0.3, 'A moment outside', 'idle'),
       via([-175.1, 0, 5]),
     ],
@@ -739,6 +829,64 @@ export const COMMUNITY_ROSTER: readonly CommunityPerson[] = [
       stops: forkliftOperatorRoutine(site),
     })
   ),
+  // Agreed adjustments (D-058, agreedAdjustments.ts). Appended after the crews
+  // for the same reason: saves restore residents by index.
+  {
+    id: 'mill-quality-bench',
+    role: 'Quality',
+    district: 'mill',
+    phase: 1.15,
+    mobility: 'wheelchair',
+    stops: QUALITY_BENCH_ROUTINE,
+  },
+  {
+    id: 'mill-packing-quiet',
+    role: 'Operator',
+    district: 'mill',
+    phase: QUIET_ROOM_PHASE,
+    machineId: 'packer-1',
+    stops: QUIET_ROOM_ROUTINE,
+  },
+  {
+    id: 'village-hall-clerk',
+    role: 'Resident',
+    district: 'village',
+    phase: 0,
+    mobility: 'wheelchair',
+    stops: [
+      stop(villagePoint(9.6, 0, 9.6), -PI / 2, 0.3, 'Buying lunch at the market stall', 'idle'),
+      via(hallStreet(12)),
+      stop(HALL_POSTBOX_STOP, PI / 2, 0.12, "Posting the council's letters"),
+      via(hallStreet(12)),
+    ],
+    day: {
+      open: 12,
+      close: 13.5,
+      door: HALL_DOOR_WHEELCHAIR,
+      approach: [...HALL_RAMP_APPROACH, hallStreet(12)],
+    },
+  },
+  {
+    id: 'village-hall-officer',
+    role: 'Resident',
+    district: 'village',
+    phase: 0,
+    mobility: 'long-cane',
+    // Round the market stall's south end and the square's bench, never across
+    // the foot of the town hall steps.
+    stops: [
+      stop(villagePoint(9.45, 0, 10.6), -PI / 2, 0.3, 'Buying lunch at the market stall', 'idle'),
+      ...HALL_OFFICER_TO_FOUNTAIN.map(via),
+      stop(villagePoint(2.4, 0, 8.4), (-3 * PI) / 4, 0.25, 'A few minutes by the fountain', 'idle'),
+      ...[...HALL_OFFICER_TO_FOUNTAIN].reverse().map(via),
+    ],
+    day: {
+      open: 13.75,
+      close: 15.25,
+      door: HALL_DOOR,
+      approach: [...HALL_RAMP_APPROACH, hallStreet(12)],
+    },
+  },
 ];
 
 export const communityHour = (hour: number): number =>
@@ -1085,7 +1233,15 @@ export function sampleCommunityPerson(
     out.position[1] = 0;
     out.position[2] = delivery.z;
     out.rotation = delivery.rotation;
-    out.activity = delivery.moving ? 'walking' : 'working';
+    // Working only while gripping the cart or standing at it to check it; the
+    // brief turn on the spot before taking the handle is a stance, not work.
+    const sch = COMMUNITY_COURIER_SCHEDULE,
+      at = communityHour(hour);
+    out.activity = delivery.moving
+      ? 'walking'
+      : delivery.cartGrip || (at >= sch.inspect && at < sch.returning)
+        ? 'working'
+        : 'idle';
     out.seated = false;
     out.visible = delivery.visible;
     out.task = delivery.moving ? 'Moving the empty handcart' : 'Checking the empty return cart';
@@ -1110,6 +1266,7 @@ export function sampleCommunityPerson(
       out.activity = 'idle';
       out.task = 'At home';
     }
+    if (person.mobility === 'wheelchair') seatInOwnChair(out);
     return out;
   }
   const hours = getCommunityHours(h);
@@ -1126,7 +1283,17 @@ export function sampleCommunityPerson(
   const elapsed =
     ((((Number.isFinite(hour) ? hour : 12) + person.phase) % period) + period) % period;
   sampleRoute(person.stops, elapsed, true, out, previousSeat, person.district === 'mill');
+  if (person.mobility === 'wheelchair') seatInOwnChair(out);
   return out;
+}
+
+/** A wheelchair user is seated in their own chair at every moment: at a table
+ * they stay in it (no seat ramp onto a bench), and between stops they wheel.
+ * Working if the route, its timing and its dwell activities are unchanged and
+ * only the seat flags differ (agreedAdjustments.test.ts). */
+function seatInOwnChair(out: CommunityPose) {
+  out.seated = true;
+  out.seat = undefined;
 }
 
 const villageDays = new WeakMap<CommunityPerson, readonly CommunityStop[]>();
@@ -1405,10 +1572,17 @@ const CART_HANDLE = 1.4;
 const COURIER_ENTRY_Z = COMMUNITY_STREET_END_Z + CART_HANDLE;
 const COURIER_PARK_Z = 33;
 const COURIER_HAUL_HOURS = (COURIER_ENTRY_Z - COURIER_PARK_Z) * WALK_HOURS_PER_METRE;
-/** The step around the cart's left side: 1 m west, then 1.4 m south beside it. */
-const COURIER_SIDE: Vec3Tuple = [COURIER_X - 1, 0, COURIER_PARK_Z];
-const COURIER_INSPECT: Vec3Tuple = [COURIER_X - 1, 0, COURIER_PARK_Z - CART_HANDLE];
-const COURIER_STEP_HOURS = (1 + CART_HANDLE) * WALK_HOURS_PER_METRE;
+/** The step around the cart's left side: 0.75 m west, then 1.4 m south beside
+ * it, standing 0.35 m off the near rail (cart sides at +-0.4) so both hands can
+ * rest on it while she leans over the bed (workerPose cartcheck). */
+const COURIER_SIDE_OFFSET = 0.75;
+const COURIER_SIDE: Vec3Tuple = [COURIER_X - COURIER_SIDE_OFFSET, 0, COURIER_PARK_Z];
+const COURIER_INSPECT: Vec3Tuple = [
+  COURIER_X - COURIER_SIDE_OFFSET,
+  0,
+  COURIER_PARK_Z - CART_HANDLE,
+];
+const COURIER_STEP_HOURS = (COURIER_SIDE_OFFSET + CART_HANDLE) * WALK_HOURS_PER_METRE;
 /** The courier's morning, in game hours. Every leg walks forwards at walking pace;
  * the cart is gripped only while the body already faces the way it will haul.
  * Working if the courier never backs up or crabs and never turns while coupled. */

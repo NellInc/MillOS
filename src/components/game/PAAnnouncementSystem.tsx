@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, RadioTower, Shield, AlertTriangle, Package } from 'lucide-react';
 // Use announcementsStore directly - productionStore.announcements is a stale snapshot
 import {
+  isUnresolvedPALine,
   useAnnouncementsStore,
   type Announcement,
   type PAChannel,
@@ -11,14 +12,20 @@ import { selectSafetyHoldActive, useGameSimulationStore } from '../../stores/gam
 import { useProductionStore } from '../../stores/productionStore';
 import { lineMotionRate } from '../../simulation/lineFlow';
 import { useSafetyStore } from '../../stores/safetyStore';
-import { usePAScheduler, useEventAnnouncementScheduler } from './shared';
+import { useEventAnnouncementScheduler } from './shared';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useAudioMuted } from '../../hooks/useAudioState';
 import { audioManager } from '../../utils/audioManager';
 import { logger } from '../../utils/logger';
 import { formatFixed, useLocale, useT } from '../../i18n';
-import { preparePAVoice, releasePAVoice, speakPAVoice, stopPAVoice } from '../../audio/paVoice';
+import {
+  paDeliverySpeed,
+  preparePAVoice,
+  releasePAVoice,
+  speakPAVoice,
+  stopPAVoice,
+} from '../../audio/paVoice';
 import { paVoiceFor } from '../../audio/paVoiceCatalog';
 import { isBenchmarkRuntime } from '../../runtime/runtimeMode';
 import { keyedText } from '../../i18n/alertCopy';
@@ -85,7 +92,10 @@ export function selectAnnouncementForDisplay(
   announcements: readonly Announcement[],
   safetyStateActive: boolean
 ): Announcement | null {
-  const active = announcements.filter((announcement) => !announcement.dismissed);
+  // A line that is only its catalogue key is never shown (or spoken).
+  const active = announcements.filter(
+    (announcement) => !announcement.dismissed && !isUnresolvedPALine(announcement)
+  );
   const safety = safetyStateActive
     ? active.filter((announcement) => announcement.channel === 'safety')
     : [];
@@ -224,10 +234,8 @@ export const PAAnnouncementSystem: React.FC = () => {
   }, [lineMoving]);
   useEffect(() => () => audioManager.setPlantMotion?.(true), []);
 
-  // Schedule periodic announcements
-  usePAScheduler();
-
-  // Schedule event-triggered announcements (milestones, machine status changes)
+  // Event-triggered announcements only (D-054): machine faults and recoveries,
+  // drills and stops, the day's target. Nothing is said on a timer.
   useEventAnnouncementScheduler();
 
   // Severity-aware queue selection preserves FIFO order only within an equal
@@ -314,7 +322,8 @@ export const PAAnnouncementSystem: React.FC = () => {
       spokenIdRef.current = announcementId;
       const speakLocale = localeRef.current;
       const voice = paVoiceFor(speakLocale, useAnnouncementsStore.getState().voiceNames ?? {});
-      void speakPAVoice(currentTextRef.current, speakLocale, voice).then((spoken) => {
+      const speed = paDeliverySpeed(currentAnnouncement.priority, currentAnnouncement.type);
+      void speakPAVoice(currentTextRef.current, speakLocale, voice, speed).then((spoken) => {
         if (!spoken || lastAnnouncementIdRef.current !== announcementId) return;
         voiceHoldRef.current = {
           id: announcementId,

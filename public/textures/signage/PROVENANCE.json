@@ -926,5 +926,36 @@
         "textReview": "Exact existing title inspected on generated original; complete print contains no invented prices, dates or claims."
       }
     ]
+  },
+  "tacoTruckSign": {
+    "date": "2026-11-07",
+    "method": "Drawn by scripts/author-taco-truck-sign.py (Pillow 12.0.0, numpy, seeded noise 20261107): shapes, sunburst, ribbon, tacos and grain from plain geometry; lettering painted from two SIL OFL 1.1 fonts with no Reserved Font Name. Neither font ships; only the painted image does.",
+    "fonts": [
+      {
+        "name": "Shrikhand",
+        "author": "Jonny Pinhorn",
+        "licence": "SIL OFL 1.1",
+        "source": "https://raw.githubusercontent.com/google/fonts/0cffc716084fe004545f47e7f77a007f26d3ca88/ofl/shrikhand/Shrikhand-Regular.ttf",
+        "sha256": "8ba32f6d6a96fb8dbc92fc1acfbc4d2123d5348063d89b2c3dd784e7afcb81af"
+      },
+      {
+        "name": "Caveat Brush",
+        "author": "Impallari Type",
+        "licence": "SIL OFL 1.1",
+        "source": "https://raw.githubusercontent.com/google/fonts/b05d7ed92bc2424f4dd1d2c5861a423868dea932/ofl/caveatbrush/CaveatBrush-Regular.ttf",
+        "sha256": "e565bd7bffd895ca64f8d1cb77c816b9b38d9c010246386a07c9648592f6f282"
+      }
+    ],
+    "assets": [
+      {
+        "id": "la-molinita",
+        "file": "taco-truck-la-molinita-v1.webp",
+        "brief": "Invented taco-truck name 'La Molinita' (the little mill). Atlas: shaped roof board, awning valance, A-frame chalk menu; regions in src/components/exterior/tacoTruckSignLayout.ts.",
+        "width": 2048,
+        "height": 1024,
+        "bytes": 157958,
+        "sha256": "bd10820ad661d8a84d3e26099da0acdacfd0bfb54ae72ae11e2f9ac51c1d4e8a"
+      }
+    ]
   }
 }

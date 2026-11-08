@@ -22,12 +22,15 @@ describe('keyboard help contract', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  // In first person beside a forklift, F boards it (FirstPersonController) and
-  // the fullscreen shortcut stands aside; the help said only "Toggle fullscreen".
-  it('says what F does beside a forklift in first person', () => {
+  // F is only fullscreen; E or a click drives a forklift in first person
+  // (Nell, 2026-11-07: "F is fullscreen, but you use it for forklift also?").
+  it('keeps F for fullscreen and lists E for the forklift', () => {
     render(<KeyboardShortcutsModal isOpen onClose={vi.fn()} />);
     const row = screen.getByText('F', { selector: 'kbd' }).parentElement;
-    expect(row).toHaveTextContent('forklift');
+    expect(row).toHaveTextContent('Toggle fullscreen');
+    expect(row).not.toHaveTextContent('forklift');
+    const forklift = screen.getByText(/^E \//, { selector: 'kbd' }).parentElement;
+    expect(forklift).toHaveTextContent('forklift');
   });
 
   // The help listed "M: Minimize/Expand panel", a key that changed nothing.

@@ -1,4 +1,5 @@
 import { SITE_LAYOUT, SOUTH_ROAD_LANES, type LandmarkAnchor } from './siteLayout';
+import { RAILWAY_ROAD } from './railwayRoadLayout';
 /** Shared construction palette, used by gardens and district connections.
  * Working if adjoining grounds share stone/brick/iron colours without recolouring landmarks.
  */
@@ -314,12 +315,36 @@ export const WORLD_REALM_PATCHES: readonly RealmPatch[] = [
  */
 export const FARM_FURROW_PITCH = 0.75;
 
+/** The paved walk out to the lake; it continues as a curve into the lakeside
+ * loop, and crosses the railway road (D-047) on a zebra. World X/0/Z. */
+export const LAKE_APPROACH_PATH = {
+  start: [95, 0, 85] as [number, number, number],
+  end: [120, 0, 92] as [number, number, number],
+  width: 2.5,
+};
+
+/**
+ * The farmhouse's north walk, farm-local. It stopped at local z 20.8 (world
+ * z 99.2), in the grass short of the yard corner; it now runs on to the
+ * railway road (D-047), lapping 0.15 m onto its south edge (z 96.75), so the
+ * farm reaches the station and the valley road on foot.
+ */
+export const FARMHOUSE_NORTH_WALK: RealmPath = {
+  start: [-18.3, 8],
+  end: [
+    -18.3,
+    SITE_LAYOUT.landmarks.farm.position[2] -
+      (RAILWAY_ROAD.corners[2].at[1] + RAILWAY_ROAD.halfWidth - 0.15),
+  ],
+  width: 1.7,
+};
+
 export const FARM_REALM_PATHS: readonly RealmPath[] = [
   { start: [8, -7.5], end: [8, -28.2], width: 3.2 },
   { start: [9, -5], end: [10.5, -5], width: 1.3 },
   { start: [-7, 5], end: [-10, 7.5], width: 2.2 },
   { start: [-10, 7.5], end: [-10, 9], width: 1.4 },
-  { start: [-18.3, 8], end: [-18.3, 20.8], width: 1.7 },
+  FARMHOUSE_NORTH_WALK,
   { start: [-10, 7.5], end: [-18.3, 8], width: 1.7 },
   { start: [8, -15], end: [12.4, -15], width: 2 },
 ];

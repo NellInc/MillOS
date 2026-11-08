@@ -53,6 +53,7 @@ import {
   inRealmPath,
 } from '../../constants/publicRealmLayout';
 import { WATER_PROFILES } from '../../utils/waterAppearance';
+import { WALKING_OBSTACLES } from '../../utils/walkingObstacles';
 import { buildPerimeterKerbRuns } from './perimeterKerbLayout';
 import { hedgeCrownTransforms } from './HedgeFoliage';
 import { SERVICE_ENTRANCE_LIGHTS, serviceEntranceSource } from './ServiceEntranceLighting';
@@ -273,7 +274,11 @@ it.each([64, 128])(
 
 it('joins the lake approach to the actual curved section entrance', () => {
   const exterior = readFileSync('src/components/FactoryExterior.tsx', 'utf8');
-  expect(exterior).toContain('<GravelPath {...LAKE_APPROACH_PATH} type="paved" />');
+  // Drawn in two halves either side of the railway road's zebra (D-047); the
+  // second half still ends on the turn's entrance.
+  expect(exterior).toContain('<GravelPath {...LAKE_APPROACH_NORTH} type="paved" />');
+  expect(exterior).toContain('<GravelPath {...LAKE_APPROACH_SOUTH} type="paved" />');
+  expect(exterior).toContain('railwayRoadCrossing(LAKE_APPROACH_PATH)');
   expect(LAKE_APPROACH_PATH.start).toEqual([95, 0, 85]);
   expect(LAKE_APPROACH_PATH.end).toEqual([120, 0, 92]);
   // The existing turn is centred at (120,100), radius8, beginning at -pi/2.
@@ -566,7 +571,7 @@ const findRay = (group: Group, point: Triple, direction: Triple, far = 3) =>
     true
   );
 
-it('keeps the two intentional canal finds on their exact roots with shared opaque resources and bounded actual geometry', () => {
+it('keeps the two canal finds on their exact roots with shared opaque resources and bounded actual geometry', () => {
   const first = [Bicycle(), Trolley()],
     second = [Bicycle(), Trolley()];
   const materials = new Set();
@@ -576,8 +581,9 @@ it('keeps the two intentional canal finds on their exact roots with shared opaqu
     expect(element.props.dispose).toBeNull();
     expect(element.props.position).toEqual([...layout.position]);
     expect(element.props.rotation).toEqual([...layout.rotation]);
-    expect(element.props.position).toEqual(i ? [-143, 0.1, 36.5] : [-147.5, 0.05, 54]);
-    expect(element.props.rotation).toEqual(i ? [Math.PI * 0.85, 0.35, 0.2] : [0.25, 0.7, 0.1]);
+    // Out of the water since D-046: on the west bank, beside the canal walk.
+    expect(element.props.position).toEqual(i ? [-158.4, 0.32, 71.6] : [-157.9, 0.005, 66.8]);
+    expect(element.props.rotation).toEqual(i ? [0, 0.35, 0] : [-0.14, Math.PI / 2, 0, 'YXZ']);
     const meshes = Children.toArray(element.props.children) as ReactElement<{
       geometry: import('three').BufferGeometry;
       material: MeshStandardMaterial;
@@ -615,6 +621,81 @@ it('keeps the two intentional canal finds on their exact roots with shared opaqu
   expect(trolley.max.y).toBeLessThanOrEqual(0.375001);
   expect(trolley.min.z).toBeGreaterThanOrEqual(-0.58);
   expect(trolley.max.z).toBeLessThanOrEqual(0.56);
+});
+
+it('stands both canal finds on dry, flat ground off the canal walk, the bicycle on its tyres and stand', () => {
+  const placed = (
+    geometries: Record<string, import('three').BufferGeometry>,
+    layout: { position: readonly number[]; rotation: readonly (number | string)[] }
+  ) => {
+    const group = findGeometryGroup(geometries);
+    group.position.set(...(layout.position as [number, number, number]));
+    const [x, y, z, order] = layout.rotation as [number, number, number, string?];
+    group.rotation.copy(new Euler(x, y, z, (order ?? 'XYZ') as 'XYZ'));
+    group.updateMatrixWorld(true);
+    return group;
+  };
+  const bike = placed(CANAL_BICYCLE_GEOMETRY, CANAL_FINDS_LAYOUT.bicycle);
+  const trolley = placed(CANAL_TROLLEY_GEOMETRY, CANAL_FINDS_LAYOUT.trolley);
+  const canal = SITE_LAYOUT.exteriorFeatures.canal;
+  const westWallFace = canal.position[0] - canal.width / 2 - 0.5;
+  for (const [name, group] of [
+    ['bicycle', bike],
+    ['trolley', trolley],
+  ] as const) {
+    // Precise: a turned group's AABB of its geometry boxes overstates the extent.
+    const box = new Box3().setFromObject(group, true);
+    // Resting on the -0.02 ground datum, neither sunk nor floating.
+    expect(box.min.y, name).toBeGreaterThan(-0.026);
+    expect(box.min.y, name).toBeLessThan(-0.014);
+    // West of the walk's kerb (x -156.3) with room to pass, nowhere near the water.
+    expect(box.max.x, name).toBeLessThan(-156.3 - 0.6);
+    expect(box.max.x, name).toBeLessThan(westWallFace - 5);
+    for (const x of [box.min.x, box.max.x])
+      for (const z of [box.min.z, box.max.z]) {
+        expect(
+          WORLD_REALM_PATHS.some((path) => inRealmPath(x, z, path, 0.3)),
+          `${name} on a walk`
+        ).toBe(false);
+        for (const segments of [64, 128])
+          expect(sampleTerrainGroundHeight(x, z, segments), name).toBe(0);
+      }
+  }
+  const bikeBox = new Box3().setFromObject(bike, true);
+  const trolleyBox = new Box3().setFromObject(trolley, true);
+  // The waste bin at (-158, 70), between them, and the tree at (-160, 70) keep their room.
+  expect(bikeBox.max.z).toBeLessThan(70 - 0.6);
+  expect(trolleyBox.min.z).toBeGreaterThan(70 + 0.6);
+  expect(trolleyBox.min.x).toBeGreaterThan(-160 + 0.8);
+  // Clear of every hedge, wall and building the walking model knows, by 0.3 m:
+  // the cottage plot's outer hedge runs x -157 from z 48 to 62.
+  for (const box of [bikeBox, trolleyBox])
+    for (const solid of WALKING_OBSTACLES)
+      expect(
+        solid.minX < box.max.x + 0.3 &&
+          solid.maxX > box.min.x - 0.3 &&
+          solid.minZ < box.max.z + 0.3 &&
+          solid.maxZ > box.min.z - 0.3,
+        solid.id
+      ).toBe(false);
+  // The bicycle stands on both tyres and its stand foot: each touches the ground.
+  bike.updateMatrixWorld(true);
+  const lowest = (local: [number, number, number], radius: number) => {
+    let min = Infinity;
+    const v = new Vector3();
+    for (const child of bike.children) {
+      const position = (child as Mesh).geometry.getAttribute('position');
+      for (let k = 0; k < position.count; k++) {
+        v.fromBufferAttribute(position, k);
+        if (v.distanceTo(new Vector3(...local)) > radius) continue;
+        min = Math.min(min, v.applyMatrix4(bike.matrixWorld).y);
+      }
+    }
+    return min;
+  };
+  for (const [x, y] of CANAL_FINDS_LAYOUT.wheels)
+    expect(lowest([x, y - 0.35, 0], 0.08)).toBeCloseTo(-0.02, 2);
+  expect(lowest([...CANAL_FINDS_LAYOUT.stand.foot], 0.03)).toBeCloseTo(-0.02, 2);
 });
 
 it('aligns actual bicycle tyres and spokes in the frame plane and seats its hubs, fork, stays and contact fittings', () => {

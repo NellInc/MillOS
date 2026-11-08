@@ -81,3 +81,48 @@ function append(ledger: AgentCausalLedger, index: number) {
     provenance: [{ kind: 'test', source: 'causalLedger.test.ts' }],
   });
 }
+
+describe('causal history assurance', () => {
+  it('distinguishes a paged predecessor from a missing retained predecessor', () => {
+    const ledger = new AgentCausalLedger();
+    const parent = append(ledger, 0);
+    ledger.append({ ...parent, commandId: 'linked-child', causationId: parent.eventId });
+    const secondPage = ledger.trace({ cursor: '1', limit: 1 });
+    expect(secondPage.records[0].causationId).toBe(parent.eventId);
+    expect(secondPage.completeCausalChain).toBe(true);
+    ledger.append({ ...parent, commandId: 'dangling-child', causationId: 'evt-not-retained' });
+    expect(ledger.export().compaction.discardedEvents).toBe(0);
+    expect(ledger.trace({ cursor: '0', limit: 1 }).completeCausalChain).toBe(false);
+  });
+
+  it('withholds assurance after genuine minimum-bound compaction', () => {
+    const ledger = new AgentCausalLedger({ eventBound: 16 });
+    const first = append(ledger, 0);
+    let predecessor = first.eventId;
+    for (let index = 1; index < 17; index += 1) {
+      predecessor = ledger.append({
+        ...first,
+        commandId: `linked-${index}`,
+        causationId: predecessor,
+      }).eventId;
+    }
+    expect(ledger.export().compaction.discardedEvents).toBe(1);
+    expect(ledger.trace().records).toHaveLength(16);
+    expect(ledger.trace().completeCausalChain).toBe(false);
+  });
+
+  it('preserves schema two import remapping and deduplication without certifying origin', () => {
+    const source = new AgentCausalLedger();
+    const parent = append(source, 0);
+    source.append({ ...parent, commandId: 'import-child', causationId: parent.eventId });
+    const destination = new AgentCausalLedger();
+    append(destination, 99);
+    expect(destination.import(source.export()).imported).toBe(2);
+    const records = destination.trace().records;
+    expect(records[2].causationId).toBe(records[1].eventId);
+    expect(records[1].eventId).not.toBe(parent.eventId);
+    expect(destination.import(source.export()).imported).toBe(0);
+    expect(destination.export().compaction.discardedEvents).toBe(0);
+    expect(destination.trace().completeCausalChain).toBe(false);
+  });
+});

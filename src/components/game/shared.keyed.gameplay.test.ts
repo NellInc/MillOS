@@ -7,7 +7,7 @@ import { useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
 import { setLocale } from '../../i18n';
 import { keyedText } from '../../i18n/alertCopy';
-import { useEventAnnouncementScheduler, usePAScheduler } from './shared';
+import { useEventAnnouncementScheduler } from './shared';
 import { sharedMessages } from './shared.messages';
 
 vi.mock('../../scada/SCADAService', () => ({ peekSCADAService: () => null }));
@@ -22,7 +22,6 @@ vi.mock('../../utils/audioManager', () => ({
 
 const en = sharedMessages.en as Record<string, unknown>;
 const pt = sharedMessages['pt-BR'] as Record<string, unknown>;
-const englishLines = new Set(Object.values(en).filter((v) => typeof v === 'string'));
 
 const lineSaying = (english: string): Announcement => {
   const line = useAnnouncementsStore
@@ -86,11 +85,11 @@ describe('the PA lines shared.tsx files are keyed, so a language switch reaches 
     hook.unmount();
   });
 
-  it('daily-target milestone line', () => {
+  it('daily-target line', () => {
     const hook = renderHook(() => useEventAnnouncementScheduler());
-    useProductionStore.setState({ dailyBagsProduced: Math.ceil(DAILY_TARGET_BAGS * 0.26) });
+    useProductionStore.setState({ dailyBagsProduced: DAILY_TARGET_BAGS });
     vi.advanceTimersByTime(5_000);
-    expectPortuguese(lineSaying(en.milestone25 as string), 'milestone25');
+    expectPortuguese(lineSaying(en.milestone100 as string), 'milestone100');
     hook.unmount();
   });
 
@@ -129,18 +128,6 @@ describe('the PA lines shared.tsx files are keyed, so a language switch reaches 
     setLocale('pt-BR');
     useSafetyStore.setState({ forkliftEmergencyStop: false });
     expect(lineSaying(en.forkliftStop as string).dismissed).toBe(true);
-    hook.unmount();
-  });
-
-  it('routine plant notices', () => {
-    useGameSimulationStore.setState({ gameSpeed: 1 });
-    const hook = renderHook(() => usePAScheduler());
-    vi.advanceTimersByTime(181_000);
-    const [line] = useAnnouncementsStore.getState().announcements;
-    expect(line).toBeDefined();
-    expect(englishLines.has(line.message)).toBe(true);
-    const key = Object.keys(en).find((k) => en[k] === line.message)!;
-    expectPortuguese(line, key);
     hook.unmount();
   });
 });

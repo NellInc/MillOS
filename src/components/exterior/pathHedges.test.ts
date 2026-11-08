@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   CANAL_WEST_PATH,
-  GATE_CAR_PARK_ROAD,
   LAKE_APPROACH_PATH,
   PATH_HEDGES,
   RIVER_FOOTBRIDGE_APPROACH,
 } from '../FactoryExterior';
+import { RAILWAY_ROAD_WAYS } from '../../constants/railwayRoadLayout';
 import { FRONT_PARKLAND_TREES, MAIN_EXTERIOR_TREES, PARKLAND_TREES } from './ExteriorVegetation';
 
 type Point = readonly [number, number, number];
@@ -90,7 +90,12 @@ function segmentDistance(a0: Point, a1: Point, b0: Point, b1: Point): number {
 // the hedge ran straight across the carriageway (probe: hedge foliage hit at
 // (103.5, 85.2), road surface either side of it).
 it('crosses no path, road or tree trunk on the site', () => {
-  const ways = [CANAL_WEST_PATH, LAKE_APPROACH_PATH, RIVER_FOOTBRIDGE_APPROACH, GATE_CAR_PARK_ROAD];
+  const ways = [
+    CANAL_WEST_PATH,
+    LAKE_APPROACH_PATH,
+    RIVER_FOOTBRIDGE_APPROACH,
+    ...RAILWAY_ROAD_WAYS,
+  ];
   const trunks = [...MAIN_EXTERIOR_TREES, ...PARKLAND_TREES, ...FRONT_PARKLAND_TREES];
   for (const hedge of PATH_HEDGES) {
     for (const way of ways) {
@@ -114,7 +119,12 @@ it('crosses no path, road or tree trunk on the site', () => {
 const MIN_HEDGE_METRES = 12;
 const ANCHOR_REACH = 1.5;
 it('runs every path hedge between anchors, never as a short stub', () => {
-  const ways = [CANAL_WEST_PATH, LAKE_APPROACH_PATH, RIVER_FOOTBRIDGE_APPROACH, GATE_CAR_PARK_ROAD];
+  const ways = [
+    CANAL_WEST_PATH,
+    LAKE_APPROACH_PATH,
+    RIVER_FOOTBRIDGE_APPROACH,
+    ...RAILWAY_ROAD_WAYS,
+  ];
   for (const hedge of PATH_HEDGES) {
     const length = Math.hypot(hedge.end[0] - hedge.start[0], hedge.end[2] - hedge.start[2]);
     expect(length).toBeGreaterThanOrEqual(MIN_HEDGE_METRES);

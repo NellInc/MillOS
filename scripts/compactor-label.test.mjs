@@ -237,7 +237,10 @@ beforeAll(async () => {
       libraryDefault('node_modules/troika-three-text/libs/woff2otf.factory.js')()
     );
     const bytes = fs.readFileSync(path.join(root, 'public/fonts/Inter-Regular.ttf'));
-    expect(hash(bytes)).toBe('6debf0c231cf9a9d4552db02d3ca9515d841b37f2a6fe9881a74fe906f61b645');
+    // 2026-11-07: the five GSUB contextual subtables troika's parser cannot
+    // read (types 5/3, 6/1, 6/2; they only logged "unsupported GSUB") were
+    // removed. Glyphs, advances and kerning are byte-identical in effect.
+    expect(hash(bytes)).toBe('04468c4b00e4e4073310d104a20daf1c13b107e458690f3b806c8a23716cc835');
     font = parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
     font.src = 'local-Inter-Regular.ttf';
     const setter = libraryFunction(

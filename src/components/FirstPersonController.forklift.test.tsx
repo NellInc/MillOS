@@ -57,7 +57,7 @@ afterEach(() => {
   useUIStore.getState().setFpsMode(false);
 });
 
-it('offers the forklift in reach, boards it on F, and hands the keys to it', () => {
+it('offers the forklift in reach, boards it on E, and hands the keys to it', () => {
   render(
     <>
       <FirstPersonController />
@@ -69,16 +69,17 @@ it('offers the forklift in reach, boards it on F, and hands the keys to it', () 
   expect(useForkliftDriveStore.getState().inReachId).toBe('forklift-1');
   expect(screen.getByTestId('forklift-drive-prompt').textContent).toContain('Drive FLT01');
 
-  act(() => press('KeyF'));
+  expect(screen.getByTestId('forklift-drive-prompt').textContent).toContain('E');
+  act(() => press('KeyE'));
   expect(useForkliftDriveStore.getState().drivenId).toBe('forklift-1');
   expect(screen.getByTestId('forklift-drive-prompt').textContent).toContain('Step down');
 
-  // Seated, W/S, A/D and Q/E are the forklift's controls; walking does not move the eye.
+  // Seated, W/S, A/D and R/Q are the forklift's controls; walking does not move the eye.
   const before = harness.camera.position.clone();
   act(() => {
     press('KeyW');
     press('KeyD');
-    press('KeyE');
+    press('KeyR');
     harness.frame({}, 1 / 60);
   });
   expect(manualForkliftInput).toEqual({ throttle: 1, steer: 1, lift: 1 });
@@ -86,16 +87,16 @@ it('offers the forklift in reach, boards it on F, and hands the keys to it', () 
   act(() => {
     press('KeyW', 'keyup');
     press('KeyD', 'keyup');
-    press('KeyE', 'keyup');
+    press('KeyR', 'keyup');
   });
 });
 
-it('steps down on the driver’s side, at standing height, on F', () => {
+it('steps down on the driver’s side, at standing height, on E', () => {
   render(<FirstPersonController />);
   act(() => harness.lock());
   act(() => harness.frame({}, 1 / 60));
-  act(() => press('KeyF'));
-  act(() => press('KeyF'));
+  act(() => press('KeyE'));
+  act(() => press('KeyE'));
   expect(useForkliftDriveStore.getState().drivenId).toBeNull();
   const { x, y, z } = harness.camera.position;
   // Facing +z, the driver's left is +x, and the step is 0.9 m back (-z), clear
@@ -104,6 +105,39 @@ it('steps down on the driver’s side, at standing height, on F', () => {
   expect(z).toBeCloseTo(FORKLIFT.z - 0.9, 5);
   expect(y).toBeCloseTo(sampleWalkingGroundHeight(x, z, 64) + 1.7, 5);
   expect(manualForkliftInput).toEqual({ throttle: 0, steer: 0, lift: 0 });
+});
+
+it('a left click boards the forklift in reach and leaves it again', () => {
+  const lock = Object.getOwnPropertyDescriptor(document, 'pointerLockElement');
+  Object.defineProperty(document, 'pointerLockElement', {
+    configurable: true,
+    get: () => document.body,
+  });
+  try {
+    render(<FirstPersonController />);
+    act(() => harness.lock());
+    act(() => harness.frame({}, 1 / 60));
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
+    });
+    expect(useForkliftDriveStore.getState().drivenId).toBe('forklift-1');
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
+    });
+    expect(useForkliftDriveStore.getState().drivenId).toBeNull();
+  } finally {
+    if (lock) Object.defineProperty(document, 'pointerLockElement', lock);
+    else Reflect.deleteProperty(document, 'pointerLockElement');
+  }
+});
+
+it('F is only fullscreen: it never boards or leaves a forklift', () => {
+  render(<FirstPersonController />);
+  act(() => harness.lock());
+  act(() => harness.frame({}, 1 / 60));
+  expect(useForkliftDriveStore.getState().inReachId).toBe('forklift-1');
+  act(() => press('KeyF'));
+  expect(useForkliftDriveStore.getState().drivenId).toBeNull();
 });
 
 it('cannot board a forklift working a load, or one out of reach', () => {
@@ -125,17 +159,17 @@ it('leaving first person (ESC) gets out of the forklift', () => {
   render(<FirstPersonController />);
   act(() => harness.lock());
   act(() => harness.frame({}, 1 / 60));
-  act(() => press('KeyF'));
+  act(() => press('KeyE'));
   expect(useForkliftDriveStore.getState().drivenId).toBe('forklift-1');
   act(() => harness.unlock());
   expect(useForkliftDriveStore.getState().drivenId).toBeNull();
 });
 
-it('steps down however the seat is left, not only on F', () => {
+it('steps down however the seat is left, not only on E', () => {
   render(<FirstPersonController />);
   act(() => harness.lock());
   act(() => harness.frame({}, 1 / 60));
-  act(() => press('KeyF'));
+  act(() => press('KeyE'));
   act(() => harness.frame({}, 1 / 60));
   // A save restored under the driver: the store lets go, the forklift stays.
   harness.camera.position.set(FORKLIFT.x, 2.4, FORKLIFT.z);
@@ -148,7 +182,7 @@ it('steps down however the seat is left, not only on F', () => {
 
   // The forklift gone with the player in it: down onto the ground where they are.
   act(() => harness.frame({}, 1 / 60));
-  act(() => press('KeyF'));
+  act(() => press('KeyE'));
   act(() => harness.frame({}, 1 / 60));
   harness.camera.position.set(FORKLIFT.x, 2.4, FORKLIFT.z);
   positionRegistry.unregister('forklift-1');

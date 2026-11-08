@@ -1,0 +1,43 @@
+import { defineMessages } from '../i18n';
+
+/** Provenance lines on the factory AI's agreed-adjustment cards (aiAccommodation.ts). */
+export const aiAccommodationMessages = defineMessages({
+  en: {
+    assumption: 'Acts on the agreed adjustments register; infers nothing about any person.',
+    agreedAdjustment: 'Agreed adjustment',
+    visualAlerts: 'Alarms as light and vibration',
+    pagerDelivery: 'Pager delivery',
+    confirmed: 'Confirmed',
+    zone: 'Zone',
+    stepFreeRoute: 'Step-free route',
+    clear: 'Clear',
+    blocked: 'Blocked by stopped vehicles',
+    viaAlternative: 'Clear on the alternative: {zone}',
+    quietBooking: 'Quiet room booking',
+    purgePlanned: 'Purge planned for',
+    systemVisualAlarms: 'Visual alarm devices',
+    systemPager: 'Alert pager',
+    systemEgress: 'Egress verification',
+    systemCompressedAir: 'Compressed air',
+    systemQuietRoom: 'Quiet room',
+  },
+  'pt-BR': {
+    assumption: 'Age pelo registro de ajustes combinados; não deduz nada sobre nenhuma pessoa.',
+    agreedAdjustment: 'Ajuste combinado',
+    visualAlerts: 'Alarmes como luz e vibração',
+    pagerDelivery: 'Entrega no pager',
+    confirmed: 'Confirmada',
+    zone: 'Zona',
+    stepFreeRoute: 'Rota sem degraus',
+    clear: 'Livre',
+    blocked: 'Bloqueada por veículos parados',
+    viaAlternative: 'Livre pela alternativa: {zone}',
+    quietBooking: 'Reserva da sala silenciosa',
+    purgePlanned: 'Purga prevista para',
+    systemVisualAlarms: 'Sinalizadores visuais de alarme',
+    systemPager: 'Pager de alerta',
+    systemEgress: 'Verificação das rotas de saída',
+    systemCompressedAir: 'Ar comprimido',
+    systemQuietRoom: 'Sala silenciosa',
+  },
+});

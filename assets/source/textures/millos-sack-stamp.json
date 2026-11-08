@@ -7,7 +7,7 @@
   "alphaSha256": "c4bfc7028da5be98e22efd4cfbadf6a66ff2347705fb8f829d65578bd5c3d0de",
   "inputs": {
     "public/textures/signage/millos-mark-v1.webp": "61349b91823369b614504f4b250933208ca126f1b6ef38b04e08446e6a70fda3",
-    "public/fonts/Inter-Regular.ttf": "6debf0c231cf9a9d4552db02d3ca9515d841b37f2a6fe9881a74fe906f61b645"
+    "public/fonts/Inter-Regular.ttf": "04468c4b00e4e4073310d104a20daf1c13b107e458690f3b806c8a23716cc835"
   },
   "wordmarkUV": [
     0.125,

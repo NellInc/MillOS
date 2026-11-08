@@ -69,9 +69,9 @@ export const PERIMETER_KERB_CROSSINGS: readonly RealmPath[] = [
   { start: [95, 85], end: [120, 92], width: 2.5 },
   // Path to the east pond, from the yard's corner (end: `EAST_POND_APPROACH`).
   { start: [100, -85], end: [108.2, -80], width: 1.8 },
-  // Parking-lot road. It stopped 5 m short of the corner, on grass the old
-  // soft edge used to smear over; it now runs on into the corner.
-  { start: [101, 89], end: [120, 70], width: 5 },
+  // No parking-lot road: it ran into the south-east corner and stopped there.
+  // The railway road (D-047) that replaced it passes 2.1 m outside the
+  // corner and 0.7 m outside the south kerb, so the kerb runs unbroken.
 ];
 
 /**

@@ -272,7 +272,7 @@ async function supportFixture(quality: string) {
   full.add(road);
   for (const [coordinate, dimensions, owner] of [
     ['[0, EXTERIOR_LAYERS.ground, -30]', '[60, 60]', 'receiving-yard'],
-    ['[-20, EXTERIOR_LAYERS.ground, -115]', '[10, 120]', 'receiving-road'],
+    ['[-20, EXTERIOR_LAYERS.ground, -115]', '[16, 120]', 'receiving-road'],
   ]) {
     const mesh = objectFromRecord(
       expression(
@@ -657,7 +657,9 @@ describe.each(['low', 'medium', 'high', 'ultra'])('intact riverbank hedge %s', (
         [fixture.full.getObjectByName('loaded-nearby-park-bench')!, 3.4949],
         [fixture.full.getObjectByName('protected-RIVER-sign')!, 5.7028],
         [fixture.full.getObjectByName('receiving-yard')!, 5.7999],
-        [fixture.full.getObjectByName('receiving-road')!, 19.499],
+        // 19.499 for the old 10 m strip; it now spans the full 16 m carriageway
+        // (x -28 to -12), whose terrain road was always there (2026-11-07).
+        [fixture.full.getObjectByName('receiving-road')!, 16.499],
       ] as const) {
         expect(owner).toBeDefined();
         expect(xzDistance(footprint, new THREE.Box3().setFromObject(owner))).toBeGreaterThan(
@@ -695,8 +697,10 @@ const unchangedSourceHashes = {
   // Same bytes confirmed 2026-11-06 by blind A/B test-results/art-review/fx-ab2
   // (fx-b1-noon with the leader and limb-taper hunks reverted vs fx-b0-noon:
   // village, farm, paddock, square, forge all equal, no regression).
+  // 2026-11-07, reviewed: grass clutter thins smoothly with distance
+  // (`clutterVisibleCount`) and keeps Halton order; hedge placement unchanged.
   'src/components/scenery/InstancedFoliage.tsx':
-    '4df9e5219b1fb3ba647a9be2acb26305352970211b6ba9a7bac23cbdee01f267',
+    '16b63d17f221fae6a40a40fe671b3d3dd08af82975961005197f9dac074e5e6e',
   'src/components/scenery/WindDriver.tsx':
     '4b9337add2f65164982234a6e6808fe2534665fd09cfca38d7f8c231ac4a034b',
   'src/utils/worldSurface.ts': 'c3e05f3b2158ae4b94c3b25b2c5ab9cdcdf2067e8ba0b88b38e48694402e85ca',
@@ -713,23 +717,36 @@ const unchangedSourceHashes = {
   // reviewed by blind A/B test-results/art-review/fx-ab1 (forge, fx-b0-noon vs
   // fx-b2-noon): the parkland leader covers the bole's flat top. Branches only;
   // the trunk profile and its parkTrunkUnit match are unchanged.
+  // 2026-11-07, reviewed: two parkland trees moved off the railway road
+  // (D-047) to (55.5, 100) and (86.5, 99.5); no geometry changed.
   'src/components/exterior/ExteriorVegetation.tsx':
-    'ca43a67f22a4d4f378fdef2c8a40a1071c970be104f7fbfaecfffcad7f9afbc9',
+    '359d42c1ab20aeb6b5ca523bb8c5f60220e2cdd1ea310fe33774770a2300f699',
+  // 2026-11-07, reviewed: adds only the railway road's dirt band (D-047),
+  // far from the riverbank; no existing region changed.
   'src/components/terrain/splatMapGenerator.ts':
-    '256448f6186026291e423fd60797a47d86c2e469565190b4f7ea3102d1b5f1e6',
+    'f2d2299a992ee2b85b961d1cdaec227a2c196e6506dd11d571b155bb40f743b7',
   'src/components/terrain/terrainTypes.ts':
     '7725c817cd4b1fe4aae9cde34b62196d5b304a7cc36beb0803970614e5c078a4',
   'src/components/terrain/TerrainGround.tsx':
     'c9fbe826e1a1c58f6af84581628f0a98a9e1c9e94b582e1cd0200bfa28dd0e16',
-  'src/constants/siteLayout.ts': 'ec42ddef51dd13f1d6bdad86451bf80da1b73f02fc4438bbdbf7c40e8bb22842',
+  // 2026-11-08, reviewed: the south road's west edge line now stops at the
+  // shuttle turnaround apron (STATION_ROAD_TURNAROUND_GAP_START); nothing else changed.
+  'src/constants/siteLayout.ts': 'd1fa67be90ffa789b1d56d5b954eefdbbc3585ba2e8631643e23868ecbf24092',
+  // 2026-11-07, reviewed: adds RENDER_ORDER.steamPlume (12); no value changed.
   'src/constants/renderLayers.ts':
-    '35ab482feb104c5d0f4a6f19b7c7649746d13761a80c83c53906b1c6ba926f40',
+    '2013ca3b18e583e05efd7a596cb1643a810a09e7f2aa270ec95d6a77345561fb',
+  // 2026-11-07, reviewed: adds the town hall ramp, landings and porticos to the
+  // walking height and step rule (townHallWalkingHeight, townHallBlocks); the
+  // riverbank, river and bridges sample exactly as before.
   'src/utils/castleNavigation.ts':
-    '92f86b420d9aea8ed6192e2e32a1049046bf5c7de0c1ac44bbd64fe67505e8e0',
+    '15afb6eebaa2806e8f2a455f5263b9dd498656c6a9cbbd0a80f199eb46fd9f6e',
   // Re-baselined 2026-11-06 under Nell's 'FIX EVERYTHING USE YOUR BEST JUDGMENT';
   // reviewed in test-results/art-review/groupB-after2 (markings, receiving): dock
   // rubber and shelter fabric finishes only.
-  'src/components/TruckBay.tsx': 'be77079bbcff05e99adbc8c8fda5fb12b4f268b24d128076e7c65a759a0db365',
+  // 2026-11-07, reviewed: both valley-road strips widened from 10 m to the
+  // full 16 m carriageway (two-tone lanes); nothing else changed. The fixture
+  // above reads the receiving road at its new [16, 120].
+  'src/components/TruckBay.tsx': '91d89db23ac9dd4c8106981a8391a803f2b57291d9f4f3120fb9db1593c570c9',
   'public/models/world/hedge-unit.glb':
     '808a45bf2a900a731887ef2605cec8a8de691b6c15e8440a3f82d64b0d8cf81b',
   'public/models/world/park-bench.glb':

@@ -4,7 +4,8 @@ import type { Locale } from '../i18n';
  * Text for the PA voice. Phonon reads letters, not digits or symbols ("numbers
  * read best written as words"), so a caption is rewritten before it is spoken:
  * numbers in the locale's own format ("87.5" / "87,5", "6,000" / "6.000"),
- * percentages, pounds, clock times and dotted designations ("R.M. 101").
+ * percentages, pounds, clock times, dotted designations ("R.M. 101" is said
+ * "roller mill one oh one") and a lone grade letter ("an A" is not "an a").
  * Anything not matched passes through unchanged. The caption on screen is
  * never touched.
  */
@@ -241,8 +242,39 @@ function pounds(amount: string, locale: Locale): string | null {
   return p ? `${head} ${integerWords(p, locale)}` : head;
 }
 
+/** A roller mill's designation as it is said on the floor. */
+const ROLLER_MILL: Record<Locale, string> = { en: 'roller mill', 'pt-BR': 'moinho' };
+
+/** "101" as a plant number: "one oh one", "one twelve"; pt-BR says "cento e um". */
+function designationWords(digits: string, locale: Locale): string {
+  if (locale === 'pt-BR' || digits.length !== 3) return integerWords(Number(digits), locale);
+  const head = integerWords(Number(digits[0]), locale);
+  const tail = Number(digits.slice(1));
+  if (tail === 0) return `${head} hundred`;
+  return digits[1] === '0'
+    ? `${head} oh ${integerWords(tail, locale)}`
+    : `${head} ${integerWords(tail, locale)}`;
+}
+
+/*
+ * A capital letter standing alone at the end of a clause is a letter (a grade,
+ * "Plansifter A"), never the article; spelled as it is said, so "an A." is not
+ * read as "an a". Only the letters a reader could take for a word are spelled.
+ */
+const LONE_LETTER: Record<Locale, Record<string, string>> = {
+  en: { A: 'ay' },
+  'pt-BR': { A: 'á', E: 'é' },
+};
+
 export function speakableText(text: string, locale: Locale): string {
   let out = text;
+  // "R.M. 101" is said "roller mill one oh one", not "R M one hundred and one".
+  out = out.replace(/\bR\.M\.\s?(\d{3})(?![\w])/g, (_match, digits: string) => {
+    return `${ROLLER_MILL[locale]} ${designationWords(digits, locale)}`;
+  });
+  out = out.replace(/(?<=\s)([A-Z])(?=[.,!?;]|$)/g, (match, letter: string) => {
+    return LONE_LETTER[locale][letter] ?? match;
+  });
   // Clock times before plain numbers, so "14:05" is one time, not two numbers.
   out = out.replace(/(?<![\w:])(\d{1,2}):(\d{2})(?![\w:])/g, (match, h: string, m: string) => {
     return clockTime(h, Number(m), locale) ?? match;

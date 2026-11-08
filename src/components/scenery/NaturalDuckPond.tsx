@@ -7,7 +7,7 @@ import { useDracoGLTF } from '../../utils/dracoLoader';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { GENERATED_ASSET_PATHS } from '../../utils/modelLoader';
 
-/** At pond speed0.025,8000PI gives63,162,109cycles for the actual micro trains.
+/** At pond speed 0.35, 8000PI gives 882, 2268, 1526 cycles for the actual micro trains.
  * Working if the existing pause/wrap test verifies each actual shader frequency. */
 export const POND_VISUAL_PERIOD = Math.PI * 8000;
 

@@ -23,6 +23,8 @@ import { EXTERIOR_LAMP_LENS_MATERIAL, EXTERIOR_LAMP_LEVEL } from '../exterior/Ex
 import { RAILWAY_GLASS_MATERIAL } from './RailwayStation';
 import { RailwayGeometry } from './railwayGeometry';
 import { getRailwaySteamPuffMap } from '../../textures/railwayStationTiles';
+import { useGraphicsStore } from '../../stores/graphicsStore';
+import { RENDER_ORDER } from '../../constants/renderLayers';
 
 /**
  * The train that calls at Riverside: a green tank engine and three maroon and
@@ -107,9 +109,10 @@ function lineOut(
 export function buildRailwayEngineGeometry() {
   const body = new RailwayGeometry();
   const glass = new RailwayGeometry();
-  // Frames, footplate and buffer beams.
+  // Frames, footplate and buffer beams. The footplate stops at the beams'
+  // inner faces: run to z 5 it shared their side and end planes, black on red.
   body.span([-0.95, 0.7, -4.9], [0.95, 1.3, 4.9], C.black);
-  body.span([-1.32, 1.3, -5.0], [1.32, 1.4, 5.0], C.black);
+  body.span([-1.32, 1.3, -4.85], [1.32, 1.4, 4.85], C.black);
   for (const sign of [-1, 1] as const) {
     body.span([-1.32, 0.9, sign > 0 ? 4.85 : -5.0], [1.32, 1.42, sign > 0 ? 5.0 : -4.85], C.red);
     buffers(body, sign * 5.0, sign);
@@ -170,9 +173,11 @@ export function buildRailwayEngineGeometry() {
       lineOut(body, side * face, side, y0, y1, z0, z1, C.lining);
     body.span([side * 1.32, 1.86, 0.95], [side * 1.335, 2.24, 1.75], C.brass);
     body.span([side * 1.25, 1.95, -4.55], [side * 1.265, 2.25, -4.05], C.brass);
-    body.cylinder(0.018, 0.018, 3.9, [side * 0.82, 2.64, 1.35], C.steel, 6, 'z');
-    for (const z of [-0.4, 1.35, 3.1])
-      body.span([side * 0.75, 2.6, z - 0.015], [side * 0.84, 2.66, z + 0.015], C.steel);
+    // Boiler handrail on knobs, above the tank tops: at y 2.64 it lay inside
+    // the tanks, where the inside-out left tank used to show it.
+    body.cylinder(0.018, 0.018, 3.9, [side * 0.43, 2.88, 1.35], C.steel, 6, 'z');
+    for (const z of [-0.4, 1.0, 3.1])
+      body.span([side * 0.41, 2.8, z - 0.015], [side * 0.45, 2.88, z + 0.015], C.steel);
   }
   body.cylinder(0.04, 0.05, 0.22, [0.28, 3.65, -0.62], C.brass, 8);
   body.sphere(0.055, [0.28, 3.79, -0.62], C.brass, [1, 1, 1], 0);
@@ -194,9 +199,10 @@ export function buildRailwayCoachGeometry() {
         C.black
       );
   for (const sign of [-1, 1] as const) {
+    // The beam stands 2 cm proud of the body end, whose plane it shared.
     body.span(
-      [-1.25, 0.95, sign > 0 ? end - 0.1 : -end],
-      [1.25, 1.3, sign > 0 ? end : -end + 0.1],
+      [-1.25, 0.95, sign > 0 ? end - 0.1 : -end - 0.02],
+      [1.25, 1.3, sign > 0 ? end + 0.02 : -end + 0.1],
       C.black
     );
     buffers(body, sign * end, sign);
@@ -261,11 +267,11 @@ export function buildRailwayCoachGeometry() {
       body.span([m0, 2.42, z - 0.6], [m1, 3.27, z - 0.55], C.maroonDark);
       body.span([m0, 2.42, z + 0.55], [m1, 3.27, z + 0.6], C.maroonDark);
     }
-    const d0 = Math.min(side * 1.35, side * 1.358);
-    const d1 = Math.max(side * 1.35, side * 1.358);
+    // Door edges stand 6 mm proud of the gold line they cross; in one slab
+    // the two shared both faces where they met.
     for (const z of [-6.75, -5.95, 5.95, 6.75])
-      body.span([d0, 1.12, z - 0.015], [d1, 2.32, z + 0.015], C.maroonDark);
-    body.span([d0, 1.27, -end], [d1, 1.3, end], C.lining);
+      body.span([side * 1.346, 1.12, z - 0.015], [side * 1.362, 2.32, z + 0.015], C.maroonDark);
+    body.span([side * 1.35, 1.27, -end], [side * 1.356, 1.3, end], C.lining);
     body.span(
       [Math.min(side * 1.35, side * 1.41), 0.98, -end + 0.2],
       [Math.max(side * 1.35, side * 1.41), 1.03, end - 0.2],
@@ -377,6 +383,8 @@ const _across = new THREE.Vector3(1, 0, 0);
 const _unit = new THREE.Vector3(1, 1, 1);
 const _forward = new THREE.Vector3(0, 0, 1);
 const _chimney = new THREE.Vector3();
+const _roll = new THREE.Quaternion();
+const _billboard = new THREE.Quaternion();
 
 /**
  * Steam: a few soft puffs from the chimney, quicker as the engine works and
@@ -385,8 +393,11 @@ const _chimney = new THREE.Vector3();
  * paused game or a benchmark capture holds them still; a fresh train starts
  * with a short column already rising, so a still capture still shows steam.
  */
-const STEAM_PUFFS = 22;
-const STEAM_LIFE = 2.4;
+const STEAM_PUFFS = 32;
+const STEAM_LIFE = 3.0;
+/** Seconds between puffs at a stand, and the range while working. */
+const STEAM_SIMMER = 0.5;
+const STEAM_WORKING = [0.09, 0.4] as const;
 /** Chimney rim in the engine's own metres. */
 const CHIMNEY_TOP = new THREE.Vector3(0, 3.86, 4.05);
 // Camera-facing soft billboards rather than spheres: a lit sphere shows a rim
@@ -403,7 +414,7 @@ const STEAM_MATERIAL = new THREE.MeshStandardMaterial({
   roughness: 1,
   metalness: 0,
   transparent: true,
-  opacity: 0.72,
+  opacity: 0.78,
   depthWrite: false,
 });
 interface SteamPuff {
@@ -420,14 +431,19 @@ interface SteamState {
   seeded: boolean;
 }
 
-/** Recycle the oldest puff at the chimney, already `age` seconds into its rise. */
-function emitPuff(steam: SteamState, chimney: THREE.Vector3, age: number) {
-  const puff = steam.puffs[steam.next];
-  steam.next = (steam.next + 1) % STEAM_PUFFS;
+/**
+ * Recycle the oldest puff at the chimney, already `age` seconds into its rise.
+ * `cap` is the ring in use: half the pool on the low tier.
+ */
+function emitPuff(steam: SteamState, chimney: THREE.Vector3, age: number, cap: number) {
+  const slot = steam.next % cap;
+  const puff = steam.puffs[slot];
+  steam.next = (slot + 1) % cap;
+  // Where the per-frame drift below would have carried it by `age`.
   puff.age = age;
-  puff.x = chimney.x + 0.2 * age;
+  puff.x = chimney.x + (0.2 + Math.sin(slot * 1.7) * 0.14) * age;
   puff.y = chimney.y + 0.9 * age;
-  puff.z = chimney.z;
+  puff.z = chimney.z + Math.cos(slot * 2.3) * 0.14 * age;
 }
 
 export const RailwayTrain: React.FC = React.memo(() => {
@@ -446,6 +462,11 @@ export const RailwayTrain: React.FC = React.memo(() => {
   const coachGlassRef = useRef<THREE.InstancedMesh>(null);
   const wheelRef = useRef<THREE.InstancedMesh>(null);
   const steamRef = useRef<THREE.InstancedMesh>(null);
+  // Low keeps half the pool, puffing half as often, so no puff is recycled
+  // before it has faded.
+  const steamCap = useGraphicsStore((state) =>
+    state.graphics.quality === 'low' ? STEAM_PUFFS / 2 : STEAM_PUFFS
+  );
   const signalPosts = useMemo(buildSignalPosts, []);
   const signalArm = useMemo(buildSignalArm, []);
   useLayoutEffect(
@@ -573,8 +594,11 @@ export const RailwayTrain: React.FC = React.memo(() => {
     if (!steamMesh) return;
     // The scattering lift is daylight; at night it would make the plume glow.
     STEAM_MATERIAL.emissiveIntensity = STEAM_DAY_LIFT * (1 - EXTERIOR_LAMP_LEVEL.value);
+    const cap = steamCap;
+    const sparse = STEAM_PUFFS / cap;
+    steamMesh.count = cap;
     if (!puffs.seeded) {
-      for (let k = 3; k >= 0; k--) emitPuff(puffs, _chimney, 0.25 + k * 0.55);
+      for (let k = 5; k >= 0; k -= sparse) emitPuff(puffs, _chimney, 0.2 + k * 0.45, cap);
       puffs.seeded = true;
     }
     const dt = state.hour !== previousHour ? Math.min(Math.max(delta, 0), 0.1) : 0;
@@ -584,12 +608,21 @@ export const RailwayTrain: React.FC = React.memo(() => {
         : 0;
       puffs.timer -= dt;
       if (puffs.timer <= 0) {
-        emitPuff(puffs, _chimney, 0);
+        emitPuff(puffs, _chimney, 0, cap);
         puffs.timer =
-          _pose.phase === 'standing' ? 0.75 : THREE.MathUtils.clamp(0.45 - speed * 0.03, 0.1, 0.45);
+          sparse *
+          (_pose.phase === 'standing'
+            ? STEAM_SIMMER
+            : THREE.MathUtils.clamp(
+                STEAM_WORKING[1] - speed * 0.03,
+                STEAM_WORKING[0],
+                STEAM_WORKING[1]
+              ));
       }
     }
     puffs.lastHead = _pose.headS;
+    // Every slot ages, drawn or not, so a puff hidden by a drop to Low has
+    // faded by the time a rise brings its slot back into the drawn range.
     for (let k = 0; k < STEAM_PUFFS; k++) {
       const puff = puffs.puffs[k];
       if (puff.age < STEAM_LIFE) {
@@ -599,11 +632,15 @@ export const RailwayTrain: React.FC = React.memo(() => {
         puff.x += (0.2 + Math.sin(k * 1.7) * 0.14) * dt;
         puff.z += Math.cos(k * 2.3) * 0.14 * dt;
       }
-      const grow = 0.2 + puff.age * 0.7;
+      const grow = 0.25 + puff.age * 0.6;
       const fade = 1 - THREE.MathUtils.smoothstep(puff.age, STEAM_LIFE * 0.6, STEAM_LIFE);
       _position.set(puff.x, puff.y, puff.z);
       _scale.setScalar(Math.max(0, grow * fade));
-      _matrix.compose(_position, frame.camera.quaternion, _scale);
+      // Each puff turns about the view axis, by its own angle and slowly as it
+      // rises, so the plume is not a stack of one repeated disc.
+      _roll.setFromAxisAngle(_forward, k * 2.39996 + puff.age * (k % 2 ? 0.35 : -0.35));
+      _billboard.copy(frame.camera.quaternion).multiply(_roll);
+      _matrix.compose(_position, _billboard, _scale);
       steamMesh.setMatrixAt(k, _matrix);
     }
     steamMesh.instanceMatrix.needsUpdate = true;
@@ -665,6 +702,7 @@ export const RailwayTrain: React.FC = React.memo(() => {
           ref={steamRef}
           args={[STEAM_GEOMETRY, STEAM_MATERIAL, STEAM_PUFFS]}
           frustumCulled={false}
+          renderOrder={RENDER_ORDER.steamPlume}
         />
       </group>
     </>

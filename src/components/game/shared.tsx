@@ -1,12 +1,10 @@
-import { createContext, useContext, useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect } from 'react';
 import { DAILY_TARGET_BAGS, useProductionStore } from '../../stores/productionStore';
-import { isStandingCriticalAlert, useUIStore } from '../../stores/uiStore';
+import { useUIStore } from '../../stores/uiStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAnnouncementsStore, type AnnouncementInput } from '../../stores/announcementsStore';
 import { audioManager } from '../../utils/audioManager';
-import { peekSCADAService } from '../../scada/SCADAService';
-import { isStandingCriticalAlarm } from '../../scada/SCADABridge';
 import { translate } from '../../i18n';
 import { registerAlertCatalog, type KeyedLine } from '../../i18n/alertCopy';
 import { sharedMessages } from './shared.messages';
@@ -36,20 +34,15 @@ export const CameraFeedContext = createContext<CameraFeedContextType | null>(nul
 
 export const useCameraFeedRefs = () => useContext(CameraFeedContext);
 
-type AnnouncementCategory = 'operations' | 'production' | 'safety' | 'logistics' | 'environment';
+/*
+ * The PA speaks only when something is wrong or worth acting on (D-054): a
+ * machine fault and its recovery, a drill or stop, the day's target made. The
+ * timed corpus of all-is-well notices ('The mill is calm', 'Silo inventory
+ * reconciled') and the 25-90% target readouts are gone; a plant running as it
+ * should is the silence.
+ */
 type NoticeType = 'general' | 'production' | 'safety' | 'emergency';
 type NoticePriority = 'low' | 'medium' | 'high' | 'critical';
-
-interface AnnouncementConfig {
-  /** The catalogue key, filed as the line's keyed copy. */
-  key: SharedMessageKey;
-  message: string;
-  type: NoticeType;
-  category: AnnouncementCategory;
-  stressWeight: number;
-  /** Claims the whole plant is fine; false while any critical condition stands. */
-  reassuring?: true;
-}
 
 interface EventAnnouncementConfig {
   /** The catalogue key, filed as the line's keyed copy. */
@@ -59,210 +52,6 @@ interface EventAnnouncementConfig {
   priority: NoticePriority;
   duration: number;
 }
-
-const MACHINE_IDS = {
-  silos: ['Silo Alpha', 'Silo Beta', 'Silo Gamma', 'Silo Delta', 'Silo Epsilon'],
-  mills: ['R.M. 101', 'R.M. 102', 'R.M. 103', 'R.M. 104'],
-  sifters: ['Sifter A', 'Sifter B', 'Sifter C'],
-  packers: ['Packer Line 1', 'Packer Line 2', 'Packer Line 3'],
-} as const;
-
-export const getRandomMachineOfType = (type: keyof typeof MACHINE_IDS): string => {
-  const machines = MACHINE_IDS[type];
-  return machines[Math.floor(Math.random() * machines.length)];
-};
-
-const AUTONOMOUS_NOTICES: AnnouncementConfig[] = [
-  {
-    key: 'processPathVerified',
-    get message() {
-      return say('processPathVerified');
-    },
-    type: 'production',
-    category: 'operations',
-    stressWeight: 0.1,
-    reassuring: true,
-  },
-  {
-    key: 'siloInventoryReconciled',
-    get message() {
-      return say('siloInventoryReconciled');
-    },
-    type: 'production',
-    category: 'production',
-    stressWeight: 0.15,
-  },
-  {
-    key: 'rollerGapStable',
-    get message() {
-      return say('rollerGapStable');
-    },
-    type: 'production',
-    category: 'production',
-    stressWeight: 0.2,
-  },
-  {
-    key: 'plansifterPressureNominal',
-    get message() {
-      return say('plansifterPressureNominal');
-    },
-    type: 'production',
-    category: 'operations',
-    stressWeight: 0.2,
-  },
-  {
-    key: 'packingLineVerified',
-    get message() {
-      return say('packingLineVerified');
-    },
-    type: 'production',
-    category: 'production',
-    stressWeight: 0.2,
-  },
-  {
-    key: 'dockSequencingCleared',
-    get message() {
-      return say('dockSequencingCleared');
-    },
-    type: 'general',
-    category: 'logistics',
-    stressWeight: 0.25,
-  },
-  {
-    key: 'forkliftRoutesDeconflicted',
-    get message() {
-      return say('forkliftRoutesDeconflicted');
-    },
-    type: 'safety',
-    category: 'logistics',
-    stressWeight: 0.35,
-  },
-  {
-    key: 'geofencesMatch',
-    get message() {
-      return say('geofencesMatch');
-    },
-    type: 'safety',
-    category: 'safety',
-    stressWeight: 0.3,
-  },
-  {
-    key: 'dustExtractionStable',
-    get message() {
-      return say('dustExtractionStable');
-    },
-    type: 'general',
-    category: 'safety',
-    stressWeight: 0.25,
-  },
-  {
-    key: 'waterwayHealthy',
-    get message() {
-      return say('waterwayHealthy');
-    },
-    type: 'general',
-    category: 'environment',
-    stressWeight: 0.1,
-  },
-  {
-    key: 'weatherFeedChecked',
-    get message() {
-      return say('weatherFeedChecked');
-    },
-    type: 'general',
-    category: 'environment',
-    stressWeight: 0.2,
-  },
-  {
-    key: 'millIsCalm',
-    get message() {
-      return say('millIsCalm');
-    },
-    type: 'general',
-    category: 'operations',
-    stressWeight: 0.05,
-    reassuring: true,
-  },
-  {
-    key: 'vibrationTrendReviewed',
-    get message() {
-      return say('vibrationTrendReviewed');
-    },
-    type: 'general',
-    category: 'operations',
-    stressWeight: 0.45,
-  },
-  {
-    key: 'constraintAnalysisUpdated',
-    get message() {
-      return say('constraintAnalysisUpdated');
-    },
-    type: 'production',
-    category: 'production',
-    stressWeight: 0.45,
-  },
-  {
-    key: 'cycleTimeVarianceCorrected',
-    get message() {
-      return say('cycleTimeVarianceCorrected');
-    },
-    type: 'production',
-    category: 'operations',
-    stressWeight: 0.55,
-  },
-  {
-    key: 'housekeepingComplete',
-    get message() {
-      return say('housekeepingComplete');
-    },
-    type: 'general',
-    category: 'safety',
-    stressWeight: 0.15,
-  },
-];
-
-const TIME_NOTICES: Record<'day' | 'night', AnnouncementConfig[]> = {
-  day: [
-    {
-      key: 'daylightControlActive',
-      get message() {
-        return say('daylightControlActive');
-      },
-      type: 'general',
-      category: 'environment',
-      stressWeight: 0.1,
-    },
-    {
-      key: 'solarLoadingApplied',
-      get message() {
-        return say('solarLoadingApplied');
-      },
-      type: 'general',
-      category: 'environment',
-      stressWeight: 0.2,
-    },
-  ],
-  night: [
-    {
-      key: 'nightProfileActive',
-      get message() {
-        return say('nightProfileActive');
-      },
-      type: 'safety',
-      category: 'environment',
-      stressWeight: 0.25,
-    },
-    {
-      key: 'lightingTrackingSky',
-      get message() {
-        return say('lightingTrackingSky');
-      },
-      type: 'general',
-      category: 'environment',
-      stressWeight: 0.1,
-    },
-  ],
-};
 
 const MACHINE_STATUS_NOTICES = {
   warning: {
@@ -284,73 +73,10 @@ const MACHINE_STATUS_NOTICES = {
   },
 };
 
+// Only the target itself is news; 25, 50, 75 and 90% were routine readouts.
 const MILESTONE_MESSAGES: Record<number, SharedMessageKey> = {
-  25: 'milestone25',
-  50: 'milestone50',
-  75: 'milestone75',
-  90: 'milestone90',
   100: 'milestone100',
 };
-
-export const SAFETY_INCIDENT_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
-  {
-    key: 'safetyInterlockLogged',
-    get message() {
-      return say('safetyInterlockLogged');
-    },
-    type: 'safety',
-    priority: 'high',
-    duration: 20,
-  },
-  {
-    key: 'nearMissTriggered',
-    get message() {
-      return say('nearMissTriggered');
-    },
-    type: 'safety',
-    priority: 'high',
-    duration: 20,
-  },
-  {
-    key: 'vehicleProximity',
-    get message() {
-      return say('vehicleProximity');
-    },
-    type: 'safety',
-    priority: 'high',
-    duration: 24,
-  },
-];
-
-export const FIRE_DRILL_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
-  {
-    key: 'drillStarted',
-    get message() {
-      return say('drillStarted');
-    },
-    type: 'emergency',
-    priority: 'critical',
-    duration: 20,
-  },
-  {
-    key: 'drillSensorsUnderTest',
-    get message() {
-      return say('drillSensorsUnderTest');
-    },
-    type: 'emergency',
-    priority: 'critical',
-    duration: 20,
-  },
-  {
-    key: 'drillComplete',
-    get message() {
-      return say('drillComplete');
-    },
-    type: 'emergency',
-    priority: 'critical',
-    duration: 20,
-  },
-];
 
 export const EMERGENCY_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
   {
@@ -406,68 +132,9 @@ const mapAnnouncementType = (type: NoticeType): AnnouncementInput['type'] => {
 const mapPriority = (priority: NoticePriority): number =>
   ({ low: 1, medium: 2, high: 3, critical: 4 })[priority];
 
-const calculateOperationalStress = (): number => {
-  const productionState = useProductionStore.getState();
-  const machines = productionState.machines ?? [];
-  const critical = machines.filter((machine) => machine.status === 'critical').length;
-  const warning = machines.filter((machine) => machine.status === 'warning').length;
-  const alerts = useUIStore.getState().alerts ?? [];
-  // Acknowledged alerts are handled; they no longer raise PA stress.
-  const criticalAlerts = alerts.filter(isStandingCriticalAlert).length;
-  const warningAlerts = alerts.filter((alert) => alert.type === 'warning').length;
-  const incidents = useSafetyStore.getState().safetyIncidents ?? [];
-  const recentIncidents = incidents.filter(
-    (incident) => Date.now() - incident.timestamp < 5 * 60 * 1000
-  ).length;
-  return Math.min(
-    1,
-    critical * 0.3 +
-      warning * 0.1 +
-      criticalAlerts * 0.25 +
-      warningAlerts * 0.08 +
-      recentIncidents * 0.15
-  );
-};
-
-/**
- * A critical condition is standing: a machine in 'critical', an unacknowledged
- * critical alert, or an active in-service SCADA critical alarm (checked at the
- * source, because the bell alert for it may have been dismissed).
- */
-export const isCriticalConditionActive = (): boolean => {
-  const machines = useProductionStore.getState().machines ?? [];
-  if (machines.some((machine) => machine.status === 'critical')) return true;
-  const alerts = useUIStore.getState().alerts ?? [];
-  if (alerts.some(isStandingCriticalAlert)) return true;
-  // peek, not get: a query must not construct the SCADA service.
-  return (peekSCADAService()?.getActiveAlarms() ?? []).some(isStandingCriticalAlarm);
-};
-
-export const chooseNotice = (
-  gameTime: number,
-  criticalActive: boolean = isCriticalConditionActive()
-): AnnouncementConfig => {
-  const timeBand = gameTime >= 7 && gameTime < 19 ? 'day' : 'night';
-  const pool = Math.random() < 0.2 ? TIME_NOTICES[timeBand] : AUTONOMOUS_NOTICES;
-  // Working if 'The mill is calm' never plays beside 'Critical alarms active!'.
-  // Only the whole-plant reassurances are held; other ambient notices continue.
-  const corpus = criticalActive ? pool.filter((notice) => !notice.reassuring) : pool;
-  const stress = calculateOperationalStress();
-  const ranked = corpus
-    .map((announcement) => ({
-      announcement,
-      weight: 1 - Math.abs(announcement.stressWeight - stress) + Math.random() * 0.2,
-    }))
-    .sort((left, right) => right.weight - left.weight);
-  return ranked[Math.floor(Math.random() * Math.min(4, ranked.length))].announcement;
-};
-
-export const PA_ANNOUNCEMENT_COUNT =
-  AUTONOMOUS_NOTICES.length + TIME_NOTICES.day.length + TIME_NOTICES.night.length;
-
 let lastMilestoneReached = 0;
 
-const DAILY_MILESTONES = [25, 50, 75, 90, 100] as const;
+const DAILY_MILESTONES = [100] as const;
 
 // The same count and target the tick's milestone celebrations read, so a
 // caption and its toast mark the same moment.
@@ -491,8 +158,45 @@ const seedMilestones = (): void => {
 
 const lastMachineStatuses: Record<string, string> = {};
 const lastMachineStatusAnnouncementTime: Record<string, number> = {};
-const MACHINE_STATUS_COOLDOWN_MS = 30000;
+/*
+ * How soon the same machine may say the same thing again. A fault that flaps
+ * (warning, running, warning) speaks once per window; a critical alarm is a
+ * stop, so it may speak again sooner.
+ * Working if a flapping warning is heard once in three minutes.
+ */
+const MACHINE_STATUS_COOLDOWN_MS: Record<keyof typeof MACHINE_STATUS_NOTICES, number> = {
+  warning: 180000,
+  running: 180000,
+  critical: 30000,
+};
 const DRILL_CAPTION_COOLDOWN_MS = 15000;
+
+/*
+ * A fault left unresolved is said again, more urgently (D-061): "still needs a
+ * look" after 3 minutes of running clock, then "right away" after 6. Time only
+ * accrues while the clock runs and the poll runs (not paused, not muted), and
+ * a machine leaving the fault, or changing fault, starts it over.
+ * Working if a warning nobody attends to is heard three times in six minutes,
+ * rising in urgency, and a fixed one is heard once.
+ */
+export const FAULT_ESCALATION_AFTER_MS = [180000, 360000] as const;
+const FAULT_ESCALATION_KEYS = {
+  warning: ['machineWarningStill', 'machineWarningUrgent'],
+  critical: ['machineCriticalStill', 'machineCriticalUrgent'],
+} as const;
+/** The longest a single poll gap may add, so a slept tab cannot leap a level. */
+const FAULT_ESCALATION_MAX_STEP_MS = 10000;
+const faultEscalation: Record<
+  string,
+  { status: 'warning' | 'critical'; unresolvedMs: number; level: number }
+> = {};
+let lastFaultPollAt: number | null = null;
+
+/** Test seam: forget unresolved faults (a new session, or between tests). */
+export const resetFaultEscalation = (): void => {
+  for (const key of Object.keys(faultEscalation)) delete faultEscalation[key];
+  lastFaultPollAt = null;
+};
 // Drills and facility stops are one state: the plant is held or it is not.
 export const PLANT_STOP_TOPIC = 'plant-stop';
 export const FORKLIFT_STOP_TOPIC = 'forklift-stop';
@@ -510,10 +214,10 @@ const announceDrillTransition = (
   let key: SharedMessageKey | null = null;
   let priority = 3;
   if (drill.active && !previous.active) {
-    key = FIRE_DRILL_ANNOUNCEMENTS[0].key;
+    key = 'drillStarted';
     priority = 4;
   } else if (drill.verificationComplete && !previous.verificationComplete) {
-    key = FIRE_DRILL_ANNOUNCEMENTS[2].key;
+    key = 'drillComplete';
   } else if (previous.active && !drill.active && !previous.verificationComplete) {
     key = 'drillEndedEarly';
   }
@@ -644,6 +348,11 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
   }
 
   const now = Date.now();
+  const pollStepMs =
+    lastFaultPollAt === null
+      ? 0
+      : Math.min(FAULT_ESCALATION_MAX_STEP_MS, Math.max(0, now - lastFaultPollAt));
+  const clockRunning = useGameSimulationStore.getState().gameSpeed > 0;
   for (const machine of state.machines ?? []) {
     const previous = lastMachineStatuses[machine.id];
     const current = machine.status;
@@ -659,8 +368,9 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
       // critical alarm raised within the cooldown of the first.
       const cooldownKey = `${machine.id}:${current}`;
       const lastTime = lastMachineStatusAnnouncementTime[cooldownKey] ?? 0;
-      if (now - lastTime >= MACHINE_STATUS_COOLDOWN_MS) {
-        const notice = MACHINE_STATUS_NOTICES[current as keyof typeof MACHINE_STATUS_NOTICES];
+      const status = current as keyof typeof MACHINE_STATUS_NOTICES;
+      if (now - lastTime >= MACHINE_STATUS_COOLDOWN_MS[status]) {
+        const notice = MACHINE_STATUS_NOTICES[status];
         addAnnouncement({
           type: mapAnnouncementType(notice.type),
           message: translate(sharedMessages, notice.messageKey, {
@@ -683,7 +393,37 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
       }
     }
     lastMachineStatuses[machine.id] = current;
+
+    if (current === 'warning' || current === 'critical') {
+      const tracked = faultEscalation[machine.id];
+      if (!tracked || tracked.status !== current) {
+        faultEscalation[machine.id] = { status: current, unresolvedMs: 0, level: 0 };
+      } else if (clockRunning && tracked.level < FAULT_ESCALATION_AFTER_MS.length) {
+        tracked.unresolvedMs += pollStepMs;
+        if (tracked.unresolvedMs >= FAULT_ESCALATION_AFTER_MS[tracked.level]) {
+          const messageKey = FAULT_ESCALATION_KEYS[current][tracked.level];
+          const name = machine.name || machine.id;
+          addAnnouncement({
+            type: mapAnnouncementType(current === 'critical' ? 'emergency' : 'safety'),
+            message: translate(sharedMessages, messageKey, { machine: name }),
+            copy: keyed(messageKey, { machine: name }),
+            // The last step of a warning is as urgent as an alarm's first.
+            priority: current === 'critical' || tracked.level === 1 ? 4 : 3,
+            source: 'Asset diagnostics',
+            channel: 'operational',
+            tone: 'literal',
+            audience: 'control',
+            cooldownMs: 90000,
+            topic: `${MACHINE_TOPIC_PREFIX}${machine.id}`,
+          });
+          tracked.level += 1;
+        }
+      }
+    } else {
+      delete faultEscalation[machine.id];
+    }
   }
+  lastFaultPollAt = now;
 };
 
 const useEventAnnouncementScheduler = () => {
@@ -773,74 +513,4 @@ const useEventAnnouncementScheduler = () => {
   }, [addAnnouncement]);
 };
 
-const usePAScheduler = () => {
-  const addAnnouncement = useProductionStore((state) => state.addAnnouncement);
-  const lastAnnouncementRef = useRef('');
-
-  useEffect(() => {
-    const scheduleNext = (): ReturnType<typeof setTimeout> => {
-      const stress = calculateOperationalStress();
-      const minimum = 90000 - stress * 40000;
-      const maximum = 180000 - stress * 80000;
-      return setTimeout(
-        () => {
-          const mode = useAnnouncementsStore.getState().mode;
-          // Ambient notices such as 'The mill is calm' are false during a hold,
-          // and narration over a paused shift (tour, P, a planner, a player
-          // pause) talks over a stopped plant. Skip them, but keep the timer.
-          const game = useGameSimulationStore.getState();
-          const safetyHold =
-            game.gameSpeed === 0 ||
-            game.emergencyActive ||
-            game.emergencyDrillMode ||
-            game.crisisState.active ||
-            useSafetyStore.getState().forkliftEmergencyStop;
-          if (!safetyHold && !audioManager.muted && mode !== 'off') {
-            const gameTime = useGameSimulationStore.getState().gameTime;
-            let notice = chooseNotice(gameTime);
-            for (
-              let attempt = 0;
-              notice.message === lastAnnouncementRef.current && attempt < 4;
-              attempt++
-            ) {
-              notice = chooseNotice(gameTime);
-            }
-            lastAnnouncementRef.current = notice.message;
-            const stressNow = calculateOperationalStress();
-            const priority =
-              notice.type === 'emergency'
-                ? 4
-                : notice.type === 'safety' && stressNow > 0.5
-                  ? 3
-                  : stressNow > 0.7
-                    ? 3
-                    : 2;
-            addAnnouncement({
-              type: mapAnnouncementType(notice.type),
-              message: notice.message,
-              copy: keyed(notice.key),
-              priority,
-              source: 'Autonomous plant notice',
-              channel:
-                notice.category === 'logistics'
-                  ? 'logistics'
-                  : notice.category === 'safety'
-                    ? 'safety'
-                    : 'operational',
-              tone: mode === 'characterful' ? 'characterful' : 'literal',
-              audience: notice.category === 'logistics' ? 'logistics' : 'control',
-              cooldownMs: mode === 'focused' ? 180000 : 90000,
-            });
-          }
-          timeoutRef = scheduleNext();
-        },
-        minimum + Math.random() * (maximum - minimum)
-      );
-    };
-
-    let timeoutRef = scheduleNext();
-    return () => clearTimeout(timeoutRef);
-  }, [addAnnouncement]);
-};
-
-export { usePAScheduler, useEventAnnouncementScheduler };
+export { useEventAnnouncementScheduler };

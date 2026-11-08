@@ -70,6 +70,15 @@ import { VILLAGE_HOMES } from '../../components/scenery/VillageGardens';
 import { CANAL_WEST_PATH, LAKE_APPROACH_PATH } from '../../components/FactoryExterior';
 import { readFileSync } from 'node:fs';
 import { PERIMETER_FENCE, STATION_SHOP_LOCAL, walkingObstacleAt } from '../walkingObstacles';
+import { STEP_FREE_EGRESS } from '../../systems/accessibleEgress';
+import {
+  PERSONNEL_DOORS,
+  nearTownHall,
+  townHallBlocks,
+  townHallToWorld,
+  TOWN_HALL_RAMP,
+  TOWN_HALL_STEP_FREE_ROUTE,
+} from '../../constants/accessibilityLayout';
 
 vi.mock('../critterAudio', () => ({ playCritterSound: vi.fn() }));
 
@@ -149,6 +158,7 @@ function nearStructure(x: number, z: number): string | null {
   if (nearCanalBridge(x, z)) return 'nearCanalBridge';
   if (nearRiverFootbridge(x, z)) return 'nearRiverFootbridge';
   if (nearRailwayStation(x, z)) return 'nearRailwayStation';
+  if (nearTownHall(x, z)) return 'nearTownHall';
   return null;
 }
 
@@ -176,6 +186,7 @@ function refusal(p: { x: number; y: number; z: number }, ux: number, uz: number,
       why = `busShelterBlocks: ${shelterSolidAt(x, z, standing)}`;
     else if (railwayStationBlocks(x, z, standing))
       why = `railwayStationBlocks: ${stationSolidAt(x, z, standing)}`;
+    else if (townHallBlocks(x, z, standing)) why = 'townHallBlocks: ramp rail or portico column';
     else if (nearStructure(x, z) && Math.abs(floor - feet) > STEP_LIMIT)
       why = `step limit (${nearStructure(x, z)}): feet ${f3(feet)} -> floor ${f3(floor)}, step ${f3(floor - feet)} m`;
     else why = 'accepted';
@@ -443,7 +454,8 @@ const ALLOTMENT_ROUTE: Route = {
  * A walk paved onto a closed door's threshold is walked to the door approach:
  * its end is pulled back along the walk until a body there clears every
  * walking solid, plus 5 cm, as the booking-hall landing route does. Each
- * pulled-back walk is recorded so the set can be checked (only the shop's).
+ * pulled-back walk is recorded so the set can be checked: none since the
+ * shop's side door stands open (it was the one).
  */
 const DOOR_ENDED_WALKS: { name: string; end: XZ }[] = [];
 function toDoorApproach(name: string, [start, end]: XZ[]): XZ[] {
@@ -534,10 +546,15 @@ const EAST_WALK_TO_BRIDGE: Route = {
 };
 
 /** The station shop approach: the walk network chained to the endpoint that
- * meets the gas-station shop's side door. The door is the centre of its
- * surround on the shop's side wall (walkingObstacles.ts, held to the JSX by
- * walkingObstacles.test.ts). */
-const shopSurround = STATION_SHOP_LOCAL.doorSurround;
+ * meets the gas-station shop's side door. The door is the centre of the
+ * doorway between its jambs on the shop's side wall (walkingObstacles.ts,
+ * held to the JSX by walkingObstacles.test.ts). */
+const shopSolid = (id: string) => STATION_SHOP_LOCAL.solids.find((box) => box.id === id)!;
+const shopSurround = {
+  minX: shopSolid('door-jamb-west').maxX,
+  maxX: shopSolid('door-jamb-east').minX,
+  maxZ: shopSolid('door-jamb-west').maxZ,
+};
 const SHOP_DOOR_LOCAL: XZ = [
   (shopSurround.minX + shopSurround.maxX) / 2,
   STATION_SHOP_LOCAL.shell.maxZ,
@@ -581,8 +598,9 @@ const shopEnd = WORLD_REALM_PATHS.flatMap((p) => [p.start, p.end]).reduce((a, b)
     ? b
     : a
 );
-// The paving runs onto the threshold; the door is closed, so the walk ends a
-// body's radius and 5 cm short of its surround, like the booking-hall landing.
+// The paving runs onto the threshold; the network's walk ends a body's radius
+// and 5 cm short of the jambs, like the booking-hall landing. The open door
+// beyond it has its own walk below.
 const shopApproach: XZ = [
   shopEnd[0],
   Math.max(shopEnd[1], GAS_STATION_SITE.position[2] + shopSurround.maxZ + PLAYER_RADIUS + 0.05),
@@ -688,8 +706,9 @@ describe('capsule walk: route datums resolve', () => {
     expect(Math.hypot(shopEnd[0] - shopDoor[0], shopEnd[1] - shopDoor[1])).toBeLessThan(0.5);
     expect(SHOP_ROUTE.points.length).toBeGreaterThan(3);
   });
-  it('pulls back only the walk paved onto the closed shop door', () => {
-    expect(DOOR_ENDED_WALKS.map((w) => w.end)).toEqual([shopEnd]);
+  it('pulls back no walk: the one paved onto the shop door now walks through it', () => {
+    expect(DOOR_ENDED_WALKS.map((w) => w.end)).toEqual([]);
+    expect(walkingObstacleAt(shopEnd[0], shopEnd[1], PLAYER_RADIUS)).toBeNull();
   });
   it('puts each plot door approach inside its garden and the gate start outside it', () => {
     expect(SITE_LAYOUT.landmarks.village.rotation[1]).toBe(0);
@@ -773,6 +792,77 @@ describe('capsule walk: main path and lake path', () => {
   walkCases([MAIN_PATH_ROUTE, LAKE_PATH_ROUTE]);
 });
 describe('capsule walk: sanity controls', () => walkCases(CONTROL_ROUTES));
+
+/** A point in the town hall's frame (front +z), on the ground plan. */
+const hallWorld = (x: number, z: number): XZ => {
+  const [wx, , wz] = townHallToWorld(x, 0, z);
+  return [wx, wz];
+};
+/**
+ * The town hall ramp (D-058), walked in first person: from the street through
+ * the privet gap, up both flights, along the landing and the apron in front of
+ * the east column, to the front door. The ramp, its landings and the portico
+ * are walking surfaces and the handrails are solid (accessibilityLayout.ts).
+ */
+const TOWN_HALL_RAMP_ROUTE: Route = {
+  name: 'town hall, street up the ramp to the front door',
+  points: [
+    hallWorld(-10.5, -7),
+    ...[...TOWN_HALL_STEP_FREE_ROUTE].reverse().map(([x, , z]) => hallWorld(x, z)),
+  ],
+  endFloor: TOWN_HALL_RAMP.landingY,
+  peakFloor: TOWN_HALL_RAMP.landingY,
+};
+/**
+ * Out of the hall by the step-free personnel doors beside the docks (2026-11-07):
+ * each zone's egress route (accessibleEgress STEP_FREE_EGRESS), on along the
+ * painted walk to its assembly point. Level throughout.
+ */
+const PERSONNEL_DOOR_ROUTES: Route[] = PERSONNEL_DOORS.map((door) => ({
+  name: `${door.id} personnel door, hall floor to the assembly point`,
+  points: [...STEP_FREE_EGRESS.find((e) => e.zoneId === door.id)!.route, door.assembly],
+}));
+describe('capsule walk: step-free personnel doors', () => {
+  walkCases(PERSONNEL_DOOR_ROUTES);
+  it('never climbs or drops more than the 2 cm from the hall slab to the yard', () => {
+    for (const route of PERSONNEL_DOOR_ROUTES) {
+      const r = walkRoute(route.points, 128, 0.2);
+      expect(r.blockers, route.name).toEqual([]);
+      expect(r.maxClimb, route.name).toBeLessThanOrEqual(0.03);
+      expect(r.peakFloor, route.name).toBeLessThanOrEqual(0.03);
+    }
+  });
+});
+
+describe('capsule walk: town hall ramp', () => {
+  walkCases([TOWN_HALL_RAMP_ROUTE]);
+  it('climbs the ramp along its pitch, never more than a 1:12 rise per substep', () => {
+    const r = walkRoute(TOWN_HALL_RAMP_ROUTE.points, 128, 0.2);
+    expect(r.blockers).toEqual([]);
+    // Plus the 2 cm from the street's -0.02 m datum onto the ramp's foot at 0.
+    expect(r.maxClimb).toBeLessThanOrEqual(SUBSTEP / 12 + 0.02 + 1e-6);
+  });
+  it('stops a walker stepping sideways off a flight or the apron at the handrail', () => {
+    // Mid flight 1, toward the privet, and off the apron toward the steps.
+    for (const [from, to, floor] of [
+      [hallWorld(-6.7, 2.6), hallWorld(-9.5, 2.6), 0.6],
+      [hallWorld(-1.55, 6.5), hallWorld(1, 6.5), TOWN_HALL_RAMP.landingY],
+    ] as const) {
+      const r = walkRoute([from, to], 128, 0.2);
+      expect(r.arrival).toBeGreaterThan(1);
+      expect(r.blockers[0]).toContain('townHallBlocks');
+      expect(r.endFloor).toBeCloseTo(floor, 5);
+    }
+  });
+  it('does not let a walker step up onto the ramp from beside its foot', () => {
+    // On the ground behind the rails' foot, walking into the flight's side.
+    const r = walkRoute([hallWorld(-6.7, -7), hallWorld(-6.7, -4)], 128, 0.2);
+    expect(r.blockers).toEqual([]);
+    expect(r.endFloor).toBeGreaterThan(0.1);
+    const side = walkRoute([hallWorld(-5.5, -6.7), hallWorld(-5.5, -3)], 128, 0.2);
+    expect(side.arrival).toBeGreaterThan(1);
+  });
+});
 
 /** A point in plot `index`'s own frame (door toward +z), in the world. */
 function plotWorld(index: number, x: number, z: number): XZ {
@@ -903,10 +993,15 @@ describe('capsule walk: solids that stop a walker', () => {
           0.2
         );
   });
-  it('stops a capsule at the closed gas-station shop door', () => {
-    const r = walkRoute([shopApproach, [shopDoor[0], shopDoor[1] - 3]], 128, 0.2);
-    expect(r.arrival).toBeGreaterThan(1);
-    expect(r.blockers.join(' ')).toContain('solid station-shop');
+  it('walks a capsule through the open gas-station shop door onto the shop floor', () => {
+    expectWalkable(
+      {
+        name: 'gas-station shop, through the side door',
+        points: [shopApproach, [shopDoor[0], shopApproach[1]], [shopDoor[0], shopDoor[1] - 3]],
+      },
+      128,
+      0.2
+    );
   });
   it('stops a capsule at the shop glazing from the forecourt', () => {
     const [sx, , sz] = GAS_STATION_SITE.position;

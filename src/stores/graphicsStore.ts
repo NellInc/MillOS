@@ -275,7 +275,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
   low: {
     quality: 'low',
     enableSCADA: true,
-    enableAdaptiveQuality: true,
+    enableAdaptiveQuality: false,
     perfDebug: { ...DEFAULT_PERF_DEBUG },
     // No composer on low. The renderer still applies the same Neutral curve,
     // so a downgrade from medium changes effects but not the tone response.
@@ -347,7 +347,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
   medium: {
     quality: 'medium',
     enableSCADA: true,
-    enableAdaptiveQuality: true,
+    enableAdaptiveQuality: false,
     perfDebug: { ...DEFAULT_PERF_DEBUG },
     // Medium is the first tier with a composer. It buys the tone curve, the
     // grade and the vignette - all non-convolution effects that merge into a
@@ -433,7 +433,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
   high: {
     quality: 'high',
     enableSCADA: true,
-    enableAdaptiveQuality: true,
+    enableAdaptiveQuality: false,
     perfDebug: { ...DEFAULT_PERF_DEBUG },
     // High adds the two effects that actually need a GPU budget: half-res N8AO
     // for contact occlusion, and bloom. Bloom's threshold sits at 1.0, so it
@@ -491,7 +491,7 @@ const GRAPHICS_PRESETS: Record<GraphicsQuality, GraphicsSettings> = {
   ultra: {
     quality: 'ultra',
     enableSCADA: true,
-    enableAdaptiveQuality: true,
+    enableAdaptiveQuality: false,
     perfDebug: { ...DEFAULT_PERF_DEBUG },
     // Ultra runs the same effect set as High, with N8AO at full resolution and
     // one step up the (deliberately truncated) AO quality ladder.
@@ -758,7 +758,8 @@ export const useGraphicsStore = create<GraphicsStore>()(
       // reset through a STALE-DEFAULT guard - the pattern already proven for
       // `resolutionScale` at v3 - so a value the user actually chose survives.
       // v5: retire two persisted toggles that never had a live reader.
-      version: 5,
+      // v6: adaptive quality is off; the tier changes only when someone picks it.
+      version: 6,
       migrate: (persisted: unknown, version: number) => {
         const p = persisted as
           | {
@@ -846,6 +847,13 @@ export const useGraphicsStore = create<GraphicsStore>()(
         if (version < 5 && p?.graphics) {
           delete p.graphics.enableMachineLOD;
           delete p.graphics.enableTextureFiltering;
+        }
+        // v6: the tier never changes by itself (Nell, 2026-11-07: "Don't switch
+        // graphics mode please. There was a stutter, and then all the
+        // gorgeousness went away."). No control ever set this flag, so a
+        // persisted `true` is the old default, not a choice.
+        if (version < 6 && p?.graphics) {
+          p.graphics.enableAdaptiveQuality = false;
         }
         return persisted as GraphicsStore;
       },

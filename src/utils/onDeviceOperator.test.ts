@@ -155,11 +155,10 @@ describe('the on-device operator in lights-out play', () => {
       type: 'info',
     });
     expect(lastAlert().message).toContain('acknowledged and mitigated');
-    // The visible box: the PA caption, naming the AI, not read a second time.
+    // The visible box: the PA caption, spoken word for word, so it says what
+    // happened as a sentence, without the bell's queue label; not read twice.
     const pa = useAnnouncementsStore.getState().announcements.at(-1);
-    expect(pa?.message).toBe(
-      `On-device AI · Equipment maintenance. ${incident.title}: acknowledged and mitigated.`
-    );
+    expect(pa?.message).toBe(`${incident.title}. The AI has dealt with it.`);
     expect(pa?.captionOnly).toBe(true);
     expect(onDeviceOperatorRecords().at(-1)).toMatchObject({
       incidentId: incident.id,

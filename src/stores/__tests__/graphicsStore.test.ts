@@ -144,7 +144,8 @@ describe('GraphicsStore', () => {
     it('should have correct low preset values', () => {
       const preset = GRAPHICS_PRESETS.low;
       expect(preset.enableSCADA).toBe(true);
-      expect(preset.enableAdaptiveQuality).toBe(true);
+      // The tier never changes by itself (D-052).
+      expect(preset.enableAdaptiveQuality).toBe(false);
       expect(preset.enableAmbientOcclusion).toBe(false);
       expect(preset.enableBloom).toBe(false);
       expect(preset.shadowMapSize).toBe(1024);
@@ -516,8 +517,19 @@ describe('GraphicsStore', () => {
         graphics: Record<string, unknown>;
       };
 
-    it('is versioned past 4', () => {
-      expect(persistOptions.version).toBe(5);
+    it('is versioned past 5', () => {
+      expect(persistOptions.version).toBe(6);
+    });
+
+    // Nell, 2026-11-07: "Don't switch graphics mode please. There was a
+    // stutter, and then all the gorgeousness went away." (D-052)
+    it('turns off the old adaptive-quality default for every saved tier', () => {
+      for (const quality of ['low', 'medium', 'high', 'ultra'] as const) {
+        const migrated = runMigrate({ graphics: { quality, enableAdaptiveQuality: true } }, 5);
+        expect(migrated.graphics.enableAdaptiveQuality).toBe(false);
+      }
+      for (const quality of ['low', 'medium', 'high', 'ultra'] as const)
+        expect(GRAPHICS_PRESETS[quality].enableAdaptiveQuality).toBe(false);
     });
 
     it('resets post-processing keys to the preset and drops the retired ones', () => {

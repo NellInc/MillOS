@@ -362,6 +362,30 @@ export const STATION_RETAIL = {
   },
 };
 
+/**
+ * The open side door, station-local. The 1.20 m glazed leaf hangs on the
+ * west reveal of the 1.28 m opening (wall pier face x -12.64) just inside the
+ * wall's inner face (z 4.8) and stands a quarter turn open into the shop, so
+ * it runs from z 4.79 back to z 3.59 with its street face toward the doorway.
+ * Its bottom rail clears the 0.08 m shop floor; the outer threshold is
+ * untouched. `walkingObstacles.ts` reproduces the leaf and the doorway.
+ * Working if the leaf and its glass stand inside the shop clear of the
+ * opening, and the doorway reads open from the forecourt.
+ */
+export const STATION_DOOR_LEAF = {
+  hingeX: -12.6175,
+  hingeZ: 4.79,
+} as const;
+/** Clear glazing in the open leaf, seated 5 mm into its stiles and rails. */
+export const STATION_DOOR_GLASS = {
+  position: [STATION_DOOR_LEAF.hingeX, 1.295, STATION_DOOR_LEAF.hingeZ - 0.6] as [
+    number,
+    number,
+    number,
+  ],
+  size: [0.012, 1.98, 1.05] as [number, number, number],
+};
+
 /** Station-local trim: two batches, shared cube, no extra lights or lane furniture. */
 export function createStationDetailLayout() {
   const opaque: StationDetailBox[] = [];
@@ -478,24 +502,33 @@ export function createStationDetailLayout() {
     }
   }
 
-  // The closed side door retains its original size and collision contract.
-  // Its small folded hood clears the existing head; supports sit outside the
-  // 1.20 m leaf, and a seated pull gives the dark panel a recognisable scale.
+  // The side door stands open. Its small folded hood clears the existing head
+  // and its supports sit outside the 1.20 m opening.
   add('door-rain-hood', [-12, 2.68, 5.285], [1.78, 0.08, 0.65], '#a6382b');
   add('door-hood-edge', [-12, 2.625, 5.6], [1.8, 0.09, 0.035], charcoal);
   for (const side of [-1, 1]) {
     add('door-hood-edge', [-12 + side * 0.8825, 2.625, 5.285], [0.035, 0.09, 0.63], charcoal);
     add('door-hood-bracket', [-12 + side * 0.76, 2.5, 5.075], [0.045, 0.3, 0.08], charcoal);
     add('door-hood-bracket', [-12 + side * 0.76, 2.625, 5.25], [0.045, 0.05, 0.4], charcoal);
-    add('door-leaf-stile', [-12 + side * 0.505, 1.22, 5.018], [0.055, 2.28, 0.03], '#63716f');
   }
-  for (const y of [0.11, 2.335]) {
-    add('door-leaf-rail', [-12, y, 5.018], [1.01, 0.055, 0.03], '#63716f');
-  }
-  for (const y of [1.0, 1.26]) {
-    add('door-pull-mount', [-11.58, y, 5.05], [0.07, 0.045, 0.11], '#bca36f');
-  }
-  add('door-pull', [-11.58, 1.13, 5.11], [0.035, 0.31, 0.035], '#bca36f');
+  // The glazed leaf is framed in the leaf's own axes (u from the hinge along
+  // the leaf, v out of its street face) and swung a quarter turn into the shop.
+  const leaf = (
+    part: string,
+    [u, y, v]: [number, number, number],
+    [su, sy, sv]: [number, number, number]
+  ) =>
+    add(
+      part,
+      [STATION_DOOR_LEAF.hingeX + v, y, STATION_DOOR_LEAF.hingeZ - u],
+      [sv, sy, su],
+      part === 'door-pull' || part === 'door-pull-mount' ? '#bca36f' : '#63716f'
+    );
+  for (const u of [0.04, 1.16]) leaf('door-leaf-stile', [u, 1.235, 0], [0.08, 2.29, 0.045]);
+  leaf('door-leaf-rail', [0.6, 0.2, 0], [1.04, 0.22, 0.045]);
+  leaf('door-leaf-rail', [0.6, 2.33, 0], [1.04, 0.1, 0.045]);
+  for (const y of [1.0, 1.26]) leaf('door-pull-mount', [1.16, y, 0.0525], [0.045, 0.045, 0.07]);
+  leaf('door-pull', [1.16, 1.13, 0.105], [0.035, 0.31, 0.035]);
   add('door-lamp-housing', [-12, 2.605, 5.31], [0.46, 0.07, 0.18], charcoal);
   emitters.push({
     part: 'door-lamp-lens',
@@ -971,10 +1004,19 @@ export const GasStation = React.memo<GasStationProps>(
           castShadow
         />
 
-        {/* Door */}
-        <mesh position={[-12, 1.2, 5]}>
-          <planeGeometry args={[1.2, 2.4]} />
-          <meshStandardMaterial color="#424242" roughness={0.7} side={2} />
+        {/* Door: clear glass in the open leaf (STATION_DOOR_LEAF); same recipe
+            as the frontage glazing. */}
+        <mesh name="station-door-glass" position={STATION_DOOR_GLASS.position}>
+          <boxGeometry args={STATION_DOOR_GLASS.size} />
+          <meshStandardMaterial
+            color="#c6d6d4"
+            transparent
+            opacity={0.14}
+            depthWrite={false}
+            metalness={0}
+            roughness={0.1}
+            side={2}
+          />
         </mesh>
 
         {/* ========== SHOP INTERIOR (visible through window) ========== */}

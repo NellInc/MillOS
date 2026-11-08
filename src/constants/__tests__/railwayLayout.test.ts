@@ -9,6 +9,7 @@ import {
   RAILWAY_FORMATION,
   RAILWAY_LENGTH,
   RAILWAY_LEVELS,
+  RAILWAY_NORTH_CORRIDOR,
   RAILWAY_PORTALS,
   RAILWAY_STATION,
   RAILWAY_STATIONS_S,
@@ -113,7 +114,8 @@ describe('Riverside railway alignment', () => {
   it('keeps a terrain corridor over the whole formation, so no tree or scrub can stand on it', () => {
     const corridor = MILLOS_TERRAIN_REGIONS.filter(
       (region) =>
-        region.shape.type === 'path' ||
+        // The railway road (D-047) is a second `path` region; this one is the line's.
+        (region.shape.type === 'path' && region.shape.points === RAILWAY_NORTH_CORRIDOR) ||
         (region.shape.type === 'rect' && region.shape.x === RAILWAY.stationX)
     );
     expect(corridor).toHaveLength(2);

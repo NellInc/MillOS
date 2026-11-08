@@ -29,6 +29,7 @@ import {
   RAILWAY_STATION,
   RAILWAY_STRAIGHT_CORRIDOR,
 } from '../../constants/railwayLayout';
+import { RAILWAY_ROAD, railwayRoadCentreline } from '../../constants/railwayRoadLayout';
 
 /**
  * Calculate signed distance to a shape (negative = inside, positive = outside)
@@ -351,6 +352,28 @@ export const MILLOS_TERRAIN_REGIONS: TerrainRegion[] = [
     intensity: 0.8,
     edgeSoftness: 2,
     clearance: 5,
+    priority: 12,
+  },
+  // The railway road (D-047), car park to the valley road, bell mouth
+  // included. Its mesh carries the surface; this flattens the meadow and keeps
+  // trees and dressing off it. The band is narrower than the 5.5 m
+  // carriageway so its tint stays under the tarmac and its edge stays more
+  // than the kerb probe's reach from the mill yard's kerb (z 90): a wider band
+  // read as paving there and cut the kerb (`perimeterKerbLayout.ts`).
+  {
+    channel: TerrainChannel.DIRT,
+    shape: {
+      type: 'path',
+      points: [
+        // 3 m chords stray under 0.2 m from the 6 m bend, inside the band's margin.
+        ...railwayRoadCentreline(3).map((p) => [p.x, p.z] as const),
+        [RAILWAY_ROAD.mouth.roadX, RAILWAY_ROAD.neck[1]] as const,
+      ],
+      halfWidth: RAILWAY_ROAD.halfWidth - 0.75,
+    },
+    intensity: 0.6,
+    edgeSoftness: 0.5,
+    clearance: 4,
     priority: 12,
   },
 

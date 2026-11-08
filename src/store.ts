@@ -489,6 +489,7 @@ export function buildOperationalTelemetry(
     'safety-hold': 8,
     scheduled: 9,
     'vehicle-queue': 10,
+    'pedestrian-yield': 11,
   };
   vehicleTelemetry.forEach((vehicle) => {
     const tagIds = VEHICLE_TAG_IDS[vehicle.id as keyof typeof VEHICLE_TAG_IDS];

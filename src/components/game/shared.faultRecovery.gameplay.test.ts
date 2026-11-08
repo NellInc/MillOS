@@ -58,11 +58,12 @@ describe('a machine fault caption goes when the machine recovers', () => {
     vi.advanceTimersByTime(20_000);
     setStatus('running');
     vi.advanceTimersByTime(5_000); // t35: recovery captioned
+    vi.advanceTimersByTime(160_000); // t195: past the warning's 180 s window
     setStatus('warning');
-    vi.advanceTimersByTime(10_000); // t45: second warning captioned
+    vi.advanceTimersByTime(5_000); // t200: second warning captioned
     expect(live()).toContain(WARNING);
     setStatus('running');
-    vi.advanceTimersByTime(5_000); // t50: recovery inside its 30 s cooldown
+    vi.advanceTimersByTime(5_000); // t205: recovery inside its 180 s cooldown
     expect(live()).not.toContain(WARNING);
     hook.unmount();
   });

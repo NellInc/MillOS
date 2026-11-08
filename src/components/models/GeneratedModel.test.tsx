@@ -246,10 +246,11 @@ it('volumes the delivered five goods while preserving the building, anchors and 
     );
     if (trade !== 'general') {
       expect(q.count).toBe(p.count);
-      // The kept asset-loop shop (2026-11-06, won its in-game blind A/B) has
-      // 24528 indices where the earlier delivery had 10380; the variant still
-      // adds none of its own.
-      expect(source.index!.count).toBe(24528);
+      // The kept asset-loop shop (2026-11-06, won its in-game blind A/B), with
+      // the framed door joinery of 2026-11-07, has 24780 indices (24528 before
+      // the joinery, 10380 in the earlier delivery); the variant still adds
+      // none of its own.
+      expect(source.index!.count).toBe(24780);
       expect(variant.index!.count).toBe(source.index!.count);
     }
     const sourceNormal = source.getAttribute('normal');
@@ -410,9 +411,10 @@ it('keeps real loader-style interleaved produce attributes aligned in the owned 
     const p = variant.getAttribute('position'),
       n = variant.getAttribute('normal'),
       u = variant.getAttribute('uv');
-    // Every retained vertex of the kept 2026-11-06 shop, plus 620 fruit and 420 stalk
-    // vertices (the earlier delivery retained 6034, for 7074).
-    expect(count).toBe(10320);
+    // Every retained vertex of the kept 2026-11-06 shop with its 2026-11-07 door
+    // joinery (10320 before it; the earlier delivery retained 6034, for 7074),
+    // plus 620 fruit and 420 stalk vertices.
+    expect(count).toBe(10472);
     expect(p.count).toBe(count + 620 + 420);
     expect(n.count).toBe(p.count);
     expect(u.count).toBe(p.count);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { DistanceLod } from '../performance/DistanceLod';
+import { crossfadeLodMaterial, DistanceLod } from '../performance/DistanceLod';
 
 type Point = readonly [number, number, number];
 /** True only while `FAR_GEOMETRY` is built: cloth rings, pumpkin, tori, cords
@@ -391,14 +391,28 @@ export const SCARECROW_FAR_GEOMETRY = (() => {
     farDetail = false;
   }
 })();
-export const SCARECROW_LOD = { distance: 30, hysteresis: 0.1 } as const;
+/**
+ * The coarse scarecrow dissolves in from 50 m to 60 m. Its sleeves and straw
+ * drop to a third of their sides, which read at the old hard swap at 30 m:
+ * the figure spans ~2.4 m, 92 px there on 1080 rows at fov 50, and 55-46 px
+ * across the band, where the dither carries the change of facets.
+ */
+export const SCARECROW_LOD = { distance: 50, crossfade: 10 } as const;
 const MATERIAL = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.93 });
+const SCARECROW_LOD_BAND = {
+  start: SCARECROW_LOD.distance,
+  end: SCARECROW_LOD.distance + SCARECROW_LOD.crossfade,
+} as const;
+const LOD_MATERIALS = [
+  crossfadeLodMaterial(MATERIAL, 'near', SCARECROW_LOD_BAND),
+  crossfadeLodMaterial(MATERIAL, 'far', SCARECROW_LOD_BAND),
+] as const;
 export function ScarecrowCraft() {
   return (
     <DistanceLod
       name="scarecrow-lod"
       distances={[0, SCARECROW_LOD.distance]}
-      hysteresis={SCARECROW_LOD.hysteresis}
+      crossfade={SCARECROW_LOD.crossfade}
       userData={{ noStaticBatch: true }}
     >
       {[GEOMETRY, SCARECROW_FAR_GEOMETRY].map((geometry, far) => (
@@ -406,7 +420,7 @@ export function ScarecrowCraft() {
           key={far}
           name={far ? 'scarecrow-handmade-craft-far' : 'scarecrow-handmade-craft'}
           geometry={geometry}
-          material={MATERIAL}
+          material={LOD_MATERIALS[far]}
           castShadow
           receiveShadow
           dispose={null}

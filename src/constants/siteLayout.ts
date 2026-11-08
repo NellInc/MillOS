@@ -19,8 +19,15 @@ export const GAS_STATION_SITE = {
 } as const;
 
 // The west edge line stops at the flared mouth; the east edge stays continuous.
+// It also stops where the shuttle turnaround's apron (BUS_TURNAROUND, centre
+// (17.5, 125), radius 10.5) meets it at x 12.5: 125 - sqrt(10.5^2 - 5^2) =
+// z 115.77. The shuttle swings over the line there, and the apron runs on into
+// the gas station mouth, so one gap covers both. A literal, because
+// publicRealmLayout imports this file; stationAccessGeometry.test.ts holds them
+// equal.
+export const STATION_ROAD_TURNAROUND_GAP_START = 115.7;
 export const STATION_ROAD_EDGE_SEGMENTS = [
-  [110, GAS_STATION_SITE.access.centreZ - GAS_STATION_SITE.access.mouthHalfWidth],
+  [110, STATION_ROAD_TURNAROUND_GAP_START],
   [GAS_STATION_SITE.access.centreZ + GAS_STATION_SITE.access.mouthHalfWidth, 280],
 ] as const;
 

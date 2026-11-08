@@ -25,6 +25,7 @@ import {
   CANAL_WEIR_PROFILE,
   canalEastBankSections,
   canalClosedEndSpec,
+  canalHeads,
   createCanalClosedEndGeometry,
   createCanalOutletSurface,
   createCanalWeirCurtain,
@@ -176,17 +177,12 @@ describe('continuous canal-to-river overflow', () => {
     const canal = SITE_LAYOUT.exteriorFeatures.canal;
     expect(CANAL_OUTLET.west).toBe(canal.position[0] + (canal.width - 1) / 2);
     const sections = canalEastBankSections(canal.length, canal.position[2]);
-    // Each bank stub ends INSIDE the 0.8 m outlet wall it meets, not flush with
-    // its face: flush, the stub's end and the wall's face were coplanar
-    // (10 m^2 at z -114 down the deep footing, 1.5 m^2 at z -106).
-    const stubEnd = sections[0][1] + canal.position[2];
-    const opening = CANAL_OUTLET.south - CANAL_OUTLET.width;
-    expect(stubEnd).toBeLessThan(opening - 0.005);
-    expect(stubEnd).toBeGreaterThan(opening - 0.8);
-    const stubStart = sections[1][0] + canal.position[2];
-    expect(stubStart).toBeGreaterThan(CANAL_OUTLET.south + 0.005);
-    expect(stubStart).toBeLessThan(CANAL_OUTLET.south + 0.8);
-    expect(sections.every(([a, b]) => b > a)).toBe(true);
+    // 2026-11-07: one east bank, butting the outer face of the outlet's south
+    // wall (which owns the corner) and running to the closed head. The 1 m
+    // stub north of the mouth is gone: the outlet's north wall closes the canal.
+    expect(sections).toHaveLength(1);
+    expect(sections[0][0] + canal.position[2]).toBeCloseTo(CANAL_OUTLET.south + 0.8, 6);
+    expect(sections[0][1]).toBeCloseTo(canalHeads(canal.length, canal.position[2]).south, 6);
     const g = createCanalOutletSurface();
     const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
     mesh.rotation.x = -Math.PI / 2;
@@ -383,9 +379,14 @@ it('closes the actual non-river canal head with solid stone, seated between the 
   cap.position.fromArray(end.position);
   cap.updateMatrixWorld(true);
   const bounds = new THREE.Box3().setFromObject(cap);
-  expect(canal.position[2] + end.position[2]).toBe(105);
+  // 2026-11-07: the head's outer face is flush with the canal's 105 m end and
+  // it spans the banks' full outer width, capping their end faces.
+  expect(canal.position[2] + bounds.max.z).toBeCloseTo(105, 6);
+  expect(bounds.min.x).toBeCloseTo(-canal.width / 2 - 0.5, 6);
+  expect(bounds.max.x).toBeCloseTo(canal.width / 2 + 0.5, 6);
   expect(bounds.min.y).toBeCloseTo(-0.45);
   expect(bounds.max.y).toBeCloseTo(1.05);
+  const heads = canalHeads(canal.length, canal.position[2]);
   for (const x of [-5.49, -3, 0, 3, 5.49]) {
     const ray = new THREE.Raycaster(
       new THREE.Vector3(x, 0.15, canal.length / 2 - 2),
@@ -393,17 +394,7 @@ it('closes the actual non-river canal head with solid stone, seated between the 
       0,
       4
     );
-    expect(ray.intersectObject(cap)[0]?.point.z).toBeCloseTo(canal.length / 2 - 0.5);
-  }
-  for (const side of [-1, 1]) {
-    const bank = new THREE.Box3(
-      new THREE.Vector3((side * canal.width) / 2 - 0.5, -0.45, -canal.length / 2),
-      new THREE.Vector3((side * canal.width) / 2 + 0.5, 1.05, canal.length / 2)
-    );
-    const overlap = bounds.clone().intersect(bank).getSize(new THREE.Vector3());
-    expect(overlap.x).toBeCloseTo(0);
-    expect(overlap.y).toBeCloseTo(1.5);
-    expect(overlap.z).toBeCloseTo(0.5);
+    expect(ray.intersectObject(cap)[0]?.point.z).toBeCloseTo(heads.south);
   }
   expect(bounds.min.z).toBeGreaterThan(0);
   expect(CANAL_OUTLET.south).toBeLessThan(canal.position[2]);
@@ -412,7 +403,7 @@ it('closes the actual non-river canal head with solid stone, seated between the 
   const uv = geometry.getAttribute('uv');
   const front = [...Array(position.count).keys()].filter((i) => normal.getZ(i) < -0.5);
   const u = front.map((i) => uv.getX(i) * 110);
-  expect(Math.max(...u) - Math.min(...u)).toBeCloseTo((canal.width - 1) / 2);
+  expect(Math.max(...u) - Math.min(...u)).toBeCloseTo((canal.width + 1) / 2);
   expect((geometry.index?.count ?? position.count) / 3).toBe(12);
   geometry.dispose();
   (cap.material as THREE.Material).dispose();

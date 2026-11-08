@@ -5,18 +5,41 @@ type Point = [number, number, number];
 // Version both requests together so stale-cache recovery cannot mix revisions.
 export const CIVIC_SHADOW_BAKE_READY = true;
 export const CIVIC_SHADOW_ASSET_VERSION =
-  'f80527bf82e3e56d073f73b1023936872e4570b50a0d4c8dbe8cc74dcf3e830d';
+  '490dfa1b82e35c91c42ff8d879339811c7f8534494bd67cfcbc2231ed8151f07';
 // One spelling for the loader hook and the startup preload, so both share a cache entry.
 export const CIVIC_SHADOW_DEPTH_URL = `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.png?v=${CIVIC_SHADOW_ASSET_VERSION}`;
 export const CIVIC_SHADOW_METADATA_URL = `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.json?v=${CIVIC_SHADOW_ASSET_VERSION}`;
 export type CivicLamp = {
   id: string;
-  kind: 'post' | 'garden' | 'wall' | 'window' | 'sign';
+  kind: 'post' | 'garden' | 'wall' | 'window' | 'sign' | 'rail';
   position: Point;
+  /** A `rail` lamp's post, village x/z: the fitting clamps to it, lens toward -x. */
+  mount?: [number, number];
   intensity: number;
   distance: number;
   reference: [number, number];
 };
+
+/**
+ * The town hall ramp's three post lights (D-058, 2026-11-07). They were ground
+ * uplighters on the hall's east verge, which the ramp now covers (one stood
+ * inside the ramp, one under its mid landing, one on its walking surface), and
+ * there is 14 cm between its rail and the privet. They are low lights on the
+ * outer rail's posts instead, 0.4 m above the ramp surface, lit toward it:
+ * TOWN_HALL_RAMP_LAMPS in accessibilityLayout.ts, carried into the village
+ * frame ((x, z) -> (-x, 20 - z)) as literals, because the shadow bake and the
+ * tests that evaluate this file read it alone. `civicLampShadows.test.ts`
+ * holds the two equal.
+ */
+const RAMP_LAMP_MOUNTS: readonly { position: Point; mount: [number, number] }[] = [
+  { position: [7.22, 1.1814, 15.2236], mount: [7.29, 15.2236] },
+  { position: [7.22, 0.8, 20.1909], mount: [7.29, 20.1909] },
+  { position: [7.22, 0.582, 23.9164], mount: [7.29, 23.9164] },
+];
+function rampLamp(id: string, index: number, reference: [number, number]): CivicLamp {
+  const { position, mount } = RAMP_LAMP_MOUNTS[index];
+  return { id, kind: 'rail', position, mount, intensity: 12, distance: 9, reference };
+}
 
 // Located apertures in the approved blue-hour artwork. Coordinates are village
 // metres: hall [0,20], fountain [0,6], allotment [-25,9]. The lower
@@ -88,18 +111,14 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
     distance: 7,
     reference: [0.804, 0.44],
   },
-  {
-    id: 'hall-verge',
-    kind: 'garden',
-    position: [6.7, 0.44, 15.5],
-    intensity: 12,
-    distance: 9,
-    reference: [0.025, 0.563],
-  },
+  rampLamp('hall-verge', 0, [0.025, 0.563]),
   {
     id: 'hall-front-west',
     kind: 'garden',
-    position: [4.7, 0.44, 13.1],
+    // In the 0.37 m between the ramp's top landing (town hall z 7.32, D-062)
+    // and the privet's leaf reach (z 7.69): at 13.1 the landing buried it.
+    // Its east twin moves with it so the front stays symmetrical.
+    position: [4.7, 0.44, 12.495],
     intensity: 12,
     distance: 9,
     reference: [0.176, 0.604],
@@ -107,27 +126,13 @@ export const CIVIC_LAMPS: readonly CivicLamp[] = [
   {
     id: 'hall-front-east',
     kind: 'garden',
-    position: [-4.7, 0.44, 13.1],
+    position: [-4.7, 0.44, 12.495],
     intensity: 12,
     distance: 9,
     reference: [0.48, 0.539],
   },
-  {
-    id: 'hall-side-near',
-    kind: 'garden',
-    position: [6.8, 0.44, 20],
-    intensity: 12,
-    distance: 9,
-    reference: [0.04, 0.478],
-  },
-  {
-    id: 'hall-side-far',
-    kind: 'garden',
-    position: [6.8, 0.44, 24],
-    intensity: 12,
-    distance: 9,
-    reference: [0.074, 0.472],
-  },
+  rampLamp('hall-side-near', 1, [0.04, 0.478]),
+  rampLamp('hall-side-far', 2, [0.074, 0.472]),
   {
     id: 'fountain-border',
     kind: 'garden',

@@ -359,7 +359,7 @@ export const SafetyPanel: React.FC = () => {
                   )}
                 </div>
 
-                {/* The Space-bar stop holds only the forklifts, so the facility
+                {/* The X-key stop holds only the forklifts, so the facility
                   E-Stop below cannot release it. */}
                 {forkliftEmergencyStop && !emergencyActive && (
                   <button
@@ -476,7 +476,7 @@ export const SafetyPanel: React.FC = () => {
           useGameSimulationStore.getState().triggerEmergency('E-STOP');
           if (!useGameSimulationStore.getState().emergencyActive) return;
           recordOperatorAction({ kind: 'emergencyStop' });
-          // The operator's own stop is an incident like the Space-bar stop, so
+          // The operator's own stop is an incident like the X-key stop, so
           // the Analytics log and its Last Event include it. A drill is a
           // planned exercise and is not logged.
           useSafetyStore.getState().addSafetyIncident({

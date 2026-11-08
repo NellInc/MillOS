@@ -31,7 +31,6 @@ vi.mock('../../utils/audioManager', () => ({
 }));
 
 vi.mock('./shared', () => ({
-  usePAScheduler: vi.fn(),
   useEventAnnouncementScheduler: vi.fn(),
 }));
 

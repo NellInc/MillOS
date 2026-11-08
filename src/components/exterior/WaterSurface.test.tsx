@@ -38,11 +38,11 @@ import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 
 const driver = vi.hoisted(() => ({
-  frame: null as (() => void) | null,
+  frame: null as ((state?: unknown, delta?: number) => void) | null,
   cleanups: [] as Array<() => void>,
   reduced: false,
   scene: null as THREE.Scene | null,
-  phase: { current: { time: 0, previous: null as number | null, reduced: false } },
+  phase: { current: { time: 0 } },
 }));
 
 vi.mock('react', async (original) => ({
@@ -57,7 +57,7 @@ vi.mock('react', async (original) => ({
 vi.mock('@react-three/fiber', async (original) => ({
   ...(await original<typeof import('@react-three/fiber')>()),
   useThree: () => ({ scene: driver.scene }),
-  useFrame: (frame: () => void) => {
+  useFrame: (frame: (state?: unknown, delta?: number) => void) => {
     driver.frame = frame;
   },
 }));
@@ -74,7 +74,7 @@ const material = (radial = false) => {
 const brightness = (color: THREE.Color) => color.r + color.g + color.b;
 
 beforeEach(() => {
-  driver.phase.current = { time: 0, previous: null, reduced: false };
+  driver.phase.current = { time: 0 };
   driver.reduced = false;
   driver.scene = new THREE.Scene();
   WATER_SKY_RADIANCE.value = 1;
@@ -83,6 +83,7 @@ beforeEach(() => {
   useGameSimulationStore.setState({
     gameDay: 1,
     gameTime: 12,
+    gameSpeed: 30,
     weather: 'clear',
     isTabVisible: true,
   });
@@ -106,7 +107,7 @@ describe('authored exterior water material and atmosphere driver', () => {
     expect(water.fragmentShader).toContain('float surfaceAlpha = 1.0');
     expect(water.uniforms.uTransmission.value).toBe(0);
     expect(water.fragmentShader).toContain('#include <fog_fragment>');
-    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v35');
+    expect(water.customProgramCacheKey()).toBe('millos-unified-water-v36');
     const dispose = vi.spyOn(water, 'dispose');
     for (const cleanup of driver.cleanups.splice(0)) cleanup();
     expect(dispose).toHaveBeenCalledOnce();
@@ -144,27 +145,41 @@ describe('authored exterior water material and atmosphere driver', () => {
     expect(water.uniforms.uWetness.value).toBeGreaterThan(0);
   });
 
-  it('freezes and resumes the current phase while weather uniforms stay live', () => {
+  // 2026-11-07: the phase is render seconds. On game minutes x 0.38 it ran at
+  // 0.19 s per second at the 30x default and the lake read as a still print.
+  it('advances on render seconds at every pace and holds its phase under each hold', () => {
     const water = material();
     WaterAnimationManager({});
-    driver.frame!();
-    useGameSimulationStore.setState({ gameTime: 12.1 });
-    driver.frame!();
+    driver.frame!(null, 0.05);
+    expect(water.uniforms.uTime.value).toBeCloseTo(0.05);
+    // Pace and the game clock do not change the rate.
+    useGameSimulationStore.setState({ gameSpeed: 120, gameTime: 15 });
+    driver.frame!(null, 0.05);
+    expect(water.uniforms.uTime.value).toBeCloseTo(0.1);
+    // A long frame (tab switch, GC) advances one clamped step, not a jump.
+    driver.frame!(null, 5);
+    expect(water.uniforms.uTime.value).toBeCloseTo(0.2);
     const moving = water.uniforms.uTime.value;
     driver.reduced = true;
     WaterAnimationManager({});
-    useGameSimulationStore.setState({ gameTime: 14, weather: 'storm' });
-    driver.frame!();
+    useGameSimulationStore.setState({ gameTime: 16, weather: 'storm' });
+    driver.frame!(null, 0.5);
     expect(water.uniforms.uTime.value).toBe(moving);
     expect(water.uniforms.uPrecipitation.value).toBeGreaterThan(0);
     driver.reduced = false;
     WaterAnimationManager({});
-    useGameSimulationStore.setState({ gameTime: 15 });
-    driver.frame!();
+    // Paused world (P, a session hold, or a benchmark without motion=1).
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    driver.frame!(null, 0.5);
     expect(water.uniforms.uTime.value).toBe(moving);
-    useGameSimulationStore.setState({ gameTime: 15.1 });
-    driver.frame!();
-    expect(water.uniforms.uTime.value - moving).toBeCloseTo(6 * 0.38);
+    // holdFrame redraws with delta 0.
+    useGameSimulationStore.setState({ gameSpeed: 30 });
+    driver.frame!(null, 0);
+    expect(water.uniforms.uTime.value).toBe(moving);
+    // Resuming continues from the held phase instead of catching up.
+    driver.frame!(null, 0.08);
+    expect(water.uniforms.uTime.value - moving).toBeCloseTo(0.08);
+    expect(WATER_VISUAL_TIME.value).toBe(water.uniforms.uTime.value);
   });
 });
 
@@ -407,7 +422,7 @@ it('keeps a deep-water read on Low, where no metre-scale ripple breaks the refle
   expect(water.fragmentShader).toContain(
     `mix(${WATER_FRESNEL_EXPONENT_FLAT.toFixed(1)}, ${WATER_FRESNEL_EXPONENT.toFixed(1)}, uRippleDetail)`
   );
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v35');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v36');
 });
 
 // final4-med-12 rubric: the pond is a saturated cyan and reflects nothing of
@@ -481,7 +496,7 @@ it('gives still water a natural body and a soft far-bank darkening on Medium onl
   const rise = (camera.y - target.y) / Math.hypot(camera.x - target.x, camera.z - target.z);
   expect(WATER_BANK_PROFILE.bankMetres / rise).toBeGreaterThan(1.5);
   expect(WATER_BANK_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v35');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v36');
 });
 
 // final5-med-22 water: a near-black centre. Steep views reflect the zenith,
@@ -632,7 +647,7 @@ it('mirrors a cloud deck and gust patches across the lake on Medium, exact on Lo
   sky.dispose();
   dome.geometry.dispose();
   expect(WATER_SKY_DETAIL.value).toBe(1);
-  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v35');
+  expect(water.customProgramCacheKey()).toBe('millos-unified-water-v36');
 });
 
 // final6-med-12 water: a white glare band along the lake's far bank and a dark
@@ -677,7 +692,7 @@ it('keeps mirrored cloud off the far bank and soft across a lake, the canal unch
     make({ kind: 'canal', crossOnly: true, bankRadii: [5.5, 110] }).uniforms.uRadial.value
   ).toBe(0);
   expect(lake.uniforms.uRadial.value).toBe(1);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v35');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v36');
 });
 
 // land7-med-12 water: with the glare softened, the lake centre still reads as a
@@ -728,7 +743,7 @@ it('lifts the still-water deep body toward the shallows on Medium, keeping its h
   expect(hue(after)).toBeGreaterThan(hue(rim));
   expect(deepLift).toBeGreaterThan(0);
   expect(deepLift).toBeLessThanOrEqual(0.3);
-  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v35');
+  expect(lake.customProgramCacheKey()).toBe('millos-unified-water-v36');
 });
 
 it('opts only the receiving river into the shared weir landing and local hydraulic finish', () => {
@@ -764,14 +779,13 @@ it('filters hydraulic detail and keeps it on the existing frozen clock and Low b
   expect(receiving.fragmentShader).toContain('fwidth(filamentPhase)');
   expect(receiving.fragmentShader).toContain('weirFoamColour * bodyLight * uBodyTint');
   WaterAnimationManager({});
-  driver.frame!();
-  useGameSimulationStore.setState({ gameTime: 12.1 });
-  driver.frame!();
+  driver.frame!(null, 0.1);
+  driver.frame!(null, 0.1);
   const moving = receiving.uniforms.uTime.value;
+  expect(moving).toBeCloseTo(0.2);
   driver.reduced = true;
   WaterAnimationManager({});
-  useGameSimulationStore.setState({ gameTime: 13 });
-  driver.frame!();
+  driver.frame!(null, 0.1);
   expect(receiving.uniforms.uTime.value).toBe(moving);
   const graphics = useGraphicsStore.getState().graphics;
   try {
@@ -780,7 +794,7 @@ it('filters hydraulic detail and keeps it on the existing frozen clock and Low b
     expect(receiving.uniforms.uRippleDetail).toBe(WATER_RIPPLE_DETAIL);
     expect(receiving.uniforms.uRippleDetail.value).toBe(0);
     useGameSimulationStore.setState({ isTabVisible: false, gameTime: 15 });
-    driver.frame!();
+    driver.frame!(null, 0.1);
     expect(receiving.uniforms.uTime.value).toBe(moving);
   } finally {
     useGraphicsStore.setState({ graphics });

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { SITE_LAYOUT } from '../constants/siteLayout';
 
 const harness = vi.hoisted(() => ({
   effects: [] as Array<() => void | (() => void)>,
@@ -447,6 +448,15 @@ it('applies to mounted controllers while preserving cargo, operation phase, time
   checkpoint.operationTimerRef = 2.3;
   checkpoint.operationDurationRef = 7;
   checkpoint.motionStateRef.wheelTravel = 197;
+  // At the collection point (the route's fixed first vertex), where a pick is
+  // worked. The fleet now starts short of it, on a stretch a layout edit may
+  // re-measure, so the checkpoint puts it back on the vertex.
+  checkpoint.motionStateRef.routeDistance = 0;
+  checkpoint.motionStateRef.x = SITE_LAYOUT.routes.forklifts.shipping.points[0][0];
+  checkpoint.motionStateRef.z = SITE_LAYOUT.routes.forklifts.shipping.points[0][2];
+  // The pick it is working there: heading west into the collection point,
+  // which it backs out of the way it came.
+  checkpoint.workRef = { markerDistance: 0, heading: -Math.PI / 2, spur: true };
   participant.restore(structuredClone(checkpoint));
   const plan = optimizeLogisticsLayout(
     currentLogisticsLayout(),
@@ -464,6 +474,29 @@ it('applies to mounted controllers while preserving cargo, operation phase, time
   expect(participant.capture()).toEqual(checkpoint);
   expect(useLogisticsLayoutStore.getState().undoApplied(1, key).changed).toBe(true);
   expect(participant.capture()).toEqual(checkpoint);
+});
+
+it('carries a remounted forklift on from where it stood, with its load and work', () => {
+  const mount = () => {
+    const tree = ForkliftSystem({}) as React.ReactElement<{ children: any[] }>;
+    for (const element of tree.props.children[1]) element.type(element.props);
+    flushEffects();
+    return harness.participants.get('forklift:forklift-1')!;
+  };
+  const first = mount();
+  const checkpoint = structuredClone(first.capture());
+  checkpoint.motionStateRef.routeDistance = 9;
+  checkpoint.motionStateRef.x = -7;
+  checkpoint.hasCargoRef = true;
+  first.restore(structuredClone(checkpoint));
+  // Unmount (a hot reload, an error boundary reset), then mount afresh.
+  for (const cleanup of harness.cleanups.splice(0)) cleanup();
+  harness.participants.clear();
+  const second = mount();
+  const resumed = second.capture();
+  expect(resumed.motionStateRef.routeDistance).toBe(9);
+  expect(resumed.motionStateRef.x).toBe(-7);
+  expect(resumed.hasCargoRef).toBe(true);
 });
 
 it('interpolates live personnel safely and restores the captured presentation cursor repeatedly', () => {

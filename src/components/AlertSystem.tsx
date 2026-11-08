@@ -67,7 +67,7 @@ export const AlertSystem: React.FC = () => {
   useEffect(() => {
     if (isInitialMount.current) return;
 
-    // A forklift halting for an operator E-stop, the Space-bar stop or the
+    // A forklift halting for an operator E-stop, the X-key stop or the
     // egress drill is obeying an order, not avoiding a near miss.
     const deliberateHold =
       useSafetyStore.getState().forkliftEmergencyStop ||

@@ -89,21 +89,27 @@ it('steps onto the actual river deck from ground level with the default walking 
   expect(camera.position.y).toBeCloseTo(4.1, 5);
 });
 
-it('retains grounded contact through a terrain-tier change and Q/E inspection altitude', () => {
+it('retains grounded contact through a terrain-tier change and a Space jump', () => {
   harness.camera.position.set(100, 20, -118);
   render(<FirstPersonController />);
   harness.lock();
   expect(harness.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(100, -118, 64) + 1.7, 6);
   useGraphicsStore.getState().setGraphicsQuality('high');
   harness.frame({}, 1 / 60);
-  expect(harness.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(100, -118, 128) + 1.7, 6);
-  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+  const ground = sampleWalkingGroundHeight(100, -118, 128) + 1.7;
+  expect(harness.camera.position.y).toBeCloseTo(ground, 6);
+  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space' }));
   harness.frame({}, 0.1);
-  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' }));
+  // Airborne: a tier change mid-jump does not snap the eye back to the ground.
   const airborne = harness.camera.position.y;
+  expect(airborne).toBeGreaterThan(ground + 0.2);
   useGraphicsStore.getState().setGraphicsQuality('medium');
   harness.frame({}, 1 / 60);
-  expect(harness.camera.position.y).toBeCloseTo(airborne, 6);
+  expect(harness.camera.position.y).toBeGreaterThan(ground + 0.2);
+  // Gravity lands it on the medium tier's ground within a second.
+  for (let i = 0; i < 60; i++) harness.frame({}, 1 / 60);
+  expect(harness.camera.position.y).toBeCloseTo(sampleWalkingGroundHeight(100, -118, 64) + 1.7, 6);
 });
 it('relocates a submerged first-person spawn to the dry bank', () => {
   harness.camera.position.set(25, 20, -170);
@@ -134,14 +140,32 @@ it('relocates a bench spawn and stops held sprint at furniture', () => {
   expect(c.position.x).toBeGreaterThan(28.3);
   expect(c.position.x + 0.4).toBeLessThanOrEqual(29.356 + 1e-6);
 });
-it('holds Q/E below the shelter roof instead of lifting through it', () => {
+it('jumps under the shelter roof without lifting through it, and lands', () => {
   harness.camera.position.set(28.3, 12, 140);
   render(<FirstPersonController />);
   harness.lock();
+  const ground = harness.camera.position.y;
+  window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+  let peak = ground;
+  for (let i = 0; i < 30; i++) {
+    harness.frame({}, 0.05);
+    peak = Math.max(peak, harness.camera.position.y);
+  }
+  window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Space' }));
+  expect(peak).toBeGreaterThan(ground + 0.3);
+  expect(peak).toBeLessThanOrEqual(2.7 + 1e-6);
+  expect(harness.camera.position.y).toBeCloseTo(ground, 6);
+});
+
+it('E no longer flies the walker upward', () => {
+  harness.camera.position.set(100, 20, -118);
+  render(<FirstPersonController />);
+  harness.lock();
+  const ground = harness.camera.position.y;
   window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
-  for (let i = 0; i < 30; i++) harness.frame({}, 0.1);
+  for (let i = 0; i < 10; i++) harness.frame({}, 0.1);
   window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyE' }));
-  expect(harness.camera.position.y).toBeCloseTo(2.7, 6);
+  expect(harness.camera.position.y).toBeCloseTo(ground, 6);
 });
 
 it('leaves automatic admission to the handled instructions, retaining native lock controls', () => {

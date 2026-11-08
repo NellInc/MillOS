@@ -51,11 +51,11 @@ beforeEach(() => {
 });
 afterEach(() => setLocale('en'));
 
-// Working if a Space-bar stop line queued in English reads in Portuguese
+// Working if an X-key stop line queued in English reads in Portuguese
 // after the player switches language (and after a reload restores it).
-it('keys the Space-bar forklift-stop PA line so it follows a language switch', () => {
+it('keys the X-key forklift-stop PA line so it follows a language switch', () => {
   renderHook(() => useKeyboardShortcuts(config));
-  fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+  fireEvent.keyDown(window, { key: 'x', code: 'KeyX' });
   const line = useAnnouncementsStore
     .getState()
     .announcements.find((announcement) => announcement.topic === 'forklift-stop');

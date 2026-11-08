@@ -28,6 +28,7 @@ import {
   sampleWorkerBlink,
   createWorkerGaze,
   sampleWorkerGaze,
+  workerHeldToolGrip,
 } from './workerPose';
 import { COMMUNITY_ANCHORS } from '../../constants/communityLayout';
 import { getWorkerAppearance } from './workerTypes';
@@ -186,6 +187,11 @@ it('anonymous profiles are deterministic, varied and role appropriate', () => {
   expect(getWorkerAppearance('Quality', '', 'q').tool).toBe('sample-kit');
   expect(getWorkerAppearance('Gardener', '', 'g').tool).toBe('trowel');
   expect(getWorkerAppearance('Baker', '', 'b').tool).toBe('bread-tray');
+  // Work loops follow the role, not the outfit: the courier wears operator kit
+  // but checks her cart; operators keep the authored inspect work.
+  expect(getWorkerAppearance('Logistics', '', 'village-courier').workAction).toBe('cartcheck');
+  expect(getWorkerAppearance('Operator', '', 'mill-operator-west').workAction).toBe('operate');
+  expect(getWorkerAppearance('Shopkeeper', '', 's').workAction).toBe('stocktake');
   for (const role of ['Baker', 'Gardener', 'Shopkeeper', 'Resident', 'Passenger', 'Cyclist']) {
     const appearance = getWorkerAppearance(role, '#345678', role);
     expect(appearance.hasHardHat).toBe(false);
@@ -322,14 +328,10 @@ describe('task hand contacts and platform seating', () => {
             const sign = side === 'L' ? 1 : -1;
             const palm = pos(`Middle1${side}`).lerp(pos(`Middle2${side}`), 0.5);
             const expected =
-              task === 'garden'
-                ? new THREE.Vector3(
-                    side === 'L' ? 0.12 : -0.12,
-                    side === 'L' ? 0.326 : 0.4,
-                    side === 'L' ? 0.5205 : 0.26
-                  )
-                : task === 'bake'
-                  ? new THREE.Vector3(sign * 0.18, 1.1, 0.28)
+              task === 'bake' || (task === 'garden' && side === 'L')
+                ? workerHeldToolGrip(task, side as 'L' | 'R', undefined, new THREE.Vector3())
+                : task === 'garden'
+                  ? new THREE.Vector3(-0.12, 0.4, 0.26)
                   : new THREE.Vector3(sign * 0.32, 1.05, task === 'push' ? 0.2 : -0.2);
             expect(palm.distanceTo(expected), `${side} palm ${palm.toArray()}`).toBeLessThan(0.012);
             expect(
@@ -431,8 +433,10 @@ it('cart grips preserve both authored walking foot trajectories', () => {
 describe('living gestures on actual authored bodies', () => {
   for (const body of ['masculine', 'feminine']) {
     for (const height of [0.95, 1.08]) {
-      for (const task of ['bake', 'garden'] as const) {
-        it(`${body}/${height} ${task} keeps animated palms on the prop and boots planted`, () => {
+      for (const kind of ['bake', 'serve', 'garden'] as const) {
+        // The baker's street loop ('serve') holds the same tray as 'bake'.
+        const task = kind === 'garden' ? 'garden' : 'bake';
+        it(`${body}/${height} ${kind} keeps animated palms on the prop and boots planted`, () => {
           const gltf = bodies.get(body)!;
           const scene = clone(gltf.scene);
           const wrapper = new THREE.Group();
@@ -450,32 +454,65 @@ describe('living gestures on actual authored bodies', () => {
           let firstFeet: THREE.Vector3[] = [];
           let minimum = Infinity,
             maximum = -Infinity;
-          for (let frame = 0; frame < 32; frame++) {
-            sampleWorkerGesture(task, frame * 0.25, targetGesture);
+          let lowestRightPalm = Infinity;
+          // One whole loop of each (13.7 s bake, 12.7 s serve, 12.3 s garden), eased as live.
+          for (let frame = 0; frame < 60; frame++) {
+            sampleWorkerGesture(kind, frame * 0.25, targetGesture);
             easeWorkerGesture(gesture, targetGesture, 0.25);
             pose.applyTask(task, gesture);
             if (!frame) firstFeet = [pos('FootL'), pos('FootR')];
+            if (task === 'garden' && frame % 3 === 0) {
+              // Leaning in, patting and sitting back all keep the face above
+              // the vegetable heads and the shins off the bed's timber face.
+              expect(pos('Head').y).toBeGreaterThan(0.72);
+              scene.traverse((o) => {
+                if ((o as THREE.SkinnedMesh).isSkinnedMesh)
+                  (o as THREE.SkinnedMesh).skeleton.update();
+              });
+              const vertex = new THREE.Vector3();
+              scene.traverse((object) => {
+                const mesh = object as THREE.SkinnedMesh;
+                if (!mesh.isSkinnedMesh || !/Worker_(?:Feet|Legs)/.test(mesh.parent?.name ?? ''))
+                  return;
+                for (let i = 0; i < mesh.geometry.attributes.position.count; i++) {
+                  mesh.getVertexPosition(i, vertex).applyMatrix4(mesh.matrixWorld);
+                  if (vertex.y < 0.255)
+                    expect(vertex.z + COMMUNITY_ANCHORS.allotmentGardener.position[2]).toBeLessThan(
+                      10.395
+                    );
+                }
+              });
+            }
             for (const [index, side] of ['L', 'R'].entries()) {
-              const sign = side === 'L' ? 1 : -1;
               const palm = pos(`Middle1${side}`).lerp(pos(`Middle2${side}`), 0.5);
+              // The prop group takes the same channels (WorkerModel), so a
+              // palm on this grip is a palm on the moving tray or trowel.
               const target =
-                task === 'bake'
-                  ? new THREE.Vector3(sign * 0.18, 1.1 + gesture.toolY, 0.28 + gesture.toolZ)
-                  : side === 'L'
-                    ? new THREE.Vector3(0.12, 0.326 + gesture.toolY, 0.5205 + gesture.toolZ)
-                    : new THREE.Vector3(-0.12, 0.4, 0.26);
+                task === 'bake' || side === 'L'
+                  ? workerHeldToolGrip(task, side as 'L' | 'R', gesture, new THREE.Vector3())
+                  : new THREE.Vector3(
+                      -0.12 + gesture.offX,
+                      0.4 + gesture.offY,
+                      0.26 + gesture.offZ
+                    );
               expect(palm.distanceTo(target)).toBeLessThan(0.012);
               expect(pos(`Foot${side}`).distanceTo(firstFeet[index])).toBeLessThan(0.0001);
-              expect(scene.getObjectByName(`LowerArm${side}`)!.scale.y).toBeLessThan(1.05);
+              expect(
+                scene.getObjectByName(`LowerArm${side}`)!.scale.y,
+                `${side} arm at ${frame * 0.25}s`
+              ).toBeLessThan(1.05);
               if (side === 'L') {
                 minimum = Math.min(minimum, palm.y);
                 maximum = Math.max(maximum, palm.y);
-              }
+              } else lowestRightPalm = Math.min(lowestRightPalm, palm.y);
             }
             pose.restore();
             mixer.update(0.25);
           }
-          expect(maximum - minimum).toBeGreaterThan(task === 'garden' ? 0.07 : 0.005);
+          // The tray is lowered toward the counter; the trowel stabs and levers.
+          expect(maximum - minimum).toBeGreaterThan(0.07);
+          // The gardener's free hand comes down from the knee to pat the soil.
+          if (task === 'garden') expect(lowestRightPalm).toBeLessThan(0.31);
         });
       }
     }
@@ -536,15 +573,148 @@ describe('living gestures on actual authored bodies', () => {
       });
     }
   }
+  for (const body of ['masculine', 'feminine'])
+    it(`${body} courier rests both palms on the cart rail, then straightens, boots untouched`, () => {
+      const gltf = bodies.get(body)!;
+      const scene = clone(gltf.scene);
+      const mixer = new THREE.AnimationMixer(scene);
+      mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-inspect')!).play();
+      mixer.update(0);
+      const pose = createSeatedWorkerPose(scene);
+      const gesture = createWorkerGesture(),
+        targetGesture = createWorkerGesture();
+      const pos = (name: string) =>
+        scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3());
+      const palm = (side: string) => pos(`Middle1${side}`).lerp(pos(`Middle2${side}`), 0.5);
+      let onRail = 0,
+        upright = 0;
+      for (let frame = 0; frame < 54; frame++) {
+        sampleWorkerGesture('cartcheck', frame * 0.25, targetGesture);
+        easeWorkerGesture(gesture, targetGesture, 0.25);
+        scene.updateMatrixWorld(true);
+        const feet = [pos('FootL'), pos('FootR')];
+        pose.applyWork('cartcheck', gesture);
+        expect(pos('FootL').distanceTo(feet[0])).toBeLessThan(0.0001);
+        expect(pos('FootR').distanceTo(feet[1])).toBeLessThan(0.0001);
+        for (const side of ['L', 'R'])
+          expect(scene.getObjectByName(`LowerArm${side}`)!.scale.y).toBeLessThan(1.05);
+        // Leaning in: the held left palm is on the near rail (0.35 m ahead,
+        // top 0.82 m), and no palm drops into the cart body below its rail.
+        if (gesture.lean > 0.5) {
+          const left = palm('L');
+          expect(left.distanceTo(new THREE.Vector3(0.22, 0.845, 0.35))).toBeLessThan(0.03);
+          for (const side of ['L', 'R'])
+            if (palm(side).z > 0.32) expect(palm(side).y).toBeGreaterThan(0.82);
+          onRail++;
+        }
+        if (gesture.lean < 0.05) {
+          expect(palm('L').z).toBeLessThan(0.32);
+          expect(palm('R').z).toBeLessThan(0.32);
+          upright++;
+        }
+        pose.restore();
+        mixer.update(0.25);
+      }
+      expect(onRail).toBeGreaterThan(10);
+      expect(upright).toBeGreaterThan(5);
+    });
+  for (const body of ['masculine', 'feminine'])
+    it(`${body} shopkeeper ticks down the clipboard with the free hand, boots untouched`, () => {
+      const gltf = bodies.get(body)!;
+      const scene = clone(gltf.scene);
+      const mixer = new THREE.AnimationMixer(scene);
+      mixer.clipAction(gltf.animations.find((c) => c.name === 'worker-inspect')!).play();
+      mixer.update(0);
+      const pose = createSeatedWorkerPose(scene, 1, 1, undefined, 'clipboard');
+      const gesture = createWorkerGesture(),
+        targetGesture = createWorkerGesture();
+      const pos = (name: string) =>
+        scene.getObjectByName(name)!.getWorldPosition(new THREE.Vector3());
+      const palm = (side: string) => pos(`Middle1${side}`).lerp(pos(`Middle2${side}`), 0.5);
+      let nearest = Infinity,
+        farthest = 0;
+      const writing = new THREE.Box3();
+      for (let frame = 0; frame < 48; frame++) {
+        const time = frame * 0.25;
+        sampleWorkerGesture('stocktake', time, targetGesture);
+        easeWorkerGesture(gesture, targetGesture, 0.25);
+        scene.updateMatrixWorld(true);
+        const feet = [pos('FootL'), pos('FootR')];
+        pose.applyWork('stocktake', gesture);
+        expect(pos('FootL').distanceTo(feet[0])).toBeLessThan(0.0001);
+        expect(pos('FootR').distanceTo(feet[1])).toBeLessThan(0.0001);
+        expect(scene.getObjectByName('LowerArmR')!.scale.y).toBeLessThan(1.05);
+        // The board is held close: palm at the lower chest, elbow bent at the
+        // ribs, never an arm held out; even the brief point stays bent.
+        const shoulderL = pos('UpperArmL'),
+          shoulderR = pos('UpperArmR');
+        expect(palm('L').z).toBeLessThan(0.22);
+        expect(palm('L').y).toBeGreaterThan(0.95);
+        expect(palm('L').distanceTo(shoulderL)).toBeLessThan(0.36);
+        expect(palm('R').distanceTo(shoulderR)).toBeLessThan(0.42);
+        // The writing hand works over the board held in the other palm.
+        const gap = palm('R').distanceTo(palm('L'));
+        nearest = Math.min(nearest, gap);
+        farthest = Math.max(farthest, gap);
+        if (targetGesture.offZ < 0.01) writing.expandByPoint(palm('R'));
+        pose.restore();
+        mixer.update(0.25);
+      }
+      expect(nearest).toBeLessThan(0.2);
+      expect(farthest).toBeLessThan(0.3);
+      // Strokes along the lines, not a hand held still.
+      expect(writing.max.x - writing.min.x + writing.max.z - writing.min.z).toBeGreaterThan(0.03);
+    });
   it('samples finite, staggered, bounded gestures without allocating replacement objects', () => {
     const out = createWorkerGesture();
-    for (const kind of ['bake', 'garden', 'rest', 'idle'] as const) {
+    for (const kind of [
+      'bake',
+      'serve',
+      'garden',
+      'stocktake',
+      'cartcheck',
+      'rest',
+      'idle',
+    ] as const) {
       for (const time of [NaN, Infinity, -3, 0, 1, 2, 10, 1e6]) {
         expect(sampleWorkerGesture(kind, time, out)).toBe(out);
         expect(Object.values(out).every(Number.isFinite)).toBe(true);
-        expect(out.toolY).toBeGreaterThanOrEqual(0);
-        expect(out.toolY).toBeLessThanOrEqual(0.08);
         expect(Math.abs(out.lookYaw)).toBeLessThanOrEqual(0.22);
+      }
+      // A fine sweep of two whole loops stays inside reachable, readable bounds.
+      for (let time = 0; time < 30; time += 0.05) {
+        sampleWorkerGesture(kind, time, out);
+        expect(Object.values(out).every(Number.isFinite)).toBe(true);
+        expect(Math.abs(out.toolY)).toBeLessThanOrEqual(0.09);
+        expect(Math.abs(out.toolZ)).toBeLessThanOrEqual(0.15);
+        expect(Math.abs(out.toolPitch)).toBeLessThanOrEqual(0.55);
+        expect(Math.abs(out.toolRoll)).toBeLessThanOrEqual(0.5);
+        // The courier bends right over her cart; everyone else stays near upright.
+        expect(Math.abs(out.lean)).toBeLessThanOrEqual(kind === 'cartcheck' ? 0.6 : 0.25);
+        expect(Math.abs(out.twist)).toBeLessThanOrEqual(0.25);
+        expect(Math.abs(out.sway)).toBeLessThanOrEqual(0.03);
+        expect(Math.abs(out.dip)).toBeLessThanOrEqual(0.03);
+        expect(Math.abs(out.lookYaw)).toBeLessThanOrEqual(0.22);
+        if (kind === 'rest' || kind === 'idle')
+          for (const key of [
+            'toolX',
+            'toolY',
+            'toolZ',
+            'toolPitch',
+            'toolYaw',
+            'toolRoll',
+            'lean',
+            'twist',
+            'sway',
+            'dip',
+            'offX',
+            'offY',
+            'offZ',
+            'holdX',
+            'holdY',
+            'holdZ',
+          ] as const)
+            expect(out[key]).toBe(0);
       }
     }
     const a = { ...sampleWorkerGesture('garden', 1, out) };
@@ -864,15 +1034,53 @@ describe('actual private eye closure and task attention', () => {
     }
     sampleWorkerGesture('idle', 0, gesture);
     expect(gesture.lookPitch).toBe(0);
-    sampleWorkerGesture('garden', 9, gesture);
-    expect(gesture.toolY).toBe(0);
-    expect(gesture.toolZ).toBeCloseTo(0, 8);
-    sampleWorkerGesture('garden', 2, gesture);
-    expect(gesture.toolY).toBeGreaterThan(0.01);
-    expect(gesture.toolZ / gesture.toolY).toBeCloseTo(-0.035 / 0.08, 8);
-    sampleWorkerGesture('bake', 3, gesture);
+    // Gardener: stab in (blade down, pitched forward), lever up (pitched
+    // back), pat with the free hand while the trowel rests, then sit back
+    // with the trowel lifted out of the soil.
+    sampleWorkerGesture('garden', 2.5, gesture);
+    expect(gesture.toolY).toBeLessThan(-0.02);
+    expect(gesture.toolPitch).toBeGreaterThan(0.25);
+    expect(gesture.lean).toBeGreaterThan(0.04);
+    sampleWorkerGesture('garden', 3.2, gesture);
+    expect(gesture.toolY).toBeGreaterThan(0.05);
+    expect(gesture.toolPitch).toBeLessThan(-0.35);
+    sampleWorkerGesture('garden', 8, gesture);
+    expect(gesture.offY).toBeLessThan(-0.05);
+    expect(gesture.offZ).toBeGreaterThan(0.15);
+    expect(Math.abs(gesture.toolY)).toBeLessThan(0.001);
+    sampleWorkerGesture('garden', 10.8, gesture);
+    expect(gesture.lean).toBeLessThan(-0.05);
+    expect(gesture.toolY).toBeGreaterThan(0.05);
+    expect(gesture.offY).toBeCloseTo(0, 10);
+    // Baker: carry quietly, lean in and lower the tray toward the counter,
+    // then turn with it to offer it; the tray turns with the shoulders.
+    sampleWorkerGesture('bake', 0.5, gesture);
     expect(Math.abs(gesture.toolY)).toBeLessThanOrEqual(0.006);
-    expect(Math.abs(gesture.toolZ)).toBeLessThanOrEqual(0.0021);
+    expect(gesture.lean).toBe(0);
+    sampleWorkerGesture('bake', 4.5, gesture);
+    expect(gesture.toolY).toBeLessThan(-0.06);
+    expect(gesture.toolZ).toBeGreaterThan(0.08);
+    expect(gesture.lean).toBeGreaterThan(0.15);
+    expect(gesture.lookPitch).toBeGreaterThan(0.2);
+    sampleWorkerGesture('bake', 10.2, gesture);
+    expect(Math.abs(gesture.twist)).toBeGreaterThan(0.15);
+    expect(gesture.toolYaw).toBe(gesture.twist);
+    expect(Math.sign(gesture.lookYaw)).toBe(Math.sign(gesture.twist));
+    // The street loop offers the tray out to the side and tidies it close in.
+    sampleWorkerGesture('serve', 3.5, gesture);
+    expect(Math.abs(gesture.twist)).toBeGreaterThan(0.15);
+    expect(gesture.toolZ).toBeGreaterThan(0.08);
+    sampleWorkerGesture('serve', 8, gesture);
+    expect(gesture.twist).toBeCloseTo(0, 6);
+    expect(gesture.toolZ).toBeLessThan(0);
+    expect(gesture.lookPitch).toBeGreaterThan(0.2);
+    // The courier leans over the cart, then straightens to dust her hands off.
+    sampleWorkerGesture('cartcheck', 2, gesture);
+    expect(gesture.lean).toBeGreaterThan(0.5);
+    expect(gesture.holdY).toBeCloseTo(0, 6);
+    sampleWorkerGesture('cartcheck', 11, gesture);
+    expect(gesture.lean).toBeLessThan(0.05);
+    expect(gesture.holdY).toBeGreaterThan(0.12);
     const civilians = [
       'village-gardener',
       'village-shopkeeper',
@@ -1052,7 +1260,7 @@ it('gives actual work roles distinct bounded cadences and retains their shared q
 });
 
 it('eases the same finite gesture object with frame-rate-independent settling and exact paused targets', () => {
-  const target = sampleWorkerGesture('garden', 2, createWorkerGesture());
+  const target = sampleWorkerGesture('garden', 2.5, createWorkerGesture());
   target.lookPitch = 0.16;
   target.greetingLift = 1;
   const a = createWorkerGesture(),

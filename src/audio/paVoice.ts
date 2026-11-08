@@ -133,10 +133,22 @@ export function stopPAVoice(): void {
  * stopped first. `voice` is a catalogue name (src/audio/paVoiceCatalog.ts);
  * one the model does not have reads in the language's default.
  */
+/**
+ * How fast a line is delivered: an alarm a touch quicker, a warning slightly,
+ * everything else at the voice's own pace (D-061). Phonon's speed runs about
+ * 0.77-1.3; past ~1.12 the 40M model starts to clip words.
+ */
+export function paDeliverySpeed(priority: number, type?: string): number {
+  if (type === 'emergency' || priority >= 4) return 1.1;
+  if (priority >= 3) return 1.05;
+  return 1;
+}
+
 export async function speakPAVoice(
   text: string,
   locale: Locale,
-  voice: string = DEFAULT_PA_VOICE[locale]
+  voice: string = DEFAULT_PA_VOICE[locale],
+  speed = 1
 ): Promise<{ seconds: number; ended: Promise<void> } | null> {
   stopPAVoice();
   const entry = loaded;
@@ -152,6 +164,7 @@ export async function speakPAVoice(
     // is ready in tens of milliseconds, and one buffer cannot click between chunks.
     const speech = await entry.tts.speak(speakableText(text, locale), {
       voice: entry.voices.has(voice) ? voice : entry.fallback,
+      speed,
       signal: current.controller.signal,
     });
     if (speaking !== current) return null;

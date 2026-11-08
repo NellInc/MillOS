@@ -3420,7 +3420,7 @@ export const GENERATED_ASSETS = [
   {
     yaw: 0,
     preparationMethod:
-      'Authored revival of the preserved v0.30 cream schoolhouse and open belfry, with closed layered hips, dressed stone, recessed sash glazing and grounded thresholds. A hollow closed bronze bell casting has a rolled sound bow, attached oak-yoke ironwork and rounded clapper. Retained metre envelope and silhouette; original provider source untouched.',
+      'Authored revival of the preserved v0.30 cream schoolhouse and open belfry, with closed layered hips, dressed stone, recessed sash glazing and grounded thresholds. The belfry carries the iron hangers and yoke bearings; the bell, headstock and clapper swing at runtime (SchoolBell). Doors are framed leaves with raised fielded panels. Retained metre envelope and silhouette; original provider source untouched.',
     preparationScript: 'scripts/blender/rebuild_village_architecture.py',
     preparedSource: 'school-crafted.glb',
     id: 'village-school',

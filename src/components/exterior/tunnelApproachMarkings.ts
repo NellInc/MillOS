@@ -21,6 +21,12 @@ import { ROAD_TUNNEL_ROAD } from '../scenery/Tunnel';
  * Working if neither edge line meets a portal post, and both stop at the face.
  */
 
+/**
+ * Half the valley roads' carriageway: the terrain ROAD channel is a 16 m strip
+ * (`MILLOS_TERRAIN_REGIONS`), so its edges are 8 m either side of the axis.
+ * Side roads' bell mouths stop on this line.
+ */
+export const VALLEY_ROAD_HALF_WIDTH = 8;
 /** Edge line centre from the road axis on the open approach. */
 export const APPROACH_EDGE_OFFSET = 7.5;
 /** Painted line width. */

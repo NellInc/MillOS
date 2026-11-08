@@ -12,6 +12,12 @@ import {
   truckWorldFrame,
 } from './truckController';
 import type { TruckAnimState } from './useTruckPhysics';
+import {
+  WEIGHBRIDGE_DECK,
+  WEIGHBRIDGE_ISLAND,
+  WEIGHBRIDGE_OFFICE_ENVELOPE,
+  weighbridgeReadingKg,
+} from '../exterior/Weighbridge';
 
 const step = (
   state: ReturnType<typeof createTruckController>,
@@ -644,5 +650,84 @@ describe('truck phase direction', () => {
     expect(truckPhaseDirection('stopping_to_back')).toBe(-1);
     expect(truckPhaseDirection('preparing_to_leave')).toBe(1);
     expect(truckPhaseDirection('docked')).toBe(0);
+  });
+});
+
+/**
+ * 2026-11-07: the shipping weighbridge (exterior/Weighbridge.tsx) is a flush
+ * deck in the inbound lane between the checkpoint arm and the turn-in. The
+ * arriving rig must cross it, the leaving one must keep off it, and neither
+ * may touch the office island.
+ */
+describe('shipping weighbridge', () => {
+  const d = WEIGHBRIDGE_DECK;
+  const deck: Rect = {
+    id: 'weigh-deck',
+    minX: d.centreX - d.halfWidth,
+    maxX: d.centreX + d.halfWidth,
+    minZ: d.minZ,
+    maxZ: d.maxZ,
+  };
+  const pad = d.surround + d.joint;
+  const deckWithSurround: Rect = {
+    id: 'weigh-deck-surround',
+    minX: deck.minX - pad,
+    maxX: deck.maxX + pad,
+    minZ: deck.minZ - pad,
+    maxZ: deck.maxZ + pad,
+  };
+  it('has the arriving rig wholly on the deck, and the leaving rig never on it', () => {
+    const inbound = new Set(['entering', 'slowing']);
+    const outbound = new Set(['pulling_out', 'turning_out', 'accelerating', 'leaving']);
+    let wholeRigOnDeck = false;
+    const leavingHits = new Set<string>();
+    for (const { pose, state } of simulateVisit('shipping')) {
+      if (inbound.has(state.phase)) {
+        const tractorFront = pose.z - 5.05;
+        const trailerRear = pose.z + 11.76;
+        if (
+          Math.abs(pose.x - d.centreX) < 0.01 &&
+          tractorFront >= deck.minZ &&
+          trailerRear <= deck.maxZ
+        )
+          wholeRigOnDeck = true;
+      }
+      if (outbound.has(state.phase))
+        footprintHits(pose, [deckWithSurround]).forEach((id) => leavingHits.add(id));
+    }
+    expect(wholeRigOnDeck).toBe(true);
+    expect([...leavingHits]).toEqual([]);
+  });
+  it('reads the whole rig on the deck as it arrives and nothing once it has gone', () => {
+    // The registry entries TruckBay writes: cab at the origin, trailer centre 5.75 m back.
+    const readings = simulateVisit('shipping').map(({ pose, state }) => {
+      const yaw = pose.rotation + pose.articulation;
+      return {
+        phase: state.phase,
+        kg: weighbridgeReadingKg(
+          { x: pose.x, z: pose.z },
+          {
+            x: pose.x - Math.sin(yaw) * 5.75,
+            z: pose.z - Math.cos(yaw) * 5.75,
+            dirX: Math.sin(yaw),
+            dirZ: Math.cos(yaw),
+          }
+        ),
+      };
+    });
+    const arriving = readings.filter((r) => r.phase === 'entering' || r.phase === 'slowing');
+    expect(Math.max(...arriving.map((r) => r.kg))).toBe(14_820);
+    // Tractor on first, then the whole rig, then the trailer's axles alone.
+    expect(new Set(arriving.map((r) => r.kg))).toEqual(new Set([0, 7_460, 14_820, 7_360]));
+    expect(readings.filter((r) => r.phase === 'docked').every((r) => r.kg === 0)).toBe(true);
+  });
+  it('never puts the tractor or trailer into the office or its island', () => {
+    const hits = new Set<string>();
+    for (const { pose } of simulateVisit('shipping'))
+      footprintHits(pose, [
+        { id: 'weigh-office', ...WEIGHBRIDGE_OFFICE_ENVELOPE },
+        { id: 'weigh-island', ...WEIGHBRIDGE_ISLAND },
+      ]).forEach((id) => hits.add(id));
+    expect([...hits]).toEqual([]);
   });
 });

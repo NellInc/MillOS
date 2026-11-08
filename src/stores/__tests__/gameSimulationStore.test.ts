@@ -389,7 +389,19 @@ describe('one time model: pace migration and clock holds', () => {
     store.holdClock('tour');
     expect(persistedGameSpeed(useGameSimulationStore.getState())).toBe(60);
     store.setGameSpeed(0);
-    expect(persistedGameSpeed(useGameSimulationStore.getState())).toBe(0);
+    // A pause is not persisted either: the reload starts ticking (D-049).
+    expect(persistedGameSpeed(useGameSimulationStore.getState())).toBeGreaterThan(0);
+  });
+
+  it('starts ticking after reloading a save written while paused', async () => {
+    useGameSimulationStore.setState({ gameSpeed: 0 });
+    await safeJSONStorage.setItem('millos-autonomous-simulation', {
+      version: 2,
+      state: { gameSpeed: 0, gameTime: 9 },
+    });
+    await useGameSimulationStore.persist.rehydrate();
+    expect(useGameSimulationStore.getState().gameTime).toBe(9);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(STANDARD_GAME_SPEED);
   });
 
   it('starts the clock from a holder control when it is still stopped underneath', () => {

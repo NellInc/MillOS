@@ -74,8 +74,16 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       ],
     },
     {
+      category: t('categoryFirstPerson'),
+      items: [
+        { key: t('keySpace'), description: t('jump') },
+        { key: `E / ${t('keyClick')}`, description: t('interact') },
+        { key: 'R / Q', description: t('forks') },
+      ],
+    },
+    {
       category: t('categorySafety'),
-      items: [{ key: t('keySpace'), description: t('forkliftStop') }],
+      items: [{ key: 'X', description: t('forkliftStop') }],
     },
   ];
 
@@ -96,7 +104,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
         aria-modal="true"
         aria-labelledby="kbd-shortcuts-title"
         // A click on the list focuses the dialog, not <body>, where the global
-        // shortcuts (Space stops the forklifts) no longer saw it.
+        // shortcuts (X stops the forklifts) no longer saw it.
         tabIndex={-1}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

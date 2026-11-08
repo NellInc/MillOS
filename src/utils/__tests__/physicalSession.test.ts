@@ -145,6 +145,22 @@ describe('saves written before a saved field was added', () => {
     expect(saved.safety.sessionIncidentCount).toBe(saved.safety.safetyIncidents.length);
   });
 
+  // Nell's console, 2026-11-07: "restore failed: Incomplete physical domain
+  // operations.costRates", a save from before 18 October.
+  it('restores a save that predates costRates, programmeCount and timeOfDayHeld', () => {
+    const older = JSON.parse(encodePhysicalSession(capturePhysicalSession())) as {
+      game: Record<string, unknown>;
+      operations: Record<string, unknown>;
+    };
+    delete older.operations.costRates;
+    delete older.operations.programmeCount;
+    delete older.game.timeOfDayHeld;
+    const saved = decodePhysicalSession(JSON.stringify(older));
+    expect(saved.operations.costRates).toEqual({ maintenance: 0, demurrage: 0, late: 0 });
+    expect(saved.operations.programmeCount).toBe(0);
+    expect(saved.game.timeOfDayHeld).toBe(false);
+  });
+
   it('pins the saved field set (add a fallback for any field added here)', () => {
     const capture = capturePhysicalSession() as unknown as Record<string, object>;
     const keys = Object.fromEntries(
@@ -335,7 +351,8 @@ describe('atomic local physical shift continuation', () => {
     expect(isPhysicalSessionRestoring()).toBe(false);
     expect(captureUnifiedTickState().wearCarry.get('rm-101')).toBe(0.003);
     expect(restored).toHaveLength(REQUIRED_REPLAY_PARTICIPANTS.length);
-    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    // A paused save resumes ticking once restored (D-049): the pace under the pause.
+    expect(useGameSimulationStore.getState().gameSpeed).toBeGreaterThan(0);
     expect(useProductionStore.getState().scadaLive).toBe(false);
   });
 
