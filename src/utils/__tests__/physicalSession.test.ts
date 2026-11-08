@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 const startup = vi.hoisted(() => ({
   ready: false,
   opened: false,
@@ -57,6 +59,7 @@ import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { createMachineObstacles } from '../../constants/factoryObstacles';
 import { registerLogisticsVehicle } from '../../simulation/logisticsRuntime';
 
+const SAVE_FIXTURES = join(__dirname, 'fixtures', 'physical-saves');
 let dispose: (() => void) | undefined;
 let removeOwners: (() => void)[] = [];
 let restored: unknown[];
@@ -190,6 +193,34 @@ describe('saves written before a saved field was added', () => {
     );
     expect(useMaterialFlowStore.getState().sessionId).toBe(record.material.sessionId);
   });
+
+  // Real saves, each written by the deployed build of its date (named by
+  // commit), one per distinct saved shape since 4 October. They were captured
+  // under test, where no scene owner registers, so the owners' records are
+  // supplied here; what is pinned is the stores' saved fields.
+  it.each(readdirSync(SAVE_FIXTURES).filter((name) => name.endsWith('.json')))(
+    'restores the real save %s',
+    (name) => {
+      const old = JSON.parse(readFileSync(join(SAVE_FIXTURES, name), 'utf8')) as {
+        participants: { id: string; value: unknown }[];
+      };
+      old.participants = REQUIRED_REPLAY_PARTICIPANTS.map((id) => ({
+        id,
+        value: { phase: 'waiting', value: 17 },
+      }));
+      const raw = JSON.stringify(old);
+      expect(() => decodePhysicalSession(raw)).not.toThrow();
+      localStorage.setItem(PHYSICAL_SESSION_KEY, raw);
+      dispose = installPhysicalSession();
+      expect(isPhysicalSessionRestoring()).toBe(true);
+      expect(useGameSimulationStore.getState().clockHolds.map((hold) => hold.holder)).not.toContain(
+        'restoreFailed'
+      );
+      expect(useUIStore.getState().alerts.map((alert) => alert.id)).not.toContain(
+        'physical-save-unavailable'
+      );
+    }
+  );
 
   it('pins the saved field set (add a fallback for any field added here)', () => {
     const capture = capturePhysicalSession() as unknown as Record<string, object>;
