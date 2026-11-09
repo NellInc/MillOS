@@ -273,7 +273,14 @@ export function CommunityLife() {
     const game = useGameSimulationStore.getState();
     const emergency = game.emergencyActive || game.emergencyDrillMode;
     const workplace = useWorkplaceStore.getState().workplace;
-    return COMMUNITY_ROSTER.map((person, i) => {
+    // BISECT (throwaway branch, never merged): without the four people #67 added.
+    const skip = new Set([
+      'mill-quality-bench',
+      'mill-packing-quiet',
+      'village-hall-clerk',
+      'village-hall-officer',
+    ]);
+    return COMMUNITY_ROSTER.filter((person) => !skip.has(person.id)).map((person, i) => {
       const pose = sampleCommunityPerson(person, initialHour, createCommunityPose());
       const response = communityWorkResponse(person, pose, operations);
       const agreement = communityAgreementCue(person.id, workplace);
