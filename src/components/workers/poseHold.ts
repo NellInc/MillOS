@@ -113,6 +113,42 @@ export function shieldHeldChildren(container: THREE.Object3D): () => void {
   };
 }
 
+/** A root's x, y, z, yaw, scale and visibility as last placed; NaN until then. */
+export const createHeldRootRecord = (): Float64Array => new Float64Array(6).fill(Number.NaN);
+
+/**
+ * The parent's per-frame decision, after it has placed the root. Hold only
+ * when `eligible`, the motion is disabled, WorkerModel left the last frame's
+ * pose alone, and the root is exactly where it was placed last frame (`last`,
+ * which this updates); otherwise release. Returns whether the person is held.
+ */
+export function placeHeldPose(
+  motion: WorkerMotionState,
+  root: THREE.Object3D,
+  last: Float64Array,
+  eligible: boolean
+): boolean {
+  const still =
+    last[0] === root.position.x &&
+    last[1] === root.position.y &&
+    last[2] === root.position.z &&
+    last[3] === root.rotation.y &&
+    last[4] === root.scale.x &&
+    last[5] === Number(root.visible);
+  last[0] = root.position.x;
+  last[1] = root.position.y;
+  last[2] = root.position.z;
+  last[3] = root.rotation.y;
+  last[4] = root.scale.x;
+  last[5] = Number(root.visible);
+  if (eligible && still && !motion.enabled && settled.has(motion)) {
+    holdPose(motion, root);
+    return true;
+  }
+  releaseHeldPose(motion);
+  return false;
+}
+
 /** Hand the held objects back to three's per-frame update. */
 export function releaseHeldPose(motion: WorkerMotionState): void {
   const entry = held.get(motion);

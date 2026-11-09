@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import {
+  createHeldRootRecord,
   holdPose,
   isPoseHeld,
   isPoseSettled,
   notePoseSettled,
+  placeHeldPose,
   releaseHeldPose,
   resumePose,
   SELF_PLACED,
@@ -138,6 +140,55 @@ describe('held transforms for a person standing still', () => {
     ).toBeLessThan(1e-9);
     unshield();
     expect(Object.prototype.hasOwnProperty.call(personnel, 'updateMatrixWorld')).toBe(false);
+  });
+
+  it('holds a placed person only once still, settled and eligible, and releases on any change', () => {
+    const { scene, root, hand } = person();
+    const motion = motionState();
+    const last = createHeldRootRecord();
+    notePoseSettled(motion);
+    // First placement: no previous frame to compare with.
+    expect(placeHeldPose(motion, root, last, true)).toBe(false);
+    expect(placeHeldPose(motion, root, last, true)).toBe(true);
+    expect(hand.matrixAutoUpdate).toBe(false);
+    // Each root channel releases on its own, and the next still frame holds again.
+    const moves: Array<() => void> = [
+      () => (root.position.x += 0.01),
+      () => (root.position.y += 0.01),
+      () => (root.position.z += 0.01),
+      () => (root.rotation.y += 0.01),
+      () => root.scale.setScalar(0.9),
+      () => (root.visible = !root.visible),
+    ];
+    for (const move of moves) {
+      move();
+      expect(placeHeldPose(motion, root, last, true)).toBe(false);
+      expect(hand.matrixAutoUpdate).toBe(true);
+      expect(placeHeldPose(motion, root, last, true)).toBe(true);
+    }
+    // A released, moved root draws where it is.
+    root.position.x = 9;
+    placeHeldPose(motion, root, last, true);
+    scene.updateMatrixWorld();
+    expect(hand.getWorldPosition(new THREE.Vector3()).x).toBeGreaterThan(8);
+  });
+
+  it('never holds an ineligible, walking or unsettled person', () => {
+    const { root } = person();
+    const last = createHeldRootRecord();
+    const motion = motionState();
+    notePoseSettled(motion);
+    placeHeldPose(motion, root, last, true);
+    // A forklift operator: the forklift places the root after this decision.
+    expect(placeHeldPose(motion, root, last, false)).toBe(false);
+    motion.enabled = true;
+    expect(placeHeldPose(motion, root, last, true)).toBe(false);
+    motion.enabled = false;
+    resumePose(motion); // WorkerModel posed this frame
+    expect(placeHeldPose(motion, root, last, true)).toBe(false);
+    expect(isPoseHeld(motion)).toBe(false);
+    notePoseSettled(motion);
+    expect(placeHeldPose(motion, root, last, true)).toBe(true);
   });
 
   it('holds once, and a second release is harmless', () => {

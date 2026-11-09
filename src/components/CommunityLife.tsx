@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { WorkerModel, type WorkerMotionState } from './models/WorkerModel';
 import { getWorkerAppearance } from './workers/workerTypes';
 import {
-  holdPose,
-  isPoseSettled,
+  createHeldRootRecord,
+  placeHeldPose,
   releaseHeldPose,
   SELF_PLACED,
   shieldHeldChildren,
@@ -664,23 +664,8 @@ export function CommunityLife() {
       // and never a forklift operator, whose root the forklift places after
       // this. An aid, a pager or the label places itself (SELF_PLACED) and stays
       // live under the held body.
-      const last = (lastRoots.current[i] ??= new Float64Array(6).fill(Number.NaN));
-      const rootStill =
-        last[0] === root.position.x &&
-        last[1] === root.position.y &&
-        last[2] === root.position.z &&
-        last[3] === root.rotation.y &&
-        last[4] === root.scale.x &&
-        last[5] === Number(root.visible);
-      last[0] = root.position.x;
-      last[1] = root.position.y;
-      last[2] = root.position.z;
-      last[3] = root.rotation.y;
-      last[4] = root.scale.x;
-      last[5] = Number(root.visible);
-      if (rootStill && !motion.enabled && isPoseSettled(motion) && !actor.crewSite)
-        holdPose(motion, root);
-      else releaseHeldPose(motion);
+      const last = (lastRoots.current[i] ??= createHeldRootRecord());
+      placeHeldPose(motion, root, last, !actor.crewSite);
       const response = communityWorkResponse(actor.person, pose, operations, actor.response);
       communityAgreementResponse(agreement, pose, response);
       const task = emergency ? 'Holding safely for the site safety stop' : response.task;
