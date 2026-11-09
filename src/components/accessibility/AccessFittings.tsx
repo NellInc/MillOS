@@ -761,7 +761,11 @@ function AccessibleBays() {
 }
 
 /** Every access fitting, in world coordinates. Mounted once from MillScene. */
+// BISECT (throwaway branch, never merged): the fittings #67 added, unmounted.
+const BISECT_UNMOUNTED = true as boolean;
+
 export function AccessFittings() {
+  if (BISECT_UNMOUNTED) return null;
   return (
     <group name="access-fittings" userData={{ noStaticBatch: true }}>
       <HallFittings />
