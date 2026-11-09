@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { registerReplayParticipant } from '../simulation/workplaceReplayRuntime';
 import { useFrame } from '@react-three/fiber';
 import { Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import { WorkerModel, type WorkerMotionState } from './models/WorkerModel';
 import { getWorkerAppearance } from './workers/workerTypes';
+import {
+  createHeldRootRecord,
+  placeHeldPose,
+  releaseHeldPose,
+  SELF_PLACED,
+  shieldHeldChildren,
+} from './workers/poseHold';
 import { CommunityDetails } from './scenery/CommunityDetails';
 import { CommunityBus, DeliveryHandcart, CommunityBicycle } from './scenery/CommunityTransit';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
@@ -249,6 +256,9 @@ export function CommunityLife() {
   const enabled = useGraphicsStore((s) => !s.graphics.perfDebug.disableCommunityLife);
   const roots = useRef<Array<THREE.Group | null>>([]);
   const labels = useRef<Array<THREE.Group | null>>([]);
+  const personnel = useRef<THREE.Group>(null);
+  /** Each root's x, y, z, yaw, scale and visibility as last placed (poseHold.ts). */
+  const lastRoots = useRef<Array<Float64Array | undefined>>([]);
   const bakeryStocked = useOperationsCampaignStore((s) =>
     hasCommunityBakerySupply(s.orders, s.elapsedMinutes)
   );
@@ -436,6 +446,14 @@ export function CommunityLife() {
 
   // No mounted bus holds no truck (southRoadTraffic).
   useEffect(() => () => publishBusRoadUse('none'), []);
+  // Nobody stays held past this component (poseHold.ts).
+  useEffect(() => () => residents.forEach((actor) => releaseHeldPose(actor.motion)), [residents]);
+  // Without this, three's `force` from the scene would still multiply every
+  // held matrix each frame (poseHold.ts shieldHeldChildren).
+  useLayoutEffect(() => {
+    const group = personnel.current;
+    return group ? shieldHeldChildren(group) : undefined;
+  }, []);
 
   useFrame(({ scene, camera }, delta) => {
     if (!enabled) {
@@ -641,6 +659,13 @@ export function CommunityLife() {
         !reducedMotion &&
         pose.visible &&
         distanceSquared < 150 * 150;
+      // A person standing still costs no matrix work (poseHold.ts): held only
+      // after a frame WorkerModel left alone, with this root where it was then,
+      // and never a forklift operator, whose root the forklift places after
+      // this. An aid, a pager or the label places itself (SELF_PLACED) and stays
+      // live under the held body.
+      const last = (lastRoots.current[i] ??= createHeldRootRecord());
+      placeHeldPose(motion, root, last, !actor.crewSite);
       const response = communityWorkResponse(actor.person, pose, operations, actor.response);
       communityAgreementResponse(agreement, pose, response);
       const task = emergency ? 'Holding safely for the site safety stop' : response.task;
@@ -712,7 +737,12 @@ export function CommunityLife() {
 
   return (
     <>
-      <group name="world-personnel" visible={enabled} userData={{ noStaticBatch: true }}>
+      <group
+        ref={personnel}
+        name="world-personnel"
+        visible={enabled}
+        userData={{ noStaticBatch: true }}
+      >
         {residents.map(({ person, appearance, motion, pose, userData, aid, pager }, index) => (
           <group
             key={person.id}
@@ -734,6 +764,7 @@ export function CommunityLife() {
               ref={(node) => {
                 labels.current[index] = node;
               }}
+              userData={{ [SELF_PLACED]: true }}
             >
               <AgreementLabel personId={person.id} />
             </group>

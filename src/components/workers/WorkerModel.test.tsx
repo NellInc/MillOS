@@ -58,6 +58,7 @@ import {
   workerGaitRates,
 } from '../models/WorkerModel';
 import { createWorkerGarmentMotion } from './workerGarmentMotion';
+import { holdPose, isPoseHeld, isPoseSettled, notePoseSettled } from './poseHold';
 
 afterEach(() => {
   cleanup();
@@ -163,6 +164,49 @@ function mountAnimatedWorker(activity: WorkerMotionState['activity'] = 'idle', s
   );
   return { motion, body };
 }
+
+describe('held transforms for a person standing still', () => {
+  it('reports a settled pose, and releases any hold before it writes one', () => {
+    const { motion, body } = mountAnimatedWorker('working');
+    motion.enabled = false;
+    harness.frame?.({}, 1 / 60); // first pose is written
+    expect(isPoseSettled(motion)).toBe(false);
+    harness.frame?.({}, 1 / 60); // nothing changed: the bones were left alone
+    expect(isPoseSettled(motion)).toBe(true);
+    const root = new THREE.Group();
+    root.add(body);
+    holdPose(motion, root);
+    harness.frame?.({}, 1 / 60);
+    expect(isPoseHeld(motion)).toBe(true);
+    expect(body.matrixAutoUpdate).toBe(false);
+    const working = body.position.y;
+    motion.activity = 'idle';
+    harness.frame?.({}, 1 / 60);
+    expect(isPoseHeld(motion)).toBe(false);
+    expect(isPoseSettled(motion)).toBe(false);
+    expect(body.matrixAutoUpdate).toBe(true);
+    expect(body.position.y).not.toBeCloseTo(working); // the new pose, drawn unheld
+  });
+
+  it('releases on a re-render, which may change transform props inside the body', () => {
+    const scene = new THREE.Group();
+    harness.asset = { scene, animations: [] };
+    const motion: WorkerMotionState = {
+      activity: 'idle',
+      groundSpeed: 0,
+      seated: false,
+      phase: 0,
+      enabled: false,
+    };
+    const appearance = getWorkerAppearance('Engineer', '', 'crew-engineer');
+    const view = render(<WorkerModel appearance={appearance} motion={motion} />);
+    notePoseSettled(motion);
+    holdPose(motion, scene);
+    view.rerender(<WorkerModel appearance={{ ...appearance }} motion={motion} />);
+    expect(isPoseHeld(motion)).toBe(false);
+    expect(isPoseSettled(motion)).toBe(false);
+  });
+});
 
 describe('animation scheduling and freezing', () => {
   it('matches relaxed walking cadence to actual metres travelled, without a minimum-speed floor', () => {

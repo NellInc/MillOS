@@ -7,7 +7,7 @@
  * original skin vertices without altering the cached asset or animation rig.
  */
 
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { createPortal, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
@@ -35,6 +35,7 @@ import { createWorkerCuffSockets } from '../workers/workerCuffSockets';
 import { createWorkerGarmentMotion } from '../workers/workerGarmentMotion';
 import { createWorkerHeadClosure, WORKER_HAIR_FIT } from '../workers/workerHeadClosure';
 import type { WorkerMotionState } from '../workers/workerTypes';
+import { notePoseSettled, resumePose } from '../workers/poseHold';
 import {
   createSeatedWorkerPose,
   validWorkerSeatCue,
@@ -1946,6 +1947,10 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
     [accessoryMaterials, prepared]
   );
 
+  // A commit can change transform props inside a held body, which a held matrix
+  // would not show: release, and wait for a settled frame (poseHold.ts).
+  useLayoutEffect(() => resumePose(motion));
+
   useFrame((state, delta) => {
     // Camera changes must update the body draw LOD even while the simulation
     // is paused or a distant animation sample is being throttled.
@@ -2022,8 +2027,11 @@ export const WorkerModel: React.FC<WorkerModelProps> = ({ appearance, motion }) 
       semanticChanged || (motion.cycling && lastPose.current.cyclePhase !== motion.cyclePhase);
     if (!motion.enabled && !poseChanged) {
       pendingDelta.current = 0;
+      notePoseSettled(motion);
       return;
     }
+    // About to write bones: no held matrix may be drawn with them (poseHold.ts).
+    resumePose(motion);
     if (motion.enabled) {
       pendingDelta.current += safeDelta;
       const interval = Number.isFinite(motion.animationInterval)
