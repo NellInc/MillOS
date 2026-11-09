@@ -20,6 +20,7 @@ import {
 import type { MobilityAid } from '../../simulation/agreedAdjustments';
 import type { WorkerMotionState } from '../workers/workerTypes';
 import { isAlarmSignalling } from './alarmSignal';
+import { SELF_PLACED } from '../workers/poseHold';
 
 export interface MobilityState {
   aid: MobilityAid;
@@ -271,7 +272,7 @@ function Wheelchair({ state }: { state: MobilityState }) {
   });
   const W = WHEELCHAIR;
   return (
-    <group name="mobility-wheelchair">
+    <group name="mobility-wheelchair" userData={{ [SELF_PLACED]: true }}>
       <mesh geometry={WHEELCHAIR_GEOMETRY.frame} material={FRAME_METAL} castShadow />
       <mesh geometry={WHEELCHAIR_GEOMETRY.upholstery} material={UPHOLSTERY} castShadow />
       {[-1, 1].map((side, index) => (
@@ -357,7 +358,7 @@ function LongCane({ state }: { state: MobilityState }) {
     node.quaternion.setFromUnitVectors(_down, _dir);
   });
   return (
-    <group ref={group} name="mobility-long-cane">
+    <group ref={group} name="mobility-long-cane" userData={{ [SELF_PLACED]: true }}>
       <mesh geometry={CANE_GEOMETRY.grip} material={CANE_GRIP} />
       <mesh geometry={CANE_GEOMETRY.white} material={CANE_WHITE} castShadow />
       <mesh geometry={CANE_GEOMETRY.red} material={CANE_RED} />
@@ -423,7 +424,12 @@ export function AlertPager() {
     }
   });
   return (
-    <group ref={group} name="alert-pager" rotation={[0, Math.PI / 2, 0]}>
+    <group
+      ref={group}
+      name="alert-pager"
+      rotation={[0, Math.PI / 2, 0]}
+      userData={{ [SELF_PLACED]: true }}
+    >
       <mesh geometry={geometry.body} material={PAGER_CASE} />
       <mesh ref={led} geometry={geometry.lamp} material={PAGER_LED_IDLE} />
     </group>
