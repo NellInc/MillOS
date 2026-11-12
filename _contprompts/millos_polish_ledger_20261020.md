@@ -197,7 +197,7 @@ kerb test resolves spread path constants (`8af133f1`, the only gate failure afte
   `TypeError ... reading 'toFixed'` in the operational UI at ~460 s in both play-tests; the phone
   check could not find the tour at 390 px (tool or app); the axe tool hung after finishing.
 
-## Third fix round (on `8af133f1`, worktrees now under `~/Documents/GitHub/MillOS-polish-work/wt/`)
+## Third fix round (on `8af133f1`, worktrees were under `~/Documents/GitHub/MillOS-polish-work/wt/`; that folder is now `MillOS/_local-archive/MillOS-polish-work/` as of 2026-11-12)
 
 A reboot wiped `/private/tmp` mid-round; worktrees and tools moved to persistent paths. Agents were
 also cut repeatedly by network drops (ECONNRESET, a self-signed-certificate interception, one DNS
