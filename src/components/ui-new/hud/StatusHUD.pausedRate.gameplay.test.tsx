@@ -32,13 +32,14 @@ describe('throughput while the clock is held', () => {
     useGameSimulationStore.setState({ gameSpeed: STANDARD_GAME_SPEED, clockHolds: [] });
   });
 
-  it('reads 0 on the HUD while paused and the rate again on resume', () => {
+  // The HUD shows no bag rate since the capture pass (the target is tonnes),
+  // so no frozen rate can sit beside its 'Paused' chip.
+  it('shows no bag rate on the HUD, paused or running', () => {
     render(<StatusHUD />);
-    expect(screen.getByLabelText(/throughput 917 bags/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/bags/)).toBeNull();
     act(() => useGameSimulationStore.getState().setGameSpeed(0));
-    expect(screen.getByLabelText(/throughput 0 bags/)).toBeInTheDocument();
-    act(() => useGameSimulationStore.getState().setGameSpeed(STANDARD_GAME_SPEED));
-    expect(screen.getByLabelText(/throughput 917 bags/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/bags/)).toBeNull();
+    expect(screen.queryByText('917')).toBeNull();
   });
 
   it('reads 0 on the Autonomy panel and the phone sheet while paused', () => {

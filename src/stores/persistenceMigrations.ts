@@ -119,9 +119,10 @@ export function sanitizeUIState(value: unknown): PersistedUIState {
 export interface PersistedKnowledgeState {
   unlockedEntries?: string[];
   readEntries?: string[];
+  /** Cutaway lessons finished, each once (plan 7.2); absent before. */
+  completedLessons?: string[];
   showTooltips?: boolean;
   showLoadingQuotes?: boolean;
-  showAINarration?: boolean;
   showUnlockNotifications?: boolean;
 }
 
@@ -133,12 +134,11 @@ export function sanitizeKnowledgeState(value: unknown): PersistedKnowledgeState 
   const readEntries = stringArray(source.readEntries, 2000);
   if (unlockedEntries) output.unlockedEntries = unlockedEntries;
   if (readEntries) output.readEntries = readEntries;
-  const booleanKeys = [
-    'showTooltips',
-    'showLoadingQuotes',
-    'showAINarration',
-    'showUnlockNotifications',
-  ] as const;
+  const completedLessons = stringArray(source.completedLessons, 64);
+  if (completedLessons) output.completedLessons = completedLessons;
+  // A save's showAINarration (the cut AI reflection cards' switch, D14) is
+  // not read: it is dropped here and the rest of the save restores.
+  const booleanKeys = ['showTooltips', 'showLoadingQuotes', 'showUnlockNotifications'] as const;
   booleanKeys.forEach((key) => {
     const candidate = booleanValue(source[key]);
     if (candidate !== undefined) output[key] = candidate;

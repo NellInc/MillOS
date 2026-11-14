@@ -25,6 +25,7 @@ import {
   type ShiftCloseEvidence,
 } from '../engine';
 import { CHRONICLE_SHIFTS } from '../cropYears';
+import { fulfilmentGain } from '../customers';
 import type { Charter, ChronicleEventDefinition } from '../types';
 
 const baseline = { reportId: null, qcTestIds: [], challengeIds: [], orders: [] };
@@ -167,13 +168,15 @@ describe('shift close', () => {
       }),
       NO_DECK
     ).state;
-    expect(state.customers.find((c) => c.id === 'riverside')!.value).toBe(start + 8);
+    // A good delivery counts less the warmer the account is (item 4.9).
+    const gain = fulfilmentGain(start, true);
+    expect(state.customers.find((c) => c.id === 'riverside')!.value).toBe(start + gain);
     state = closeShift(
       state,
       evidence({ orders: [{ ...order, id: 'o2', shippedKg: 100, qualityFailureKg: 100 }] }),
       NO_DECK
     ).state;
-    expect(state.customers.find((c) => c.id === 'riverside')!.value).toBe(start + 8 - 12);
+    expect(state.customers.find((c) => c.id === 'riverside')!.value).toBe(start + gain - 12);
   });
 });
 
@@ -407,7 +410,9 @@ describe('the long arc', () => {
     }
     expect(telegraphedAt).toBe(9);
     expect(activeAt).toBe(11);
-    expect(state.trials.find((t) => t.id === 'wet_harvest')!.phase).toBe('passed');
+    // 3,000 kg a shift is a sixth of the measured pace (item 4.1): the window
+    // runs to its end and the trial is settled, failed.
+    expect(state.trials.find((t) => t.id === 'wet_harvest')!.phase).toBe('failed');
     expect(state.status).toBe('ended');
     expect(state.finalScore?.rank).toBeTruthy();
     expect(state.unlockedNotes).toContain('history-long-view');

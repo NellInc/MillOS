@@ -52,12 +52,9 @@ describe('SCADA setpoint control', () => {
   it('shows the current setpoint and reading, and says truthfully what a write changes', () => {
     renderControl();
     expect(screen.getByText('Setpoint now 1,200 RPM')).toBeInTheDocument();
+    // What a write changes is said by its result (SCADASetpointControl.helperText.test.tsx).
+    // Roll speed has no alarm band since it became the line rate (tagDatabase.ts).
     expect(screen.getByText('RM-101 Roll Speed reads 1,198 RPM')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Moves the simulated RM-101 Roll Speed toward this value over a few seconds. It does not change throughput: the order plan sets the line rate. The reading alarms below 600 or above 1,600 RPM.'
-      )
-    ).toBeInTheDocument();
   });
 
   it('rejects a value outside the engineering range without writing', async () => {

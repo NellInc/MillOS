@@ -37,6 +37,26 @@ describe('Archive control, seventh pass', () => {
     expect(screen.getByText(/A reload paused the final shift/)).toBeInTheDocument();
   });
 
+  it.each([
+    [
+      bilateralWorkplaceMessages.en.settleEmergencyPaused,
+      /An emergency stop or drill paused the final shift/,
+    ],
+    [bilateralWorkplaceMessages.en.settleObjectionPaused, /An objection paused the final shift/],
+  ])('names a safety or objection pause as the hold, not a reload (%s)', (reason, copy) => {
+    useWorkplaceStore.setState({
+      workplace: finalReview(reason),
+      completedCampaigns: [],
+      leftCampaigns: [],
+    });
+    render(<WorkplaceCampaignArchive onFreshExercise={() => undefined} />);
+    expect(
+      screen.getByRole('button', { name: 'Archive review and open a fresh exercise' })
+    ).toBeDisabled();
+    expect(screen.getByText(copy)).toBeInTheDocument();
+    expect(screen.queryByText(/A reload paused/)).toBeNull();
+  });
+
   it('is offered for a final shift that was ended', () => {
     useWorkplaceStore.setState({
       workplace: finalReview('Shift stopped.'),

@@ -164,10 +164,10 @@ const rollerMillTags: TagDefinition[] = MILL_NUMBERS.flatMap((num, idx) => [
     engUnit: 'RPM',
     engLow: 0,
     engHigh: 2000,
-    alarmLoLo: 400,
-    alarmLo: 600,
-    alarmHi: 1600,
-    alarmHiHi: 1800,
+    // No operating band: the reading follows its setpoint, which is the line
+    // rate (lineRateSetpoint.ts), and the slider offers the whole 0-2,000 RPM
+    // range, so a fixed LO/HI only ever reported the rate the player chose.
+    // A write outside the range is refused; a lost signal still alarms.
     deadband: 20,
     machineId: MILL_IDS[idx],
     group: 'SPEED' as const,
@@ -1281,6 +1281,58 @@ export const MILL_TAGS: TagDefinition[] = [
   ...vehicleTags, // 16 tags (4 autonomous vehicles x 4)
   ...operationalTags, // 13 tags
 ];
+
+/**
+ * Alarm rationalisation: each alarmed tag's consequence, which sets its
+ * priority in AlarmManager (alarmPriorityFor). CRITICAL is kept for what puts
+ * people at risk, HIGH for what stops the plant; everything else costs process
+ * or product and reads LOW or MEDIUM. Every tag not named here is 'process'.
+ * The consequence also decides the HUD bell (store.ts bellAnnunciates): every
+ * alarm on a people or plant tag rings it, since each asks the player to act
+ * (a warning band is the step before a trip); a process alarm stays on the
+ * SCADA panel, as none asks anything of the player that another notice or an
+ * automatic rule does not already cover.
+ */
+const PEOPLE_TAG_PATTERNS: readonly RegExp[] = [
+  // Stored grain heating up can smoulder and ignite dust.
+  /^SILO_[A-Z]+\.TT001\.PV$/,
+  // A dust collector losing draw puts combustible dust into the hall.
+  /^UTILITY\.DP001\.PV$/,
+];
+const PLANT_TAG_PATTERNS: readonly RegExp[] = [
+  // A mill or sifter's drive: its temperature and vibration decide whether a
+  // trip lifts (store.ts tripHasCooledOff); speed and motor current go with them.
+  /^RM\d+\.(ST|TT|VT|IT)001\.PV$/,
+  /^SIFTER_[A-Z]+\.(VT|TT|IT)001\.PV$/,
+  /^SILO_[A-Z]+\.VT001\.PV$/,
+  // Air, nitrogen, cooling water and the supply feed the whole line.
+  /^PACKER_\d+\.PT001\.PV$/,
+  /^UTILITY\.(PT001|PT003|TT001|FT001)\.PV$/,
+  new RegExp(`^${TOTAL_POWER_TAG_ID.replaceAll('.', '\\.')}$`),
+  // A held batch, an unresolved recall and the dispatch interlock each stop
+  // delivery until the player disposes of them.
+  /^QUALITY\.(QT001|QT002|ZS001)\.PV$/,
+];
+// An over-pressured LPG vessel endangers people too.
+const PRESSURISED_VESSEL_PRESSURE_TAGS = new Set(
+  UTILITY_ASSET_DEFINITIONS.filter((asset) => asset.kind === 'lpg_vessel').map(
+    (asset) => getUtilityAssetTagIds(asset.id).pressure
+  )
+);
+
+/** The consequence of an alarm on this tag (see the patterns above). */
+export function tagAlarmConsequence(tagId: string): NonNullable<TagDefinition['consequence']> {
+  if (
+    PRESSURISED_VESSEL_PRESSURE_TAGS.has(tagId) ||
+    PEOPLE_TAG_PATTERNS.some((pattern) => pattern.test(tagId))
+  )
+    return 'people';
+  if (PLANT_TAG_PATTERNS.some((pattern) => pattern.test(tagId))) return 'plant';
+  return 'process';
+}
+
+// Assigned in place: the tag objects carry localized name getters a spread would freeze.
+for (const tag of MILL_TAGS) tag.consequence = tagAlarmConsequence(tag.id);
 
 /** Get tags by machine ID */
 export function getTagsByMachine(machineId: string): TagDefinition[] {

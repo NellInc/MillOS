@@ -11,6 +11,7 @@ const catalog = defineMessages({
     m6: '{plans} installed',
     m7: ' or ',
     m8: '{party} warm',
+    m9: 'Co-op reserve at {n} or more',
   },
   'pt-BR': {
     m0: 'O recebimento e os armazéns de grãos',
@@ -22,6 +23,7 @@ const catalog = defineMessages({
     m6: '{plans}: instalado',
     m7: ' ou ',
     m8: '{party}: relação receptiva',
+    m9: 'Reserva da cooperativa em {n} ou mais',
   },
 });
 const keys = new Map<string, keyof typeof catalog.en>(

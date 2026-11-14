@@ -185,10 +185,14 @@ describe('shift grades follow customer commitments (row 24)', () => {
     tick(1, { manifests: [manifest], productionBatches: [batch] });
     tick(1, { shiftKey: 'day-0-afternoon' });
     expect(lastReport().grade).toBe('D');
+    // Re-pinned for plan item 3.4 (D6): flour under an order's minimum is no
+    // longer credited to it, so a new window carries no failing kilograms;
+    // the cap still grades a report saved with some.
     useOperationsCampaignStore.getState().resetCampaign();
     tick(1, { manifests: [manifest], productionBatches: [batch], averageQuality: 80 });
     tick(1, { shiftKey: 'day-0-afternoon' });
-    expect(lastReport().grade).toBe('F');
+    expect(lastReport().gradeBasis?.qualityFailureKg).toBe(0);
+    expect(gradeShift({ ...lastReport().gradeBasis!, qualityFailureKg: 1000 })).toBe('F');
   });
 });
 
@@ -218,7 +222,14 @@ describe('the review says why and what to try next (row 23)', () => {
   });
 
   it('names a late delivery as what held the grade back, and what to try next', () => {
-    tick(249);
+    // Re-pinned for plan item 3.8: the flour shipped now carries its grain's
+    // cost, so the window's margin is thin. The late rate is booked over the
+    // whole tick an order turns late in, so one 249-minute step charged 249
+    // minutes of lateness for a delivery 10 minutes late, and that alone made
+    // the margin negative. Step to the due minute first, as the plant's own
+    // short ticks do.
+    tick(240);
+    tick(9);
     const [manifest, batch] = partialManifest('shipping-0001', 6000);
     tick(1, { manifests: [manifest], productionBatches: [batch] });
     tick(1, { shiftKey: 'day-0-afternoon' });
@@ -245,7 +256,16 @@ describe('the review says why and what to try next (row 23)', () => {
     tick(0.0001, { shiftKey: 'day-0-afternoon' });
     const report = lastReport();
     expect(report.grade).toBe('C');
+    // Re-pinned for plan item 3.8: with grain priced, 400 kg in two hours at
+    // 450 kW does not pay for itself (revenue 328 against 269 of grain and 128
+    // of energy and automation), and the margin is checked before the bar, so
+    // the gap the review names is the margin.
+    expect(report.gradeBasis!.margin).toBeLessThan(0);
     expect(describeShiftGap(report.gradeBasis!, report.grade, 'en')).toBe(
+      'Grade B needs a nonnegative net contribution; costs exceeded revenue by £69.01.'
+    );
+    // The bar in force still words the kilogram gap once the margin holds.
+    expect(describeShiftGap({ ...report.gradeBasis!, margin: 0 }, report.grade, 'en')).toBe(
       'Grade B needs 626 kg for 2h 0m on commitments; you were 226 kg short.'
     );
   });
@@ -308,8 +328,12 @@ describe('the review says why and what to try next (row 23)', () => {
     tick(1, { manifests: [manifest], productionBatches: [batch] });
     tick(1, { shiftKey: 'day-0-afternoon' });
     const basis = { ...lastReport().gradeBasis!, margin: 8195.15 };
-    expect(shiftGradeReasons(basis, 'en')[0]).toContain('net contribution 8,195.15 after');
-    expect(shiftGradeReasons(basis, 'pt-BR')[0]).toContain('contribuição líquida de 8.195,15');
+    // With its currency, as the purchases line beside it in the debrief has
+    // (seen in a capture: "net contribution 499.85" over "Grain bought £11,850.00").
+    expect(shiftGradeReasons(basis, 'en')[0]).toContain('net contribution £8,195.15 after');
+    expect(shiftGradeReasons(basis, 'pt-BR')[0]).toContain('contribuição líquida de £8.195,15');
+    const loss = { ...basis, margin: -12.5 };
+    expect(shiftGradeReasons(loss, 'en')[0]).toContain('net contribution −£12.50 after');
   });
 });
 
@@ -326,12 +350,12 @@ describe('decisions are the choices people made (row 26)', () => {
     tick(1, { shiftKey: 'day-0-afternoon' });
     const report = lastReport();
     expect(report.decisions).toEqual([
-      'Community Pasta Works: Fine corn semolina is now the active commitment.',
+      'Community Polenta Kitchen: Cornmeal is now the active commitment.',
     ]);
     expect(report.choices).toEqual([
       expect.objectContaining({
         actor: 'operator',
-        message: 'Community Pasta Works: Fine corn semolina is now the active commitment.',
+        message: 'Community Polenta Kitchen: Cornmeal is now the active commitment.',
       }),
     ]);
     expect(report.narration).toContain('Shipping load is 0 of 5,000 kg.');
@@ -367,7 +391,7 @@ describe('decisions are the choices people made (row 26)', () => {
     } as never);
     tick(1, { shiftKey: 'day-0-afternoon' });
     expect(lastReport().choices).toEqual([
-      expect.objectContaining({ actor: 'agent', message: expect.stringContaining('Pasta') }),
+      expect.objectContaining({ actor: 'agent', message: expect.stringContaining('Polenta') }),
     ]);
   });
 });

@@ -73,8 +73,10 @@ import { getDispatchQualityStatus, useQCLabStore, type QCLabState } from './stor
 import { getWearConfig, wearHoldsWarning } from './stores/productionStore';
 import { useChronicleStore } from './stores/chronicleStore';
 import { getSiteDemandKw } from './utils/energyCalculations';
+import { bindRollSpeedSetpoints } from './scada/lineRateSetpoint';
 import { shallow } from 'zustand/shallow';
 import { isWorkplaceReplayActive } from './simulation/workplaceReplayRuntime';
+import { isBenchmarkRuntime } from './runtime/runtimeMode';
 import {
   machineBaseTemperature,
   storeOwnedLoad,
@@ -283,6 +285,20 @@ export function alarmsAcknowledgedFromBell(
 }
 
 /**
+ * Whether an alarm rings the HUD bell. The bell carries what the player must
+ * act on, which is a matter of consequence, not of priority alone: every alarm
+ * on a people or plant tag rings (a MEDIUM warning band is the step before a
+ * trip the player can still head off), as does anything HIGH or CRITICAL (a tag
+ * with no authored consequence keeps the threshold mapping). A process alarm
+ * stays on the SCADA panel (tagDatabase.ts, alarm rationalisation).
+ */
+export function bellAnnunciates(alarm: Pick<Alarm, 'priority' | 'tagId'>): boolean {
+  if (alarm.priority === 'CRITICAL' || alarm.priority === 'HIGH') return true;
+  const consequence = getTagById(alarm.tagId)?.consequence;
+  return consequence === 'people' || consequence === 'plant';
+}
+
+/**
  * Choose the SCADA alarms to raise as UI alerts. `announced` remembers the
  * occurrences already alerted, so an alert the operator dismissed (or that the
  * 10-slot alert list evicted) stays gone while that occurrence stands. Keys of
@@ -302,7 +318,7 @@ export function selectSCADAAlarmsToAlert(
 
   const toAlert: Alarm[] = [];
   alarms.forEach((alarm) => {
-    if (alarm.priority !== 'CRITICAL' && alarm.priority !== 'HIGH') return;
+    if (!bellAnnunciates(alarm)) return;
     if (alarm.state !== 'UNACK') return;
     const key = alarmOccurrenceKey(alarm);
     if (announced.has(key)) return;
@@ -518,7 +534,13 @@ function billedSiteDemandKw(): number {
   const campaign = useOperationsCampaignStore.getState();
   const wheatRecipe = campaign.getActiveProductionPlan()?.sourceMaterial === 'wheat_grain';
   return (
-    getSiteDemandKw(useProductionStore.getState().machines, game.gameTime, game.emergencyActive) *
+    getSiteDemandKw(
+      useProductionStore.getState().machines,
+      game.gameTime,
+      game.emergencyActive,
+      // The bill's above-100% penalty (machineLoad lineOverdrive), as UnifiedGameTick bills it.
+      useProductionStore.getState().productionSpeed
+    ) *
     useChronicleStore.getState().getEffect(wheatRecipe).energyMultiplier *
     campaign.getIncidentEffect().energyMultiplier
   );
@@ -649,6 +671,35 @@ export function initializeSCADASync(): () => void {
         () => clearInterval(operationalPulse)
       );
 
+      // 2a. STORE <-> SCADA: the mills' roll-speed setpoints are the line rate
+      // (lineRateSetpoint.ts, plan item 7.5). Not bound in benchmarks.
+      cleanupFunctions.push(bindRollSpeedSetpoints(service));
+
+      // 2b. STORE -> SCADA: while the control-network incident is open, the
+      // simulation serves a seeded subset of tags UNCERTAIN, holding their last
+      // value, as the incident's history note says; it lets go on resolve.
+      // Benchmarks are not play and never degrade.
+      let networkKey: string | null = null;
+      const syncNetworkDegradation = (): void => {
+        const key = isBenchmarkRuntime()
+          ? null
+          : (useOperationsCampaignStore
+              .getState()
+              .incidents.find(
+                (incident) =>
+                  incident.kind === 'control_network_degraded' && incident.phase !== 'resolved'
+              )?.id ?? null);
+        if (key === networkKey) return;
+        networkKey = key;
+        service.setNetworkDegradation(key);
+      };
+      syncNetworkDegradation();
+      cleanupFunctions.push(useOperationsCampaignStore.subscribe(syncNetworkDegradation), () => {
+        // The service can outlive this sync: never leave it holding a closed incident.
+        if (networkKey !== null) service.setNetworkDegradation(null);
+        networkKey = null;
+      });
+
       // 3. SCADA → STORE: Sync critical alarms to alerts
       // This displays SCADA alarms in the main UI alert system
       const announcedAlarmOccurrences = new Set<string>();
@@ -762,6 +813,14 @@ export function initializeSCADASync(): () => void {
         // only mirrors it: a stopped machine reads 0 RPM, trips LOLO, and
         // writing that alarm back as 'critical' would strand the machine.
         const storeOwnsStatus = service.getState().mode === 'simulation';
+        // The control-network incident degrades the SCADA view (panel, alarms,
+        // history), not the plant the store owns in simulation mode: a held
+        // reading gives way here to the simulation's own figure, so a tripped
+        // unit whose temperature is held still cools and comes back while the
+        // incident runs. Live mode has no such figure and keeps what it reads.
+        if (storeOwnsStatus)
+          for (const value of service.getNetworkHeldProcessValues?.() ?? [])
+            valueMap.set(value.tagId, value);
         // 'warning' is a running state: a facility stop keeps a trip down.
         const stopHolds = useGameSimulationStore.getState().emergencyActive;
         const breakdowns = useBreakdownStore.getState();

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AI_ENGINE_TIMING,
   generateContextAwareDecision,
-  getConfidenceAdjustments,
+  getImpactStats,
   initializeAIEngine,
   isDeferralReturned,
 } from './aiEngine';
@@ -75,6 +75,7 @@ describe('a deferred AI card on the plant clock', () => {
     expect(card(deferred.id)?.status).toBe('pending');
 
     // Across midnight: day 1, 01:05 is 15 plant hours on, well past the lapse.
+    const triedBefore = getImpactStats().totalDecisions;
     setClock(1, 1.05);
     loop();
     expect(card(deferred.id)?.status).toBe('superseded');
@@ -82,8 +83,8 @@ describe('a deferred AI card on the plant clock', () => {
     // The note that said when it would lapse is replaced by the lapse itself.
     expect(card(deferred.id)?.response?.note).toBe(card(deferred.id)?.outcome);
     expect(card(deferred.id)?.response?.disposition).toBe('deferred');
-    // Never tried, so the confidence learning is not told it failed.
-    expect(getConfidenceAdjustments()[deferred.type]).toBe(0);
+    // Never tried, so the outcome statistics are not told it failed.
+    expect(getImpactStats().totalDecisions).toBe(triedBefore);
 
     // The machine and condition can be raised again.
     const fresh = generateContextAwareDecision(deferred.type);

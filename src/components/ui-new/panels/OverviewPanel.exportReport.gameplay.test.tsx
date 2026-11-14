@@ -45,10 +45,9 @@ describe('Overview export report', () => {
     expect(blobs).toHaveLength(1);
     const report = JSON.parse(await readBlob(blobs[0]));
     expect(report.metrics.throughput).toBe(312);
-    expect(report.productionTarget).toMatchObject({
-      targetBags: useProductionStore.getState().productionTarget?.targetBags,
-    });
-    expect(report.productionTarget).not.toHaveProperty('actualThroughput');
-    expect(report.productionTarget).not.toHaveProperty('targetThroughput');
+    // The retired daily target carried them; the report carries the programme
+    // instead (OverviewPanel.programme.gameplay.test.tsx).
+    expect(report).not.toHaveProperty('productionTarget');
+    expect(JSON.stringify(report)).not.toMatch(/actualThroughput|targetThroughput/);
   });
 });

@@ -151,7 +151,10 @@ describe('autonomous game simulation store', () => {
     const store = useGameSimulationStore.getState();
     store.startEmergencyDrill();
     SERVICE_EGRESS_POINTS.forEach((point, index) => {
+      // The drill runs on the plant clock: a second of wall time at
+      // standard pace is STANDARD_GAME_SPEED game seconds.
       vi.advanceTimersByTime(1000);
+      useGameSimulationStore.getState().tickGameTime(1);
       store.markZoneVerified(point.id);
       if (index === 0) store.markZoneVerified(point.id);
     });
@@ -159,7 +162,7 @@ describe('autonomous game simulation store', () => {
     const metrics = useGameSimulationStore.getState().drillMetrics;
     expect(metrics.verifiedZoneIds).toHaveLength(SERVICE_EGRESS_POINTS.length);
     expect(metrics.verificationComplete).toBe(true);
-    expect(metrics.finalTimeSeconds).toBe(4);
+    expect(metrics.finalTimeSeconds).toBeCloseTo(4 * STANDARD_GAME_SPEED, 6);
     expect(useSafetyStore.getState().forkliftEmergencyStop).toBe(true);
 
     store.endEmergencyDrill();
@@ -354,13 +357,91 @@ describe('one time model: pace migration and clock holds', () => {
     expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
   });
 
-  it('lets an explicit pace choice override every hold, and keeps a player pause', () => {
+  // D21: one rule for P and the pace buttons. A pace choice ends the player's
+  // own pause, but a hold another feature placed is named and refused.
+  it("lets a pace choice end the player's pause but not a feature's hold, which it names", () => {
     const store = useGameSimulationStore.getState();
     store.holdClock('workplace');
     store.setGameSpeed(0);
     expect(selectClockHolder(useGameSimulationStore.getState())).toBe('player');
-    store.setGameSpeed(120);
+    expect(store.choosePace(120)).toBe('workplace');
+    expect(useGameSimulationStore.getState()).toMatchObject({
+      gameSpeed: 0,
+      clockHolds: [{ holder: 'workplace', resumeSpeed: STANDARD_GAME_SPEED }],
+    });
+  });
+
+  it.each([
+    'tour',
+    'restore',
+    'restoreFailed',
+    'workplace',
+    'layout',
+    'scada',
+    'orientation',
+  ] as const)('refuses a pace choice under a %s hold and leaves the hold in place', (holder) => {
+    const store = useGameSimulationStore.getState();
+    store.setGameSpeed(60);
+    store.holdClock(holder);
+    expect(store.choosePace(STANDARD_GAME_SPEED)).toBe(holder);
+    expect(useGameSimulationStore.getState()).toMatchObject({
+      gameSpeed: 0,
+      clockHolds: [{ holder, resumeSpeed: 60 }],
+    });
+    // Its own exit still resumes the pace from before it.
+    expect(store.releaseClock(holder)).toBe(true);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
+  });
+
+  it('names the tour beneath a player pause, and keeps the tour hold', () => {
+    const store = useGameSimulationStore.getState();
+    store.holdClock('tour');
+    store.setGameSpeed(0);
+    expect(store.choosePace(60)).toBe('tour');
+    expect(useGameSimulationStore.getState()).toMatchObject({
+      gameSpeed: 0,
+      clockHolds: [{ holder: 'tour', resumeSpeed: STANDARD_GAME_SPEED }],
+    });
+  });
+
+  it('applies a pace choice when only the player holds the clock', () => {
+    const store = useGameSimulationStore.getState();
+    store.holdClock('shortcut');
+    expect(store.choosePace(120)).toBeNull();
     expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 120, clockHolds: [] });
+  });
+
+  it('keeps a pace chosen under the handoff hold as its resume pace', () => {
+    const store = useGameSimulationStore.getState();
+    store.holdClock('handoff');
+    expect(store.choosePace(60)).toBeNull();
+    expect(useGameSimulationStore.getState()).toMatchObject({
+      gameSpeed: 0,
+      clockHolds: [{ holder: 'handoff', resumeSpeed: 60 }],
+    });
+  });
+
+  // restoreFailed and scada have no releasing feature of their own, so the
+  // pace hold note carries their exit (D21): a hold nothing can lift is a trap.
+  it('leaves a failed restore, and the restore hold beneath it, through its own exit', () => {
+    const store = useGameSimulationStore.getState();
+    store.setGameSpeed(60);
+    store.holdClock('restore');
+    store.holdClock('restoreFailed');
+    store.releaseNoticeHold('restoreFailed');
+    expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 60, clockHolds: [] });
+  });
+
+  it('leaves the SCADA hold through its own exit, keeping any other hold', () => {
+    const store = useGameSimulationStore.getState();
+    store.setGameSpeed(60);
+    store.holdClock('scada');
+    store.releaseNoticeHold('scada');
+    expect(useGameSimulationStore.getState()).toMatchObject({ gameSpeed: 60, clockHolds: [] });
+    store.holdClock('tour');
+    store.holdClock('scada');
+    store.releaseNoticeHold('scada');
+    expect(selectClockHolder(useGameSimulationStore.getState())).toBe('tour');
   });
 
   it('keeps a derived handoff hold under any pace choice, and resumes at the pace chosen', () => {

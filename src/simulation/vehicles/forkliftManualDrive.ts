@@ -31,6 +31,13 @@ import {
   sampleArcLengthPath,
   shortestVehicleAngle,
 } from './vehicleKinematics';
+import {
+  FORKLIFT_PEDESTRIAN_LOOKAHEAD,
+  FORKLIFT_PEDESTRIAN_SLOW_SPEED,
+  FORKLIFT_PEDESTRIAN_STOP,
+  nearestPedestrianAhead,
+  type PedestrianPoint,
+} from './forkliftWork';
 
 /** Driver controls, each in -1..1. Steer +1 turns right; lift +1 raises the forks. */
 export interface ManualDriveInput {
@@ -185,13 +192,14 @@ const stepOnce = (
   loaded: boolean,
   dt: number,
   blocked: ManualFootprintBlocked,
-  maximumSpeed: number,
+  forwardCap: number,
+  reverseCap: number,
   startDepth: number
 ): ManualForkliftState => {
   const limits = loaded ? LOADED_LIMITS : UNLOADED_LIMITS;
   const throttle = clampUnit(input.throttle);
-  const forwardLimit = Math.min(limits.maximumForwardSpeed, maximumSpeed);
-  const reverseLimit = Math.min(limits.maximumReverseSpeed, maximumSpeed);
+  const forwardLimit = Math.min(limits.maximumForwardSpeed, forwardCap);
+  const reverseLimit = Math.min(limits.maximumReverseSpeed, reverseCap);
   const target = throttle >= 0 ? throttle * forwardLimit : throttle * reverseLimit;
   const longitudinal = advanceLongitudinalMotion(state, target, dt, limits);
 
@@ -277,6 +285,9 @@ export function stepManualForklift(
     readonly blocked: ManualFootprintBlocked;
     /** Optional cap below the load limits, m/s (lane return drives slowly). */
     readonly maximumSpeed?: number;
+    /** Optional caps on driving forward and on reversing alone (giving way to people). */
+    readonly maximumForwardSpeed?: number;
+    readonly maximumReverseSpeed?: number;
   }
 ): ManualForkliftState {
   let remaining = Math.min(
@@ -285,6 +296,8 @@ export function stepManualForklift(
   );
   if (remaining <= 0) return state;
   const maximumSpeed = options.maximumSpeed ?? Infinity;
+  const forwardCap = Math.min(maximumSpeed, options.maximumForwardSpeed ?? Infinity);
+  const reverseCap = Math.min(maximumSpeed, options.maximumReverseSpeed ?? Infinity);
   // Usually clear, and then the cheap early-out test serves every substep.
   const depthOf = (pose: ManualForkliftState): number =>
     forkliftFootprintBlocked(pose.x, pose.z, pose.heading, options.loaded, options.blocked)
@@ -295,7 +308,16 @@ export function stepManualForklift(
   let blocked = false;
   while (remaining > 1e-9) {
     const dt = Math.min(SUBSTEP_SECONDS, remaining);
-    current = stepOnce(current, input, options.loaded, dt, options.blocked, maximumSpeed, depth);
+    current = stepOnce(
+      current,
+      input,
+      options.loaded,
+      dt,
+      options.blocked,
+      forwardCap,
+      reverseCap,
+      depth
+    );
     // Getting out, measured afresh each substep until it is clear.
     if (depth > 0) depth = depthOf(current);
     blocked ||= current.blocked;
@@ -303,6 +325,60 @@ export function stepManualForklift(
   }
   return blocked === current.blocked ? current : { ...current, blocked };
 }
+
+// The give-way probe: where it starts and the way it looks, set per call, and
+// the point it samples, rewritten for each sample. No allocation per frame.
+const giveWayProbe = { x: 0, z: 0, dirX: 0, dirZ: 1 };
+const giveWayPoint = { x: 0, z: 0 };
+const sampleGiveWayProbe = (distance: number): { readonly x: number; readonly z: number } => {
+  giveWayPoint.x = giveWayProbe.x + giveWayProbe.dirX * distance;
+  giveWayPoint.z = giveWayProbe.z + giveWayProbe.dirZ * distance;
+  return giveWayPoint;
+};
+
+/**
+ * How far ahead of a driven forklift the nearest person on foot stands in its
+ * corridor, or Infinity: straight ahead along its heading (`direction` 1), or
+ * behind it while it reverses (-1). The autopilot's look-ahead
+ * (nearestPedestrianAhead) on the line the driver is taking rather than the
+ * route, measured from the vehicle's origin as the autopilot measures it.
+ */
+export function manualPedestrianAhead(
+  state: Pick<ManualForkliftState, 'x' | 'z' | 'heading'>,
+  direction: 1 | -1,
+  people: readonly PedestrianPoint[],
+  count: number
+): number {
+  giveWayProbe.x = state.x;
+  giveWayProbe.z = state.z;
+  giveWayProbe.dirX = Math.sin(state.heading) * direction;
+  giveWayProbe.dirZ = Math.cos(state.heading) * direction;
+  return nearestPedestrianAhead(sampleGiveWayProbe, people, count);
+}
+
+/**
+ * The fastest a forklift may go toward someone on foot `distance` metres
+ * ahead: the autopilot's give-way, which slows within the look-ahead and
+ * stops within the stop distance.
+ */
+export const pedestrianGiveWaySpeed = (distance: number): number =>
+  distance <= FORKLIFT_PEDESTRIAN_STOP
+    ? 0
+    : distance <= FORKLIFT_PEDESTRIAN_LOOKAHEAD
+      ? FORKLIFT_PEDESTRIAN_SLOW_SPEED
+      : Infinity;
+
+/** Above the slow speed by more than the speed controller's settling error. */
+const CLOSING_SPEED_MARGIN = 1e-3;
+
+/**
+ * A near miss: someone on foot is within the stop distance on the line the
+ * forklift is travelling, and it is still going faster than the slow speed it
+ * should have given way at. A driver who slowed for them never closes at speed.
+ */
+export const pedestrianClosingAtSpeed = (distance: number, speed: number): boolean =>
+  distance <= FORKLIFT_PEDESTRIAN_STOP &&
+  Math.abs(speed) > FORKLIFT_PEDESTRIAN_SLOW_SPEED + CLOSING_SPEED_MARGIN;
 
 /** Lateral distance and heading error at which the autopilot can take the vehicle back. */
 const LANE_REJOIN_LATERAL_METRES = 0.3;

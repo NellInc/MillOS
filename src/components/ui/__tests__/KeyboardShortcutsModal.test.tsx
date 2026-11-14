@@ -34,9 +34,12 @@ describe('keyboard help contract', () => {
   });
 
   // The help listed "M: Minimize/Expand panel", a key that changed nothing.
-  it('advertises no M shortcut', () => {
+  // M now opens the Chronicle (plan 2.10).
+  it('advertises M for the Chronicle, not the old minimise', () => {
     render(<KeyboardShortcutsModal isOpen onClose={vi.fn()} />);
-    expect(screen.queryByText('M')).not.toBeInTheDocument();
     expect(screen.queryByText('Minimize/Expand panel')).not.toBeInTheDocument();
+    expect(screen.getByText('M', { selector: 'kbd' }).parentElement).toHaveTextContent(
+      'Mill Chronicle'
+    );
   });
 });

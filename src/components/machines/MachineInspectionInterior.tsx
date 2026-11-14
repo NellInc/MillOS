@@ -14,6 +14,8 @@ import {
   machineInspectionKind,
   sampleMachineInspectionGrain,
   machineInspectionLampPosition,
+  millBackRollAngle,
+  millFrontRollAngle,
 } from './machineInspectionGeometry';
 import { machineInspectionCamera, machineInspectionYaw } from './machineInspectionCamera';
 
@@ -39,6 +41,7 @@ export function MachineInspectionInterior({
   const kind = machineInspectionKind(machine.type)!;
   const root = useRef<THREE.Group>(null),
     mechanism = useRef<THREE.Group>(null);
+  // A: the back (slow) roll at -z; B: the front (fast) roll, nearer the camera.
   const rollA = useRef<THREE.Mesh>(null),
     rollB = useRef<THREE.Mesh>(null),
     gate = useRef<THREE.Mesh>(null);
@@ -99,6 +102,7 @@ export function MachineInspectionInterior({
     },
     [geometry]
   );
+  useEffect(() => () => useProcessInspectionStore.getState().setLiveFillPercent(null), []);
   useEffect(
     () => () => {
       Object.values(materials).forEach((m) => m.dispose());
@@ -127,12 +131,17 @@ export function MachineInspectionInterior({
     if (!p || !root.current) return;
     const t = p.phase ?? 0;
     if (mechanism.current) mechanism.current.position.set(...p.offset);
-    if (rollA.current) rollA.current.rotation.x = t * 4.5;
-    if (rollB.current) rollB.current.rotation.x = -t * 4.5;
+    if (rollA.current) rollA.current.rotation.x = millBackRollAngle(t);
+    if (rollB.current) rollB.current.rotation.x = millFrontRollAngle(t);
     if (gate.current) gate.current.position.x = p.cycle * 0.34 * scale[0];
     if (column.current) {
       column.current.visible = p.fill > 0;
       column.current.scale.y = p.fill * 11.9;
+      // The silo lesson asks how full this is: publish the level it draws,
+      // to the nearest 10%. The store only changes when the band does.
+      useProcessInspectionStore
+        .getState()
+        .setLiveFillPercent(Math.round(THREE.MathUtils.clamp(p.fill, 0, 1) * 10) * 10);
     }
     machineInspectionLampPosition(kind, stage, scale, p.fill, light.position.value);
     root.current.localToWorld(light.position.value);

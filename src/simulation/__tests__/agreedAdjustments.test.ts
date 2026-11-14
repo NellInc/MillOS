@@ -16,6 +16,7 @@ import {
   QUIET_ROOM,
   TOWN_HALL_PORTICO,
   TOWN_HALL_RAIL_HALF_WIDTH,
+  DOC_M_RAMP,
   TOWN_HALL_RAMP,
   TOWN_HALL_RAMP_RAILS,
   TOWN_HALL_STEP_FREE_ROUTE,
@@ -125,10 +126,12 @@ describe('the people who use the adjustments', () => {
     }
   );
 
-  it('builds the ramp to 1:12 with a level landing between two flights', () => {
+  it('builds the ramp to Table 1 with a level landing between two flights', () => {
     for (const flight of TOWN_HALL_RAMP.flights) {
       const going = Math.abs(flight.fromZ - flight.toZ);
-      expect(Math.abs(flight.fromY - flight.toY) / going).toBeLessThanOrEqual(1 / 12 + 1e-9);
+      expect(Math.abs(flight.fromY - flight.toY) / going).toBeLessThanOrEqual(
+        DOC_M_RAMP.maxGradient(going)
+      );
     }
     const landing = TOWN_HALL_RAMP.midLanding;
     expect(Math.abs(landing.fromZ - landing.toZ)).toBeGreaterThanOrEqual(1.5);

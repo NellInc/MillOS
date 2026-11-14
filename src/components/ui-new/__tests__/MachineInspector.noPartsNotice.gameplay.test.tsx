@@ -56,7 +56,7 @@ describe('MachineInspector Maintain with no spare part', () => {
     });
     useProductionStore.setState({ machines: [mill] });
     render(<MachineInspector machine={mill} />);
-    const maintain = screen.getByRole('button', { name: 'Perform Maintenance' });
+    const maintain = screen.getByRole('button', { name: /^Perform Maintenance/ });
     for (let click = 0; click < 12; click += 1) {
       vi.advanceTimersByTime(5);
       fireEvent.click(maintain);

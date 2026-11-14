@@ -25,7 +25,7 @@ describe('recipe names after a restore', () => {
     useOperationsCampaignStore.setState({ orders: saved });
     const orders = useOperationsCampaignStore.getState().orders;
     expect(orders[0].recipe.label).toBe('Farinha de trigo forte para pão');
-    expect(orders[1].recipe.label).toBe('Semolina fina de milho');
+    expect(orders[1].recipe.label).toBe('Fubá');
   });
 
   it('follow the active language after a replay restores a structured clone', () => {

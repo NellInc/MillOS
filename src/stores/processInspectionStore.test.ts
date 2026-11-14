@@ -84,6 +84,8 @@ describe('process inspection state', () => {
     expect(source.default.match(/^import .*$/gm)).toEqual([
       "import { create } from 'zustand';",
       "import { useWindmillLearningStore } from './windmillLearningStore';",
+      // Seeded answer order: a pure draw, not an operational store.
+      "import { chronicleChance } from '../chronicle/rng';",
     ]);
     expect(source.default).not.toMatch(/localStorage|persist\(/);
   });

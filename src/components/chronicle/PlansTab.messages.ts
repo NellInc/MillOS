@@ -3,7 +3,6 @@ export const messages = defineMessages({
   en: {
     m0: 'In-house crew',
     m1: 'Firms can be retained once the current install finishes.',
-    m2: 'An install is under way',
     m3: 'Retain',
     m4: 'Draw up the plan',
     m5: 'Install,',
@@ -31,11 +30,11 @@ export const messages = defineMessages({
     x27: 'Not enough fund.',
     x28: '{name} is busy.',
     x29: 'Needs {plans} installed.',
+    preparesNight: ', prepares {front} for the long night',
   },
   'pt-BR': {
     m0: 'Equipe própria',
     m1: 'É possível contratar empresas após a conclusão da instalação atual.',
-    m2: 'Há uma instalação em andamento',
     m3: 'Contratar',
     m4: 'Elaborar o plano',
     m5: 'Instalar,',
@@ -61,7 +60,9 @@ export const messages = defineMessages({
     x25: 'A equipe própria está ocupada.',
     x26: 'Não há tempo para concluir antes do fim da crônica.',
     x27: 'Fundo insuficiente.',
-    x28: '{name} está ocupado.',
+    // No adjective agrees with a contractor's name, whatever its gender.
+    x28: '{name} não está disponível agora.',
     x29: 'Requer a instalação de {plans}.',
+    preparesNight: ', prepara {front} para a longa noite',
   },
 });

@@ -2,11 +2,22 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { MachineType, type MachineData } from '../../types';
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useMaterialFlowStore } from '../../stores/materialFlowStore';
-import { useProductionStore } from '../../stores/productionStore';
+import { getWearConfig, useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import type { TickContext } from '../CentralTickSystem';
 import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
+import { usePartnerProposalStore } from '../../stores/partnerProposalStore';
+import { PROPOSAL_KIND_IDS } from '../../simulation/partnerProposals';
+
+// Written with every proposal kind asking (a service waits its card's window);
+// a kind's default now follows the delegation rule, so "ask me" is set here,
+// as the card's toggle sets it.
+beforeEach(() => {
+  usePartnerProposalStore.getState().reset();
+  for (const kind of PROPOSAL_KIND_IDS)
+    usePartnerProposalStore.getState().setDelegation(kind, 'ask');
+});
 
 const context: TickContext = {
   deltaSeconds: 0.5,
@@ -252,5 +263,84 @@ describe('UnifiedGameTick maintenance causality', () => {
     expect(alert?.machineId).toBe('packer-0');
     expect(alert?.predictedTimeToFailure).toBeGreaterThan(1000);
     expect(alert?.predictedTimeToFailure).toBeLessThan(1100);
+  });
+
+  // A unit about to cross its warning threshold, with the readings a running
+  // unit has then: about 2 mm/s, 57 C and 74% load.
+  const unitAtWarning = (type: MachineType, id: string): MachineData => ({
+    ...failingPacker,
+    id,
+    name: id,
+    type,
+    metrics: {
+      ...failingPacker.metrics,
+      vibration: 2,
+      temperature: 57,
+      load: 74,
+      wear: getWearConfig(type).warningThreshold - 0.01,
+      efficiency: 90,
+    },
+  });
+
+  // The wear prediction read those readings and named an electrical failure,
+  // while the unit then broke down mechanically (a sifter by vibration), so
+  // Schedule booked sensors and motors for a mill that would need bearings.
+  // Working if the prediction names the failure the unit then has.
+  it('predicts the type it breaks with', () => {
+    const cases: Array<[MachineType, string, string]> = [
+      [MachineType.ROLLER_MILL, 'rm-101', 'mechanical'],
+      [MachineType.PLANSIFTER, 'sifter-a', 'vibration_failure'],
+      [MachineType.PACKER, 'packer-0', 'mechanical'],
+    ];
+    for (const [type, id, failure] of cases) {
+      resetUnifiedTickState();
+      useBreakdownStore.getState().resetBreakdownStore();
+      useProductionStore.setState({ machines: [unitAtWarning(type, id)] });
+      unifiedGameTick({ ...context, gameSpeed: 180 });
+      const [alert] = useBreakdownStore.getState().predictiveAlerts;
+      expect(alert?.machineId).toBe(id);
+
+      // It runs on, unserviced, to its breakdown.
+      useProductionStore.setState((state) => ({
+        machines: state.machines.map((machine) => ({
+          ...machine,
+          metrics: { ...machine.metrics, wear: getWearConfig(type).breakdownThreshold - 0.01 },
+        })),
+      }));
+      unifiedGameTick({ ...context, gameSpeed: 180, tickCount: 2 });
+      const [order] = useBreakdownStore.getState().workOrders;
+      expect(order?.cause).toBe(failure);
+      expect({ id, predicted: alert?.predictedFailureType }).toEqual({ id, predicted: failure });
+    }
+  });
+
+  // Schedule booked the predicted failure's two parts and Complete charged
+  // them, while Maintain on the same unit took one spare part for the same
+  // service. Working if a booking, whatever parts it lists, costs one part,
+  // the one Maintain takes (filters first while any are free).
+  it('a booked service costs what Maintain costs', () => {
+    useProductionStore.setState({ machines: [unitAtWarning(MachineType.ROLLER_MILL, 'rm-101')] });
+    unifiedGameTick({ ...context, gameSpeed: 180 });
+    const store = useBreakdownStore.getState();
+    const [alert] = store.predictiveAlerts;
+    store.scheduleMaintenanceTask({
+      machineId: alert.machineId,
+      machineName: alert.machineName,
+      scheduledTime: 12,
+      type: 'predictive',
+      priority: 'low',
+      // A booking saved before this change lists the predicted failure's parts.
+      partsNeeded: store.getPartsForBreakdown(alert.predictedFailureType),
+    });
+    const before = { ...useBreakdownStore.getState().partsInventory };
+
+    expect(useProductionStore.getState().performMaintenance('rm-101').success).toBe(true);
+    const [task] = useBreakdownStore.getState().maintenanceSchedule;
+    expect(useBreakdownStore.getState().completeMaintenanceTask(task.id)).toBe(true);
+
+    expect(useBreakdownStore.getState().partsInventory).toEqual({
+      ...before,
+      filters: before.filters - 1,
+    });
   });
 });

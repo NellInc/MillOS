@@ -4,6 +4,8 @@ export const qcLabStoreMessages = defineMessages({
   en: {
     auditNoteReleased: 'Grade {grade}: material released for dispatch.',
     auditNoteHeld: 'Grade {grade}: material held for investigation.',
+    auditNoteBelowOrder:
+      'Quality {quality} is under the {minimum} minimum: not loaded for that order.',
     testReason: 'Test {id}: {grade}',
     retestReason: 'Retest {id}: {grade}',
     contaminationNoteDefault: 'Foreign material investigation opened',
@@ -17,6 +19,8 @@ export const qcLabStoreMessages = defineMessages({
   'pt-BR': {
     auditNoteReleased: 'Classe {grade}: material liberado para expedição.',
     auditNoteHeld: 'Classe {grade}: material retido para investigação.',
+    auditNoteBelowOrder:
+      'Qualidade {quality} abaixo do mínimo de {minimum}: não é carregado para esse pedido.',
     testReason: 'Teste {id}: {grade}',
     retestReason: 'Reteste {id}: {grade}',
     contaminationNoteDefault: 'Investigação de material estranho aberta',

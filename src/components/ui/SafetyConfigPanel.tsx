@@ -156,31 +156,6 @@ export const SafetyConfigPanel: React.FC = () => {
                 }`}
               />
             </div>
-
-            {/* Descriptions */}
-            <div
-              className={`text-[9px] space-y-1 pt-1 border-t ${
-                theme === 'light'
-                  ? 'text-slate-400 border-slate-200'
-                  : 'text-slate-500 border-slate-800'
-              }`}
-            >
-              <p>
-                <span className="text-green-500">{t('vehicleDetectionLabel')}</span>{' '}
-                {t('vehicleDetectionHelp')}
-              </p>
-              <p>
-                <span className="text-blue-500">{t('forkliftSpacingLabel')}</span>{' '}
-                {t('forkliftSpacingHelp')}
-              </p>
-              <p>
-                <span className="text-purple-500">{t('lookAheadLabel')}</span> {t('lookAheadHelp')}
-              </p>
-              <p>
-                <span className="text-amber-500">{t('speedZoneLabel')}</span> {t('speedZoneHelp')}
-              </p>
-              <p className="italic">{t('enforcementNote')}</p>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

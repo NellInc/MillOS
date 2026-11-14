@@ -272,6 +272,18 @@ export function crewMessages(id: CrewRoleId, profile: 0 | 1, member: CrewCopy) {
   return defineMessages({ en, 'pt-BR': portugueseCrew[`${id}:${profile}`] ?? en });
 }
 
+/** The rulings a role objects to (item 4.10), keyed by mark. */
+const portugueseRulings: Record<string, string> = {
+  'grower-terminated': 'o fim do contrato da fazenda atingida pelo granizo',
+  'log-backdated': 'a antedatação do registro de limpeza',
+};
+
+export function rulingMessages(mark: string, ruling: string) {
+  const en = { ruling };
+  const local = portugueseRulings[mark];
+  return defineMessages({ en, 'pt-BR': local === undefined ? en : { ruling: local } });
+}
+
 /** Keyed by `redLineKey`. */
 const portugueseRedLines: Record<string, string> = {
   'growers:intake:0': 'comprar qualquer lote enfraquece o acordo de preços da cooperativa',

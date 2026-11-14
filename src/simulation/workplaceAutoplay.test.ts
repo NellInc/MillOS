@@ -3,9 +3,11 @@ import { useWorkplaceStore } from '../stores/workplaceStore';
 import { createWorkplace, restoreWorkplace, saveWorkplace } from './bilateralWorkplace';
 import { autoplayWorkplaceStep, useWorkplaceAutoplay } from './workplaceAutoplay';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { beginReplayClock, endReplayClock } from './workplaceReplayRuntime';
 import { fairnessReceipt } from './workplaceFairness';
+import { mondayHolds, seasonEnded, seasonSobrasPool } from './workplaceCampaign';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 beforeEach(() => {
@@ -20,6 +22,8 @@ beforeEach(() => {
   });
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
 });
 it('automates fictional decisions through three shifts without manufactured physical delivery', () => {
   const material = useMaterialFlowStore.getState();
@@ -30,13 +34,13 @@ it('automates fictional decisions through three shifts without manufactured phys
   for (let i = 0; i < 600; i++) {
     const result = autoplayWorkplaceStep('team');
     const store = useWorkplaceStore.getState();
-    if (result.reason?.includes('complete')) break;
+    if (result.reasonKey === 'seasonComplete') break;
     if (!result.changed) expect(result.reason).toBeNull();
     if (
       store.workplace.phase === 'active' &&
       !(
         store.workplace.campaign?.shift === 1 &&
-        store.workplace.minute >= 25 &&
+        mondayHolds(store.workplace) &&
         store.workplace.campaign.decision === null
       )
     )
@@ -63,7 +67,8 @@ it('never automates separate turns, replay, pilot or raiser-owned objections', (
   expect(autoplayWorkplaceStep('team').changed).toBe(false);
   endReplayClock();
   autoplayWorkplaceStep('team');
-  useWorkplaceStore.getState().object('quality', 'privacy');
+  // Packing's own voice (5b: in a solo season the player raises only Packing's).
+  useWorkplaceStore.getState().object('packing', 'privacy');
   expect(autoplayWorkplaceStep('team').reason).toContain('original raiser');
 });
 it('uses one pausable ephemeral runner that survives the guide closing, and stops before impersonation', () => {
@@ -133,12 +138,12 @@ it('stopping by itself keeps the plant running and says why where the player loo
   for (let i = 0; i < 600; i++) {
     const r = autoplayWorkplaceStep('team');
     const store = useWorkplaceStore.getState();
-    if (r.reason?.includes('complete')) break;
+    if (r.reasonKey === 'seasonComplete') break;
     if (
       store.workplace.phase === 'active' &&
       !(
         store.workplace.campaign?.shift === 1 &&
-        store.workplace.minute >= 25 &&
+        mondayHolds(store.workplace) &&
         store.workplace.campaign.decision === null
       )
     )
@@ -149,6 +154,9 @@ it('stopping by itself keeps the plant running and says why where the player loo
   useWorkplaceAutoplay.getState().start('team');
   vi.advanceTimersByTime(500);
   expect(useWorkplaceAutoplay.getState().running).toBe(false);
+  // 5.10: a season the runner finished itself is not a take-over, so once it
+  // is archived the next season may arrive by itself (admission needs !manual).
+  expect(useWorkplaceAutoplay.getState().manual).toBe(false);
   expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
   expect(
     useUIStore
@@ -179,12 +187,12 @@ it('manual archiving pauses an active runner before it can start another campaig
   for (let i = 0; i < 600; i++) {
     const r = autoplayWorkplaceStep('team');
     const store = useWorkplaceStore.getState();
-    if (r.reason?.includes('complete')) break;
+    if (r.reasonKey === 'seasonComplete') break;
     if (
       store.workplace.phase === 'active' &&
       !(
         store.workplace.campaign?.shift === 1 &&
-        store.workplace.minute >= 25 &&
+        mondayHolds(store.workplace) &&
         store.workplace.campaign.decision === null
       )
     )
@@ -201,47 +209,59 @@ it('manual archiving pauses an active runner before it can start another campaig
   vi.useRealTimers();
 });
 
-it('demonstrates sharing the sobras by member vote in the default season before opening the next shift', () => {
-  for (let i = 0; i < 200 && useWorkplaceStore.getState().workplace.phase !== 'review'; i++) {
-    autoplayWorkplaceStep('toe-dip');
-    if (useWorkplaceStore.getState().workplace.phase === 'active')
+it('demonstrates settling the season’s sobras by member vote once its last shift ends', () => {
+  const season = () => useWorkplaceStore.getState().workplace;
+  const ended = () =>
+    season().campaign?.shift === 2 &&
+    seasonEnded(season()) &&
+    season().members.every((m) => m.recoveryOwedMinutes === 0);
+  for (let i = 0; i < 600 && !ended(); i++) {
+    const result = autoplayWorkplaceStep('toe-dip');
+    // 5.5: no shift before the last shares anything.
+    expect(season().distributionComplete).toBe(false);
+    if (result.reasonKey === 'seasonComplete') break;
+    const s = season();
+    if (
+      (s.phase === 'active' &&
+        !(s.campaign?.shift === 1 && mondayHolds(s) && s.campaign.decision === null)) ||
+      (s.phase === 'review' && s.members.some((m) => m.recoveryOwedMinutes > 0))
+    )
       useWorkplaceStore.getState().tick(5, 0, false);
   }
-  const reviewed = useWorkplaceStore.getState().workplace;
-  expect(reviewed.campaign?.shift).toBe(0);
+  const reviewed = season();
+  expect(reviewed.campaign?.shift).toBe(2);
   expect(reviewed.practices).toContain('gainsharing');
-  // Fresh real dispatch earned this shift: 1,200 kg at 0.30 net per kg.
+  // Fresh real dispatch earned this shift: 3,000 kg at 0.30 net per kg.
   useWorkplaceStore.setState({
     workplace: {
       ...reviewed,
-      shippedKg: reviewed.shippedKg + 1200,
+      shippedKg: reviewed.shippedKg + 3000,
       finance: {
         ...reviewed.finance,
-        operatingRevenue: reviewed.finance.operatingRevenue + 600,
-        operatingCost: reviewed.finance.operatingCost + 240,
-        cash: reviewed.finance.cash + 360,
+        operatingRevenue: reviewed.finance.operatingRevenue + 1500,
+        operatingCost: reviewed.finance.operatingCost + 600,
+        cash: reviewed.finance.cash + 900,
       },
     },
   });
-  const f = useWorkplaceStore.getState().workplace.finance;
-  const surplus =
-    f.operatingRevenue - f.operatingCost - f.wagesPaid - f.compensationPaid - f.improvementSpend;
-  expect(surplus).toBeGreaterThan(0);
+  const pool = seasonSobrasPool(season());
+  expect(pool).toBeGreaterThan(0);
   const pay = reviewed.members.map((m) => m.earnedPay);
-  for (let i = 0; i < 10 && !useWorkplaceStore.getState().workplace.distributionComplete; i++)
+  for (let i = 0; i < 10 && !season().distributionComplete; i++)
     expect(autoplayWorkplaceStep('toe-dip').changed).toBe(true);
-  const shared = useWorkplaceStore.getState().workplace;
+  const shared = season();
   expect(shared.distributionComplete).toBe(true);
-  expect(shared.finance.distributed).toBeCloseTo(surplus, 6);
-  shared.members.forEach((m, i) => expect(m.earnedPay - pay[i]).toBeCloseTo(surplus / 4, 6));
+  expect(shared.sobras?.pool).toBeCloseTo(pool, 6);
+  expect(shared.finance.distributed).toBeCloseTo(pool * 0.85, 6);
+  shared.members.forEach((m, i) =>
+    expect(m.earnedPay - pay[i]).toBeCloseTo(shared.sobras!.shares[m.id], 6)
+  );
   expect(shared.events.some((e) => e.kind === 'surplus-decided')).toBe(true);
-  expect(autoplayWorkplaceStep('toe-dip').changed).toBe(true);
-  const next = useWorkplaceStore.getState().workplace;
-  expect(next.campaign?.shift).toBe(1);
-  // The shared sobras survive a reload as part of the reviewed shift.
-  const reloaded = restoreWorkplace(saveWorkplace(next));
-  expect(reloaded.campaign?.shift).toBe(1);
-  expect(reloaded.campaign?.history[0].finance.distributed).toBeCloseTo(surplus, 6);
+  expect(autoplayWorkplaceStep('toe-dip').reasonKey).toBe('seasonComplete');
+  // The settled sobras survive a reload with the final review.
+  const reloaded = restoreWorkplace(saveWorkplace(shared));
+  expect(reloaded.campaign?.shift).toBe(2);
+  expect(reloaded.sobras).toEqual(shared.sobras);
 });
 
 it('resumes a shift a reload paused, before sharing sobras or moving on, and finishes it', () => {

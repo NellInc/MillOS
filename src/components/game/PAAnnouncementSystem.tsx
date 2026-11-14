@@ -37,6 +37,15 @@ import { focusDockItem } from '../ui-new/dock/focusDockItem';
 const FALLBACK_TIMEOUT_MS = 10000;
 // A spoken line keeps its caption until the voice has finished, plus this.
 const VOICE_TAIL_MS = 1200;
+/*
+ * A caption with no voice (muted, voice off, or the model still loading) is
+ * held for its own reading time: this many milliseconds a character, 12.5
+ * characters a second, a relaxed pace for a line read once. A long line gets
+ * longer than the 10 s floor. Working if a muted player can read every line.
+ */
+export const CAPTION_MS_PER_CHARACTER = 80;
+export const captionShowMs = (text: string): number =>
+  Math.max(FALLBACK_TIMEOUT_MS, text.length * CAPTION_MS_PER_CHARACTER);
 
 // Audio starts on the first unmuted gesture (App.tsx); the voice loads after it.
 // Optional calls: test doubles of the audio manager carry only what they need.
@@ -112,27 +121,21 @@ export function selectAnnouncementForDisplay(
 }
 
 /**
- * Muted State Handling (Multi-Layer Defense)
- * ------------------------------------------
- * Race condition prevention: useSyncExternalStore notifications can lag behind
- * direct property changes, causing brief visual flashes. We use belt-and-suspenders:
+ * Mute silences sound only (D15)
+ * ------------------------------
+ * A muted player must not miss a fault, a drill or a shift end, so muted lines
+ * are still filed (shared.tsx), captioned and read to screen readers. What the
+ * mute guards is sound, on two paths, because useSyncExternalStore can lag
+ * behind a direct `audioManager.muted` change:
  *
- * Layer 1 - PREVENTION (shared.tsx schedulers):
- *   Schedulers check audioManager.muted before creating announcements at all.
- *
- * Layer 2 - RENDER GATE (this component):
- *   Check BOTH isMuted hook AND audioManager.muted directly (synchronous).
- *
- * Layer 3 - CAPTION AND VOICE DELIVERY (this component):
- *   Announcements remain visual and screen-reader accessible. The PA voice
- *   (src/audio/paVoice.ts) speaks each new line with a model running on the
- *   device; no browser or operating-system speech service is used. Muting
- *   stops it with the caption.
- *
- * Layer 4 - CLEANUP:
- *   Dismiss effect clears any announcements that slip through.
- *
- * This ensures no visual flash even during React state propagation delays.
+ * - The voice never starts while muted: speech is gated on BOTH the hook and
+ *   the direct property, and src/audio/paVoice.ts refuses to load a model or
+ *   speak while muted. Master gain alone is not enough: a silenced source would
+ *   resume mid-line on unmute.
+ * - A line speaking when mute is pressed stops at once; its caption stays for
+ *   its own reading time (captionShowMs), not for the voice that stopped.
+ * - Each line is offered to the voice once, when it is first shown, so an
+ *   unmute never speaks a line already on screen.
  */
 
 export const PAAnnouncementSystem: React.FC = () => {
@@ -146,10 +149,12 @@ export const PAAnnouncementSystem: React.FC = () => {
   const setPAContext = useAnnouncementsStore((state) => state.setContext);
   const locale = useLocale();
   const audioReady = useSyncExternalStore(subscribeAudio, readAudioReady, readAudioNotReady);
-  // Benchmarks and captures never start audio; the check keeps them off the GPU too.
-  const voiceActive = voiceEnabled && audioReady && !isBenchmarkRuntime();
   const { isCompactLayout } = useMobileDetection();
   const isMuted = useAudioMuted();
+  // Benchmarks and captures never start audio; the check keeps them off the GPU
+  // too. Muted, no model is loaded (D15).
+  const voiceActive =
+    voiceEnabled && audioReady && !isMuted && !audioManager.muted && !isBenchmarkRuntime();
   const prefersReducedMotion = useReducedMotion();
   const gameSafetyStateActive = useGameSimulationStore(
     (state) => state.emergencyActive || state.emergencyDrillMode || state.crisisState.active
@@ -251,17 +256,18 @@ export const PAAnnouncementSystem: React.FC = () => {
   // How long the line stays up: on the scrolling phone ticker, its whole pass.
   const scrolls = isCompactLayout && !prefersReducedMotion;
   const showForMs = scrolls
-    ? Math.max(FALLBACK_TIMEOUT_MS, tickerSeconds(currentText) * 1000 + 1000)
-    : FALLBACK_TIMEOUT_MS;
+    ? Math.max(captionShowMs(currentText), tickerSeconds(currentText) * 1000 + 1000)
+    : captionShowMs(currentText);
   const showForMsRef = useRef(showForMs);
   showForMsRef.current = showForMs;
 
-  // When muted, immediately dismiss any active announcement to prevent visual flash
+  // Mute stops the voice at once (D15). The caption stays: the hold the voice
+  // placed on it goes, so it leaves at its own reading time.
   useEffect(() => {
-    if (isMuted && currentAnnouncement) {
-      dismissAnnouncement(currentAnnouncement.id);
-    }
-  }, [isMuted, currentAnnouncement, dismissAnnouncement]);
+    if (!isMuted) return;
+    if (spokenIdRef.current !== null) stopPAVoice();
+    voiceHoldRef.current = null;
+  }, [isMuted]);
 
   // A line shown is spoken once; the caption waits for the voice to finish.
   // No browser or operating-system speech API is used.
@@ -271,6 +277,8 @@ export const PAAnnouncementSystem: React.FC = () => {
   voiceActiveRef.current = voiceActive;
   const localeRef = useRef(locale);
   localeRef.current = locale;
+  const isMutedRef = useRef(isMuted);
+  isMutedRef.current = isMuted;
 
   useEffect(() => {
     if (fallbackTimerRef.current) {
@@ -278,8 +286,7 @@ export const PAAnnouncementSystem: React.FC = () => {
       fallbackTimerRef.current = null;
     }
 
-    // Check both paths so direct audio changes cannot flash a stale caption.
-    if (!currentAnnouncement || isStartupSuppressed || isMuted || audioManager.muted) return;
+    if (!currentAnnouncement || isStartupSuppressed) return;
 
     if (currentAnnouncement.id !== lastAnnouncementIdRef.current) {
       // A more urgent line took the screen. The one it displaced has been
@@ -318,13 +325,25 @@ export const PAAnnouncementSystem: React.FC = () => {
     };
     armDismiss(showForMsRef.current);
 
-    if (voiceActiveRef.current && spokenIdRef.current !== announcementId) {
+    // Offered to the voice once, as it is first shown: a line shown while muted
+    // is not spoken on unmute. Both mute paths, as the hook can lag (D15).
+    if (
+      voiceActiveRef.current &&
+      !isMutedRef.current &&
+      !audioManager.muted &&
+      spokenIdRef.current !== announcementId
+    ) {
       spokenIdRef.current = announcementId;
       const speakLocale = localeRef.current;
       const voice = paVoiceFor(speakLocale, useAnnouncementsStore.getState().voiceNames ?? {});
       const speed = paDeliverySpeed(currentAnnouncement.priority, currentAnnouncement.type);
       void speakPAVoice(currentTextRef.current, speakLocale, voice, speed).then((spoken) => {
         if (!spoken || lastAnnouncementIdRef.current !== announcementId) return;
+        // Muted while the line was being prepared: no sound, no hold.
+        if (isMutedRef.current || audioManager.muted) {
+          stopPAVoice();
+          return;
+        }
         voiceHoldRef.current = {
           id: announcementId,
           until: Date.now() + spoken.seconds * 1000 + VOICE_TAIL_MS,
@@ -337,7 +356,7 @@ export const PAAnnouncementSystem: React.FC = () => {
       // The line left (dismissed, displaced, or muted): its voice stops with it.
       if (spokenIdRef.current === announcementId) stopPAVoice();
     };
-  }, [currentAnnouncement?.id, isStartupSuppressed, isMuted, dismissAnnouncement]);
+  }, [currentAnnouncement?.id, isStartupSuppressed, dismissAnnouncement]);
 
   // Urgent announcements (emergency type or critical priority) should interrupt
   // the screen reader; routine ones are polite.
@@ -346,13 +365,13 @@ export const PAAnnouncementSystem: React.FC = () => {
     (currentAnnouncement.type === 'emergency' || currentAnnouncement.priority >= 4);
 
   // Whether an announcement should currently be surfaced (visually + to SR).
-  const isShowing =
-    !!currentAnnouncement && !isStartupSuppressed && !isMuted && !audioManager.muted;
+  // Muted or not (D15): mute silences sound only.
+  const isShowing = !!currentAnnouncement && !isStartupSuppressed;
 
   // Persistent screen-reader live region. Always mounted (even when no visible
   // announcement) so insertions are announced; visually hidden via sr-only.
-  // Empty text in every suppressed/muted/idle state preserves the documented
-  // no-visual-flash behavior (the visible container is still gated below).
+  // Empty text while the opening quiet holds or nothing is queued (the
+  // visible container is gated the same way below).
   // The visible containers are aria-hidden to avoid double announcement.
   // Portaled out of the HUD root, which a compact sheet makes aria-hidden and inert.
   const liveRegion = (
@@ -373,9 +392,6 @@ export const PAAnnouncementSystem: React.FC = () => {
   // sr-only node and defeat the live region — text present at mount is not announced).
   // Keeping a stable fiber lets text mutate in place so screen readers announce.
   if (isStartupSuppressed) return <>{liveRegion}</>;
-  // Do not show visual announcements when the notification layer is muted.
-  // Check BOTH hook (reactive) AND direct property (synchronous) to prevent race condition flash
-  if (isMuted || audioManager.muted) return <>{liveRegion}</>;
   if (!currentAnnouncement) return <>{liveRegion}</>;
   if (!captionsEnabled && !isUrgent) return <>{liveRegion}</>;
 
@@ -498,12 +514,13 @@ export const PAAnnouncementSystem: React.FC = () => {
     <>
       {liveRegion}
       {/* Working if the caption never covers the 48px status bar (top-16 clears
-          it) or an open side panel: the width cap lives on the centred
-          container, so the card is truly centred, and while a side panel is
-          open it narrows by the panel width on both sides. */}
+          it), the stop's banner (top-16, about 38px tall; top-28 clears it) or
+          an open side panel: the width cap lives on the centred container, so
+          the card is truly centred, and while a side panel is open it narrows
+          by the panel width on both sides. */}
       <div
         className={`fixed left-1/2 -translate-x-1/2 z-[60] pointer-events-auto w-[min(32rem,90vw)] [[data-sidebar-visible=true]_&]:w-[min(32rem,max(16rem,calc(100vw-2*var(--millos-sidebar-width)-2rem)))] ${
-          safetyOverlayActive ? 'top-20' : 'top-16'
+          safetyOverlayActive ? 'top-28' : 'top-16'
         }`}
         data-safety-offset={safetyOverlayActive ? 'true' : 'false'}
       >

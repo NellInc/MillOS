@@ -36,6 +36,38 @@ describe('Datalinks article focus', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Back to list' }));
   });
 
+  // Seen in a headless capture: at z-50 the facility stop's banner and guidance
+  // (z-[60]) drew over the open dialog's header and entry list. Modals in this
+  // app (About, confirm, shortcuts, AI settings) sit at z-[1000], above it.
+  it('layers above the emergency overlay, as the other modals do', () => {
+    render(<Datalinks isOpen onClose={() => undefined} />);
+    const backdrop = screen.getByRole('dialog').parentElement!;
+    expect(backdrop).toHaveClass('z-[1000]');
+    expect(backdrop).not.toHaveClass('z-50');
+  });
+
+  // Seen on a landscape phone (844 x 390): the wrapped category chips filled
+  // the list column and left no room for a single entry. On a short screen the
+  // whole column scrolls (search, chips, entries) instead of only the list.
+  it('scrolls the whole list column on a short screen', () => {
+    render(<Datalinks isOpen onClose={() => undefined} />);
+    const list = screen
+      .getByText(twin.title, { selector: 'button span' })
+      .closest('.flex-1.overflow-y-auto');
+    expect(list).not.toBeNull();
+    expect(list).toHaveClass('[@media(max-height:480px)]:flex-none');
+    expect(list!.parentElement).toHaveClass('[@media(max-height:480px)]:overflow-y-auto');
+  });
+
+  // Seen in a Portuguese capture: "O que um padeiro precisa da ..." was cut by
+  // an ellipsis in the entry list. Titles wrap instead.
+  it('wraps an entry title rather than cutting it', () => {
+    render(<Datalinks isOpen onClose={() => undefined} />);
+    const title = screen.getByText(twin.title, { selector: 'button span' });
+    expect(title).not.toHaveClass('truncate');
+    expect(title).toHaveClass('break-words');
+  });
+
   // 'Clear search' lives in the no-match message it clears, so it unmounts as
   // it is pressed. On <body>, Tab walks out of the modal and Space engages the
   // forklift emergency stop behind it.

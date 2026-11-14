@@ -3,11 +3,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MachineInspector, inspectorTrendPaths } from '../sidebar/MachineInspector';
 import { MachineType, type MachineData } from '../../../types';
 import { useMaterialFlowStore, type MachineBuffer } from '../../../stores/materialFlowStore';
-import { useProductionStore } from '../../../stores/productionStore';
+import { getWearConfig, useProductionStore } from '../../../stores/productionStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { useProcessInspectionStore } from '../../../stores/processInspectionStore';
 import { unifiedGameTick } from '../../../systems/UnifiedGameTick';
+import {
+  RESTART_GAME_SECONDS,
+  resetUnitWork,
+  stepUnitWork,
+  unitInService,
+} from '../../../systems/unitService';
+
+// Maintain and Restart run on the game clock in the tick (D7); stepUnitWork is
+// the tick's one call, so the tests pass game time with it.
+const SERVICE_MINUTES = getWearConfig(MachineType.ROLLER_MILL).serviceMinutes;
+const SERVICE_SECONDS = SERVICE_MINUTES * 60;
+const MAINTAIN = /^Perform Maintenance/;
 
 const machine: MachineData = {
   id: 'review-mill',
@@ -67,9 +79,8 @@ describe('MachineInspector evidence', () => {
     expect(screen.getByRole('status', { name: 'Machine status: warning' })).toHaveTextContent(
       'warning'
     );
-    expect(
-      screen.getByText("Something's off. Check the metrics and maintenance log.")
-    ).toBeVisible();
+    // D14: the warning chip stands alone; its advice line is cut.
+    expect(screen.queryByText(/Something's off/)).not.toBeInTheDocument();
   });
 
   it('shows wear against its thresholds and the cost of service without opening Inspect', () => {
@@ -78,14 +89,18 @@ describe('MachineInspector evidence', () => {
     expect(screen.getByText('Wear')).toBeVisible();
     expect(screen.getByText('52.4')).toBeVisible();
     expect(screen.getByText(/Warning at 60%, breakdown at 90%/)).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Perform Maintenance' })).toBeVisible();
+    expect(
+      screen.getByRole('button', {
+        name: `Perform Maintenance · 1 × filters · ${SERVICE_MINUTES} min offline`,
+      })
+    ).toBeVisible();
     expect(screen.getByText(/Uses 1 spare part: filters \(15 in stock\)/)).toBeVisible();
   });
 
   it('does not offer Maintain on a unit still below the service minimum, and says why', () => {
     // A roller mill runs at full efficiency until wear 30 (half its warning).
     renderComponent(<MachineInspector machine={machine} />);
-    expect(screen.getByRole('button', { name: 'Perform Maintenance' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: MAINTAIN })).toBeDisabled();
     expect(
       screen.getByText(/Not needed yet: wear 5.0% is below the 30.0% service minimum/)
     ).toBeVisible();
@@ -133,7 +148,7 @@ describe('MachineInspector evidence', () => {
       useProductionStore.setState({ machines: [{ ...machine, status: 'critical' }] });
     });
     afterEach(() => {
-      vi.useRealTimers();
+      resetUnitWork();
       useProductionStore.setState({ machines: savedMachines });
     });
 
@@ -151,60 +166,75 @@ describe('MachineInspector evidence', () => {
         useBreakdownStore.getState().resetBreakdownStore();
         useBreakdownStore.getState().triggerBreakdown(machine.id, machine.name, 'mechanical');
         render(<MachineInspector machine={machine} />);
-        expect(screen.getByRole('button', { name: 'Perform Maintenance' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: MAINTAIN })).toBeDisabled();
         expect(screen.getByRole('button', { name: 'Restart Unit' })).toBeDisabled();
-        expect(screen.getByText(/Use Mill Overview/)).toBeVisible();
+        expect(
+          screen.getByText('Machine is under repair: complete the work order first.')
+        ).toBeVisible();
       } finally {
         act(() => useBreakdownStore.setState(previous));
       }
     });
 
-    it('does not service a machine when the last spare part is used during the delay', async () => {
-      vi.useFakeTimers();
+    // The part is now taken when the service starts (D7), so there is no delay
+    // in which the last part can go: no free part at the press means no service,
+    // and stock used up during the service minutes neither stops it nor is
+    // charged again.
+    it('does not service a machine without a spare part, and charges a started service once', () => {
       const previous = useBreakdownStore.getState();
       try {
         useBreakdownStore.getState().resetBreakdownStore();
+        useBreakdownStore.setState({
+          partsInventory: { bearings: 0, belts: 0, filters: 0, motors: 0, sensors: 0 },
+        });
         // Worn past the service minimum, so the click itself is accepted.
         const worn = { ...machine, metrics: { ...machine.metrics, wear: 40 } };
         useProductionStore.setState({ machines: [{ ...worn, status: 'warning' }] });
         render(<MachineInspector machine={worn} />);
-        fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
-        expect(screen.getByText('Performing Maintenance...')).toBeVisible();
-        act(() =>
-          useBreakdownStore.setState({
-            partsInventory: { bearings: 0, belts: 0, filters: 0, motors: 0, sensors: 0 },
-          })
-        );
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(1300);
-        });
+        fireEvent.click(screen.getByRole('button', { name: MAINTAIN }));
+        act(() => stepUnitWork(SERVICE_SECONDS));
+        expect(unitInService(machine.id)).toBe(false);
         expect(useProductionStore.getState().machines[0].metrics.wear).toBe(40);
         expect(useProductionStore.getState().machines[0].lastMaintenance).toBe(
           machine.lastMaintenance
         );
+
+        act(() =>
+          useBreakdownStore.setState({
+            partsInventory: { bearings: 0, belts: 0, filters: 1, motors: 0, sensors: 0 },
+          })
+        );
+        fireEvent.click(screen.getByRole('button', { name: MAINTAIN }));
+        expect(useBreakdownStore.getState().partsInventory.filters).toBe(0);
+        act(() => stepUnitWork(SERVICE_SECONDS));
+        expect(useProductionStore.getState().machines[0].metrics.wear).toBe(0);
+        expect(useBreakdownStore.getState().partsInventory).toEqual({
+          bearings: 0,
+          belts: 0,
+          filters: 0,
+          motors: 0,
+          sensors: 0,
+        });
       } finally {
         act(() => useBreakdownStore.setState(previous));
       }
     });
 
-    it.each([500, 1500])('preserves a fault arriving %ims into restart', async (delay) => {
-      vi.useFakeTimers();
+    // 500 ms and 1500 ms on the old wall clock: either side of the readings
+    // settling, now in game seconds.
+    it.each([15, 45])('preserves a fault arriving %i game seconds into restart', (delay) => {
       const previous = useBreakdownStore.getState();
       try {
         useBreakdownStore.getState().resetBreakdownStore();
         useProductionStore.setState({ machines: [{ ...machine, status: 'warning' }] });
         render(<MachineInspector machine={machine} />);
         fireEvent.click(screen.getByRole('button', { name: 'Restart Unit' }));
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(delay);
-        });
+        act(() => stepUnitWork(delay));
         act(() => {
           useBreakdownStore.getState().triggerBreakdown(machine.id, machine.name, 'mechanical');
           useProductionStore.getState().updateMachineStatus(machine.id, 'critical');
         });
-        await act(async () => {
-          await vi.advanceTimersByTimeAsync(2600);
-        });
+        act(() => stepUnitWork(RESTART_GAME_SECONDS));
         expect(useProductionStore.getState().machines[0].status).toBe('critical');
         expect(useBreakdownStore.getState().workOrders[0].phase).toBe('diagnosed');
       } finally {
@@ -212,8 +242,7 @@ describe('MachineInspector evidence', () => {
       }
     });
 
-    it('keeps a worn machine in warning after Restart and says wear still needs service', async () => {
-      vi.useFakeTimers();
+    it('keeps a worn machine in warning after Restart and says wear still needs service', () => {
       const worn = { ...machine, status: 'warning' as const };
       worn.metrics = { ...machine.metrics, wear: 70, efficiency: 80 };
       useBreakdownStore.getState().resetBreakdownStore();
@@ -221,15 +250,14 @@ describe('MachineInspector evidence', () => {
       useProductionStore.setState({ machines: [worn] });
       render(<MachineInspector machine={worn} />);
       fireEvent.click(screen.getByRole('button', { name: 'Restart Unit' }));
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2600);
-      });
+      act(() => stepUnitWork(RESTART_GAME_SECONDS));
       expect(useProductionStore.getState().machines[0].status).toBe('warning');
       const restartAlert = useUIStore.getState().alerts.find((a) => a.id.startsWith('restart-'));
       expect(restartAlert?.title).not.toBe('Machine Recovered');
       expect(restartAlert?.type).toBe('warning');
       expect(restartAlert?.message).toContain('70.0%');
-      expect(restartAlert?.message).toMatch(/Perform Maintenance/);
+      // D14: the alert states the wear; the advice tail is cut.
+      expect(restartAlert?.message).not.toMatch(/Perform Maintenance/);
       // Restart wrote the warning directly, so the wear tick finds no new
       // running-to-warning transition and raises no second predictive alert.
       unifiedGameTick({
@@ -242,46 +270,37 @@ describe('MachineInspector evidence', () => {
       expect(useBreakdownStore.getState().predictiveAlerts).toHaveLength(0);
     });
 
-    it('still reports a recovery when a metric-only warning restarts below the wear threshold', async () => {
-      vi.useFakeTimers();
+    it('still reports a recovery when a metric-only warning restarts below the wear threshold', () => {
       useUIStore.setState({ alerts: [] });
       useProductionStore.setState({ machines: [{ ...machine, status: 'warning' }] });
       render(<MachineInspector machine={machine} />);
       fireEvent.click(screen.getByRole('button', { name: 'Restart Unit' }));
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2600);
-      });
+      act(() => stepUnitWork(RESTART_GAME_SECONDS));
       expect(useProductionStore.getState().machines[0].status).toBe('running');
       const restartAlert = useUIStore.getState().alerts.find((a) => a.id.startsWith('restart-'));
       expect(restartAlert?.title).toBe('Machine Recovered');
     });
 
-    it('lists the service in View Maintenance Logs once Maintain has run', async () => {
-      vi.useFakeTimers();
+    it('lists the service in View Maintenance Logs once Maintain has run', () => {
       useBreakdownStore.getState().resetBreakdownStore();
       const worn = { ...machine, metrics: { ...machine.metrics, wear: 40 } };
       useProductionStore.setState({ machines: [worn] });
       render(<MachineInspector machine={worn} />);
-      fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1300);
-      });
+      fireEvent.click(screen.getByRole('button', { name: MAINTAIN }));
+      act(() => stepUnitWork(SERVICE_SECONDS));
       fireEvent.click(screen.getByRole('button', { name: 'View Maintenance Logs' }));
       expect(screen.queryByText(/No maintenance on record/)).not.toBeInTheDocument();
       expect(screen.getByText(/Wear reduced from 40.0% to 0.0%/)).toBeVisible();
       expect(useBreakdownStore.getState().partsInventory.filters).toBe(14);
     });
 
-    it('finishes a restart even when the panel closes mid-sequence', async () => {
-      vi.useFakeTimers();
+    it('finishes a restart even when the panel closes mid-sequence', () => {
       useProductionStore.setState({ machines: [{ ...machine, status: 'warning' }] });
       const { unmount } = render(<MachineInspector machine={machine} />);
       fireEvent.click(screen.getByRole('button', { name: 'Restart Unit' }));
       expect(useProductionStore.getState().machines[0].status).toBe('idle');
       unmount();
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(2600);
-      });
+      act(() => stepUnitWork(RESTART_GAME_SECONDS));
       expect(useProductionStore.getState().machines[0].status).toBe('running');
     });
   });

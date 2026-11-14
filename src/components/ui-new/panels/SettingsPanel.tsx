@@ -39,7 +39,6 @@ import { useAudioStateWithControls as useAudioState } from '../../../hooks/useAu
 import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { resolutionScaleBounds, useDevicePixelRatio } from '../../../hooks/useDevicePixelRatio';
 import { useKnowledgeStore } from '../../../stores/knowledgeStore';
-import { useAINarrationStore } from '../../../stores/aiNarrationStore';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { UI_STORAGE_KEY, UI_STORAGE_VERSION, useUIStore } from '../../../stores/uiStore';
@@ -202,26 +201,20 @@ export const SettingsPanel: React.FC<{
   const {
     showTooltips,
     showLoadingQuotes,
-    showAINarration,
     showUnlockNotifications,
     setShowTooltips,
     setShowLoadingQuotes,
-    setShowAINarration,
     setShowUnlockNotifications,
   } = useKnowledgeStore(
     useShallow((state) => ({
       showTooltips: state.showTooltips,
       showLoadingQuotes: state.showLoadingQuotes,
-      showAINarration: state.showAINarration,
       showUnlockNotifications: state.showUnlockNotifications,
       setShowTooltips: state.setShowTooltips,
       setShowLoadingQuotes: state.setShowLoadingQuotes,
-      setShowAINarration: state.setShowAINarration,
       setShowUnlockNotifications: state.setShowUnlockNotifications,
     }))
   );
-  const narrationEnabled = useAINarrationStore((state) => state.enabled);
-  const setNarrationEnabled = useAINarrationStore((state) => state.setEnabled);
 
   return (
     <div className="p-4 space-y-6 h-full overflow-y-auto custom-scrollbar">
@@ -579,15 +572,6 @@ export const SettingsPanel: React.FC<{
               value={showLoadingQuotes}
               onChange={setShowLoadingQuotes}
             />
-            <Toggle
-              label={t('aiReflections')}
-              icon={<Eye size={12} />}
-              value={showAINarration && narrationEnabled}
-              onChange={(v) => {
-                setShowAINarration(v);
-                setNarrationEnabled(v);
-              }}
-            />
             {FEATURE_FLAGS.KNOWLEDGE_UNLOCK_TOASTS_ENABLED && (
               <Toggle
                 label={t('unlockNotifications')}
@@ -596,7 +580,6 @@ export const SettingsPanel: React.FC<{
                 onChange={setShowUnlockNotifications}
               />
             )}
-            <p className="text-[9px] text-slate-400 mt-2 px-2">{t('knowledgeHelp')}</p>
           </div>
         </section>
       )}
@@ -843,9 +826,6 @@ export const SettingsPanel: React.FC<{
             aria-valuetext={t('percentValue', { value: formatFixed(Math.round(uiScale * 100), 0) })}
             className="w-full cursor-pointer accent-cyan-500"
           />
-          <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-            {t('interfaceScaleHelp')}
-          </p>
           {FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED && (
             <fieldset className="mt-3 space-y-2 border-t border-white/5 pt-3">
               <legend className="text-xs font-medium text-slate-200">{t('reduceMotion')}</legend>
@@ -853,7 +833,6 @@ export const SettingsPanel: React.FC<{
                 className="grid grid-cols-2 gap-1"
                 role="radiogroup"
                 aria-label={t('reduceMotion')}
-                aria-describedby="reduce-motion-help"
               >
                 {(
                   [
@@ -877,9 +856,6 @@ export const SettingsPanel: React.FC<{
                   </button>
                 ))}
               </div>
-              <p id="reduce-motion-help" className="text-[11px] leading-relaxed text-slate-400">
-                {t('reduceMotionHelp')}
-              </p>
             </fieldset>
           )}
         </div>
@@ -891,7 +867,6 @@ export const SettingsPanel: React.FC<{
           {t('diagnosticReplay')}
         </h3>
         <div className="space-y-3 rounded-xl border border-white/5 bg-slate-800/50 p-3">
-          <p className="text-[11px] leading-relaxed text-slate-400">{t('diagnosticReplayHelp')}</p>
           <div className="grid grid-cols-2 gap-2 text-center text-xs">
             <div className="rounded-lg bg-slate-900/60 p-2">
               <div className="font-mono text-lg text-white">

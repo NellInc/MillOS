@@ -7,8 +7,9 @@ import {
   type WorkplaceCommand,
 } from '../simulation/bilateralWorkplace';
 import {
-  CAMPAIGN_PRESSURES,
   campaignOutcomes,
+  campaignPressure,
+  mondayMinute,
   requiredChecks,
   shiftResumable,
   WORKPLACE_CHECKS,
@@ -43,7 +44,7 @@ function pausedFinalShift(): WorkplaceState {
         type: 'campaignDecision',
         args: [shift === 0 ? 'keep-target' : 'protect-refusal', 'coordinator'],
       });
-    run({ type: 'respondToPressure', args: [CAMPAIGN_PRESSURES[shift].id, 'protect-boundary'] });
+    run({ type: 'respondToPressure', args: [campaignPressure(state)!.id, 'protect-boundary'] });
     agree();
     expect(run({ type: 'activate', args: [state.revision] }).changed).toBe(true);
     if (shift === 2) {
@@ -51,7 +52,11 @@ function pausedFinalShift(): WorkplaceState {
       break;
     }
     while (state.phase === 'active') {
-      if (state.campaign?.shift === 1 && state.minute >= 25 && state.campaign.decision === null)
+      if (
+        state.campaign?.shift === 1 &&
+        state.minute >= mondayMinute(state) &&
+        state.campaign.decision === null
+      )
         run({ type: 'campaignDecision', args: ['inspect', 'quality'] });
       run({ type: 'tick', args: [5, 0, false] });
     }

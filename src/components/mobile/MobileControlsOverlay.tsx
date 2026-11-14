@@ -1,5 +1,19 @@
 import React, { useCallback, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Footprints, Forklift, LogOut, Zap } from 'lucide-react';
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  Egg,
+  Footprints,
+  Forklift,
+  Hand,
+  LogOut,
+  Wind,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { DPad } from './DPad';
 import { MobilePanel } from './MobilePanel';
 import { CameraPresetMenu } from './CameraPresetMenu';
@@ -12,7 +26,13 @@ import {
 } from '../../stores/forkliftDriveStore';
 import { useT } from '../../i18n';
 import { mobileControlsOverlayMessages } from './MobileControlsOverlay.messages';
-import { forkliftPromptMessages } from '../FirstPersonController.messages';
+import { forkliftWorkMessages } from '../../stores/forkliftDriveStore.messages';
+import { forkliftPromptMessages, interactPromptMessages } from '../FirstPersonController.messages';
+import {
+  useAimedInteractableStore,
+  type WorldInteractPrompt,
+} from '../../utils/worldInteractables';
+import { activateMobileAim } from './MobileFirstPersonController';
 
 const FORKLIFT_BUTTON = `
   h-12 px-4 rounded-full
@@ -59,6 +79,69 @@ const ForkButton: React.FC<{ direction: 1 | -1; label: string }> = ({ direction,
   );
 };
 
+const PROMPT_ICONS: Record<WorldInteractPrompt, LucideIcon> = {
+  ringBell: Bell,
+  greet: Hand,
+  windmillLesson: Wind,
+  henhouseInspection: Egg,
+};
+
+/**
+ * The pick or drop the driven forklift is lined up for at its station, as E
+ * runs it from the cab, and the error line when it was refused.
+ */
+const ForkliftWorkButton: React.FC = () => {
+  const t = useT(forkliftWorkMessages);
+  const offer = useForkliftDriveStore((s) => s.workOffer);
+  const refusal = useForkliftDriveStore((s) => s.workRefusal);
+  if (!offer) return null;
+  const Icon = offer === 'pickup' ? ArrowUpFromLine : ArrowDownToLine;
+  return (
+    <>
+      {refusal && (
+        <p
+          role="alert"
+          data-testid="forklift-work-refusal"
+          className="rounded-lg bg-red-950/80 px-3 py-1 text-sm text-red-100"
+        >
+          {t(refusal)}
+        </p>
+      )}
+      <button
+        type="button"
+        className={FORKLIFT_BUTTON}
+        onClick={() => useForkliftDriveStore.getState().requestWork()}
+        data-testid="forklift-touch-work"
+      >
+        <Icon className="w-5 h-5 text-cyan-300" aria-hidden="true" />
+        {t(offer)}
+      </button>
+    </>
+  );
+};
+
+/**
+ * What the view is on (the school bell), as E and a click use it on desktop:
+ * a phone has neither. Activated in the tap, so its sound keeps the gesture.
+ */
+const WorldTouchInteract: React.FC = () => {
+  const t = useT(interactPromptMessages);
+  const prompt = useAimedInteractableStore((s) => s.prompt);
+  if (!prompt) return null;
+  const Icon = PROMPT_ICONS[prompt];
+  return (
+    <button
+      type="button"
+      className={FORKLIFT_BUTTON}
+      onClick={() => activateMobileAim()}
+      data-testid="world-touch-interact"
+    >
+      <Icon className="w-5 h-5 text-cyan-300" aria-hidden="true" />
+      {t(prompt)}
+    </button>
+  );
+};
+
 /**
  * Board a forklift in reach, or drive one: phones have no F key or Q/E. The
  * D-pad drives and steers (MobileFirstPersonController); these move the forks
@@ -82,6 +165,7 @@ const ForkliftTouchControls: React.FC = () => {
       <div className="flex flex-col items-end gap-3">
         <ForkButton direction={1} label={t('raiseForks')} />
         <ForkButton direction={-1} label={t('lowerForks')} />
+        <ForkliftWorkButton />
         <button
           type="button"
           className={FORKLIFT_BUTTON}
@@ -94,7 +178,7 @@ const ForkliftTouchControls: React.FC = () => {
       </div>
     );
   }
-  if (!inReachId) return null;
+  if (!inReachId) return <WorldTouchInteract />;
   return (
     <button
       type="button"

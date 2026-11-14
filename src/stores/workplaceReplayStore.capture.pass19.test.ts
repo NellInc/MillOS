@@ -11,6 +11,7 @@ import {
   registerReplayParticipant,
 } from '../simulation/workplaceReplayRuntime';
 import { setLocale } from '../i18n';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 let unregister: Array<() => void> = [];
 beforeEach(() => {
@@ -19,6 +20,8 @@ beforeEach(() => {
   useWorkplaceReplayStore.setState(useWorkplaceReplayStore.getInitialState());
   useSafetyStore.setState(useSafetyStore.getInitialState());
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
   useGameSimulationStore.getState().setGameSpeed(0);
   useWorkplaceStore.setState({
     participationMode: 'solo',

@@ -68,10 +68,10 @@ describe('PredictiveMaintenancePanel part reservations', () => {
     expect(within(card('Mill A')).queryByText(/Awaiting stock/)).not.toBeInTheDocument();
   });
 
-  it('locks Complete on a booked service whose parts are reserved for a repair', () => {
+  it('locks Complete on a booked service when every free part is reserved for a repair', () => {
     useProductionStore.setState({ machines: [mill('mill-c', 60)] });
     useBreakdownStore.setState({
-      partsInventory: { bearings: 10, belts: 8, filters: 15, motors: 1, sensors: 12 },
+      partsInventory: { bearings: 0, belts: 0, filters: 0, motors: 1, sensors: 1 },
     });
     store().triggerBreakdown('mill-a', 'Mill A', 'electrical');
     store().scheduleMaintenanceTask({

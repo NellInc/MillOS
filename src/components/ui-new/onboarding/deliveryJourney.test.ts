@@ -265,9 +265,11 @@ describe('guided delivery evidence', () => {
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'quality_hold' }, true).title
       ).toBe(`Check ${order.recipe.label}`);
+      // D14: the departure rule that named the packed product is cut; the
+      // recipe still shows in the quality target and the released readout.
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'loading' }, true).detail
-      ).toContain(`packed ${order.recipe.label}`);
+      ).toContain(`Recipe quality target: ${order.recipe.minimumQuality}/100`);
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'milling' }, true).detail
       ).toContain(`Released ${order.recipe.label}: 456 kg`);
@@ -281,8 +283,8 @@ describe('guided delivery evidence', () => {
       ] as const) {
         const step = deriveDeliveryJourney(order, { ...execution, stage }, true);
         expect(step.detail).toContain(`Recipe quality target: ${order.recipe.minimumQuality}/100`);
-        if (stage !== 'quality_hold')
-          expect(step.detail).toContain('Only a departed manifest credits this customer');
+        // D14: the departure rule was appended to every step; it is cut.
+        expect(step.detail).not.toContain('Only a departed manifest credits this customer');
       }
       expect(
         deriveDeliveryJourney(order, { ...execution, stage: 'quality_hold' }, true).detail
@@ -290,17 +292,24 @@ describe('guided delivery evidence', () => {
         'Review the QC controls in Overview and resolve the release condition before loading.'
       );
 
-      const milling = deriveDeliveryJourney(order, { ...execution, stage: 'milling' }, true);
+      const milling = deriveDeliveryJourney(
+        order,
+        { ...execution, stage: 'milling' },
+        true,
+        undefined,
+        null,
+        0.62
+      );
       expect(milling.detail).toContain(
         `12,346 kg of ${order.recipe.sourceMaterial.replace('_', ' ')}`
       );
-      expect(milling.detail).toContain('Line setpoint: 62%');
+      expect(milling.detail).toContain('Production speed: 62%');
       expect(milling.detail).toContain(`Recipe quality target: ${order.recipe.minimumQuality}/100`);
       const preparation = deriveDeliveryJourney(order, { ...execution, stage: 'planning' }, true);
       expect(preparation.detail).toContain(
         `Recipe quality target: ${order.recipe.minimumQuality}/100`
       );
-      expect(preparation.detail).toContain('Conforming output must pass QC before loading.');
+      expect(preparation.detail).not.toContain('Conforming output must pass QC');
       expect(deriveDeliveryJourney(order, { ...execution, stage: 'planning' }, true).title).toBe(
         `Prepare ${order.recipe.label}`
       );
@@ -322,7 +331,7 @@ describe('guided delivery evidence', () => {
     expect(guide.detail).toContain(next.recipe.sourceMaterial.replace('_', ' '));
     expect(guide.detail).not.toContain('9876');
     expect(guide.detail).not.toContain('5432');
-    expect(guide.detail).not.toContain('Line setpoint:');
+    expect(guide.detail).not.toContain('Production speed:');
     expect(useOperationsCampaignStore.getState()).toBe(selected);
   });
   it('distinguishes live cargo from departure and the customer receipt', () => {
@@ -364,7 +373,7 @@ describe('guided delivery evidence', () => {
       true
     );
     expect(held.detail).toContain('Batch held for inspection');
-    expect(held.detail).toContain('Only a departed manifest credits this customer');
+    expect(held.detail).not.toContain('Only a departed manifest credits this customer');
   });
 });
 
@@ -410,11 +419,14 @@ it('locates live milling, QC and shipping stages without moving a missing or dif
   expect(deriveDeliveryJourney(null, current, true).view).toBeUndefined();
 });
 
-it('explains buffer inspection without changing the live order or production', () => {
+// D14: one line per step, the action; the advice about buffers is cut.
+it('names the inspection step in one line without changing the live order or production', () => {
   const campaign = useOperationsCampaignStore.getState();
   const before = structuredClone({ orders: campaign.orders, execution: campaign.execution });
   const guide = deriveDeliveryJourney(campaign.orders[0], campaign.execution, false);
-  expect(guide.detail).toContain('Full output buffers can reveal a downstream bottleneck');
+  expect(guide.detail).toBe(
+    'Select a silo, roller mill, plansifter or packer in the scene, or use Inspect a roller mill below.'
+  );
   expect({ orders: campaign.orders, execution: campaign.execution }).toEqual(before);
 });
 
@@ -427,7 +439,8 @@ it('names the workspace the follow-the-grain step actually opens', () => {
     true
   );
   expect(guide.workspace).toBe('scada');
-  expect(guide.detail).toContain('Open SCADA');
+  // D14: the step's button opens SCADA; the detail no longer says so too.
+  expect(guide.detail).not.toContain('Open SCADA');
   expect(guide.detail).not.toContain('Open operations to review the recipe');
 });
 

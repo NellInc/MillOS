@@ -11,6 +11,11 @@
 import { LONG_NIGHT_EVENT_ID, LONG_NIGHT_SHIFT } from './longNight';
 import type { ChronicleEventDefinition } from './types';
 
+/** The federation's administrator, offered to the assembly (system 32). */
+export const FEDERATION_ADMINISTRATOR_EVENT_ID = 'evt-federation-administrator';
+/** What refusing the federation's support costs with it. */
+export const ADMINISTRATION_REFUSED_DELTA = -10;
+
 export const COURT_EVENT_IDS = [
   'evt-court-short-weight',
   'evt-court-haulier',
@@ -36,7 +41,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'intake',
         label: 'Cover the intake and grain stores',
-        cost: { attention: { council: 1 } },
         effect: {
           marks: ['cover-intake'],
           relationship: { customer: 'growers', delta: 6 },
@@ -44,18 +48,8 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
         },
       },
       {
-        id: 'floor',
-        label: 'Cover the roller floor',
-        cost: { attention: { council: 1 } },
-        effect: {
-          marks: ['cover-floor'],
-          result: 'The fitters base themselves on the roller floor beside the switch room.',
-        },
-      },
-      {
         id: 'yard',
         label: 'Cover the dispatch yard',
-        cost: { attention: { council: 1 } },
         effect: {
           marks: ['cover-yard'],
           relationship: { customer: 'haulier', delta: 6 },
@@ -65,7 +59,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'thin',
         label: 'Spread the cover across the site',
-        cost: { attention: { council: 1 } },
         effect: {
           marks: ['cover-thin'],
           result: 'The fitters move between all three areas and wait nowhere for long.',
@@ -100,7 +93,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'terminate',
         label: 'Terminate the contract and claim the shortfall',
-        cost: { attention: { council: 1 } },
         effect: {
           fund: 40,
           marks: ['grower-terminated'],
@@ -112,7 +104,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'dock',
         label: 'Dock the shortfall from the payment',
-        cost: { attention: { council: 1 } },
         effect: {
           fund: 20,
           marks: ['grower-docked'],
@@ -123,7 +114,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'advance',
         label: 'Advance next year’s contract instead',
-        cost: { fund: 50, attention: { council: 1 } },
+        cost: { fund: 50 },
         effect: {
           marks: ['grower-advanced'],
           relationship: { customer: 'growers', delta: 12 },
@@ -159,7 +150,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'terminate',
         label: 'Terminate the haulage contract',
-        cost: { attention: { council: 1 } },
         effect: {
           marks: ['haulier-terminated'],
           relationship: { customer: 'haulier', delta: -25 },
@@ -171,7 +161,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'suspend',
         label: 'Put Valley Haulage on a crop year’s notice',
-        cost: { attention: { council: 1 } },
         effect: {
           marks: ['haulier-suspended'],
           relationship: { customer: 'haulier', delta: -4 },
@@ -184,7 +173,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'shelter',
         label: 'Let Valley Haulage work from the mill yard while its depot dries',
-        cost: { fund: 30, attention: { council: 1 } },
+        cost: { fund: 30 },
         effect: {
           marks: ['haulier-sheltered'],
           relationship: { customer: 'haulier', delta: 15 },
@@ -213,7 +202,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
   {
     id: COURT_GRANARY,
     title: 'The old granary',
-    text: 'Next at arbitration: the old granary across the lane is claimed twice. The previous manager promised it to Community Pasta Works for semolina storage; the village committee has used it for three years to keep its community bakery’s flour and wants that confirmed. The deeds are the mill’s.',
+    text: 'Next at arbitration: the old granary across the lane is claimed twice. The previous manager promised it to Community Polenta Kitchen for cornmeal storage; the village committee has used it for three years to keep its community bakery’s flour and wants that confirmed. The deeds are the mill’s.',
     polarity: 'neutral',
     weight: 1,
     routine: false,
@@ -221,8 +210,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
     choices: [
       {
         id: 'pasta',
-        label: 'Honour the promise to the pasta works',
-        cost: { attention: { council: 1 } },
+        label: 'Honour the promise to the polenta kitchen',
         effect: {
           marks: ['granary-pasta'],
           relationship: [
@@ -230,13 +218,12 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
             { customer: 'village', delta: -15 },
           ],
           followUp: { eventId: COURT_SACKS, afterShifts: 1 },
-          result: 'The pasta works takes the granary; the village bakery moves its flour out.',
+          result: 'The polenta kitchen takes the granary; the village bakery moves its flour out.',
         },
       },
       {
         id: 'village',
         label: 'Confirm the village bakery',
-        cost: { attention: { council: 1 } },
         effect: {
           marks: ['granary-village'],
           relationship: [
@@ -244,13 +231,13 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
             { customer: 'pasta', delta: -10 },
           ],
           followUp: { eventId: COURT_SACKS, afterShifts: 1 },
-          result: 'The village bakery keeps the granary. The pasta works is not pleased.',
+          result: 'The village bakery keeps the granary. The polenta kitchen is not pleased.',
         },
       },
       {
         id: 'compensate',
-        label: 'Confirm the village and promise the pasta works compensation',
-        cost: { knowHow: 3, attention: { council: 1 } },
+        label: 'Confirm the village and promise the polenta kitchen compensation',
+        cost: { knowHow: 3 },
         effect: {
           marks: ['granary-village', 'owed-pasta'],
           relationship: [
@@ -262,13 +249,12 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
             { eventId: 'evt-debt-pasta', afterShifts: 12 },
           ],
           result:
-            'The village keeps the granary and the pasta works accepts a promise of storage later.',
+            'The village keeps the granary and the polenta kitchen accepts a promise of storage later.',
         },
       },
       {
         id: 'keep',
         label: 'Keep the granary for the mill',
-        cost: { attention: { council: 1 } },
         effect: {
           fund: 100,
           marks: ['granary-kept'],
@@ -310,7 +296,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'blacklist',
         label: 'Change supplier now',
-        cost: { attention: { council: 1 } },
         effect: {
           marks: ['sacks-blacklisted'],
           standing: -15,
@@ -322,7 +307,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'audit',
         label: 'Pay for a counted delivery',
-        cost: { fund: 40, attention: { council: 1 } },
+        cost: { fund: 40 },
         effect: {
           fund: 30,
           marks: ['sacks-audited'],
@@ -370,7 +355,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'refuse',
         label: 'Hold this firm to its contract',
-        cost: { attention: { council: 1 } },
         effect: {
           marks: ['precedent-refused'],
           relationship: { customer: 'haulier', delta: -5 },
@@ -384,8 +368,8 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
   },
   {
     id: 'evt-debt-pasta',
-    title: 'The pasta works asks what was promised',
-    text: 'Community Pasta Works writes to ask for the storage it was promised when the old granary went to the village bakery. The east bin would do. Its buyer copies the federation.',
+    title: 'The polenta kitchen asks what was promised',
+    text: 'Community Polenta Kitchen writes to ask for the storage it was promised when the old granary went to the village bakery. The east bin would do. Its buyer copies the federation.',
     polarity: 'negative',
     weight: 1,
     routine: false,
@@ -394,7 +378,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
     choices: [
       {
         id: 'pay',
-        label: 'Lease the pasta works the east bin as promised',
+        label: 'Lease the polenta kitchen the east bin as promised',
         cost: { fund: 90 },
         effect: {
           clearMarks: ['owed-pasta'],
@@ -403,7 +387,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
             { customer: 'pasta', delta: 12 },
             { customer: 'federation', delta: 4 },
           ],
-          result: 'The east bin is cleaned out and leased to the pasta works.',
+          result: 'The east bin is cleaned out and leased to the polenta kitchen.',
         },
       },
       {
@@ -416,7 +400,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
             { customer: 'pasta', delta: -20 },
             { customer: 'federation', delta: -8 },
           ],
-          result: 'The promise is broken. The pasta works says so to the federation.',
+          result: 'The promise is broken. The polenta kitchen says so to the federation.',
         },
       },
     ],
@@ -436,7 +420,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'claim',
         label: 'Count every bale and claim the shortfall',
-        cost: { attention: { council: 1 } },
         effect: {
           fund: 20,
           marks: ['sacks-audited'],
@@ -480,7 +463,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'rebuild',
         label: 'Rebuild the culvert',
-        cost: { fund: 50, attention: { works: 1 } },
+        cost: { fund: 50 },
         effect: {
           marks: ['culvert-rebuilt'],
           result: 'The culvert is rebuilt in dressed stone with twice the old bore.',
@@ -507,7 +490,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'survey',
         label: 'Commission the survey',
-        cost: { fund: 40, attention: { works: 1 } },
+        cost: { fund: 40 },
         effect: {
           marks: ['switchgear-surveyed'],
           result: 'The survey finds two loose busbar joints and a tired contactor, all put right.',
@@ -534,7 +517,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'buy',
         label: 'Buy the stone',
-        cost: { fund: 60, attention: { works: 1 } },
+        cost: { fund: 60 },
         effect: {
           marks: ['stone-bought'],
           followUp: { eventId: 'evt-quarry-haul', afterShifts: 2 },
@@ -631,7 +614,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'speak',
         label: 'Answer from the mill’s record',
-        cost: { attention: { council: 1 } },
         requires: {
           anyOf: [
             { party: { id: 'growers', tier: 'warm' } },
@@ -753,7 +735,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'reclean',
         label: 'Re-clean the floor and log it now',
-        cost: { fund: 60, attention: { works: 1 } },
+        cost: { fund: 60 },
         effect: {
           marks: ['log-recleaned'],
           standing: 5,
@@ -798,7 +780,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'open',
         label: 'Open every record to the auditors',
-        cost: { fund: 150, knowHow: 4, attention: { council: 1 } },
+        cost: { fund: 150, knowHow: 4 },
         effect: {
           reinstate: true,
           marks: ['reinstated'],
@@ -848,7 +830,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'small',
         label: 'Hire the certified unit',
-        cost: { fund: 50, attention: { works: 1 } },
+        cost: { fund: 50 },
         effect: {
           modifier: { label: 'Certified mobile sifter', production: 1.02, shifts: 4 },
           result: 'The certified sifter is fitted and the line runs a little faster.',
@@ -889,7 +871,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'coop',
         label: 'Offer cooperative terms instead',
-        cost: { attention: { trade: 1 } },
         effect: {
           marks: ['coop-terms'],
           modifier: { label: 'Cooperative terms', reinvestment: 0.02, shifts: 6 },
@@ -925,7 +906,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'switch',
         label: 'Move the collections to the larger firm',
-        cost: { attention: { trade: 1 } },
         effect: {
           fund: 60,
           marks: ['haulier-replaced'],
@@ -937,7 +917,6 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'share',
         label: 'Share the collections between them',
-        cost: { attention: { trade: 1 } },
         effect: {
           fund: 25,
           marks: ['haulage-shared'],
@@ -994,9 +973,62 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
           holdFront: 'floor',
           result: 'The AI partner holds the roller floor.',
         },
+        // The partner holds the front that is less ready, so the readier one
+        // can hold on its preparation (it always held the floor until 13 November).
+        variants: [
+          {
+            when: { weakerFront: 'intake' },
+            because: 'Because the intake and grain stores were the less prepared',
+            effect: {
+              holdFront: 'intake',
+              result: 'The AI partner holds the intake and grain stores.',
+            },
+          },
+        ],
       },
     ],
     defaultChoiceId: 'partner',
+    lapseShifts: 2,
+  },
+
+  // -------------------------------------------------------------------------
+  // The federation's administrator, offered as support (D9, item 4.11)
+  // -------------------------------------------------------------------------
+  {
+    // Placed by the engine when two quotas are missed in a row or three
+    // organisations cool (system 32), never drawn. ICA principle 4: co-operatives
+    // are "autonomous, self-help organisations controlled by their members", so
+    // the federation offers and the assembly decides.
+    id: FEDERATION_ADMINISTRATOR_EVENT_ID,
+    title: 'The federation offers an administrator',
+    text: 'The regional federation offers to send an administrator for four shifts: the policies held where they stand, upkeep x1.1 for its keep, and the AI partner acting at Forecasts or above. The mill is its members’ own, so the assembly can accept the support or refuse it.',
+    polarity: 'neutral',
+    weight: 1,
+    routine: false,
+    chained: true,
+    choices: [
+      {
+        id: 'accept',
+        // The support is real: the federation pays the upkeep while it stays
+        // (engine.ts, `chargeUpkeep`), so accepting and refusing both have a case.
+        label: 'Accept the federation’s support: it pays the upkeep for 4 shifts',
+        effect: {
+          administration: true,
+          result: 'The assembly accepts the administrator for four shifts.',
+        },
+      },
+      {
+        id: 'refuse',
+        label: 'Refuse it and steer the mill alone',
+        effect: {
+          marks: ['administration-refused'],
+          relationship: { customer: 'federation', delta: ADMINISTRATION_REFUSED_DELTA },
+          result: 'The assembly refuses the administrator, and the federation takes it badly.',
+        },
+      },
+    ],
+    // A lapse accepts, as the administrator used to arrive.
+    defaultChoiceId: 'accept',
     lapseShifts: 2,
   },
 ];

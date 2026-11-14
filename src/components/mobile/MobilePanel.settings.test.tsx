@@ -79,6 +79,26 @@ it('resets the day from the compact sheet without closing it under the confirmat
   expect(useGameSimulationStore.getState().gameTime).toBe(10);
 });
 
+// Under 768 px the side panel's footer, the only way to About, is not shown:
+// a phone player could not reach the disclaimer or the PA voice's licence
+// credit (CC BY-NC 4.0, which the voice may be used only with). The sheet ends
+// with About, in both languages.
+it('opens About from the compact settings sheet', () => {
+  render(<MobilePanel isVisible content="settings" onClose={vi.fn()} />);
+  fireEvent.click(screen.getByRole('button', { name: 'About MillOS' }));
+  const about = screen.getByRole('dialog', { name: 'About MillOS' });
+  expect(about).toHaveTextContent(/Phonon 40M/);
+  // Outside the sheet: inside it, a capture showed the modal centred on and
+  // clipped by the sheet, its title and Close off the top.
+  expect(screen.getByRole('dialog', { name: /Settings/ }).contains(about)).toBe(false);
+});
+
+it('names About in Brazilian Portuguese', () => {
+  setLocale('pt-BR');
+  render(<MobilePanel isVisible content="settings" onClose={vi.fn()} />);
+  expect(screen.getByRole('button', { name: 'Sobre o MillOS' })).toBeInTheDocument();
+});
+
 it('stays open when opened while the tour is already running', () => {
   act(() => useUIStore.setState({ hasSeenIntro: false }));
   render(<MobilePanel isVisible content="settings" onClose={vi.fn()} />);

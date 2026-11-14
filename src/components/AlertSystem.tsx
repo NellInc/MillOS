@@ -30,7 +30,6 @@ const getSampleAlerts = (): Omit<AlertData, 'id' | 'timestamp' | 'acknowledged'>
     machineId: 'sifter-b',
   },
   { type: 'info', title: m('qualityCheckTitle'), message: m('qualityCheckMessage') },
-  { type: 'success', title: m('targetMetTitle'), message: m('targetMetMessage') },
   { type: 'warning', title: m('lowStockTitle'), message: m('lowStockMessage') },
   { type: 'info', title: m('conveyorCheckTitle'), message: m('conveyorCheckMessage') },
 ];

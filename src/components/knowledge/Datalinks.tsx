@@ -37,6 +37,10 @@ import {
   Users,
   Settings,
   Library,
+  Wheat,
+  Wind,
+  Flame,
+  Croissant,
   LucideIcon,
 } from 'lucide-react';
 import {
@@ -77,6 +81,10 @@ const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
   users: Users,
   cog: Settings,
   library: Library,
+  wheat: Wheat,
+  wind: Wind,
+  flame: Flame,
+  croissant: Croissant,
 };
 
 import { KnowledgeEntryCard } from './KnowledgeEntryCard';
@@ -110,7 +118,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
   const [selectedCategory, setSelectedCategory] = useState<KnowledgeCategory | 'all'>('all');
   const [selectedEntry, setSelectedEntry] = useState<KnowledgeEntry | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<KnowledgeCategory>>(
-    new Set(['principles', 'pioneers', 'systems', 'case-studies'])
+    new Set(['milling', 'principles', 'pioneers', 'systems', 'case-studies'])
   );
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -181,6 +189,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
   // Group entries by category
   const entriesByCategory = useMemo(() => {
     const groups: Record<KnowledgeCategory, KnowledgeEntry[]> = {
+      milling: [],
       principles: [],
       pioneers: [],
       systems: [],
@@ -242,7 +251,13 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
     (entryButton ?? searchInputRef.current)?.focus();
   }, [selectedEntry]);
 
-  const categories: KnowledgeCategory[] = ['principles', 'pioneers', 'systems', 'case-studies'];
+  const categories: KnowledgeCategory[] = [
+    'milling',
+    'principles',
+    'pioneers',
+    'systems',
+    'case-studies',
+  ];
   const audienceEntryCount = visibleEntries.length;
 
   return (
@@ -254,7 +269,9 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reducedMotion ? 0 : 0.15 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 pointer-events-auto"
+          // z-[1000], as the app's other modals: at z-50 the stop banner and
+          // guidance (z-[60]) drew over the dialog's header and entry list.
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 pointer-events-auto"
           onClick={onClose}
         >
           <motion.div
@@ -276,17 +293,9 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
             <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-3 sm:px-6 sm:py-4 border-b border-slate-700 bg-slate-800/50">
               <div className="flex min-w-0 items-center gap-3">
                 <Database className="w-6 h-6 text-slate-400" />
-                <div>
-                  <h2
-                    id="datalinks-title"
-                    className="text-xl font-semibold text-white tracking-wide"
-                  >
-                    {t('title')}
-                  </h2>
-                  <p className="text-[10px] text-slate-300 uppercase tracking-widest">
-                    {t('subtitle')}
-                  </p>
-                </div>
+                <h2 id="datalinks-title" className="text-xl font-semibold text-white tracking-wide">
+                  {t('title')}
+                </h2>
                 <span className="hidden shrink-0 px-2 py-0.5 text-xs bg-slate-700 rounded-full text-slate-300 sm:inline">
                   {t('entryCount', {
                     count: formatFixed(audienceEntryCount, 0),
@@ -325,9 +334,11 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
             </div>
 
             <div className="flex min-h-0 flex-1">
-              {/* Sidebar - Entry List */}
+              {/* Sidebar - Entry List. On a short screen (a landscape phone)
+                  the whole column scrolls: the wrapped chips left the list no
+                  room for a single entry. */}
               <div
-                className={`${selectedEntry ? 'hidden sm:flex' : 'flex'} min-h-0 w-full shrink-0 border-r border-slate-700 flex-col sm:w-80`}
+                className={`${selectedEntry ? 'hidden sm:flex' : 'flex'} min-h-0 w-full shrink-0 border-r border-slate-700 flex-col sm:w-80 [@media(max-height:480px)]:overflow-y-auto`}
               >
                 {/* Search */}
                 <div className="p-4 border-b border-slate-700">
@@ -348,8 +359,9 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                   </div>
                 </div>
 
-                {/* Category filters */}
-                <div className="flex gap-1 px-4 py-2 border-b border-slate-700 overflow-x-auto">
+                {/* Category filters. They wrap: as a scrolling row the sixth
+                    category cut the third chip mid-word ("Operatin"). */}
+                <div className="flex flex-wrap gap-1 px-4 py-2 border-b border-slate-700">
                   <button
                     onClick={() => setSelectedCategory('all')}
                     aria-pressed={selectedCategory === 'all'}
@@ -379,7 +391,7 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                 </div>
 
                 {/* Entry List */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto [@media(max-height:480px)]:flex-none [@media(max-height:480px)]:overflow-visible">
                   {categories.map((category) => {
                     const entries = entriesByCategory[category];
                     if (entries.length === 0) return null;
@@ -432,7 +444,9 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                                   />
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-sm truncate text-slate-200">
+                                      {/* Wraps: truncated, the Portuguese "O que um
+                                          padeiro precisa da farinha" lost its end. */}
+                                      <span className="min-w-0 break-words text-sm text-slate-200">
                                         {entry.title}
                                       </span>
                                       {isNewEntry && (
@@ -503,17 +517,9 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-center p-8">
                     <Database className="w-16 h-16 text-slate-700 mb-6" />
-                    <h3 className="text-lg font-medium text-slate-300 mb-3 tracking-wide">
+                    <h3 className="text-lg font-medium text-slate-300 tracking-wide">
                       {t('welcome')}
                     </h3>
-                    <p className="text-sm text-slate-400 max-w-md mb-4 italic">
-                      {t('welcomeQuote')}
-                    </p>
-                    <p className="text-xs text-slate-500 mb-6">{t('welcomeQuoteSource')}</p>
-                    <p className="text-sm text-slate-500 max-w-md">{t('welcomeBody')}</p>
-                    <p className="text-xs text-slate-400 mt-6 uppercase tracking-wider">
-                      {t('selectEntry')}
-                    </p>
                   </div>
                 )}
               </div>

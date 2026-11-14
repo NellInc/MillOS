@@ -10,10 +10,11 @@ describe('speakableText', () => {
       'Warning on roller mill one oh four. Please take a look.',
     ],
     ['R.M. 112 is back up and running.', 'roller mill one twelve is back up and running.'],
-    [
-      'Warning on Plansifter A. Please take a look.',
-      'Warning on Plansifter ay. Please take a look.',
-    ],
+    // The plant's names (MillScene.tsx): "Sifter A", never "Plansifter A".
+    ['Warning on Sifter A. Please take a look.', 'Warning on Sifter ay. Please take a look.'],
+    ['Heads up! Sifter A needs a look, please.', 'Heads up! Sifter ay needs a look, please.'],
+    ["Sifter A's still down.", "Sifter ay's still down."],
+    ['Sifter B is back up and running.', 'Sifter B is back up and running.'],
     ["Morning shift's done. We earned an A.", "Morning shift's done. We earned an ay."],
     ["Night shift's done. We earned a B.", "Night shift's done. We earned a B."],
     ['A drill is over.', 'A drill is over.'],
@@ -28,7 +29,7 @@ describe('speakableText', () => {
       'Mass balance within tolerance — nothing unaccounted for.',
       'Mass balance within tolerance, nothing unaccounted for.',
     ],
-    ['Line 1 and Silo Alpha', 'Line one and Silo Alpha'],
+    ['Pack Line 1 and Silo Alpha', 'Pack Line one and Silo Alpha'],
   ])('en: %s', (input, spoken) => {
     expect(speakableText(input, 'en')).toBe(spoken);
   });
@@ -39,9 +40,11 @@ describe('speakableText', () => {
     ['Fim do turno da manhã. Tiramos nota A.', 'Fim do turno da manhã. Tiramos nota á.'],
     ['Fim do turno da noite. Tiramos nota E.', 'Fim do turno da noite. Tiramos nota é.'],
     [
-      'Alerta em Plansifter B. Deem uma olhada, por favor.',
-      'Alerta em Plansifter B. Deem uma olhada, por favor.',
+      'Alerta em Sifter B. Deem uma olhada, por favor.',
+      'Alerta em Sifter B. Deem uma olhada, por favor.',
     ],
+    ['Sifter A ainda precisa de atenção.', 'Sifter á ainda precisa de atenção.'],
+    ['Simulado concluído. A linha espera.', 'Simulado concluído. A linha espera.'],
     ['Desgaste 87,5%', 'Desgaste oitenta e sete vírgula cinco por cento'],
     ['6.000 sacos', 'seis mil sacos'],
     ['1.100 sacos', 'mil e cem sacos'],

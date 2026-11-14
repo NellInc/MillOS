@@ -26,9 +26,10 @@ import {
   FastForward,
   Heart,
   Truck,
-  Route,
   ScrollText,
+  Info,
 } from 'lucide-react';
+import { AboutModal } from '../AboutModal';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
 import { ChroniclePanel } from '../chronicle/ChroniclePanel';
 import type { DockMode } from '../ui-new/dock/Dock';
@@ -44,6 +45,8 @@ import {
   recordOperatorAction,
   useOperationsCampaignStore,
 } from '../../stores/operationsCampaignStore';
+import { openProgramme } from '../../stores/programmeCommitment';
+import { usePartnerProposalStore } from '../../stores/partnerProposalStore';
 import { SafetyPanel } from '../ui-new/panels/SafetyPanel';
 import { SettingsPanel } from '../ui-new/panels/SettingsPanel';
 import { JevAdvisoryPanel } from '../ui/JevAdvisoryPanel';
@@ -61,6 +64,7 @@ import {
 import { mobilePanelMessages } from './MobilePanel.messages';
 import { aiCommandCenterMessages } from '../AICommandCenter.messages';
 import { AISettingsModal } from '../AISettingsModal';
+import { PartnerProposalCards } from '../PartnerProposalCards';
 import { applyDecisionEffects, decisionCardText } from '../../utils/aiEngine';
 import { alertText } from '../../i18n/alertCopy';
 import { formatPaceRatio, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../simulation/pace';
@@ -221,17 +225,21 @@ const OverviewContent: React.FC = () => {
   const metrics = useProductionStore((s) => s.metrics);
   const machines = useProductionStore((s) => s.machines);
   const totalBagsProduced = useProductionStore((s) => s.totalBagsProduced);
-  const productionTarget = useProductionStore((s) => s.productionTarget);
+  const productionSpeed = useProductionStore((s) => s.productionSpeed);
 
   const gameTime = useGameSimulationStore((s) => s.gameTime);
   const currentShift = useGameSimulationStore((s) => s.currentShift);
   const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
   // The same chosen pace and hold note as Shift pace (TeachingPace).
   const chosenPace = useGameSimulationStore(selectChosenPace);
-  const setGameSpeed = useGameSimulationStore((s) => s.setGameSpeed);
+  const choosePace = useGameSimulationStore((s) => s.choosePace);
+  const [paceRefusal, setPaceRefusal] = React.useState(0);
 
   const safetyMetrics = useSafetyStore((s) => s.safetyMetrics);
   const campaignOrders = useOperationsCampaignStore((s) => s.orders);
+  // The goal is the running programme's committed tonnes (D11), as the HUD
+  // shows it; with no programme open there is no target tile.
+  const programme = React.useMemo(() => openProgramme(campaignOrders), [campaignOrders]);
   const campaignIncidents = useOperationsCampaignStore((s) => s.incidents);
   const campaignConstraints = useOperationsCampaignStore((s) => s.constraints);
   const campaignEconomics = useOperationsCampaignStore((s) => s.economics);
@@ -281,23 +289,12 @@ const OverviewContent: React.FC = () => {
     return () => window.removeEventListener('millos:open-operations-workspace', reveal);
   }, []);
 
-  // Target progress
-  const targetProgress = productionTarget
-    ? Math.min(100, (productionTarget.producedBags / productionTarget.targetBags) * 100)
-    : 0;
-
   return (
     <div className="space-y-3">
       <OperationsPlayCard />
       <WindmillLearningCard />
       <ProcessInspectionCard />
       <ShiftDebrief />
-      <button
-        onClick={() => window.dispatchEvent(new Event('millos:open-layout-planner'))}
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-cyan-700 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 hover:bg-cyan-900"
-      >
-        <Route size={18} aria-hidden="true" /> {t('planLogistics')}
-      </button>
       <details
         ref={batchRef}
         open={batchOpen}
@@ -337,7 +334,11 @@ const OverviewContent: React.FC = () => {
               onClick={() => {
                 // A new running pace is the player's decision; a pause is not.
                 const before = selectPaceUnderPause(useGameSimulationStore.getState());
-                setGameSpeed(value);
+                // A feature's hold refuses the choice and is named (D21).
+                if (choosePace(value) !== null) {
+                  setPaceRefusal((count) => count + 1);
+                  return;
+                }
                 if (value > 0 && value !== before)
                   recordOperatorAction({ kind: 'pace', gameSpeed: value });
               }}
@@ -358,7 +359,7 @@ const OverviewContent: React.FC = () => {
             </button>
           ))}
         </div>
-        <PaceHoldNote />
+        <PaceHoldNote refusal={paceRefusal} />
       </div>
 
       {/* Production Metrics - 2x2 grid. At the 10 px label floor, four to a
@@ -406,32 +407,33 @@ const OverviewContent: React.FC = () => {
         </div>
       </div>
 
-      {/* Daily Target + Safety Score side by side */}
+      {/* Programme commitment + Safety Score side by side */}
       <div className="grid grid-cols-2 gap-2">
-        {/* Daily Target */}
-        {productionTarget && (
+        {programme && (
           <div className="bg-slate-800/50 rounded-lg p-2">
             <div className="flex justify-between text-[10px] mb-1">
-              <span className="text-slate-400">{t('dailyTarget')}</span>
-              {/* One decimal, as the desktop Overview: rounded whole, 99.6%
-                  read 100% beside an unmet count. */}
-              <span className="text-cyan-400 font-mono">{formatFixed(targetProgress, 1)}%</span>
+              <span className="text-slate-400">{t('programme')}</span>
+              {/* One decimal, rounded down, as the desktop Overview: a
+                  programme one kilogram short never reads 100%. */}
+              <span className="text-cyan-400 font-mono">{formatFixed(programme.percent, 1)}%</span>
             </div>
             <div className="w-full h-1.5 bg-slate-700 rounded-full">
               <div
-                className={`h-full rounded-full ${targetProgress >= 100 ? 'bg-green-500' : 'bg-cyan-500'}`}
-                style={{ width: `${targetProgress}%` }}
+                className="h-full rounded-full bg-cyan-500"
+                style={{ width: `${programme.percent}%` }}
               />
             </div>
             <div className="text-[10px] text-slate-400 mt-1">
-              {formatGrouped(productionTarget.producedBags)}/
-              {formatGrouped(productionTarget.targetBags)}
+              {t('programmeTonnes', {
+                shipped: formatFixed(programme.shippedT, 1),
+                committed: formatFixed(programme.committedT, 1),
+              })}
             </div>
           </div>
         )}
 
-        {/* Safety Score */}
-        <div className="bg-slate-800/50 rounded-lg p-2">
+        {/* Safety Score: the whole row when no programme is open */}
+        <div className={`bg-slate-800/50 rounded-lg p-2 ${programme ? '' : 'col-span-2'}`}>
           <div className="flex items-center justify-between mb-1">
             <span className="text-[10px] text-slate-400">{t('safety')}</span>
             <span
@@ -502,8 +504,8 @@ const OverviewContent: React.FC = () => {
               {formatStage(campaignExecution.stage, t)}
             </span>
             <span className="font-mono text-slate-300">
-              {t('setpointPercent', {
-                value: formatFixed(campaignExecution.lineSetpointPercent, 0),
+              {t('productionSpeedPercent', {
+                value: formatFixed(productionSpeed * 100, 0),
               })}
             </span>
           </div>
@@ -582,6 +584,8 @@ const MachineStatusBadge: React.FC<{ label: string; count: number; color: string
 // is, so it carries the desktop panel whole, as it does Safety and Chronicle:
 // language, the tour, simulation resets, graphics, motion, sound and captions.
 const SettingsContent: React.FC = () => {
+  const t = useT(mobilePanelMessages);
+  const [showAbout, setShowAbout] = React.useState(false);
   const productionSpeed = useProductionStore((s) => s.productionSpeed);
   const setProductionSpeed = useProductionStore((s) => s.setProductionSpeed);
   const showZones = useUIStore((s) => s.showZones);
@@ -603,12 +607,32 @@ const SettingsContent: React.FC = () => {
     return () => window.removeEventListener(REPLAY_GETTING_STARTED_EVENT, close);
   }, []);
   return (
-    <SettingsPanel
-      productionSpeed={productionSpeed}
-      setProductionSpeed={setProductionSpeed}
-      showZones={showZones}
-      setShowZones={setShowZones}
-    />
+    <>
+      <SettingsPanel
+        productionSpeed={productionSpeed}
+        setProductionSpeed={setProductionSpeed}
+        showZones={showZones}
+        setShowZones={setShowZones}
+      />
+      {/* The side panel's footer, About's only door, is not shown on a phone:
+          the disclaimer and the PA voice's licence credit were out of reach. */}
+      <div className="px-4 pb-4">
+        <button
+          type="button"
+          onClick={() => setShowAbout(true)}
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/5 text-sm text-slate-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+        >
+          <Info className="h-4 w-4" aria-hidden="true" />
+          {t('aboutMillOS')}
+        </button>
+      </div>
+      {/* At the body: inside the sheet (a transformed, scrolling box) the
+          modal's fixed centring was the sheet's, and it was clipped by it. */}
+      {createPortal(
+        <AboutModal isOpen={showAbout} onClose={() => setShowAbout(false)} theme="dark" />,
+        document.body
+      )}
+    </>
   );
 };
 
@@ -669,31 +693,61 @@ const AIContent: React.FC = () => {
     }
   };
 
+  // An asked card's window runs out, so an open one leads the sheet: on a
+  // landscape phone its answers sat below the sheet's edge, under the settings
+  // and the tabs. With none open the proposals lead Decisions, as on desktop.
+  const askedOpen = usePartnerProposalStore((s) =>
+    s.proposals.some((proposal) => proposal.status === 'open')
+  );
+  // The wrapper gives the proposals' buttons a touch-sized height. Leading
+  // the sheet, the open cards come alone; who decides each kind stays in
+  // Decisions, so its rows do not sit between a card and the tabs.
+  // The last card answered takes the leading block with it: focus goes to
+  // Decisions, never to <body>.
+  const askedWasOpen = React.useRef(askedOpen);
+  React.useEffect(() => {
+    const was = askedWasOpen.current;
+    askedWasOpen.current = askedOpen;
+    if (!was || askedOpen) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    document.getElementById('mobile-ai-tabpanel')?.focus();
+  }, [askedOpen]);
+  const proposalCards = (show: 'all' | 'cards' | 'delegation') => (
+    <div className="[&_button]:min-h-11">
+      <PartnerProposalCards show={show} />
+    </div>
+  );
+
   return (
     <div className="space-y-3">
-      <button
-        type="button"
-        onClick={() => setShowAISettings(true)}
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
-      >
-        <Settings className="h-4 w-4" aria-hidden="true" /> {t('aiSettings')}
-      </button>
-      <div role="tablist" aria-label={t('aiViews')} className="flex gap-2">
-        {(['decisions', 'advisory'] as const).map((tab) => (
-          <button
-            key={tab}
-            role="tab"
-            id={`mobile-ai-${tab}-tab`}
-            aria-selected={activeTab === tab}
-            aria-controls="mobile-ai-tabpanel"
-            onClick={() => setActiveTab(tab)}
-            className={`min-h-10 flex-1 rounded-lg px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
-              activeTab === tab ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-300'
-            }`}
-          >
-            {tab === 'decisions' ? t('tabDecisions') : t('tabAdvisory')}
-          </button>
-        ))}
+      {askedOpen && proposalCards('cards')}
+      <div className="flex gap-2">
+        <div role="tablist" aria-label={t('aiViews')} className="flex flex-1 gap-2">
+          {(['decisions', 'advisory'] as const).map((tab) => (
+            <button
+              key={tab}
+              role="tab"
+              id={`mobile-ai-${tab}-tab`}
+              aria-selected={activeTab === tab}
+              aria-controls="mobile-ai-tabpanel"
+              onClick={() => setActiveTab(tab)}
+              className={`min-h-11 flex-1 rounded-lg px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
+                activeTab === tab ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-300'
+              }`}
+            >
+              {tab === 'decisions' ? t('tabDecisions') : t('tabAdvisory')}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowAISettings(true)}
+          aria-label={t('aiSettings')}
+          className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+        >
+          <Settings className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
       <div
         id="mobile-ai-tabpanel"
@@ -720,6 +774,9 @@ const AIContent: React.FC = () => {
         </div>
         {activeTab === 'advisory' ? null : (
           <>
+            {/* The partner's priced proposals lead, as on desktop (plan 3.0),
+                unless an open one already leads the sheet. */}
+            {proposalCards(askedOpen ? 'delegation' : 'all')}
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <Brain className="w-4 h-4" />
               <span>{t('recentDecisions')}</span>
@@ -740,8 +797,17 @@ const AIContent: React.FC = () => {
                     >
                       {getStatusIcon(decision.status)}
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-white truncate">{text.action}</div>
-                        <div className="text-[10px] text-slate-400 truncate">{text.reasoning}</div>
+                        {/* Whole, wrapped: cut with an ellipsis, a card could
+                            not be judged before answering it. The impact line
+                            says what accepting does, as the desktop card does. */}
+                        <div className="text-xs text-white break-words">{text.action}</div>
+                        <div className="mt-0.5 text-[11px] text-slate-400 break-words">
+                          {text.reasoning}
+                        </div>
+                        <div className="mt-1 flex items-start gap-1 text-[11px] text-green-400">
+                          <TrendingUp className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span className="break-words">{text.impact}</span>
+                        </div>
                         {decision.status === 'pending' && text.note && (
                           <div className="mt-0.5 text-[10px] text-slate-400">{text.note}</div>
                         )}
@@ -833,7 +899,6 @@ const SCADAContent: React.FC = () => {
   const metrics = useProductionStore((s) => s.metrics);
   const scadaLive = useProductionStore((s) => s.scadaLive);
   const campaignExecution = useOperationsCampaignStore((s) => s.execution);
-  const utilityAssets = useOperationsCampaignStore((s) => s.utilityAssets);
 
   return (
     <div className="space-y-3">
@@ -899,24 +964,6 @@ const SCADAContent: React.FC = () => {
           })}
         </div>
       </div>
-      <div>
-        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
-          {t('utilityVessels')}
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          {utilityAssets.map((asset) => (
-            <div key={asset.id} className="rounded bg-slate-800/50 p-2">
-              <div className="truncate text-[10px] font-semibold text-slate-200">{asset.label}</div>
-              <div className="mt-0.5 font-mono text-xs text-cyan-300">
-                {formatFixed(asset.levelPercent, 1)}%
-              </div>
-              <div className="font-mono text-[10px] text-slate-400">
-                {formatFixed(asset.temperatureC, 1)} °C · {formatFixed(asset.pressureBar, 2)} bar
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
@@ -970,7 +1017,6 @@ const ManagementContent: React.FC = () => {
           <div className="text-[10px] text-slate-400">{t('openIncidents')}</div>
         </div>
       </div>
-      <div className="text-center text-[10px] text-slate-400">{t('closedLoopNote')}</div>
     </div>
   );
 };

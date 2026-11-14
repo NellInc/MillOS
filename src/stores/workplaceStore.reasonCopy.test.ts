@@ -3,6 +3,7 @@ import { createWorkplace } from '../simulation/bilateralWorkplace';
 import { setLocale } from '../i18n';
 import { useOperationsCampaignStore } from './operationsCampaignStore';
 import { useWorkplaceStore, workplaceReasonText } from './workplaceStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 // A status line that keeps a refusal (the guided card, the laboratory) renders
 // it through workplaceReasonText, so a language switch reaches it.
@@ -21,6 +22,7 @@ describe('workplace refusals follow a language switch', () => {
 
   it('keys a startMission refusal from the store catalogue', () => {
     // No open customer commitment to link.
+    fulfilFirstDelivery();
     useOperationsCampaignStore.setState({ activeOrderId: null });
     const result = useWorkplaceStore.getState().startMission('toe-dip');
     expect(result.changed).toBe(false);
@@ -31,6 +33,7 @@ describe('workplace refusals follow a language switch', () => {
 
   it('keys an engine refusal passed through the store', () => {
     const store = useWorkplaceStore.getState();
+    fulfilFirstDelivery();
     expect(store.startCampaign('toe-dip', 17).changed).toBe(true);
     const result = useWorkplaceStore.getState().startCampaign('toe-dip', 17);
     expect(result.changed).toBe(false);

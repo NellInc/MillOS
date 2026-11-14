@@ -266,18 +266,18 @@ describe('BreakdownStore', () => {
       expect(useBreakdownStore.getState().hasLowInventory()).toBe(false);
     });
 
-    it('should top up depleted parts toward default stock on a truck delivery', () => {
+    it('brings on a truck delivery only the parts the reorder rule has on order (plan item 3.3)', () => {
       const { consumePart, restockDelivery } = useBreakdownStore.getState();
 
       consumePart('motors'); // 3 -> 2
-      consumePart('motors'); // 2 -> 1
-      consumePart('belts'); // 8 -> 7
+      consumePart('motors'); // 2 -> 1, at its reorder point
+      consumePart('belts'); // 8 -> 7, above its reorder point of 3
 
-      restockDelivery();
+      expect(restockDelivery()).toEqual({ motors: 2 });
       const inv = useBreakdownStore.getState().partsInventory;
-      expect(inv.motors).toBe(3); // 1 + 2, capped at default 3
-      expect(inv.belts).toBe(8); // 7 + 2 would exceed default 8, capped
-      expect(inv.bearings).toBe(10); // untouched part stays at default cap
+      expect(inv.motors).toBe(3); // ordered back up to 3
+      expect(inv.belts).toBe(7); // not on order: no truck hands it out
+      expect(inv.bearings).toBe(10);
     });
 
     it('should never grow inventory beyond default stock via deliveries', () => {
@@ -363,13 +363,15 @@ describe('BreakdownStore', () => {
 
       completeMaintenanceTask(task.id);
       expect(useBreakdownStore.getState().maintenanceSchedule[0].completed).toBe(true);
-      expect(useBreakdownStore.getState().partsInventory.bearings).toBe(9);
+      // One part, as Maintain takes: filters first, not the listed bearing.
+      expect(useBreakdownStore.getState().partsInventory.bearings).toBe(10);
+      expect(useBreakdownStore.getState().partsInventory.filters).toBe(14);
     });
 
-    it('refuses completion when required parts are unavailable', () => {
-      useBreakdownStore.setState((state) => ({
-        partsInventory: { ...state.partsInventory, motors: 0 },
-      }));
+    it('refuses completion when no spare part is in stock', () => {
+      useBreakdownStore.setState({
+        partsInventory: { bearings: 0, belts: 0, filters: 0, motors: 0, sensors: 0 },
+      });
       const { scheduleMaintenanceTask, completeMaintenanceTask } = useBreakdownStore.getState();
       scheduleMaintenanceTask({
         machineId: 'rm-102',

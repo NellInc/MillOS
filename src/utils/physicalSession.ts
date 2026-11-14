@@ -13,6 +13,8 @@ import {
 import {
   compactBatchCreditKeys,
   useOperationsCampaignStore,
+  windowStartSequence,
+  type CampaignLogEntry,
 } from '../stores/operationsCampaignStore';
 import { persistedGameSpeed, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { migrateLegacyGameSpeed } from '../simulation/pace';
@@ -44,6 +46,11 @@ import {
 } from '../stores/logisticsLayoutStore';
 import { translate } from '../i18n';
 import { physicalSessionMessages as messages } from './physicalSession.messages';
+import {
+  captureSavedProposals,
+  readSavedProposals,
+  usePartnerProposalStore,
+} from '../stores/partnerProposalStore';
 
 const INSTALLED_PROCESS_SIZE: Partial<Record<MachineType, Vec3Tuple>> = {
   [MachineType.ROLLER_MILL]: SITE_LAYOUT.machineDimensions.rollerMill,
@@ -70,6 +77,54 @@ function data<S extends object, K extends keyof Data<S> = never>(
   ) as Omit<Data<S>, K>;
 }
 
+/**
+ * Settled logbook lines a save keeps besides the open shift's. The live log
+ * keeps 160, and the partner's proposal lines carry their whole priced record
+ * (about 1 K chars each): measured at 280 K bytes of the save by game day 21
+ * (plan wave 3c).
+ */
+export const SAVED_LOGBOOK_TAIL = 40;
+/**
+ * Closed shift reports a save keeps, newest first in importance. The live
+ * campaign keeps 12 (about 7 K chars each with their proposal records); every
+ * reader but the review card's list of earlier shifts reads the newest one
+ * (the Chronicle, the open window's watermark, the partner).
+ */
+export const SAVED_REPORTS = 6;
+const LOG_SEQUENCE = /^log-(\d+)$/;
+
+/**
+ * The logbook a save keeps: every line of the open shift window (the shift
+ * report is built from them at close, by the same watermark), the newest
+ * SAVED_LOGBOOK_TAIL lines, and the latest programme acceptance (the partner
+ * reads who accepted last). Order is kept. Settled history before that is
+ * dropped, as the process log is.
+ * Working if a reload's next shift report and "last accepted by" read as they
+ * would have without the reload.
+ */
+export function savedLogbookWindow(
+  logbook: readonly CampaignLogEntry[],
+  reports: Parameters<typeof windowStartSequence>[0],
+  shiftStartedAtMinute: number
+): CampaignLogEntry[] {
+  if (logbook.length <= SAVED_LOGBOOK_TAIL) return [...logbook];
+  const watermark = windowStartSequence(reports, shiftStartedAtMinute);
+  let lastAccepted = -1;
+  for (let i = logbook.length - 1; i >= 0; i--)
+    if (logbook[i]?.wording?.key === 'logProgrammeAccepted') {
+      lastAccepted = i;
+      break;
+    }
+  const tailFrom = logbook.length - SAVED_LOGBOOK_TAIL;
+  return logbook.filter((entry, index) => {
+    if (index >= tailFrom || index === lastAccepted) return true;
+    const sequence = LOG_SEQUENCE.exec(entry?.id ?? '');
+    return watermark !== undefined && sequence
+      ? Number(sequence[1]) > watermark
+      : Number.isFinite(entry?.simulationMinute) && entry.simulationMinute >= shiftStartedAtMinute;
+  });
+}
+
 // One record keeps physical stock, quality authority, faults and dispatch credit
 // together. Preferences and revocable workplace permissions retain their own
 // existing migration rules. Replay checkpoints remain in-memory only.
@@ -77,7 +132,11 @@ function data<S extends object, K extends keyof Data<S> = never>(
 // without re-crediting a departure or restoring expired workplace authority.
 export function capturePhysicalSession() {
   return {
-    version: 1 as const,
+    // 2 since lot contributions are written compactly (plan wave 3d). An
+    // older build refuses a version 2 record (and cannot parse its compact
+    // lists): it keeps the record, holds the shift and offers Reset, and never
+    // writes over it. This build reads 1 and 2.
+    version: 2 as const,
     logistics: captureSavedLogisticsLayout(),
     // The delegated keys are stale copies of the quality, achievement, PA, replay
     // and truck owners, which save their own domains below.
@@ -89,7 +148,21 @@ export function capturePhysicalSession() {
       ...data(useMaterialFlowStore.getState(), ['processGenealogy']),
       processGenealogy: [] as MaterialFlowState['processGenealogy'],
     },
-    operations: data(useOperationsCampaignStore.getState()),
+    // The logbook and the closed reports are saved as windows: the open
+    // shift's lines and a tail (savedLogbookWindow), and the newest
+    // SAVED_REPORTS reports. Everything else the campaign holds is kept whole.
+    operations: (() => {
+      const operations = data(useOperationsCampaignStore.getState());
+      return {
+        ...operations,
+        logbook: savedLogbookWindow(
+          operations.logbook,
+          operations.reports,
+          operations.shiftStartedAtMinute
+        ),
+        reports: operations.reports.slice(-SAVED_REPORTS),
+      };
+    })(),
     game: data(useGameSimulationStore.getState()),
     maintenance: data(useBreakdownStore.getState()),
     trucks: data(useTruckScheduleStore.getState()),
@@ -102,6 +175,10 @@ export function capturePhysicalSession() {
     // The bell's notices describe the faults, incidents and holds restored above;
     // most are filed only on the transition, so nothing would raise them again.
     alerts: useUIStore.getState().alerts,
+    // The partner's proposals name this plant's wear predictions, programme
+    // count and game minutes, so they are only true of this record. Optional,
+    // as `alerts` is: a record from before them restores with none.
+    proposals: captureSavedProposals(),
   };
 }
 type PhysicalSession = ReturnType<typeof capturePhysicalSession>;
@@ -113,6 +190,79 @@ export class PhysicalSaveTooLargeError extends Error {
     this.name = 'PhysicalSaveTooLargeError';
   }
 }
+type SavedContribution = { lotId: string; amount: number; path: string[] };
+/**
+ * A list of lot contributions ({lotId, amount, path}, in that key order, as
+ * every writer in materialFlowStore makes them). Only an exact match is
+ * compacted, so the decoded objects stringify as the saved ones did: a batch's
+ * credit key digests its contributions' JSON.
+ */
+function isContributionList(value: unknown): value is SavedContribution[] {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+    const keys = Object.keys(entry);
+    const c = entry as Record<string, unknown>;
+    if (
+      keys.length !== 3 ||
+      keys[0] !== 'lotId' ||
+      keys[1] !== 'amount' ||
+      keys[2] !== 'path' ||
+      typeof c.lotId !== 'string' ||
+      typeof c.amount !== 'number' ||
+      !Array.isArray(c.path) ||
+      !c.path.every((step) => typeof step === 'string')
+    )
+      return false;
+  }
+  return true;
+}
+
+/**
+ * Lot contributions saved compactly (plan wave 3d): one table of the paths a
+ * list uses and a row [lotId, kg, path index] per contribution, about a third
+ * of the plain form. Lossless; a record of the plain form still decodes.
+ */
+function compactContributions(list: readonly SavedContribution[]) {
+  const paths: string[][] = [];
+  const index = new Map<string, number>();
+  const rows = list.map((c) => {
+    const key = c.path.join('>');
+    let at = index.get(key);
+    if (at === undefined) {
+      at = paths.length;
+      index.set(key, at);
+      paths.push([...c.path]);
+    }
+    return [c.lotId, c.amount, at] as const;
+  });
+  return { [TAG]: 'lots', value: [paths, rows] };
+}
+
+function expandContributions(value: unknown): SavedContribution[] {
+  if (!Array.isArray(value) || value.length !== 2) throw new Error('Invalid saved type');
+  const [paths, rows] = value as [unknown, unknown];
+  if (
+    !Array.isArray(paths) ||
+    !paths.every((path) => Array.isArray(path) && path.every((step) => typeof step === 'string')) ||
+    !Array.isArray(rows)
+  )
+    throw new Error('Invalid saved type');
+  return rows.map((row) => {
+    if (
+      !Array.isArray(row) ||
+      row.length !== 3 ||
+      typeof row[0] !== 'string' ||
+      typeof row[1] !== 'number' ||
+      !Number.isInteger(row[2]) ||
+      row[2] < 0 ||
+      row[2] >= paths.length
+    )
+      throw new Error('Invalid saved type');
+    return { lotId: row[0], amount: row[1], path: [...(paths[row[2]] as string[])] };
+  });
+}
+
 export function encodePhysicalSession(value: PhysicalSession): string {
   const encoded = JSON.stringify(value, function (this: Record<string, unknown>, key, v: unknown) {
     const original = this[key];
@@ -120,6 +270,7 @@ export function encodePhysicalSession(value: PhysicalSession): string {
     if (original instanceof Map) return { [TAG]: 'map', value: [...original] };
     if (typeof v === 'number' && !Number.isFinite(v))
       throw new Error(`Non-finite saved value at ${key}`);
+    if (isContributionList(v)) return compactContributions(v);
     return v;
   });
   if (encoded.length * 2 > MAX_SAVE_BYTES) throw new PhysicalSaveTooLargeError();
@@ -132,6 +283,24 @@ export function encodePhysicalSession(value: PhysicalSession): string {
 // first autosave, which would otherwise hit the gate again. Physical stock,
 // holds and the ledger are untouched; only settled history is dropped.
 function compactSavedHistories(value: unknown): void {
+  // A record from before the logbook window carries the whole log.
+  const operations = (value as { operations?: unknown } | null)?.operations;
+  if (operations && typeof operations === 'object') {
+    const o = operations as Record<string, unknown>;
+    if (
+      Array.isArray(o.logbook) &&
+      o.logbook.every((entry) => entry && typeof entry === 'object') &&
+      Number.isFinite(o.shiftStartedAtMinute)
+    )
+      o.logbook = savedLogbookWindow(
+        o.logbook as CampaignLogEntry[],
+        Array.isArray(o.reports)
+          ? (o.reports as Parameters<typeof windowStartSequence>[0])
+          : undefined,
+        o.shiftStartedAtMinute as number
+      );
+    if (Array.isArray(o.reports)) o.reports = o.reports.slice(-SAVED_REPORTS);
+  }
   const material = (value as { material?: unknown } | null)?.material;
   if (!material || typeof material !== 'object') return;
   const m = material as Record<string, unknown>;
@@ -156,7 +325,7 @@ function compactSavedHistories(value: unknown): void {
  * captured type, so a new nullable field cannot be forgotten.
  */
 export const NULLABLE_PHYSICAL_FIELDS = {
-  production: ['selectedMachine', 'productionTarget'],
+  production: ['selectedMachine'],
   operations: ['activeChallenge', 'lastMaterialSessionId', 'activeOrderId', 'currentShiftKey'],
   game: ['emergencyMachineId', 'activeSafetyEventId'],
 } as const;
@@ -191,6 +360,11 @@ const ADDED_PHYSICAL_FIELDS: Partial<
     sessionIncidentCount: (saved) =>
       Array.isArray(saved.safetyIncidents) ? saved.safetyIncidents.length : 0,
   },
+  // Services waiting for the season's Maintenance are saved from 13 November
+  // (unitService); before that a reload dropped them, so an older save has none.
+  maintenance: {
+    servicesAwaitingCrew: () => [],
+  },
 };
 
 // Saved-store fields since deleted from their stores. An older save still
@@ -198,6 +372,9 @@ const ADDED_PHYSICAL_FIELDS: Partial<
 const REMOVED_PHYSICAL_FIELDS: Partial<Record<string, readonly string[]>> = {
   // 69c35ecd (19 October) deleted the random-breakdown rate limit.
   maintenance: ['lastBreakdownTime'],
+  // The daily bag target, retired for the programme's committed tonnes (D11),
+  // left the production store on 12 November.
+  production: ['productionTarget'],
 };
 
 function validateTree(value: unknown, budget: { left: number }, depth = 0): void {
@@ -234,6 +411,7 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
       const tagged = v as Record<string, unknown>;
       if (Object.keys(tagged).length !== 2) throw new Error('Invalid saved type');
       if (tagged[TAG] === 'date' && typeof tagged.value === 'string') return new Date(tagged.value);
+      if (tagged[TAG] === 'lots') return expandContributions(tagged.value);
       if (
         tagged[TAG] === 'map' &&
         Array.isArray(tagged.value) &&
@@ -246,7 +424,10 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
   }) as PhysicalSession;
   compactSavedHistories(value);
   validateTree(value, { left: 200_000 });
-  if (!value || value.version !== 1) throw new Error('Unsupported physical save');
+  const version = (value as { version?: unknown } | null)?.version;
+  if (!value || (version !== 1 && version !== 2)) throw new Error('Unsupported physical save');
+  // A version 1 record is read as this build's, its lists in the plain form.
+  (value as { version: number }).version = 2;
   // Records from before the delegated copies were dropped still carry them. Their
   // owners' own domains are authoritative, so discard the copies, not the record.
   if (value.production && typeof value.production === 'object')
@@ -446,6 +627,10 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
     )
   )
     throw new Error('Invalid saved alerts');
+  // Read proposal by proposal: one this build cannot read is dropped, never the record.
+  (value as { proposals?: unknown }).proposals = readSavedProposals(
+    (value as { proposals?: unknown }).proposals
+  );
   const participantIds = value.participants.map((p) => p.id);
   if (new Set(participantIds).size !== participantIds.length)
     throw new Error('Duplicate continuation');
@@ -459,6 +644,16 @@ export function decodePhysicalSession(raw: string): PhysicalSession {
 
 let pending: PhysicalSession | null = null;
 export const isPhysicalSessionRestoring = () => pending !== null;
+
+/**
+ * Wall time a restore may stay unfinished once the game is up (opened or
+ * ready) before it is treated as failed. Its 'restore' hold is released only
+ * by finishing, and a pace choice no longer lifts a hold (D21), so a stall
+ * with no error would hold the clock for good; the failed path's notice
+ * carries "Continue without the save". Three times the scene-waiting notice's
+ * ~20 s, so that notice is read first.
+ */
+export const RESTORE_STALL_LIMIT_MS = 60_000;
 
 function restoreStores(saved: PhysicalSession) {
   resetThrottledBagState();
@@ -485,6 +680,7 @@ function restoreStores(saved: PhysicalSession) {
     speedZones: adoptSavedSpeedZones(saved.safety.speedZones),
   });
   useAchievementsStore.setState(saved.achievements);
+  usePartnerProposalStore.getState().restoreSaved(saved.proposals);
   // Before React mounts, so AlertSystem treats them as already announced.
   if (Array.isArray(saved.alerts)) useUIStore.setState({ alerts: saved.alerts });
   useProductionStore.setState({ ...saved.production, scadaLive: false });
@@ -627,9 +823,12 @@ export function installPhysicalSession(
       const tooLarge = error instanceof PhysicalSaveTooLargeError;
       if (!saveFailed) {
         console.error('[physicalSession] autosave failed:', error);
+        // A refused record is a problem: the shift runs on unsaved, so the
+        // bell says so as a warning (the HUD shows it). A skipped cycle is an
+        // aside the next one usually mends.
         notify(
           'physical-autosave-skipped',
-          'info',
+          tooLarge ? 'warning' : 'info',
           tooLarge ? 'autosaveStoppedTitle' : 'autosaveSkippedTitle',
           tooLarge ? 'autosaveTooLarge' : quota ? 'autosaveSkippedQuota' : 'autosaveSkippedMessage'
         );
@@ -647,13 +846,28 @@ export function installPhysicalSession(
       save();
     });
   };
+  // A restore still pending RESTORE_STALL_LIMIT_MS after the game is up has
+  // stalled: it takes the failed path, and stops pending so a scene owner that
+  // registers later cannot rewind the shift the player has since continued.
+  let stallTimer: number | undefined;
+  const watchStall = () => {
+    const now = getStartupSnapshot();
+    if (stallTimer !== undefined || !pending || disabled || !(now.opened || now.ready)) return;
+    stallTimer = window.setTimeout(() => {
+      if (!pending || disabled) return;
+      pending = null;
+      halt(translate(messages, 'continuationFailed'), new Error('Restore did not finish'));
+    }, RESTORE_STALL_LIMIT_MS);
+  };
   const startup = subscribeStartup(() => {
     try {
       finishRestore();
     } catch (error) {
       halt(translate(messages, 'continuationFailed'), error);
     }
+    watchStall();
   });
+  watchStall();
   // Coalesce a quality or repair action after all its synchronous store writes.
   // Ordinary stock/clock autosaves are paced, with a latest-state flush on exit.
   const qc = useQCLabStore.subscribe(queue);
@@ -672,6 +886,7 @@ export function installPhysicalSession(
       now.idSequence !== before.idSequence ||
       now.partsInventory !== before.partsInventory ||
       now.maintenanceSchedule !== before.maintenanceSchedule ||
+      now.servicesAwaitingCrew !== before.servicesAwaitingCrew ||
       // Repair progress now advances every tick on the shift clock, so it rides
       // the paced autosave; its start and finish are phase changes above.
       now.workOrders.some((w, i) => w.phase !== before.workOrders[i]?.phase)
@@ -713,6 +928,7 @@ export function installPhysicalSession(
   document.addEventListener('visibilitychange', visibility);
   return () => {
     window.clearInterval(timer);
+    window.clearTimeout(stallTimer);
     startup();
     qc();
     reports();

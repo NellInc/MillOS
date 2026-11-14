@@ -1,11 +1,12 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MachineInspector } from '../sidebar/MachineInspector';
 import { MachineType, type MachineData } from '../../../types';
-import { useProductionStore } from '../../../stores/productionStore';
+import { getWearConfig, useProductionStore } from '../../../stores/productionStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
 import { useUIStore } from '../../../stores/uiStore';
+import { stepUnitWork } from '../../../systems/unitService';
 
 const machine: MachineData = {
   id: 'service-mill',
@@ -36,30 +37,29 @@ describe('MachineInspector maintenance and reserved parts', () => {
   });
   afterEach(() => {
     cleanup();
-    vi.useRealTimers();
     useProductionStore.setState({ machines: savedMachines });
     useBreakdownStore.getState().resetBreakdownStore();
     useGameSimulationStore.setState({ emergencyActive: false, emergencyDrillMode: false });
     useUIStore.setState({ alerts: [] });
   });
 
-  it('leaves the parts a diagnosed repair holds and spends only free stock', async () => {
+  it('leaves the parts a diagnosed repair holds and spends only free stock', () => {
     const fault = useBreakdownStore
       .getState()
       .triggerBreakdown('other-mill', 'Other mill', 'electrical')!;
     expect(useBreakdownStore.getState().workOrders[0].phase).toBe('diagnosed');
 
-    vi.useFakeTimers();
     render(<MachineInspector machine={machine} />);
     // The sensor is held; the second motor is free. The count agrees with
     // the Parts panel's tile and names what is held.
     expect(
-      screen.getByText('Uses 1 spare part: motors (2 in stock, 1 held for repairs).')
+      screen.getByText(
+        'Uses 1 spare part: motors (2 in stock, 1 held for repairs), returned if a fault ends the service.'
+      )
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1300);
-    });
+    fireEvent.click(screen.getByRole('button', { name: /^Perform Maintenance/ }));
+    // The part is taken at the start; the service then runs its game minutes.
+    act(() => stepUnitWork(getWearConfig(MachineType.ROLLER_MILL).serviceMinutes * 60));
 
     expect(useBreakdownStore.getState().partsInventory).toMatchObject({ sensors: 1, motors: 1 });
     expect(useBreakdownStore.getState().startRepair(fault.id).started).toBe(true);
@@ -79,7 +79,7 @@ describe('MachineInspector maintenance and reserved parts', () => {
       )
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Perform Maintenance/ }));
     const alert = useUIStore.getState().alerts.find((a) => a.machineId === machine.id);
     expect(alert?.message).toBe(
       'Cannot perform maintenance on Service mill: every part in stock is held for a repair. Wait for a parts delivery.'

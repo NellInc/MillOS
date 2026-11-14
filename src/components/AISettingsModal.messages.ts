@@ -11,7 +11,6 @@ export const aiSettingsModalMessages = defineMessages({
     toggleCost: 'API Cost Tracker',
     toggleVcl: 'VCL Context',
     overlaysHeading: 'AI Visualization Overlays',
-    overlaysHint: 'Toggle overlays with keyboard shortcuts or buttons above',
 
     // Local WebGPU panel
     localCoreTitle: 'Local Neural Core',
@@ -25,7 +24,7 @@ export const aiSettingsModalMessages = defineMessages({
     cancelDownload: 'Cancel download',
     tryAgain: 'Try again',
     loadModel: 'Load model',
-    downloadAndLoad: 'Download & load model',
+    downloadAndLoad: 'Download & load model (~{size} GB)',
     unloadModel: 'Unload model (free GPU memory)',
     deleting: 'Deleting...',
     deleteModel: 'Delete downloaded model',
@@ -37,16 +36,13 @@ export const aiSettingsModalMessages = defineMessages({
     cachedInBrowser: 'Cached in this browser',
     cachedWithSize: 'Cached in this browser (~{size} used)',
     notDownloaded: 'Not downloaded yet',
-    modelDownloadNote:
-      'The model ({model}, ~{size} GB) downloads automatically when you select this backend, once, from the Hugging Face CDN, and is cached in your browser. After that all inference runs on your GPU and your simulation data never leaves your device — no API key, no cost. Use “Delete downloaded model” any time to remove it and free the space.',
 
     // ChatGPT panel
     modelCatalogUnavailable: 'Model catalog unavailable.',
     chatgptOperationFailed: 'ChatGPT operation failed.',
     chatgptTitle: 'ChatGPT plan login',
     chatgptIntroBefore: 'Available in the local MillOS companion. Run ',
-    chatgptIntroAfter:
-      ' and open its 127.0.0.1 address. Public-site ChatGPT plan access requires OpenAI approval. This plan route is separate from the dollar cap on BYOK calls.',
+    chatgptIntroAfter: ' and open its 127.0.0.1 address.',
     connectedAs: 'Connected as {account}',
     chatgptAccountFallback: 'ChatGPT account',
     chatgptAccountLabel: 'ChatGPT account',
@@ -117,22 +113,12 @@ export const aiSettingsModalMessages = defineMessages({
 
     // Operating mode
     operatingMode: 'AI Operating Mode',
-    fastRules: 'Fast rules',
     hybrid: 'Hybrid',
-    bestOfBoth: 'Best of both',
-    llmOnly: 'LLM only',
-    modeHeuristicDesc: 'Fast rule-based decisions. No API cost.',
-    modeLocalOnlyDesc:
-      'Strategic decisions from the local model only (every 45s); the fast rules layer is paused.',
-    modeModelOnlyDesc:
-      'Strategic decisions from {model} only (every 45s); the fast rules layer is paused.',
-    modeLocalHybridDesc: 'Tactical (heuristic 6s) + Strategic (local model 45s).',
-    modeModelHybridDesc: 'Tactical (heuristic 6s) + Strategic ({model} 45s).',
 
     // LLM-only confirmation
     considerHybrid: 'Consider Hybrid Mode?',
     hybridExplanation:
-      ' combines fast heuristic decisions (every 6s) with strategic insights (every 45s), giving you the best of both worlds.',
+      ' combines fast heuristic decisions (every 6s) with strategic insights (every 45s).',
     llmOnlyExplanation:
       'runs only the strategic LLM layer and pauses the fast rules layer, so the plant responds to changes more slowly.',
     useHybrid: 'Use Hybrid',
@@ -154,7 +140,6 @@ export const aiSettingsModalMessages = defineMessages({
     toggleCost: 'Monitor de custos da API',
     toggleVcl: 'Contexto VCL',
     overlaysHeading: 'Camadas de visualização da IA',
-    overlaysHint: 'Ative ou desative as camadas com os atalhos de teclado ou os botões acima',
 
     localCoreTitle: 'Núcleo neural local',
     online: 'On-line',
@@ -167,7 +152,7 @@ export const aiSettingsModalMessages = defineMessages({
     cancelDownload: 'Cancelar download',
     tryAgain: 'Tentar novamente',
     loadModel: 'Carregar modelo',
-    downloadAndLoad: 'Baixar e carregar modelo',
+    downloadAndLoad: 'Baixar e carregar modelo (~{size} GB)',
     unloadModel: 'Descarregar modelo (liberar memória da GPU)',
     deleting: 'Excluindo...',
     deleteModel: 'Excluir modelo baixado',
@@ -180,15 +165,12 @@ export const aiSettingsModalMessages = defineMessages({
     cachedInBrowser: 'Em cache neste navegador',
     cachedWithSize: 'Em cache neste navegador (~{size} em uso)',
     notDownloaded: 'Ainda não baixado',
-    modelDownloadNote:
-      'O modelo ({model}, ~{size} GB) é baixado automaticamente uma única vez, da CDN do Hugging Face, quando você seleciona este backend, e fica armazenado no seu navegador. Depois disso, toda a inferência roda na sua GPU e os dados da sua simulação nunca saem do seu dispositivo — sem chave de API, sem custo. Use “Excluir modelo baixado” a qualquer momento para removê-lo e liberar o espaço.',
 
     modelCatalogUnavailable: 'Catálogo de modelos indisponível.',
     chatgptOperationFailed: 'A operação do ChatGPT falhou.',
     chatgptTitle: 'Login com o plano ChatGPT',
     chatgptIntroBefore: 'Disponível no app auxiliar local do MillOS. Execute ',
-    chatgptIntroAfter:
-      ' e abra o endereço 127.0.0.1 que ele indicar. O acesso pelo plano ChatGPT no site público depende de aprovação da OpenAI. Esta rota pelo plano é separada do limite em dólares das chamadas BYOK.',
+    chatgptIntroAfter: ' e abra o endereço 127.0.0.1 que ele indicar.',
     connectedAs: 'Conectado como {account}',
     chatgptAccountFallback: 'conta ChatGPT',
     chatgptAccountLabel: 'Conta ChatGPT',
@@ -253,21 +235,11 @@ export const aiSettingsModalMessages = defineMessages({
     keyTestsBillable: 'Testes de chave e solicitações estratégicas são cobrados.',
 
     operatingMode: 'Modo de operação da IA',
-    fastRules: 'Regras rápidas',
     hybrid: 'Híbrido',
-    bestOfBoth: 'O melhor dos dois',
-    llmOnly: 'Somente LLM',
-    modeHeuristicDesc: 'Decisões rápidas baseadas em regras. Sem custo de API.',
-    modeLocalOnlyDesc:
-      'Decisões estratégicas apenas do modelo local (a cada 45 s); a camada de regras rápidas fica pausada.',
-    modeModelOnlyDesc:
-      'Decisões estratégicas apenas do {model} (a cada 45 s); a camada de regras rápidas fica pausada.',
-    modeLocalHybridDesc: 'Tático (heurístico 6 s) + Estratégico (modelo local 45 s).',
-    modeModelHybridDesc: 'Tático (heurístico 6 s) + Estratégico ({model} 45 s).',
 
     considerHybrid: 'Considerar o modo híbrido?',
     hybridExplanation:
-      ' combina decisões heurísticas rápidas (a cada 6 s) com análises estratégicas (a cada 45 s), oferecendo o melhor dos dois mundos.',
+      ' combina decisões heurísticas rápidas (a cada 6 s) com análises estratégicas (a cada 45 s).',
     llmOnlyExplanation:
       'executa apenas a camada estratégica de LLM e pausa a camada de regras rápidas, então a planta reage mais devagar às mudanças.',
     useHybrid: 'Usar híbrido',

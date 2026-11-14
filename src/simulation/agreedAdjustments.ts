@@ -114,3 +114,16 @@ export function quietRoomBookingAt(hourOfDay: number): QuietRoomBooking | undefi
   const h = Number.isFinite(hourOfDay) ? ((hourOfDay % 24) + 24) % 24 : -1;
   return QUIET_ROOM_BOOKINGS.find((booking) => h >= booking.start && h < booking.end);
 }
+
+const clock = (hour: number) =>
+  `${String(Math.floor(hour)).padStart(2, '0')}:${String(Math.round((hour % 1) * 60)).padStart(2, '0')}`;
+
+/**
+ * The quiet room's door sign: its standing bookings, as the room's schedule.
+ * A booking is a fact about the room, so it is shown on the room and never on
+ * the card of the person who books it (WorldCard). Painted signage, so not
+ * translated (src/i18n/GLOSSARY.md); it names nobody.
+ */
+export function quietRoomBookingSign(): string {
+  return `BOOKED ${QUIET_ROOM_BOOKINGS.map((b) => `${clock(b.start)}-${clock(b.end)}`).join('  ')}`;
+}

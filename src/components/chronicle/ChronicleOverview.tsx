@@ -1,7 +1,11 @@
 import { EVENT_DECK, localizedEventText } from '../../chronicle/eventDeck';
-import { formatGrouped } from '../../i18n';
+import { formatFixed, formatGrouped } from '../../i18n';
+import { qualityMargins, restorers } from '../../chronicle/margins';
+import { grainPenalties } from '../../chronicle/grainStamp';
+import { useMaterialFlowStore } from '../../stores/materialFlowStore';
+import { productPathQuality } from '../../systems/UnifiedGameTick';
 import { getCropYears } from '../../chronicle/cropYears';
-import { getEras } from '../../chronicle/plans';
+import { getEras, getImprovements } from '../../chronicle/plans';
 import { getForecasts } from '../../chronicle/forecasts';
 import { getFronts, localizedFrontSources } from '../../chronicle/longNight';
 import {
@@ -12,9 +16,11 @@ import {
 import { useT, createTranslator, getLocale } from '../../i18n';
 import { messages } from './ChronicleOverview.messages';
 import { useShallow } from 'zustand/react/shallow';
+import type { ReactNode } from 'react';
 import {
   CheckCircle,
   Circle,
+  Clock,
   Flame,
   Hammer,
   Moon,
@@ -22,12 +28,13 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sprout,
+  Thermometer,
   Trophy,
+  Users,
   Wheat,
 } from 'lucide-react';
 import { CERTIFIER_NAME, standingOf } from '../../chronicle/certifier';
-import { CHRONICLE_SHIFTS } from '../../chronicle/cropYears';
-import { DESKS } from '../../chronicle/desks';
+import { chronicleShifts, trialsFor } from '../../chronicle/schedule';
 import { cropWheatPenalty } from '../../chronicle/cropYears';
 import { relievedCropKinds } from '../../chronicle/effects';
 import {
@@ -43,31 +50,40 @@ import {
   knowHowOf,
   mitigationRelief,
   nextEra,
+  proposalStanding,
   treatmentPrice,
   upkeepPerShift,
   type ChronicleState,
 } from '../../chronicle/engine';
 import {
   FRONT_HOLD_THRESHOLD,
+  FRONTS,
   frontPreparation,
   LONG_NIGHT_EVENT_ID,
-  LONG_NIGHT_SHIFT,
+  longNightCardShift,
+  longNightShift,
 } from '../../chronicle/longNight';
 import { hasMark } from '../../chronicle/record';
+import { relationshipTier } from '../../chronicle/customers';
+import { getLadder, getRung } from '../../chronicle/governance';
+import { localizedStakeholderName } from '../../chronicle/stakeholders';
 
 import { knowHowEarned } from '../../chronicle/ledger';
 import { eraKnowHowTarget } from '../../chronicle/plans';
 import { nextMedalTarget, trialFraction } from '../../chronicle/trials';
 
 import { useChronicleStore } from '../../stores/chronicleStore';
-import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
+import { useProductionStore } from '../../stores/productionStore';
+import {
+  INCIDENT_DEFINITIONS,
+  useOperationsCampaignStore,
+} from '../../stores/operationsCampaignStore';
 import { incidentTitle } from '../../stores/incidentText';
 import {
   BUTTON,
   BUTTON_PRIMARY,
   CHIP,
   CostTag,
-  DeskAmount,
   FundAmount,
   KnowHowAmount,
   plural,
@@ -76,6 +92,22 @@ import {
 } from './shared';
 
 export const OPEN_EVENT = 'millos:open-chronicle-event';
+
+/** An organisation this close to cool is listed under Needs you (report 08, P5). */
+const NEAR_COOL = 5;
+
+/** One kind of need inside the Needs you list, named so its controls stay findable. */
+function NeedGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section
+      aria-label={title}
+      className="space-y-1 border-t border-slate-800 pt-2 first:border-t-0 first:pt-0"
+    >
+      <h4 className="text-xs font-semibold text-slate-300">{title}</h4>
+      {children}
+    </section>
+  );
+}
 
 export function ChronicleOverview({ state }: { state: ChronicleState }) {
   const t = useT(messages);
@@ -114,13 +146,231 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
   const installed = state.improvements.filter((p) => p.phase === 'installed').length;
   const earned = knowHowEarned(state.ledger);
   const passed = state.trials.filter((t) => t.phase === 'passed').length;
-  const trial =
-    state.trials.find((t) => t.phase === 'active') ??
-    state.trials.find((t) => t.phase === 'telegraphed') ??
-    null;
+  // The running trial, then any announced: Grid Winter is announced while the
+  // Bakers' Rush still runs, so both cards show.
+  const trialCards = [
+    ...state.trials.filter((t) => t.phase === 'active'),
+    ...state.trials.filter((t) => t.phase === 'telegraphed'),
+  ];
+  const totalShifts = chronicleShifts(state.charter);
+  const gov = state.governance;
+  const standing = proposalStanding(state);
+  // Within NEAR_COOL of the cool tier, read from the tier rule itself.
+  const cooling =
+    state.status === 'active'
+      ? state.stakeholders.filter(
+          (s) =>
+            relationshipTier(s.value) !== 'cool' && relationshipTier(s.value - NEAR_COOL) === 'cool'
+        )
+      : [];
+  const needs =
+    state.fire.active ||
+    state.upkeepShortfall !== null ||
+    awaiting.length > 0 ||
+    gov.countdowns.length > 0 ||
+    standing !== null ||
+    owned.length > 0 ||
+    cooling.length > 0;
 
   return (
     <div className="space-y-3">
+      {/* One answer to "what needs me now", first on the overview (report 08, P5). */}
+      {needs && (
+        <Section title={t('needsYou')}>
+          {state.fire.active && (
+            <NeedGroup title={t('m11')}>
+              <p className="flex items-center gap-2 text-rose-200">
+                <Flame className="h-4 w-4" aria-hidden="true" />
+                {/* Paid suppression and a clean by hand both end in a clean duct. */}
+                {state.fire.suppressing ? t('m12') : t('m13')}
+              </p>
+              {!state.fire.suppressing && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className={BUTTON_PRIMARY}
+                    disabled={!canAfford(state, { fund: FIRE_SUPPRESSION_COST })}
+                    onClick={() => actions.suppress('suppress')}
+                  >
+                    {t('m14')}
+                    <CostTag state={state} cost={{ fund: FIRE_SUPPRESSION_COST }} />
+                  </button>
+                  <button className={BUTTON} onClick={() => actions.suppress('by_hand')}>
+                    {t('m15')} {FIRE_HAND_CLEAN_MINUTES} {t('m16')}
+                  </button>
+                </div>
+              )}
+            </NeedGroup>
+          )}
+
+          {state.upkeepShortfall !== null && (
+            <NeedGroup title={t('m17')}>
+              <p>
+                {t('m18')} <FundAmount value={state.upkeepShortfall} />
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button className={BUTTON} onClick={() => actions.answerShortfall('conserve')}>
+                  {t('m19')}
+                </button>
+                <button
+                  className={BUTTON}
+                  disabled={
+                    knowHowOf(state) <
+                    Math.ceil(
+                      Math.max(0, state.upkeepShortfall - Math.max(0, fundOf(state))) /
+                        FORCED_FUND_PER_KNOW_HOW
+                    )
+                  }
+                  onClick={() => actions.answerShortfall('forced')}
+                >
+                  {t('m20')}
+                  <CostTag
+                    state={state}
+                    cost={{
+                      knowHow: Math.ceil(
+                        Math.max(0, state.upkeepShortfall - Math.max(0, fundOf(state))) /
+                          FORCED_FUND_PER_KNOW_HOW
+                      ),
+                    }}
+                  />
+                </button>
+              </div>
+            </NeedGroup>
+          )}
+
+          {awaiting.length > 0 && (
+            <NeedGroup title={t('m31')}>
+              {awaiting.map(({ pending, event }) => {
+                const title = localizedEventText(event.id, event.title);
+                return (
+                  <div
+                    key={pending.instanceId}
+                    className="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <span>
+                      {title}{' '}
+                      <span className="text-xs text-slate-300">
+                        {pending.lapsesShift - state.shift <= 1
+                          ? t('m32')
+                          : t('p54', {
+                              shifts: plural(pending.lapsesShift - state.shift, 'shift'),
+                            })}
+                      </span>
+                    </span>
+                    {/* Several can stand at once: each is named for the decision it opens. */}
+                    <button
+                      className={BUTTON}
+                      aria-label={t('p74', { title })}
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent(OPEN_EVENT, { detail: pending.instanceId })
+                        )
+                      }
+                    >
+                      {t('m33')}
+                    </button>
+                  </div>
+                );
+              })}
+            </NeedGroup>
+          )}
+
+          {gov.countdowns.length > 0 && (
+            <NeedGroup title={t('needsWarnings')}>
+              {gov.countdowns.map((countdown) => (
+                <p key={countdown.id} className="flex items-start gap-2">
+                  <Clock className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" aria-hidden="true" />
+                  {t('needsCountdown', {
+                    party: localizedStakeholderName(countdown.party),
+                    shifts: plural(Math.max(0, countdown.dueShift - state.shift), 'shift'),
+                    ladder: getLadder(countdown.ladder).label.toLowerCase(),
+                    rung: getRung(countdown.ladder, countdown.rung).label.toLowerCase(),
+                  })}
+                </p>
+              ))}
+            </NeedGroup>
+          )}
+          {standing && (
+            <NeedGroup title={t('needsAssembly')}>
+              <p className="flex items-start gap-2">
+                <Users className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" aria-hidden="true" />
+                {t('needsProposal', {
+                  ladder: getLadder(standing.proposal.ladder).label,
+                  from: getRung(
+                    standing.proposal.ladder,
+                    standing.proposal.from
+                  ).label.toLowerCase(),
+                  to: getRung(standing.proposal.ladder, standing.proposal.to).label.toLowerCase(),
+                })}
+              </p>
+            </NeedGroup>
+          )}
+          {owned.length > 0 && (
+            <NeedGroup title={t('m23')}>
+              {owned.map((incident) => (
+                <div
+                  key={incident.id}
+                  className="flex flex-wrap items-center justify-between gap-2"
+                >
+                  <span>
+                    {/* The record keeps the title in the language it was raised in. */}
+                    {incidentTitle(incident)}{' '}
+                    <span className="text-xs text-slate-300">
+                      (
+                      {
+                        {
+                          raised: t('r70'),
+                          acknowledged: t('r71'),
+                          mitigated: t('r72'),
+                          resolved: t('r73'),
+                        }[incident.phase]
+                      }
+                      )
+                    </span>
+                  </span>
+                  {incident.phase === 'raised' ? (
+                    <button
+                      className={BUTTON}
+                      onClick={() => campaign.acknowledgeIncident(incident.id, 'operator')}
+                    >
+                      {t('m24')}
+                    </button>
+                  ) : incident.phase === 'acknowledged' ? (
+                    <button
+                      className={BUTTON}
+                      onClick={() => campaign.mitigateIncident(incident.id, 'operator')}
+                    >
+                      {t('m25')}
+                    </button>
+                  ) : (
+                    <button
+                      className={BUTTON}
+                      disabled={!incident.effectApplied}
+                      onClick={() => actions.restore(incident.id)}
+                    >
+                      {incident.effectApplied ? t('m26') : t('m27')}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </NeedGroup>
+          )}
+
+          {cooling.length > 0 && (
+            <NeedGroup title={t('needsOrganisations')}>
+              {cooling.map((party) => (
+                <p key={party.id} className="flex items-start gap-2">
+                  <Thermometer
+                    className="mt-0.5 h-4 w-4 shrink-0 text-sky-300"
+                    aria-hidden="true"
+                  />
+                  {t('needsCooling', { party: localizedStakeholderName(party.id) })}
+                </p>
+              ))}
+            </NeedGroup>
+          )}
+        </Section>
+      )}
+
       <section aria-label={t('m0')} className="grid grid-cols-2 gap-2 text-sm">
         <div className="rounded-lg bg-slate-800/80 p-2">
           <div className="text-[11px] text-slate-300">{t('m1')}</div>
@@ -147,7 +397,7 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
             <KnowHowAmount value={knowHowOf(state)} />
           </div>
         </div>
-        <div className="rounded-lg bg-slate-800/80 p-2">
+        <div className="col-span-2 rounded-lg bg-slate-800/80 p-2">
           <div className="text-[11px] text-slate-300">{t('m5')}</div>
           <div className="flex items-center gap-1 font-semibold text-white">
             {state.certifier.suspended ? (
@@ -160,23 +410,10 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
               : t('p53', { standing: standingOf(state.certifier) })}
           </div>
         </div>
-        <div className="rounded-lg bg-slate-800/80 p-2">
-          <div className="text-[11px] text-slate-300">{t('m6')}</div>
-          <div className="flex items-center gap-2 font-semibold text-white">
-            {DESKS.map(({ id }) => (
-              <DeskAmount
-                key={id}
-                desk={id}
-                value={state.desks[id].points}
-                room={state.desks[id].room}
-              />
-            ))}
-          </div>
-        </div>
         <div className="col-span-2">
           <div className="mb-1 flex justify-between text-[11px] text-slate-300">
             <span>
-              {t('m7')} {Math.min(state.shift, CHRONICLE_SHIFTS)} {t('m8')} {CHRONICLE_SHIFTS}
+              {t('m7')} {Math.min(state.shift, totalShifts)} {t('m8')} {totalShifts}
             </span>
             {/* A finished chronicle charges no more upkeep. */}
             {state.status === 'active' && (
@@ -185,69 +422,9 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
               </span>
             )}
           </div>
-          <ProgressBar value={state.shift / CHRONICLE_SHIFTS} label={t('m10')} />
+          <ProgressBar value={state.shift / totalShifts} label={t('m10')} />
         </div>
       </section>
-
-      {state.fire.active && (
-        <Section title={t('m11')}>
-          <p className="flex items-center gap-2 text-rose-200">
-            <Flame className="h-4 w-4" aria-hidden="true" />
-            {/* Paid suppression and a clean by hand both end in a clean duct. */}
-            {state.fire.suppressing ? t('m12') : t('m13')}
-          </p>
-          {!state.fire.suppressing && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                className={BUTTON_PRIMARY}
-                disabled={!canAfford(state, { fund: FIRE_SUPPRESSION_COST })}
-                onClick={() => actions.suppress('suppress')}
-              >
-                {t('m14')}
-                <CostTag state={state} cost={{ fund: FIRE_SUPPRESSION_COST }} />
-              </button>
-              <button className={BUTTON} onClick={() => actions.suppress('by_hand')}>
-                {t('m15')} {FIRE_HAND_CLEAN_MINUTES} {t('m16')}
-              </button>
-            </div>
-          )}
-        </Section>
-      )}
-
-      {state.upkeepShortfall !== null && (
-        <Section title={t('m17')}>
-          <p>
-            {t('m18')} <FundAmount value={state.upkeepShortfall} />
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button className={BUTTON} onClick={() => actions.answerShortfall('conserve')}>
-              {t('m19')}
-            </button>
-            <button
-              className={BUTTON}
-              disabled={
-                knowHowOf(state) <
-                Math.ceil(
-                  Math.max(0, state.upkeepShortfall - Math.max(0, fundOf(state))) /
-                    FORCED_FUND_PER_KNOW_HOW
-                )
-              }
-              onClick={() => actions.answerShortfall('forced')}
-            >
-              {t('m20')}
-              <CostTag
-                state={state}
-                cost={{
-                  knowHow: Math.ceil(
-                    Math.max(0, state.upkeepShortfall - Math.max(0, fundOf(state))) /
-                      FORCED_FUND_PER_KNOW_HOW
-                  ),
-                }}
-              />
-            </button>
-          </div>
-        </Section>
-      )}
 
       {state.status === 'active' && state.trainingOffered && !state.trainingMode && (
         <Section title={t('m21')}>
@@ -257,57 +434,15 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
         </Section>
       )}
 
-      {owned.length > 0 && (
-        <Section title={t('m23')}>
-          {owned.map((incident) => (
-            <div key={incident.id} className="flex flex-wrap items-center justify-between gap-2">
-              <span>
-                {/* The record keeps the title in the language it was raised in. */}
-                {incidentTitle(incident)}{' '}
-                <span className="text-xs text-slate-300">
-                  (
-                  {
-                    {
-                      raised: t('r70'),
-                      acknowledged: t('r71'),
-                      mitigated: t('r72'),
-                      resolved: t('r73'),
-                    }[incident.phase]
-                  }
-                  )
-                </span>
-              </span>
-              {incident.phase === 'raised' ? (
-                <button
-                  className={BUTTON}
-                  onClick={() => campaign.acknowledgeIncident(incident.id, 'operator')}
-                >
-                  {t('m24')}
-                </button>
-              ) : incident.phase === 'acknowledged' ? (
-                <button
-                  className={BUTTON}
-                  onClick={() => campaign.mitigateIncident(incident.id, 'operator')}
-                >
-                  {t('m25')}
-                </button>
-              ) : (
-                <button
-                  className={BUTTON}
-                  disabled={!incident.effectApplied}
-                  onClick={() => actions.restore(incident.id)}
-                >
-                  {incident.effectApplied ? t('m26') : t('m27')}
-                </button>
-              )}
-            </div>
-          ))}
-        </Section>
-      )}
+      {trialCards.map((trial) => (
+        <TrialCard key={trial.id} state={state} trialId={trial.id} />
+      ))}
 
-      {trial && <TrialCard state={state} trialId={trial.id} />}
-
-      {state.longNightTelegraphed &&
+      {/* From the first errand that prepares for it, so the climax is a plan (report 08, P1). */}
+      {(state.longNightTelegraphed ||
+        (state.status === 'active' &&
+          state.charter?.mode !== 'sandbox' &&
+          state.shift >= longNightCardShift(EVENT_DECK, state.charter))) &&
         !hasMark(state, 'held-intake') &&
         !hasMark(state, 'held-floor') && <LongNightCard state={state} />}
 
@@ -319,6 +454,7 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
             {t('m28')}
             {penalty}
           </p>
+          <QualityMarginsLine state={state} />
           {!cropTreatmentMoot(state) && treatCost > 0 && (
             <button
               className={BUTTON}
@@ -329,41 +465,6 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
               <CostTag state={state} cost={{ fund: treatCost }} />
             </button>
           )}
-        </Section>
-      )}
-
-      {awaiting.length > 0 && (
-        <Section title={t('m31')}>
-          {awaiting.map(({ pending, event }) => {
-            const title = localizedEventText(event.id, event.title);
-            return (
-              <div
-                key={pending.instanceId}
-                className="flex flex-wrap items-center justify-between gap-2"
-              >
-                <span>
-                  {title}{' '}
-                  <span className="text-xs text-slate-300">
-                    {pending.lapsesShift - state.shift <= 1
-                      ? t('m32')
-                      : t('p54', { shifts: plural(pending.lapsesShift - state.shift, 'shift') })}
-                  </span>
-                </span>
-                {/* Several can stand at once: each is named for the decision it opens. */}
-                <button
-                  className={BUTTON}
-                  aria-label={t('p74', { title })}
-                  onClick={() =>
-                    window.dispatchEvent(
-                      new CustomEvent(OPEN_EVENT, { detail: pending.instanceId })
-                    )
-                  }
-                >
-                  {t('m33')}
-                </button>
-              </div>
-            );
-          })}
         </Section>
       )}
 
@@ -498,7 +599,7 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
 function TrialCard({ state, trialId }: { state: ChronicleState; trialId: string }) {
   const t = useT(messages);
   const progress = state.trials.find((t) => t.id === trialId)!;
-  const definition = localizedTrialById(progress.id);
+  const definition = localizedTrialById(progress.id, trialsFor(state.charter));
   const startsIn = Math.max(0, definition.startShift - state.shift);
   const remaining = definition.durationShifts - progress.shiftsUsed;
   // A medal needs completion by its shift; once that many shifts are used without
@@ -533,6 +634,10 @@ function TrialCard({ state, trialId }: { state: ChronicleState; trialId: string 
           </p>
         </>
       )}
+      {/* For a quality goal, each recipe's margin (4.6). */}
+      {(definition.goal.kind === 'clean_closes' || definition.goal.noQualityFailure) && (
+        <QualityMarginsLine state={state} />
+      )}
       <div className="flex flex-wrap gap-2">
         {gold && (
           <span className={CHIP}>
@@ -549,10 +654,101 @@ function TrialCard({ state, trialId }: { state: ChronicleState; trialId: string 
   );
 }
 
+/** The plant's stamp on an unworn line: the most any recipe can read. */
+const QUALITY_CEILING = productPathQuality([]);
+/** The stamp the tick puts on flour now: the running line's (fix-up b). */
+const lineStamp = (state: ReturnType<typeof useProductionStore.getState>) =>
+  productPathQuality(state.machines);
+const RECIPE_KEY = {
+  strong_white: 'recipe_strong_white',
+  community_flour: 'recipe_community_flour',
+  fine_semolina: 'recipe_fine_semolina',
+} as const;
+
+/** Item 4.6: each recipe's best stamp now against its minimum ("Strong white 94.5 / 95"). */
+function QualityMarginsLine({ state }: { state: ChronicleState }) {
+  const t = useT(messages);
+  const incident = useOperationsCampaignStore((s) => s.getIncidentEffect().qualityPenalty);
+  const stamp = useProductionStore(lineStamp);
+  // Under a charter the plant stamps flour from the grain it was milled from
+  // (lotQuality.ts): the card reads that grain, now and at best (grainStamp.ts).
+  // The selector keeps the card current as the grain changes.
+  useMaterialFlowStore((flow) => grainPenalties(flow).now(state));
+  useMaterialFlowStore((flow) => grainPenalties(flow).best(state));
+  const grain = grainPenalties(useMaterialFlowStore.getState());
+  const margins = qualityMargins(state, stamp, incident, grain.now);
+  const short = margins.filter((margin) => margin.best < margin.minimum);
+  // Out of reach only if a serviced line on the silos' grain, the incident
+  // recovered, still cannot make it: good grain in store is a way back.
+  const reach = qualityMargins(state, QUALITY_CEILING, 0, grain.best);
+  const unreachable = short.filter(
+    (margin) => reach.find((m) => m.recipe === margin.recipe)!.best < margin.minimum
+  );
+  const reachable = short.filter((margin) => !unreachable.includes(margin));
+  const label = (way: ReturnType<typeof restorers>[number]) =>
+    way.kind === 'incident'
+      ? t('restoreIncident')
+      : way.kind === 'service'
+        ? t('restoreService')
+        : way.kind === 'treatment'
+          ? t(state.crop?.kind === 'sprouted' ? 'restoreBlend' : 'restoreDry')
+          : way.kind === 'temper'
+            ? t('restoreDry')
+            : (getImprovements().find((plan) => plan.id === way.id)?.label ?? way.id);
+  // Rule 4: a recipe out of reach says what brings it back (margins.ts, `restorers`).
+  const ways = unreachable.length
+    ? restorers(state, QUALITY_CEILING, 0, QUALITY_CEILING, grain.best).map(label)
+    : [];
+  // Short now and reachable: what lifts it from here.
+  const nowWays = reachable.length
+    ? [
+        ...restorers(state, stamp, incident, QUALITY_CEILING, grain.now)
+          .filter((way) => way.kind === 'incident' || way.kind === 'service')
+          .map(label),
+        ...(grain.best(state) < grain.now(state) ? [t('restoreSilos')] : []),
+      ]
+    : [];
+  const recipes = unreachable.map((margin) => t(RECIPE_KEY[margin.recipe])).join(', ');
+  const recipesNow = reachable.map((margin) => t(RECIPE_KEY[margin.recipe])).join(', ');
+  return (
+    <>
+      <ul
+        aria-label={t('marginsLabel')}
+        className="flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums"
+      >
+        {margins.map((margin) => (
+          <li
+            key={margin.recipe}
+            className={margin.best >= margin.minimum ? 'text-emerald-300' : 'text-rose-300'}
+          >
+            {t('margin', {
+              recipe: t(RECIPE_KEY[margin.recipe]),
+              best: formatFixed(margin.best, 1),
+              minimum: formatGrouped(margin.minimum),
+            })}
+          </li>
+        ))}
+      </ul>
+      {unreachable.length > 0 && (
+        <p className="text-xs text-rose-200">
+          {ways.length
+            ? t('outOfReach', { recipes, ways: ways.join(', ') })
+            : t('outOfReachYear', { recipes })}
+        </p>
+      )}
+      {reachable.length > 0 && nowWays.length > 0 && (
+        <p className="text-xs text-rose-200">
+          {t('shortNow', { recipes: recipesNow, ways: nowWays.join(', ') })}
+        </p>
+      )}
+    </>
+  );
+}
+
 function LongNightCard({ state }: { state: ChronicleState }) {
   const t = useT(messages);
   const pending = state.pendingEvents.find((p) => p.eventId === LONG_NIGHT_EVENT_ID);
-  const startsIn = Math.max(0, LONG_NIGHT_SHIFT - state.shift);
+  const startsIn = Math.max(0, longNightShift(state.charter) - state.shift);
   return (
     <Section title={t('m46')}>
       <p className="flex items-center gap-2 text-amber-200">
@@ -565,12 +761,23 @@ function LongNightCard({ state }: { state: ChronicleState }) {
       </p>
       {(['intake', 'floor'] as const).map((front) => {
         const prepared = frontPreparation(state, front);
+        // What the front costs if it falls: the incident the resolution raises.
+        const stake = INCIDENT_DEFINITIONS[FRONTS[front].hazard];
         return (
           <div key={front} className="space-y-1">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="font-medium text-white">{getFronts()[front].label}</span>
+              <span className="min-w-0">
+                <span className="font-medium text-white">{getFronts()[front].label}</span>{' '}
+                <span className="text-xs text-rose-200">
+                  {t('nightStake', {
+                    incident: stake.title.toLowerCase(),
+                    value: formatGrouped(stake.effect.productionMultiplier),
+                  })}
+                </span>
+              </span>
               <span
-                className={`text-xs ${prepared >= FRONT_HOLD_THRESHOLD ? 'text-emerald-300' : 'text-slate-300'}`}
+                data-testid={`night-count-${front}`}
+                className={`shrink-0 whitespace-nowrap text-xs ${prepared >= FRONT_HOLD_THRESHOLD ? 'text-emerald-300' : 'text-slate-300'}`}
               >
                 {/* Spread cover prepares by halves: 1,5 in pt-BR. */}
                 {formatGrouped(prepared)} / {formatGrouped(FRONT_HOLD_THRESHOLD)}

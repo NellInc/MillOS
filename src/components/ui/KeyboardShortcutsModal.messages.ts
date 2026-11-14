@@ -9,6 +9,7 @@ export const keyboardShortcutsModalMessages = defineMessages({
     categoryControls: 'Controls',
     categoryGraphics: 'Graphics Quality',
     categorySafety: 'Safety',
+    categoryWorkspaces: 'Workspaces',
 
     keyDrag: 'Drag',
     keyScroll: 'Scroll / pinch',
@@ -47,6 +48,11 @@ export const keyboardShortcutsModalMessages = defineMessages({
     closePanels: 'Close panels',
     select: 'Select machine or vehicle',
 
+    openCommitment: 'Toggle the shift commitment',
+    openNotifications: 'Toggle notifications',
+    toggleSafety: 'Toggle Safety & Emergency',
+    toggleChronicle: 'Toggle the Mill Chronicle',
+
     lowQuality: 'Low quality',
     mediumQuality: 'Medium quality',
     highQuality: 'High quality',
@@ -70,6 +76,7 @@ export const keyboardShortcutsModalMessages = defineMessages({
     categoryControls: 'Controles',
     categoryGraphics: 'Qualidade gráfica',
     categorySafety: 'Segurança',
+    categoryWorkspaces: 'Áreas de trabalho',
 
     keyDrag: 'Arrastar',
     keyScroll: 'Rolar / pinçar',
@@ -108,6 +115,11 @@ export const keyboardShortcutsModalMessages = defineMessages({
     speed: 'Ajustar a velocidade de produção',
     closePanels: 'Fechar painéis',
     select: 'Selecionar máquina ou veículo',
+
+    openCommitment: 'Mostrar/ocultar o compromisso do turno',
+    openNotifications: 'Mostrar/ocultar as notificações',
+    toggleSafety: 'Mostrar/ocultar Segurança e emergência',
+    toggleChronicle: 'Mostrar/ocultar a Crônica do moinho',
 
     lowQuality: 'Qualidade baixa',
     mediumQuality: 'Qualidade média',

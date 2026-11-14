@@ -127,15 +127,20 @@ describe('a recovery challenge on a lower-priority order of the same product', (
     expect(deriveOperationsPlay(store()).challengeProgress?.dispatchedKg).toBe(400);
   });
 
-  it('fails when flour of that product ships below specification to any order', () => {
+  // Re-pinned for plan item 3.4 (D6): flour below an order's minimum is paid
+  // to no order, so it neither fails the run (no quality failure is booked)
+  // nor counts toward it.
+  it('counts no flour below specification, for any order', () => {
     const incidentId = startChallengeOnLowerPriorityFlourOrder();
     recover(incidentId);
-    // 80 is below strong white's 95: order-001 records a quality failure.
+    const progress = deriveOperationsPlay(store()).challengeProgress?.dispatchedKg;
+    // 80 is below every flour minimum (95 and 92).
     const [manifest, batch] = flourShipment('shipping-0001', 1000, 80);
     tick(1, { manifests: [manifest], productionBatches: [batch] });
-    expect(store().orders.find((order) => order.id === 'order-001')!.qualityFailureKg).toBe(1000);
-    expect(store().activeChallenge).toBeNull();
-    expect(store().challengeHistory.at(-1)?.status).toBe('failed');
+    for (const order of store().orders) expect(order.qualityFailureKg).toBe(0);
+    expect(store().orders.find((order) => order.id === 'order-001')!.shippedKg).toBe(0);
+    expect(store().activeChallenge).not.toBeNull();
+    expect(deriveOperationsPlay(store()).challengeProgress?.dispatchedKg).toBe(progress);
   });
 
   it('a run saved before material credit keeps its order progress and then counts the product', () => {

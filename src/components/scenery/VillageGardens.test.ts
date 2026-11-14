@@ -21,6 +21,7 @@ import {
   VILLAGE_ALLOTMENT_GEOMETRY,
   VILLAGE_PLOT_MATERIAL,
   TOWN_HALL_HEDGE_GEOMETRY,
+  TOWN_HALL_PRIVET_RUNS,
 } from './VillageGardens';
 import {
   VILLAGE_BUILDING_FOOTPRINTS,
@@ -370,14 +371,7 @@ it('grounds the civic privet while leaving both real stair approaches clear', ()
 });
 
 it('builds closed outward privet components with rooted relief and continuous clipped cores', () => {
-  for (const [x, z, length, side] of [
-    [-8, 0, 12, true],
-    [8, 0, 12, true],
-    [-5.9, -8.2, 3.4, false],
-    [-5.9, 8.2, 3.4, false],
-    [5.9, -8.2, 3.4, false],
-    [5.9, 8.2, 3.4, false],
-  ] as const) {
+  for (const [x, z, length, side] of TOWN_HALL_PRIVET_RUNS) {
     const plot = new PlotGeometry();
     addCivicPrivet(plot, x, z, length, side);
     const core = plot.parts[0];
@@ -444,14 +438,7 @@ it('builds closed outward privet components with rooted relief and continuous cl
 });
 
 it('contains every clipped run within its original crown envelope with deterministic detail', () => {
-  for (const [x, z, length, side] of [
-    [-8, 0, 12, true],
-    [8, 0, 12, true],
-    [-5.9, -8.2, 3.4, false],
-    [-5.9, 8.2, 3.4, false],
-    [5.9, -8.2, 3.4, false],
-    [5.9, 8.2, 3.4, false],
-  ] as const) {
+  for (const [x, z, length, side] of TOWN_HALL_PRIVET_RUNS) {
     const a = new PlotGeometry(),
       b = new PlotGeometry();
     addCivicPrivet(a, x, z, length, side);

@@ -16,11 +16,14 @@
  * - Did they abandon the charter, or reach its end?
  * - Did they return to it in a later session?
  * - How many decisions did they make themselves, and how many were delegated?
+ * - How often did a completed programme's charter offer bring them here?
  *
  * Working if a charter's outcome, shift count and session count match what was
  * played, and a benchmark run writes no funnel key.
  */
 import type { ChronicleState } from './engine';
+import { chronicleLength } from './schedule';
+import type { ChronicleLength } from './types';
 
 export const FUNNEL_STORAGE_KEY = 'millos-chronicle-funnel';
 /** Oldest charters drop off past this, so the log stays small. */
@@ -29,6 +32,11 @@ export const MAX_FUNNEL_CHARTERS = 20;
 export interface CharterFunnel {
   /** The charter's seed, which identifies it across reloads. */
   seed: number;
+  /**
+   * 63 shifts (full) or 27 (short), so outcomes can be read per length (item
+   * 4.2, D3). Absent in logs written before lengths, which were all full.
+   */
+  length?: ChronicleLength;
   /** When it was signed, in epoch ms; null if it was signed before the funnel existed. */
   signedAt: number | null;
   /** Sessions in which this charter was in play. 1 means the player never came back to it. */
@@ -54,11 +62,16 @@ export interface FunnelLog {
   /** App sessions started, whether or not a charter was in play. */
   sessions: number;
   chartersSigned: number;
+  /**
+   * Times the charter offer on a completed programme's card opened the
+   * Chronicle with no charter in play. Logs written before it existed read 0.
+   */
+  charterOffersOpened: number;
   charters: CharterFunnel[];
 }
 
 export function emptyFunnelLog(): FunnelLog {
-  return { version: 1, sessions: 0, chartersSigned: 0, charters: [] };
+  return { version: 1, sessions: 0, chartersSigned: 0, charterOffersOpened: 0, charters: [] };
 }
 
 type Observed = Pick<
@@ -69,6 +82,7 @@ type Observed = Pick<
 function newCharter(seed: number, signedAt: number | null, state: Observed): CharterFunnel {
   return {
     seed,
+    length: chronicleLength(state.charter),
     signedAt,
     sessions: 1,
     shiftsClosed: 0,
@@ -182,7 +196,13 @@ export function parseFunnelLog(raw: string | null): FunnelLog {
       typeof value.chartersSigned !== 'number'
     )
       return emptyFunnelLog();
-    return value as FunnelLog;
+    // Same version: the counter is new, so an older log gains it at zero.
+    const offers = value.charterOffersOpened;
+    return {
+      ...(value as FunnelLog),
+      charterOffersOpened:
+        typeof offers === 'number' && Number.isFinite(offers) && offers >= 0 ? offers : 0,
+    };
   } catch {
     return emptyFunnelLog();
   }
@@ -208,6 +228,19 @@ function browserStorage(): FunnelStorage | null {
   } catch {
     return null;
   }
+}
+
+/** Set while a funnel is installed; a benchmark run never installs one. */
+let recordCharterOffer: (() => void) | null = null;
+
+/**
+ * The charter offer on a completed programme's card was pressed. Counted only
+ * by an installed funnel, and only when no charter is in play (an open charter
+ * is not being offered). Never writes storage of its own.
+ * Working if the count rises once per press here and a benchmark run writes nothing.
+ */
+export function noteCharterOfferOpened(): void {
+  recordCharterOffer?.();
 }
 
 /**
@@ -237,11 +270,21 @@ export function installChronicleFunnel(
     return () => {};
   }
   save();
-  return store.subscribe((state, prev) => {
+  const record = () => {
+    if (store.getState().chronicle.status !== 'unsigned') return;
+    log = { ...log, charterOffersOpened: log.charterOffersOpened + 1 };
+    save();
+  };
+  recordCharterOffer = record;
+  const unsubscribe = store.subscribe((state, prev) => {
     if (state.chronicle === prev.chronicle) return;
     const next = stepFunnel(log, prev.chronicle, state.chronicle, now());
     if (next === log) return;
     log = next;
     save();
   });
+  return () => {
+    if (recordCharterOffer === record) recordCharterOffer = null;
+    unsubscribe();
+  };
 }

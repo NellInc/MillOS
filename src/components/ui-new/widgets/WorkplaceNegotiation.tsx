@@ -1,10 +1,6 @@
 import type { WorkplaceState } from '../../../types/workplace';
 import { exportPracticeProposal, WORKPLACE_PLANS } from '../../../simulation/bilateralWorkplace';
-import {
-  formatKg,
-  shiftResumable,
-  thursdayNegotiation,
-} from '../../../simulation/workplaceCampaign';
+import { formatKg, thursdayNegotiation } from '../../../simulation/workplaceCampaign';
 import { formatFixed, useT } from '../../../i18n';
 import { workplaceNegotiationMessages } from './WorkplaceNegotiation.messages';
 
@@ -57,7 +53,7 @@ export function WorkplaceNegotiation({ state }: { state: WorkplaceState }) {
           ? t('adviserCover')
           : t('adviserCurrentOffer', { title: offer.title.toLowerCase() });
   const stages = [
-    [t('stageOffer'), t('stageOfferDetail', { title: offer.title })],
+    [t('stageOffer'), `${offer.title}.`],
     [
       t('stageChallenge'),
       moment.challenge === 'prevented'
@@ -131,7 +127,6 @@ export function WorkplaceNegotiation({ state }: { state: WorkplaceState }) {
         <div className="space-y-2 border-t border-slate-700 pt-3">
           <h6 className="font-semibold text-white">{t('adviserProposal')}</h6>
           <p>{adviser}</p>
-          <p className="text-slate-300">{t('dispatchUncertain')}</p>
           <p className="tabular-nums text-slate-300">
             {t('shiftFinance', {
               wages: formatFixed(state.finance.wagesPaid, 2),
@@ -141,8 +136,6 @@ export function WorkplaceNegotiation({ state }: { state: WorkplaceState }) {
               remaining: formatKg(moment.delivery.remainingKg),
             })}
           </p>
-          {/* A shift a reload paused resumes; it has no actual shortfall to review yet. */}
-          {state.phase === 'review' && !shiftResumable(state) && <p>{t('reviewExperiment')}</p>}
         </div>
       </details>
     </section>
@@ -169,8 +162,7 @@ export function WorkplacePracticeProposal({ state }: { state: WorkplaceState }) 
       className="space-y-3 border-t border-slate-700 pt-4 text-sm leading-relaxed"
     >
       <h4 className="font-semibold text-white">{t('proposalHeading')}</h4>
-      <p>{t('proposalScope', { scope: proposal.scope })}</p>
-      <p className="text-slate-300">{t('planningOnly')}</p>
+      <p>{proposal.scope}</p>
       <details>
         <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
           {t('boundariesSummary')}

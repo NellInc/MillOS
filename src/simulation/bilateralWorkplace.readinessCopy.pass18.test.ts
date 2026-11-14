@@ -12,6 +12,7 @@ import { alertText, keyedText } from '../i18n/alertCopy';
 import { useWorkplaceStore, workplaceReasonText } from '../stores/workplaceStore';
 import { useWorkplaceAutoplay } from './workplaceAutoplay';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 import { endReplayClock } from './workplaceReplayRuntime';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
@@ -111,6 +112,8 @@ describe('an automatic season stopped on unpaid wages follows a language switch 
     });
     useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
     useOperationsCampaignStore.getState().initializeCampaign();
+    // D4: a season starts only after the first delivery.
+    fulfilFirstDelivery();
   });
   afterEach(() => {
     useWorkplaceAutoplay.getState().pause();
@@ -161,8 +164,10 @@ describe('an automatic season stopped on unpaid wages follows a language switch 
       .alerts.find((a) => a.title === 'Automatic cooperative season stopped');
     expect(stopped).toBeDefined();
     expect(stopped!.message).not.toMatch(/To run it again/);
-    // It names the ways that do work: change the agreement, or leave.
-    expect(stopped!.message).toMatch(/Leave this season/);
+    // The refusal names the ways that do work, which sit in the closed
+    // facilitator tools: change the agreement, or leave (D14 keeps a refusal's
+    // way out).
+    expect(stopped!.message).toMatch(/Funds cannot cover.*Leave this season/);
     setLocale('pt-BR');
     expect(alertText(stopped!).message).not.toMatch(/Para rodá-la de novo/);
     expect(alertText(stopped!).message).toMatch(/Sair desta temporada/);

@@ -12,6 +12,8 @@ export const fpsInstructionsMessages = defineMessages({
     sprint: 'Sprint',
     exitFirstPerson: 'Exit first-person',
     forklift: 'Drive or leave a forklift, ring the school bell',
+    forks: 'Raise and lower the forks',
+    forkliftStop: 'Stop the forklifts',
     keyClick: 'Click',
     keySpace: 'Space',
     returnToOverview: 'Return to overview',
@@ -29,6 +31,8 @@ export const fpsInstructionsMessages = defineMessages({
     sprint: 'Correr',
     exitFirstPerson: 'Sair da visão em primeira pessoa',
     forklift: 'Dirigir ou descer da empilhadeira, tocar o sino da escola',
+    forks: 'Erguer e baixar os garfos',
+    forkliftStop: 'Parar as empilhadeiras',
     keyClick: 'Clique',
     keySpace: 'Espaço',
     returnToOverview: 'Voltar à visão geral',
@@ -55,8 +59,14 @@ export const forkliftPromptMessages = defineMessages({
 export const interactPromptMessages = defineMessages({
   en: {
     ringBell: 'Ring the school bell',
+    greet: 'Say hello',
+    windmillLesson: 'Inside the windmill',
+    henhouseInspection: 'Inspect the henhouse',
   },
   'pt-BR': {
     ringBell: 'Tocar o sino da escola',
+    greet: 'Cumprimentar',
+    windmillLesson: 'Dentro do moinho',
+    henhouseInspection: 'Inspecionar o galinheiro',
   },
 });

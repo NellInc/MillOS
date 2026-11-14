@@ -1,7 +1,8 @@
 /**
  * ProductionTargetWidget Component
  *
- * On-screen UI widget showing countdown to daily production target.
+ * On-screen UI widget tracking the running programme's committed tonnes, the
+ * production target since D11 replaced the daily bag count.
  * Uses showProductionTarget toggle from aiConfigStore (default ON).
  */
 
@@ -13,9 +14,10 @@ import { useWorkplaceStore } from '../stores/workplaceStore';
 import { workplaceOwnsGuidance } from '../simulation/workplaceImprovement';
 import { useMobileControlStore } from '../stores/mobileControlStore';
 import { isTargetSlotHeld } from './productionTargetSlot';
-import { useProductionStore, DAILY_TARGET_BAGS } from '../stores/productionStore';
+import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { openProgramme } from '../stores/programmeCommitment';
 import {
   Target,
   Clock,
@@ -24,15 +26,13 @@ import {
   Minus,
   X,
   GripVertical,
-  CheckCircle,
   Truck,
 } from 'lucide-react';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
+import { useShallow } from 'zustand/react/shallow';
 import { BAG_WEIGHT_KG } from '../types';
 import { formatFixed, useT } from '../i18n';
 import { productionTargetWidgetMessages } from './ProductionTargetWidget.messages';
-
-const DAILY_TARGET_MASS = DAILY_TARGET_BAGS * BAG_WEIGHT_KG; // 30,000 kg = 30 t
 
 export const ProductionTargetWidget: React.FC = () => {
   const t = useT(productionTargetWidgetMessages);
@@ -50,8 +50,10 @@ export const ProductionTargetWidget: React.FC = () => {
   const showProductionTarget = useAIConfigStore((state) => state.showProductionTarget);
   const setShowProductionTarget = useAIConfigStore((state) => state.setShowProductionTarget);
   const metrics = useProductionStore((state) => state.metrics);
-  const dailyBagsProduced = useProductionStore((state) => state.dailyBagsProduced);
-  const gameTime = useGameSimulationStore((state) => state.gameTime);
+  // Flat, so a tick that rewrites the orders without changing it re-renders nothing.
+  const programme = useOperationsCampaignStore(useShallow((state) => openProgramme(state.orders)));
+  const elapsedMinutes = useOperationsCampaignStore((state) => state.elapsedMinutes);
+  const hasProgramme = programme !== null;
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
   // The order feed admits no grain once every open commitment's remainder is
   // packed (materialFlowStore), so the line stops until a truck takes it. Same
@@ -69,58 +71,41 @@ export const ProductionTargetWidget: React.FC = () => {
     );
   });
 
+  // The target is the running programme's committed tonnes (D11), not a day's
+  // bags: stock packed for no customer counts for nothing, and the card shows
+  // nothing at all when no programme is open. Pace is the campaign's own word
+  // for it, an order of the programme gone late; a rate to midnight read
+  // "behind" while every order was on time.
+  // Working if the guided programme reads 0.0t of 18.0t, due in 4.0h.
   const targetData = useMemo(() => {
+    if (!programme) return null;
     // The production metric is bags per game hour, the same clock as the
     // deadline (src/simulation/pace.ts), so it needs no pace conversion.
     const currentThroughputBags = metrics.throughput || 0;
     const paused = gameSpeed <= 0;
     const currentThroughputMass = paused ? 0 : currentThroughputBags * BAG_WEIGHT_KG;
+    // Campaign minutes run on the game clock: the next order due, if not yet past.
+    const hoursToDue = (programme.nextDueAtMinute - elapsedMinutes) / 60;
 
-    // Today's production only - the counter resets at day rollover, so the
-    // widget never locks at 100% after the first day.
-    const currentMass = dailyBagsProduced * BAG_WEIGHT_KG;
-
-    const remainingMass = Math.max(0, DAILY_TARGET_MASS - currentMass);
-    // Hours until end-of-day (midnight rollover), when the daily counter
-    // resets - not a fixed shift-end clamp that reads BEHIND all evening.
-    const hoursRemaining = Math.max(1 / 3600, 24 - gameTime);
-    const requiredRateMass = remainingMass / hoursRemaining;
-
-    const progress = Math.min(100, (currentMass / DAILY_TARGET_MASS) * 100);
-
-    // Check if our current rate is enough to finish
-    const rateCoverage = requiredRateMass > 0 ? currentThroughputMass / requiredRateMass : 1;
-    // Subtracting a fractional hour at 23:59 must not move the exact 80%
-    // boundary across categories through floating-point roundoff.
-    const isOnTrack = rateCoverage >= 0.95 - 1e-9;
-    const isBehind = rateCoverage < 0.8 - 1e-9;
-
-    // A met target needs 0 t/hr, which would otherwise read as merely ON TRACK.
-    // A line idle on a packed order book cannot run any required rate.
+    // A line idle on a packed order book is waiting for a truck, not behind.
     const awaitingDispatch = orderBookPacked && currentThroughputBags <= 0;
-    const status: 'met' | 'paused' | 'awaitingDispatch' | 'behind' | 'onTrack' | 'atRisk' =
-      progress >= 100
-        ? 'met'
-        : paused
-          ? 'paused'
-          : awaitingDispatch
-            ? 'awaitingDispatch'
-            : isBehind
-              ? 'behind'
-              : isOnTrack
-                ? 'onTrack'
-                : 'atRisk';
+    const status: 'paused' | 'awaitingDispatch' | 'behind' | 'onTrack' = programme.late
+      ? 'behind'
+      : paused
+        ? 'paused'
+        : awaitingDispatch
+          ? 'awaitingDispatch'
+          : 'onTrack';
 
     return {
-      producedMass: currentMass,
-      remainingMass,
-      hoursRemaining,
-      requiredRateMass,
+      shippedT: programme.shippedT,
+      committedT: programme.committedT,
+      hoursToDue: Number.isFinite(hoursToDue) && hoursToDue > 0 ? hoursToDue : null,
       currentRateMass: currentThroughputMass,
-      progress,
+      progress: programme.percent,
       status,
     };
-  }, [metrics.throughput, dailyBagsProduced, gameTime, gameSpeed, orderBookPacked]);
+  }, [programme, metrics.throughput, elapsedMinutes, gameSpeed, orderBookPacked]);
 
   // This background tracker stays below z-40 narration and playback.
   // Working if an overlapping reflection can be read and dismissed on mobile.
@@ -165,7 +150,7 @@ export const ProductionTargetWidget: React.FC = () => {
       window.removeEventListener('resize', handleResize);
       observer?.disconnect();
     };
-  }, [computeConstraints, showProductionTarget, guidanceActive]);
+  }, [computeConstraints, showProductionTarget, guidanceActive, hasProgramme]);
 
   // Close and the launcher replace each other, so pressing one removes the
   // focused element. Focus follows to its replacement, but only when one of
@@ -195,14 +180,16 @@ export const ProductionTargetWidget: React.FC = () => {
     focusReplacement.current = false;
     (showProductionTarget ? closeRef : launcherRef).current?.focus();
   }, [showProductionTarget]);
-  // A guidance or work sheet taking the slot leaves no replacement to focus.
+  // A guidance or work sheet taking the slot, or the programme closing, leaves
+  // no replacement to focus.
   useEffect(() => {
-    if (guidanceActive) focusReplacement.current = false;
-  }, [guidanceActive]);
+    if (guidanceActive || !hasProgramme) focusReplacement.current = false;
+  }, [guidanceActive, hasProgramme]);
 
   // Guidance and mobile work sheets own this lane without changing the target preference.
   // Working if their controls stay clear and dismissal restores the saved tracker state.
-  if (guidanceActive) return null;
+  // With no programme open there is no target, so no card and no launcher.
+  if (guidanceActive || !targetData) return null;
 
   // Closed state: collapse to a small launcher pill at the same resting edge so the
   // tracker is always re-openable without needing the hidden `T` shortcut.
@@ -216,7 +203,9 @@ export const ProductionTargetWidget: React.FC = () => {
           setShowProductionTarget(true);
         }}
         aria-label={t('showTracker')}
-        className="fixed bottom-[min(11rem,30dvh)] left-4 z-30 flex items-center gap-2 millos-glass rounded-lg px-3 py-2 text-slate-200 transition-colors hover:bg-slate-800 pointer-events-auto"
+        // Short screens (a landscape phone): 30dvh up put it on the walk
+        // D-pad (bottom-24 left-4); the corner below is clear of it and the dock.
+        className="fixed bottom-[min(11rem,30dvh)] [@media(max-height:480px)]:bottom-4 left-4 z-30 flex items-center gap-2 millos-glass rounded-lg px-3 py-2 text-slate-200 transition-colors hover:bg-slate-800 pointer-events-auto"
       >
         <Target className="w-4 h-4 text-green-400" />
         <span className="text-xs font-medium">{t('launcher')}</span>
@@ -237,23 +226,11 @@ export const ProductionTargetWidget: React.FC = () => {
       text: 'text-sky-300',
       bar: 'bg-sky-400',
     },
-    met: {
-      bg: 'bg-emerald-500/20',
-      border: 'border-emerald-400/60',
-      text: 'text-emerald-300',
-      bar: 'bg-emerald-400',
-    },
     onTrack: {
       bg: 'bg-green-500/20',
       border: 'border-green-500/50',
       text: 'text-green-400',
       bar: 'bg-green-500',
-    },
-    atRisk: {
-      bg: 'bg-yellow-500/20',
-      border: 'border-yellow-500/50',
-      text: 'text-yellow-400',
-      bar: 'bg-yellow-500',
     },
     behind: {
       bg: 'bg-red-500/20',
@@ -266,15 +243,13 @@ export const ProductionTargetWidget: React.FC = () => {
   const colors = statusColors[targetData.status];
 
   const TrendIcon =
-    targetData.status === 'met'
-      ? CheckCircle
-      : targetData.status === 'onTrack'
-        ? TrendingUp
-        : targetData.status === 'behind'
-          ? TrendingDown
-          : targetData.status === 'awaitingDispatch'
-            ? Truck
-            : Minus;
+    targetData.status === 'onTrack'
+      ? TrendingUp
+      : targetData.status === 'behind'
+        ? TrendingDown
+        : targetData.status === 'awaitingDispatch'
+          ? Truck
+          : Minus;
 
   return (
     <AnimatePresence>
@@ -305,19 +280,21 @@ export const ProductionTargetWidget: React.FC = () => {
             <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <Clock className="w-4 h-4 text-slate-400" />
-              <span className="text-slate-300 text-xs">
-                {targetData.hoursRemaining < 1
-                  ? t('minutesLeft', {
-                      minutes: formatFixed(
-                        Math.max(1, Math.ceil(targetData.hoursRemaining * 60 - 1e-7)),
-                        0
-                      ),
-                    })
-                  : t('hoursLeft', { hours: formatFixed(targetData.hoursRemaining, 1) })}
-              </span>
-            </div>
+            {targetData.hoursToDue !== null && (
+              <div className="flex items-center gap-1">
+                <Clock className="w-4 h-4 text-slate-400" />
+                <span className="text-slate-300 text-xs">
+                  {targetData.hoursToDue < 1
+                    ? t('dueInMinutes', {
+                        minutes: formatFixed(
+                          Math.max(1, Math.ceil(targetData.hoursToDue * 60 - 1e-7)),
+                          0
+                        ),
+                      })
+                    : t('dueInHours', { hours: formatFixed(targetData.hoursToDue, 1) })}
+                </span>
+              </div>
+            )}
             <button
               ref={closeCallbackRef}
               type="button"
@@ -354,15 +331,15 @@ export const ProductionTargetWidget: React.FC = () => {
         {/* Stats */}
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="text-slate-400">
-            {t('produced')}{' '}
+            {t('shipped')}{' '}
             <span className="text-white font-mono whitespace-nowrap">
-              {t('tonnes', { value: formatFixed(targetData.producedMass / 1000, 1) })}
+              {t('tonnes', { value: formatFixed(targetData.shippedT, 1) })}
             </span>
           </div>
           <div className="text-slate-400">
             {t('target')}{' '}
             <span className="text-white font-mono whitespace-nowrap">
-              {t('tonnes', { value: formatFixed(DAILY_TARGET_MASS / 1000, 0) })}
+              {t('tonnes', { value: formatFixed(targetData.committedT, 1) })}
             </span>
           </div>
           <div className="col-span-2 text-slate-400">
@@ -373,33 +350,19 @@ export const ProductionTargetWidget: React.FC = () => {
               })}
             </span>
           </div>
-          {targetData.status !== 'met' && targetData.status !== 'awaitingDispatch' && (
-            <div className="col-span-2 text-slate-400">
-              {t('required')}{' '}
-              <span className={`font-mono whitespace-nowrap ${colors.text}`}>
-                {t('ratePerGameHour', {
-                  value: formatFixed(targetData.requiredRateMass / 1000, 1),
-                })}
-              </span>
-            </div>
-          )}
         </div>
 
         {/* Status indicator */}
         <div className={`mt-3 flex items-center justify-center gap-2 py-1.5 rounded ${colors.bg}`}>
           <TrendIcon className={`w-4 h-4 ${colors.text}`} />
           <span className={`text-sm font-medium ${colors.text}`}>
-            {targetData.status === 'met'
-              ? t('statusMet')
-              : targetData.status === 'paused'
-                ? t('statusPaused')
-                : targetData.status === 'awaitingDispatch'
-                  ? t('statusAwaitingDispatch')
-                  : targetData.status === 'onTrack'
-                    ? t('statusOnTrack')
-                    : targetData.status === 'behind'
-                      ? t('statusBehind')
-                      : t('statusAtRisk')}
+            {targetData.status === 'paused'
+              ? t('statusPaused')
+              : targetData.status === 'awaitingDispatch'
+                ? t('statusAwaitingDispatch')
+                : targetData.status === 'onTrack'
+                  ? t('statusOnTrack')
+                  : t('statusBehind')}
           </span>
         </div>
       </motion.div>

@@ -1,8 +1,21 @@
-import type { ShiftCampaignMetrics } from '../stores/operationsCampaignStore';
+import type {
+  CampaignEconomics,
+  CampaignPurchaseLedger,
+  ShiftCampaignMetrics,
+} from '../stores/operationsCampaignStore';
 import { createTranslator, formatFixed, formatGrouped, type Locale } from '../i18n';
 import { shiftReviewMessages } from './shiftReview.messages';
 import { operationsCampaignMessages } from '../stores/operationsCampaignStore.messages';
 import { incidentDescription, incidentTitle } from '../stores/incidentText';
+import { recordNamesBest, type PartnerProposal } from './partnerProposals';
+import { partnerProposalMessages } from './partnerProposals.messages';
+import {
+  formatProposalPrice,
+  proposalDeciderText,
+  proposalOptionLabel,
+  proposalSubject,
+} from './partnerProposalText';
+import { customerDisplayName } from '../stores/customerNames';
 
 /**
  * How a closed shift window is graded, from evidence the campaign already
@@ -80,7 +93,9 @@ export interface ShiftGradeBasis {
   dueInWindow?: number;
 }
 
-export function shiftMargin(metrics: ShiftCampaignMetrics): number {
+export function shiftMargin(
+  metrics: CampaignEconomics & CampaignPurchaseLedger & Partial<ShiftCampaignMetrics>
+): number {
   return (
     metrics.revenue -
     metrics.energyCost -
@@ -88,8 +103,127 @@ export function shiftMargin(metrics: ShiftCampaignMetrics): number {
     metrics.wasteCost -
     metrics.maintenanceCost -
     metrics.demurrageCost -
-    metrics.latePenalties
+    metrics.latePenalties -
+    // Grain and parts bought (plan item 3.8, 3.3); grain still held as stock
+    // is credited back until it ships. Absent on a report from before them.
+    (metrics.grainCost ?? 0) -
+    (metrics.partsCost ?? 0) +
+    (metrics.stockHeld ?? 0)
   );
+}
+
+/**
+ * OEE inputs a shift records (plan item 7.6), over the minutes an order was
+ * open: that is the planned production time, as a window with no customer has
+ * nothing to make. Kilograms are packed kilograms.
+ */
+export interface ShiftOeeRecord {
+  /** Unit-minutes planned: every unit that can hold a work order, times the minutes. */
+  unitMinutes: number;
+  /** Unit-minutes a unit was down with an open work order (an unplanned stop). */
+  downUnitMinutes: number;
+  packedKg: number;
+  /** What the running packers' rated capacity allows at the line rate, over the seconds they packed. */
+  ratedKg: number;
+  /** Packed kilograms whose stamp met the minimum of the order the line worked. */
+  conformingKg: number;
+}
+
+const round2 = (value: number) => Math.round(value * 100) / 100;
+
+/** Add one tick to a shift's OEE record (tickCampaign), rounded so a save stays short. */
+export function accumulateShiftOee(
+  prior: ShiftOeeRecord | undefined,
+  tick: {
+    unitCount: number;
+    minutes: number;
+    unitsDown: number;
+    packedKg: number;
+    ratedKg: number;
+    conforming: boolean;
+  }
+): ShiftOeeRecord {
+  const finite = (value: number) => (Number.isFinite(value) && value > 0 ? value : 0);
+  const units = finite(tick.unitCount);
+  const minutes = finite(tick.minutes);
+  const packed = finite(tick.packedKg);
+  return {
+    unitMinutes: round2((prior?.unitMinutes ?? 0) + units * minutes),
+    downUnitMinutes: round2(
+      (prior?.downUnitMinutes ?? 0) + Math.min(units, finite(tick.unitsDown)) * minutes
+    ),
+    packedKg: round2((prior?.packedKg ?? 0) + packed),
+    ratedKg: round2((prior?.ratedKg ?? 0) + finite(tick.ratedKg)),
+    conformingKg: round2((prior?.conformingKg ?? 0) + (tick.conforming ? packed : 0)),
+  };
+}
+
+/**
+ * Overall equipment effectiveness, as oee.com ("Calculating OEE", read
+ * 13 November 2026) defines it: "Availability = Run Time / Planned Production
+ * Time"; "Performance = (Ideal Cycle Time × Total Count) / Run Time";
+ * "Quality = Good Count / Total Count"; OEE is their product. Here:
+ * - availability: unit-minutes available against the unit-minutes planned;
+ * - performance: kilograms packed against what the line rate allows;
+ * - conforming share: kilograms that met their order's minimum against packed.
+ * Null when the shift recorded none, or packed nothing.
+ */
+export function shiftOee(
+  metrics: Pick<ShiftCampaignMetrics, 'oee'>
+): { availability: number; performance: number; conforming: number; oee: number } | null {
+  const record = metrics.oee;
+  if (!record || !(record.unitMinutes > 0) || !(record.packedKg > 0) || !(record.ratedKg > 0))
+    return null;
+  const share = (part: number, whole: number) => Math.max(0, Math.min(1, part / whole));
+  const availability = share(record.unitMinutes - record.downUnitMinutes, record.unitMinutes);
+  const performance = share(record.packedKg, record.ratedKg);
+  const conforming = share(record.conformingKg, record.packedKg);
+  return { availability, performance, conforming, oee: availability * performance * conforming };
+}
+
+const percent = (share: number, locale: Locale) => formatFixed(share * 100, 1, locale);
+
+/**
+ * The review's OEE line and the margin per kilogram shipped. Null on a report
+ * from before the record, and when nothing was packed or shipped.
+ * Working if a pinned shift reads the same figures in both languages.
+ */
+export function describeShiftOee(metrics: ShiftCampaignMetrics, locale: Locale): string | null {
+  const oee = shiftOee(metrics);
+  if (!oee || !(metrics.dispatchedKg > 0)) return null;
+  const t = createTranslator(shiftReviewMessages, locale);
+  return t('oeeLine', {
+    availability: percent(oee.availability, locale),
+    performance: percent(oee.performance, locale),
+    conforming: percent(oee.conforming, locale),
+    oee: percent(oee.oee, locale),
+    marginPerKg: formatFixed(shiftMargin(metrics) / metrics.dispatchedKg, 3, locale),
+  });
+}
+
+/**
+ * The purchase lines (plan items 3.3, 3.8) beside the review's other costs:
+ * grain and parts bought, and the change in grain held as stock, a credit to
+ * the net while it waits to ship and a debit as it ships. Null when the
+ * report has none of them (a report from before them).
+ */
+export function describeShiftPurchases(
+  metrics: CampaignPurchaseLedger,
+  locale: Locale
+): string | null {
+  if (
+    metrics.grainCost === undefined &&
+    metrics.partsCost === undefined &&
+    metrics.stockHeld === undefined
+  )
+    return null;
+  const t = createTranslator(shiftReviewMessages, locale);
+  const stock = metrics.stockHeld ?? 0;
+  return t('purchasesLine', {
+    grain: money(metrics.grainCost ?? 0, locale),
+    parts: money(metrics.partsCost ?? 0, locale),
+    stock: `${stock < 0 ? '−' : '+'}£${money(Math.abs(stock), locale)}`,
+  });
 }
 
 /**
@@ -104,6 +238,17 @@ export interface ShiftOrderOutcome {
   dueAtMinute: number;
   completedAtMinute: number | null;
   qualityFailureKg: number;
+  /**
+   * Set when the order was forfeited in the window (plan item 3.7): when, why,
+   * its minimum, and the best stamp the line could make on its grain. Absent
+   * on every other outcome and on reports from before forfeits.
+   */
+  forfeit?: {
+    atMinute: number;
+    reason: 'unreachable' | 'late';
+    minimum: number;
+    best: number | null;
+  };
 }
 
 export function shiftGradeBasis(
@@ -163,7 +308,9 @@ export function shiftRiskLabels(basis: ShiftGradeBasis, locale: Locale): string[
     const key = basis.riskLabelKeys?.[index];
     const subject = basis.riskSubjects?.[index];
     if (!isCampaignLabelKey(key)) return label;
-    return subject ? t('riskNamed', { label: t(key), subject }) : t(key);
+    return subject
+      ? t('riskNamed', { label: t(key), subject: customerDisplayName(subject) })
+      : t(key);
   });
   const counts = new Map<string, number>();
   for (const label of labels) counts.set(label, (counts.get(label) ?? 0) + 1);
@@ -241,6 +388,9 @@ export function gradeShift(basis: ShiftGradeBasis): ShiftGrade | null {
 /** Money in review copy: two decimals, grouped in every language. */
 const money = (value: number, locale: Locale) =>
   formatGrouped(value, { minimumFractionDigits: 2, maximumFractionDigits: 2 }, locale);
+/** Signed pounds, as the purchases line writes them: "£8,195.15", "−£12.50". */
+const pounds = (value: number, locale: Locale) =>
+  `${value < 0 ? '−' : ''}£${money(Math.abs(value), locale)}`;
 
 /** The reasons for a grade, in the given language. */
 export function shiftGradeReasons(basis: ShiftGradeBasis, locale: Locale): string[] {
@@ -267,7 +417,7 @@ export function shiftGradeReasons(basis: ShiftGradeBasis, locale: Locale): strin
   const reasons = [
     t('dispatchReason', {
       kg: formatGrouped(Math.round(basis.dispatchedKg), undefined, locale),
-      margin: money(basis.margin, locale),
+      margin: pounds(basis.margin, locale),
     }),
     t('riskReason', {
       count: basis.risks.length,
@@ -423,7 +573,7 @@ export function describeShiftGap(
       });
     }
     case 'margin':
-      return t('gapMargin', { next, amount: money(-basis.margin, locale) });
+      return t('gapMargin', { next, amount: pounds(-basis.margin, locale) });
     case 'kg':
       return t('gapKg', {
         next,
@@ -434,6 +584,20 @@ export function describeShiftGap(
     case 'no_dispatch':
       return t('gapNoDispatch', { next });
   }
+}
+
+/**
+ * Whether a saved risk is the due-soon warning, by its key or, on a report
+ * saved before keys, by its text in either language.
+ */
+function isDueSoonRisk(basis: ShiftGradeBasis, index: number): boolean {
+  const key = basis.riskLabelKeys?.[index];
+  if (key) return key === 'constraintDueSoonLabel';
+  const label = basis.risks[index];
+  return (
+    label === operationsCampaignMessages.en.constraintDueSoonLabel ||
+    label === operationsCampaignMessages['pt-BR'].constraintDueSoonLabel
+  );
 }
 
 /** One next operational step, prioritising an unresolved serious incident. */
@@ -463,10 +627,30 @@ export function describeShiftTryNext(
       return tryUnsafe();
     case 'late':
       return t('tryLate');
-    case 'risks':
-      return basis.risks.length
-        ? t('tryRisk', { risk: shiftRiskLabels(basis, locale)[0] })
-        : t('tryLate');
+    case 'risks': {
+      // A report saved before plan 1.7 may carry "Commitment due soon", which
+      // no longer counts and cannot be cleared before a close: advise on the
+      // first risk that can be, else on serving the earliest-due order first.
+      // Working if no review says to clear "Commitment due soon".
+      const actionable = basis.risks
+        .map((_, index) => index)
+        .filter((index) => !isDueSoonRisk(basis, index));
+      if (!actionable.length) return t('tryLate');
+      const [risk] = shiftRiskLabels(
+        {
+          ...basis,
+          risks: actionable.map((index) => basis.risks[index]),
+          ...(basis.riskLabelKeys
+            ? { riskLabelKeys: actionable.map((index) => basis.riskLabelKeys?.[index] ?? null) }
+            : {}),
+          ...(basis.riskSubjects
+            ? { riskSubjects: actionable.map((index) => basis.riskSubjects?.[index] ?? null) }
+            : {}),
+        },
+        locale
+      );
+      return t('tryRisk', { risk });
+    }
     case 'margin':
       return t('tryMargin');
     case 'kg':
@@ -489,12 +673,21 @@ export function describeOrderOutcome(
   const duration = (minutes: number) =>
     formatShiftDuration(Math.max(1, Math.ceil(minutes)), locale);
   const kg = {
-    customer: outcome.customer,
+    customer: customerDisplayName(outcome.customer),
     shipped: kgText(outcome.shippedKg, locale),
     required: kgText(outcome.requiredKg, locale),
   };
-  const line =
-    outcome.completedAtMinute !== null
+  const forfeit = outcome.forfeit;
+  const line = forfeit
+    ? forfeit.reason === 'unreachable' && forfeit.best !== null && Number.isFinite(forfeit.best)
+      ? t('outcomeForfeitedUnreachable', {
+          ...kg,
+          duration: duration(forfeit.atMinute - outcome.dueAtMinute),
+          best: formatFixed(forfeit.best, 1, locale),
+          minimum: formatFixed(forfeit.minimum, 0, locale),
+        })
+      : t('outcomeForfeited', { ...kg, duration: duration(forfeit.atMinute - outcome.dueAtMinute) })
+    : outcome.completedAtMinute !== null
       ? outcome.completedAtMinute <= outcome.dueAtMinute + 1e-6
         ? t('outcomeOnTime', kg)
         : t('outcomeLate', {
@@ -521,4 +714,161 @@ export function shiftWindowName(shiftKey: string, fallback: string, locale: Loca
   return match
     ? createTranslator(shiftReviewMessages, locale)('shiftName', { shift: match[1] })
     : fallback;
+}
+
+/**
+ * A partner proposal's line in the shift review, an hour after it resolved:
+ * who chose which answer, what it cost and what the other answer would have
+ * cost, both priced by priceOption on what the hour measured. Written to the
+ * campaign log under the decider (operator and agent choices, or the plant's
+ * narration for the partner), so the review's operator/controller split
+ * carries it. Null until the comparison exists.
+ * Working if a "run on" answered by the operator reads, an hour later, with
+ * the service's price beside it and "The other answer was better."
+ */
+export function describeProposalRecord(
+  proposal: Pick<PartnerProposal, 'kind' | 'facts' | 'resolution' | 'comparison'>,
+  locale: Locale
+): string | null {
+  const resolution = proposal.resolution;
+  const comparison = proposal.comparison;
+  if (!resolution || !comparison) return null;
+  const t = createTranslator(partnerProposalMessages, locale);
+  const decider = proposalDeciderText(resolution.decidedBy, locale);
+  const option = proposalOptionLabel(resolution.optionId, locale);
+  const subject = proposalSubject(proposal as PartnerProposal, locale);
+  if (!resolution.ran) return t('recordRefused', { decider, option, subject });
+  const chosen = comparison.prices.find((priced) => priced.id === resolution.optionId);
+  const others = comparison.prices.filter((priced) => priced.id !== resolution.optionId);
+  if (!chosen || others.length === 0) return null;
+  const line = others
+    .map((other) =>
+      t('recordLine', {
+        decider,
+        option,
+        subject,
+        chosenCost: formatProposalPrice(chosen.price, locale),
+        other: proposalOptionLabel(other.id, locale),
+        otherCost: formatProposalPrice(other.price, locale),
+      })
+    )
+    .join(' ');
+  // A kind whose comparison is fixed by arithmetic names no better answer,
+  // even on a record saved with one (partnerProposals recordNamesBest).
+  return recordNamesBest(proposal) &&
+    comparison.bestOptionId !== null &&
+    comparison.bestOptionId !== resolution.optionId
+    ? `${line} ${t('recordOtherBetter')}`
+    : line;
+}
+
+/**
+ * A compared proposal as a shift report keeps it (plan 3.0, carried to 3.4):
+ * what was chosen, by whom, and every answer's price an hour on, with only
+ * the facts its subject is worded from. Words are made at read time, in the
+ * reader's language, by describeProposalRecord.
+ */
+export interface ProposalRecord {
+  id: string;
+  kind: PartnerProposal['kind'];
+  /** Only what names the subject: a programme's number, a unit's or a customer's name. */
+  facts: Record<string, string | number>;
+  resolution: NonNullable<PartnerProposal['resolution']>;
+  comparison: NonNullable<PartnerProposal['comparison']>;
+}
+
+/** The fields each kind's subject is worded from (partnerProposalText proposalSubject). */
+const SUBJECT_FACTS: Record<string, readonly string[]> = {
+  programme: ['programmeNumber'],
+  service: ['machineName'],
+  dispatch: ['customer', 'recipeId', 'heldKg'],
+  commitment: ['programmeNumber'],
+  forfeit: ['customer'],
+  intake: ['fallingNumberS', 'moisturePct'],
+  incident: ['incidentKind'],
+  temper: ['moisturePct'],
+};
+
+/** The record of a compared proposal; null until it has a comparison. */
+export function proposalRecordOf(proposal: PartnerProposal): ProposalRecord | null {
+  if (!proposal.resolution || !proposal.comparison) return null;
+  const facts: Record<string, string | number> = {};
+  const source = proposal.facts as unknown as Record<string, unknown>;
+  for (const key of SUBJECT_FACTS[proposal.kind] ?? []) {
+    const value = source[key];
+    if (typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)))
+      facts[key] = value;
+  }
+  return {
+    id: proposal.id,
+    kind: proposal.kind,
+    facts,
+    resolution: { ...proposal.resolution },
+    comparison: {
+      ...proposal.comparison,
+      prices: proposal.comparison.prices.map((priced) => ({ ...priced })),
+    },
+  };
+}
+
+/** The log line's wording for a compared proposal, so the report collects it by key. */
+export function proposalRecordWording(
+  proposal: PartnerProposal
+): { key: 'proposalRecord'; record: ProposalRecord } | undefined {
+  const record = proposalRecordOf(proposal);
+  return record ? { key: 'proposalRecord', record } : undefined;
+}
+
+/** A saved record, or null when this build cannot read it. */
+function readRecord(value: unknown): ProposalRecord | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Partial<ProposalRecord>;
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.kind !== 'string' ||
+    !(record.kind in SUBJECT_FACTS) ||
+    !record.facts ||
+    typeof record.facts !== 'object' ||
+    !record.resolution ||
+    typeof record.resolution.optionId !== 'string' ||
+    !record.comparison ||
+    !Array.isArray(record.comparison.prices) ||
+    !record.comparison.prices.every(
+      (priced) =>
+        !!priced &&
+        typeof priced.id === 'string' &&
+        !!priced.price &&
+        Number.isFinite(priced.price.currency) &&
+        Number.isFinite(priced.price.kg)
+    )
+  )
+    return null;
+  return record as ProposalRecord;
+}
+
+/** The text of a record kept by a report or a log line; null when unreadable. */
+export function proposalRecordText(value: unknown, locale: Locale): string | null {
+  const record = readRecord(value);
+  if (!record) return null;
+  try {
+    return describeProposalRecord(record as unknown as PartnerProposal, locale);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Every partner proposal compared in the window, worded in the reader's
+ * language. A report saved before the field has none.
+ * Working if ten shifts' reviews carry every record the log was given.
+ */
+export function describeShiftProposals(
+  report: { proposals?: readonly unknown[] },
+  locale: Locale
+): string[] {
+  if (!Array.isArray(report.proposals)) return [];
+  return report.proposals.flatMap((value) => {
+    const text = proposalRecordText(value, locale);
+    return text ? [text] : [];
+  });
 }

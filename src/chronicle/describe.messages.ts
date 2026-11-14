@@ -23,6 +23,8 @@ export const describeMessages = defineMessages({
     m19: 'treats this crop year',
     m20: 'raises: {incident}',
     m21: 'closes the inspection',
+    m22: 'drying energy x{value}',
+    m23: 'drying books no energy',
   },
   'pt-BR': {
     m0: 'produção x{value}',
@@ -47,5 +49,7 @@ export const describeMessages = defineMessages({
     m19: 'trata este ano agrícola',
     m20: 'gera: {incident}',
     m21: 'encerra a inspeção',
+    m22: 'energia da secagem x{value}',
+    m23: 'a secagem não gasta energia',
   },
 });

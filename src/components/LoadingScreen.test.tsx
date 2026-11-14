@@ -104,6 +104,20 @@ afterEach(() => {
 });
 
 describe('LoadingScreen final readiness', () => {
+  // Seen on a landscape phone (844 x 390): with the fact, the slow and stalled
+  // lines, Reload and "Open loaded scene (slow)" the cover is taller than the
+  // screen; centred in a fixed box that did not scroll, the logo went off the
+  // top and the way out off the bottom. It scrolls, and centres with flex
+  // spacers that shrink to nothing once the content overflows.
+  it('scrolls when taller than the screen, so the way out stays reachable', () => {
+    render(<LoadingScreen />);
+    const cover = screen.getByRole('dialog', { name: 'Loading MillOS' });
+    expect(cover).toHaveClass('overflow-y-auto');
+    expect(cover).not.toHaveClass('justify-center');
+    expect(cover.className).toContain('before:flex-1');
+    expect(cover.className).toContain('after:flex-1');
+  });
+
   it('names the work holding the cover, and only the phase is announced', async () => {
     const view = render(<LoadingScreen />);
     const live = () => screen.getByRole('progressbar').getAttribute('aria-valuetext');
@@ -247,17 +261,14 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.queryAllByRole('button')).toHaveLength(0);
   });
 
-  it('says why low graphics is offered after a long load', async () => {
+  // D14: the state, then the button; the advice tail after it is cut.
+  it('says the load is slow and offers low graphics after a long load', async () => {
     useGraphicsStore.getState().setGraphicsQuality('medium');
     render(<LoadingScreen />);
     await act(async () => vi.advanceTimersByTimeAsync(29999));
     expect(screen.queryByText(/taking longer than usual/)).toBeNull();
     await act(async () => vi.advanceTimersByTimeAsync(1));
-    expect(
-      screen.getByText(
-        'Loading is taking longer than usual. Low graphics can help on a slower device.'
-      )
-    ).toBeVisible();
+    expect(screen.getByText('Loading is taking longer than usual.')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Use low graphics' })).toBeVisible();
   });
 

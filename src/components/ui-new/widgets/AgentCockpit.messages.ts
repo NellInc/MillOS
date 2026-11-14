@@ -167,6 +167,8 @@ const PT_AGENT_TEXT: Record<string, string> = {
   // Situation brief exceptions (queryService collectHealthExceptions)
   'Facility emergency is active.': 'Uma emergência na instalação está ativa.',
   'Forklift emergency stop is active.': 'A parada de emergência das empilhadeiras está ativa.',
+  'Line idle until a person presses RESTART LINE; no agent command restarts it.':
+    'Linha parada até uma pessoa pressionar REINICIAR LINHA; nenhum comando de agente a reinicia.',
   'SCADA is flagged live without a verified connection observation in the query projection.':
     'O SCADA está marcado como ao vivo sem uma observação de conexão verificada na projeção da consulta.',
   'External SCADA writes lack accepted endpoint, permission, allowlist, and far-side evidence.':
@@ -209,6 +211,8 @@ const PT_AGENT_TEXT: Record<string, string> = {
     'Uma decisão adiada só é adiada uma vez; aceite-a ou rejeite-a.',
   'A modified response needs the replacement action.':
     'Uma resposta modificada precisa da ação substituta.',
+  "A proposal is answered accepted (the partner's choice), rejected (the other of two) or modified (modifiedAction names an option).":
+    'Uma proposta é respondida como aceita (a escolha do parceiro), rejeitada (a outra de duas) ou modificada (modifiedAction nomeia uma opção).',
   'Decision response keeps the current truth label.':
     'A resposta à decisão mantém o rótulo de veracidade atual.',
   'Decision response matches the command.': 'A resposta à decisão corresponde ao comando.',
@@ -250,6 +254,8 @@ const PT_AGENT_TEXT: Record<string, string> = {
     'Ativar o intertravamento do simulado de evacuação e as métricas de rota de saída.',
   'Stop simulated production and mobile equipment.':
     'Parar a produção simulada e os equipamentos móveis.',
+  'Leave production idle after the drill until an operator restarts the line.':
+    'Deixar a produção parada depois do simulado até um operador reiniciar a linha.',
   'No emergency or crisis may already be active.':
     'Nenhuma emergência ou crise pode já estar ativa.',
   'The drill cannot override an active emergency.':
@@ -459,7 +465,7 @@ export const agentCockpitMessages = defineMessages({
     invariants: 'Invariants',
     cost: (p: CostParams) =>
       `Cost: ${p.compute} compute, ${p.latency} latency, ${p.external ? 'external call' : 'no external call'}.`,
-    receiptIssued: 'Receipt issued for this preview. Preview again to issue another command.',
+    receiptIssued: 'Receipt issued for this preview.',
     approveAndCommit: 'Approve exact preview and commit',
     commitPreview: 'Commit preview',
     executionReceipt: 'Execution receipt',
@@ -509,8 +515,7 @@ export const agentCockpitMessages = defineMessages({
     invariants: 'Invariantes',
     cost: (p: CostParams) =>
       `Custo: processamento ${PT_COST_CLASS[p.compute] ?? p.compute}, latência ${PT_COST_CLASS[p.latency] ?? p.latency}, ${p.external ? 'com chamada externa' : 'sem chamada externa'}.`,
-    receiptIssued:
-      'Comprovante emitido para esta prévia. Gere uma nova prévia para emitir outro comando.',
+    receiptIssued: 'Comprovante emitido para esta prévia.',
     approveAndCommit: 'Aprovar exatamente esta prévia e executar',
     commitPreview: 'Executar prévia',
     executionReceipt: 'Comprovante de execução',

@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutonomyPanel } from './AutonomyPanel';
-import { useProductionStore } from '../../../stores/productionStore';
+import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 
 vi.mock('./WorkplaceLab', () => ({ WorkplaceLab: () => null }));
 vi.mock('./AgentCockpit', () => ({ AgentCockpit: () => null }));
@@ -18,43 +18,50 @@ describe('AutonomyPanel', () => {
       'overscroll-contain'
     );
   });
-});
 
-// The Target card is productionTarget.producedBags over the DAILY target
-// (reset at day rollover), but its caption said "completed against the active
-// batch plan", pointing the player at the order book instead.
-describe('the Target card', () => {
-  it("names today's production target as what it measures", () => {
+  // D-012: no subtitle under the plant-state heading and no SCADA pointer line.
+  it('carries no subtitle or hint line', () => {
     render(<AutonomyPanel />);
-    const card = screen.getByText('Target').parentElement?.parentElement as HTMLElement;
-    expect(card).toHaveTextContent("of today's production target");
-    expect(card).not.toHaveTextContent('batch plan');
+    expect(screen.getByText('Autonomous plant state')).toBeInTheDocument();
+    expect(screen.queryByText(/in one picture/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Open Simulated SCADA/)).not.toBeInTheDocument();
   });
 });
 
-// 1,195 of 1,200 bags rounded to a whole number read "100%" here while the
-// phone sheet and Overview read 99.6% for the same day.
-describe('the Target card near the end of the day', () => {
-  it('does not read 100% before the daily target is met', () => {
-    const initial = useProductionStore.getState().productionTarget;
-    useProductionStore.setState({
-      productionTarget: {
-        id: 'target-test',
-        date: '2026-11-02',
-        targetBags: 1200,
-        producedBags: 1195,
-        targetThroughput: 100,
-        actualThroughput: 100,
-        status: 'in_progress',
-      },
+// D11: the Target card was the day's bags over 1,200, stock nobody ordered.
+// It is the running programme's tonnes shipped of tonnes committed, rounded
+// down so one kilogram short never reads 100%, and absent with none open.
+describe('the Programme card', () => {
+  const campaign = () => useOperationsCampaignStore.getState();
+  beforeEach(() => campaign().resetCampaign());
+  afterEach(() => campaign().resetCampaign());
+  const card = () => screen.getByText('Programme').parentElement?.parentElement as HTMLElement;
+
+  it("measures the customers' committed tonnes, not a daily bag target", () => {
+    useOperationsCampaignStore.setState({
+      orders: campaign().orders.map((order) =>
+        order.id === 'order-003'
+          ? { ...order, shippedKg: order.requiredKg - 1 }
+          : { ...order, shippedKg: order.requiredKg, status: 'fulfilled' as const }
+      ),
     });
-    try {
-      render(<AutonomyPanel />);
-      const card = screen.getByText('Target').parentElement?.parentElement as HTMLElement;
-      expect(card).not.toHaveTextContent('100%');
-      expect(card).toHaveTextContent('99.6%');
-    } finally {
-      useProductionStore.setState({ productionTarget: initial });
-    }
+    render(<AutonomyPanel />);
+    expect(screen.queryByText('Target')).not.toBeInTheDocument();
+    expect(card()).toHaveTextContent('99.9%');
+    expect(card()).not.toHaveTextContent('100.0%');
+    expect(card()).toHaveTextContent('17.9 of 18.0 t shipped');
+  });
+
+  it('is absent with no programme open', () => {
+    useOperationsCampaignStore.setState({
+      orders: campaign().orders.map((order) => ({
+        ...order,
+        shippedKg: order.requiredKg,
+        status: 'fulfilled' as const,
+      })),
+    });
+    render(<AutonomyPanel />);
+    expect(screen.queryByText('Programme')).not.toBeInTheDocument();
+    expect(screen.queryByText('Target')).not.toBeInTheDocument();
   });
 });

@@ -347,6 +347,9 @@ describe('stepLaneReturn', () => {
         deltaSeconds: 1 / 30,
         blocked: staticWorld(vehicle),
         halted: false,
+        // The hall's west wall stands between it and the lane: in by the
+        // west service door, as ForkliftSystem's lane return goes.
+        detour: dockPlatformDetour,
       });
       ({ vehicle, laneReturn } = step);
       rejoin = step.rejoinDistance;
@@ -455,7 +458,8 @@ describe('stepLaneReturn', () => {
           // Beside each end, facing along it.
           [-(halfWidth + 6), 47, Math.PI / 2],
           [halfWidth + 6, 47, -Math.PI / 2],
-          [-(halfWidth + 3), 50, Math.PI],
+          // Just inside the gable wall (its face is at 49.725), facing into the hall.
+          [-(halfWidth + 3), 48.4, Math.PI],
         ];
         for (const [x, u, heading] of starts) {
           const result = returnFrom(
@@ -465,7 +469,9 @@ describe('stepLaneReturn', () => {
               z: u * sign,
               heading: heading + (sign < 0 ? Math.PI : 0),
             }),
-            150
+            // From the apron the way in is round the hall to a service door
+            // (the walls are solid, plan 6.6): about 240 s from behind shipping.
+            300
           );
           expect(result, `${dock} from (${x}, ${u})`).not.toBeNull();
           expect(result?.step.towed, `${dock} from (${x}, ${u})`).toBe(false);
@@ -541,7 +547,7 @@ describe('stepLaneReturn', () => {
         plan,
         // East of the trailer, facing west: the way it faces lies through it.
         createManualForkliftState({ x: 5, z: 58, heading: -Math.PI / 2 }),
-        200,
+        300,
         (state) =>
           createManualWorldBlocked('forklift-1', {
             originGround: sampleWalkingGroundHeight(state.x, state.z, SEGMENTS),

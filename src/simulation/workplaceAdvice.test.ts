@@ -124,51 +124,35 @@ describe('isolated packing advice', () => {
       expect(derivePackingAdvice(capture, 'steady')).toEqual(advice);
     }
   });
-  it('explains the fixed plant horizon at every pace in both interface languages', () => {
-    try {
-      for (const locale of ['en', 'pt-BR'] as const) {
-        setLocale(locale);
-        for (const speed of [15, 30, 120]) {
-          const advice = derivePackingAdvice(fixture(speed).capture(), 'steady');
-          expect(advice.physicalSeconds).toBe(180);
-          expect(advice.assumptions[0]).toBe(
-            locale === 'en'
-              ? '90 workplace minutes = 180 plant seconds at every resume pace.'
-              : '90 minutos de trabalho = 180 segundos da planta em qualquer ritmo de retomada.'
-          );
-        }
-      }
-    } finally {
-      setLocale('en');
+  // D14: the horizon is the advice's own number (shown as the pace readout),
+  // and advice records no assumption captions.
+  it('models one fixed plant horizon at every pace and records no captions', () => {
+    for (const speed of [15, 30, 120]) {
+      const advice = derivePackingAdvice(fixture(speed).capture(), 'steady');
+      expect(advice.physicalSeconds).toBe(180);
+      expect(advice.assumptions).toEqual([]);
+      expect(validPackingAdvice(advice)).toEqual(advice);
     }
+    const abstained = fixture(0).capture();
+    expect(abstained.reasonToAbstain).not.toMatch(/3600x/);
   });
-  it('rewords a frozen horizon sentence in the language chosen now', () => {
-    const en = '90 workplace minutes = 180 plant seconds at every resume pace.';
-    const pt = '90 minutos de trabalho = 180 segundos da planta em qualquer ritmo de retomada.';
-    const preRelease = '90 workplace minutes are 180 plant seconds at every pace.';
+  it('still restores advice saved with the old assumption captions', () => {
+    const advice = derivePackingAdvice(fixture().capture(), 'steady');
+    const saved = {
+      ...advice,
+      assumptions: ['90 workplace minutes = 180 plant seconds at every resume pace.'],
+    };
+    expect(validPackingAdvice(saved)?.assumptions).toEqual(saved.assumptions);
+  });
+  it('leaves text it does not know as stored', () => {
     const paceDependent =
       '90 workplace minutes; physical seconds = 90 * 60 / selected resume game speed.';
     try {
       setLocale('pt-BR');
-      expect(displayAdviceText(en)).toBe(pt);
-      expect(displayAdviceText(preRelease)).toBe(pt);
-      // A different model's sentence is left as stored, never reworded.
       expect(displayAdviceText(paceDependent)).toBe(paceDependent);
-      setLocale('en');
-      expect(displayAdviceText(pt)).toBe(en);
     } finally {
       setLocale('en');
     }
-  });
-  it('states the one plant span it models, not a pace-dependent horizon', () => {
-    for (const speed of [15, 120]) {
-      const advice = derivePackingAdvice(fixture(speed).capture(), 'steady');
-      // The horizon line names one plant span, whatever the resume pace.
-      expect(advice.assumptions[0]).toContain('180 plant seconds');
-      expect(advice.assumptions.join(' ')).not.toMatch(/resume game speed/);
-    }
-    const abstained = fixture(0).capture();
-    expect(abstained.reasonToAbstain).not.toMatch(/3600x/);
   });
   it('splits five paid workplace minutes at the physical briefing boundary', () => {
     const f = fixture(),
@@ -181,14 +165,15 @@ describe('isolated packing advice', () => {
     while (elapsed < 180 - 1e-10) {
       const pause = elapsed < boundary - 1e-10;
       const delta = Math.min(0.5, 180 - elapsed, pause ? boundary - elapsed : Infinity);
-      manual.getState().tickMaterialFlow(delta, pause ? 0 : 0.9, {
+      // 5.4: after its paid minutes the briefing runs the line at its rate.
+      manual.getState().tickMaterialFlow(delta, pause ? 0 : 1, {
         sourceMaterial: 'wheat_grain',
         finishedMaterial: 'flour',
         remainingFinishedKg: 10000,
       });
       elapsed += delta;
     }
-    expect(manual.getState().simulationTime).toBeCloseTo((180 - boundary) * 0.9, 8);
+    expect(manual.getState().simulationTime).toBeCloseTo(180 - boundary, 8);
     const packed = manual
       .getState()
       .productionBatches.reduce((n, b) => n + (b.materialType === 'flour' ? b.producedKg : 0), 0);

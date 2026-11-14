@@ -20,6 +20,7 @@ import type { PlantClock } from '../utils/timeFormatting';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { CropAttributes } from '../chronicle/types';
+import type { ShipmentLoad } from '../simulation/shipmentPlan';
 import { spoutMachineKey, type SpoutMachine } from '../components/flow/spoutRoutes';
 import {
   canonicalProcessMachines,
@@ -27,6 +28,8 @@ import {
 } from '../simulation/materialTransport';
 import { translate } from '../i18n';
 import { materialFlowStoreMessages } from './materialFlowStore.messages';
+import { toSimulationMinutes } from '../simulation/simulationClock';
+import { PLANT_SECONDS_PER_GAME_SECOND } from '../simulation/pace';
 
 // =============================================================================
 // MATERIAL TYPES
@@ -102,7 +105,7 @@ export interface SourceLot {
    * Set when `supplier` is the canned delivery name, so the trace renders it in
    * the current language. Opening stock is always the canned opening name.
    */
-  supplierKey?: 'scheduledFarmIntake';
+  supplierKey?: 'scheduledFarmIntake' | 'earlierStock';
   receivedKg: number;
   simulationTime: number;
   disposition: Exclude<MaterialDisposition, 'shipped'>;
@@ -110,6 +113,17 @@ export interface SourceLot {
   dispositionReasonKey?: DispositionReasonKey;
   /** Crop-year attributes stamped by a signed Mill Chronicle; absent otherwise. */
   crop?: CropAttributes;
+  /**
+   * The game minute it was received, read from its receiving manifest's clock
+   * (genealogy retention, GENEALOGY_RETENTION_MINUTES). Absent on lots from
+   * before it, and on opening stock.
+   */
+  receivedAtMinute?: number;
+  /**
+   * Merged into its grain's earlier-stock lot by the retention rule; the record
+   * stays only while a batch that has begun to ship still names it.
+   */
+  mergedInto?: string;
 }
 
 export interface ProductionBatch {
@@ -133,6 +147,12 @@ export interface ProductionBatch {
    * mass as it was packed. Absent on batches saved before it was recorded.
    */
   qualityScore?: number;
+  /**
+   * Packed but not yet through the lab's bench (plan item 3.2): it ships only
+   * once tested. Absent on batches saved before the bench, and on batches
+   * formed in a benchmark run, which read as tested.
+   */
+  awaitingTest?: boolean;
 }
 
 export interface ProcessGenealogyRecord {
@@ -183,6 +203,18 @@ export interface MaterialManifest {
    * import cycle). Absent on manifests made before it.
    */
   gameClock?: PlantClock;
+  /**
+   * Shipping only: the order the shipment plan credits first
+   * (src/simulation/shipmentPlan.ts). Absent on manifests made before it,
+   * which credit by the dispatch queue alone.
+   */
+  orderId?: string;
+  /**
+   * Shipping only: which order each part of the load was loaded for, by batch
+   * (plan item 3.4). Crediting still reads each batch's stamp against the
+   * order's minimum itself. Absent on manifests made before it.
+   */
+  orderLoads?: ShipmentLoad[];
 }
 
 export interface MaterialBalance {
@@ -312,8 +344,25 @@ export interface MaterialFlowState {
     deltaSeconds: number,
     productionSpeed: number,
     productionPlan?: MaterialFlowProductionPlan,
-    /** Quality score (0-100) of product packed this tick; stamped on its batch. */
-    productQuality?: number
+    /**
+     * Quality score (0-100) of product packed this tick; stamped on its batch.
+     * Per product where they differ: a Chronicle crop year marks down flour
+     * (wheat), not semolina (corn), whichever grain the mills are on now.
+     */
+    productQuality?: number | Partial<Record<'flour' | 'semolina', number>>,
+    /**
+     * labBench: new batches form awaiting the lab's bench (plan item 3.2).
+     * planFeed: grain leaves a silo only for the line's plan, and a mill's
+     * hopper takes one grain at a time (PLAN_ONLY_SILO_FEED).
+     * flourPenalty: under a Chronicle charter, the points a packed portion of
+     * flour loses for the grain it was milled from (simulation/lotQuality.ts),
+     * taken off `productQuality`'s flour figure, which then carries none.
+     */
+    options?: {
+      labBench?: boolean;
+      planFeed?: boolean;
+      flourPenalty?: (contributions: readonly SourceContribution[]) => number;
+    }
   ) => void;
   /**
    * Couple machine status to flow: stopped/idle/critical machines stop
@@ -332,6 +381,11 @@ export interface MaterialFlowState {
       materialType?: Extract<MaterialType, 'wheat_grain' | 'corn_grain'>;
       crop?: CropAttributes;
       gameClock?: PlantClock;
+      /**
+       * The silo the lot goes into (plan item 3.1, intake): taken when it
+       * stores this grain and has room, else the emptiest silo, as without it.
+       */
+      siloId?: string;
     }
   ) => number;
   /**
@@ -341,8 +395,21 @@ export interface MaterialFlowState {
   shipFinishedGoods: (
     amountKg: number,
     preferredMaterial?: Extract<MaterialType, 'flour' | 'semolina'>,
-    details?: { gameClock?: PlantClock }
+    details?: {
+      gameClock?: PlantClock;
+      orderId?: string;
+      /**
+       * The shipment plan's allocation (plan item 3.4): only these batches, up
+       * to these kilograms each, are loaded, and the manifest records which
+       * order each part was loaded for. Absent, any tested, released stock.
+       */
+      loads?: readonly ShipmentLoad[];
+    }
   ) => number;
+  /** Close a batch to more flour: the bench has taken its sample (plan item 3.2). */
+  sealBatch: (batchId: string) => void;
+  /** Send batches back to the bench: released without a test of their own. */
+  setAwaitingTest: (batchIds: readonly string[]) => string[];
   setBatchDisposition: (
     batchIds: readonly string[],
     disposition: Exclude<MaterialDisposition, 'shipped'>,
@@ -394,6 +461,13 @@ export interface MaterialFlowState {
 // many lot/path contributions over a long simulation run.
 export const GENEALOGY_EPSILON_KG = 0.000000001;
 const PRODUCT_BATCH_TARGET_KG = 1000;
+/**
+ * The silos feed only the line's plan, one grain to a hopper (the tick passes
+ * `planFeed`; benchmarks keep the old open valves). With no order open the
+ * line now stands rather than building stock. False turns it back.
+ */
+export const PLAN_ONLY_SILO_FEED = true;
+const GRAIN_TYPES: ReadonlySet<MaterialType> = new Set(['wheat_grain', 'corn_grain']);
 // Bran and middlings have no conveyor lane: a mill discharges them to the
 // millfeed system whenever its co-product bin reaches this level. Without the
 // outlet they filled the mill's output buffer and stopped the line for good.
@@ -405,14 +479,19 @@ const MAX_PROCESS_GENEALOGY_RECORDS = 500;
 // Retained history windows. Each record carries lot contributions (~1.4 K chars),
 // and the physical save must fit its 1.5 M-char gate with the rest of the shift.
 // The panels show the newest 3 manifests and 4 settled batches; the campaign's
-// processed-receipt window follows the manifest window.
-export const MAX_MATERIAL_MANIFESTS = 32;
+// processed-receipt window follows the manifest window. From plan item 3.4
+// manifests keep 8 and shipped batches 4 (both were 32): a plant that keeps
+// delivering filled both to their caps and the save passed its budget. The
+// SCADA panel reads the latest receiving and shipping manifest, so the
+// manifest window keeps a few of each; crediting reads both in the tick
+// they are made.
+export const MAX_MATERIAL_MANIFESTS = 8;
 /**
  * Shipped batches retained as dispatch history. Only shipped batches are ever
  * dropped, oldest first: stock, holds and recalls stay until they settle, and
  * are bounded by packer capacity and the controller's own dispositions.
  */
-export const MAX_PRODUCTION_BATCHES = 32;
+export const MAX_PRODUCTION_BATCHES = 4;
 export function retainShippedBatchWindow<T extends { disposition: MaterialDisposition }>(
   batches: T[]
 ): T[] {
@@ -706,6 +785,282 @@ export function getRecalledStock(
   return value;
 }
 
+/**
+ * Lots with more than the tolerance of grain or meal anywhere in the process
+ * now, as a supplier notice names them: the silos, and the mills', sifters'
+ * and packers' buffers and the spouts between them, which carry each parcel's
+ * lots (plan 1.9 (c)). Packed flour is held by its batches as well. Only lots
+ * still on record and not recalled: a quality alert may only bind a lot the
+ * save can carry ('Unbound source hold').
+ */
+export function getNotifiedLotIds(
+  state: Pick<MaterialFlowState, 'machineBuffers' | 'sourceLots'> & {
+    network?: Pick<NetworkTopology, 'segments'>;
+  }
+): string[] {
+  const kgByLot = new Map<string, number>();
+  const add = (sources: readonly SourceContribution[] | undefined) => {
+    for (const source of sources ?? [])
+      kgByLot.set(source.lotId, (kgByLot.get(source.lotId) ?? 0) + source.amount);
+  };
+  state.machineBuffers.forEach((buffer) => {
+    for (const material of [...buffer.inputBuffer, ...buffer.outputBuffer])
+      add(material.sourceContributions);
+  });
+  for (const segment of state.network?.segments ?? [])
+    for (const parcel of segment.inTransit) add(parcel.sourceContributions);
+  return [...kgByLot]
+    .filter(([lotId, kg]) => {
+      const lot = state.sourceLots.get(lotId);
+      return kg > RECALLED_STOCK_TOLERANCE_KG && !!lot && lot.disposition !== 'recalled';
+    })
+    .map(([lotId]) => lotId);
+}
+
+// =============================================================================
+// GENEALOGY RETENTION (plan wave 3d)
+// =============================================================================
+
+/**
+ * How long a lot keeps its own genealogy: three game days from its receipt.
+ *
+ * The silos mix: every draw takes each lot's share, so almost every lot ever
+ * received is still on site in some measure. Measured on the worst-case save
+ * (physicalSession.worstCase.test.ts, SAVE_PROBE): 230 of 241 lots on site at
+ * shift 39, 214 of them over 150 kg. Kept whole, the lot contributions on
+ * every parcel, belt load and batch grew with each delivery and the autosave
+ * stopped at about game day 13. So a released lot older than this is merged
+ * into its grain's one earlier-stock lot (EARLIER_STOCK_LOT_IDS) everywhere
+ * it is still on record: the mass stays, on the same paths, and the genealogy
+ * balance stays closed; only which delivery it came from is lost.
+ *
+ * What keeps its own lots: everything received in the last three game days;
+ * a held or recalled lot (an open quality alert binds them), which is never
+ * merged; a batch that is held, or that has begun to ship (its credit key
+ * digests its lots), which is never rewritten, and whose lots' records stay
+ * (marked `mergedInto`) until the batch leaves the record. A recall or a
+ * supplier notice can therefore name a lot received in the last three game
+ * days, and anything earlier as that grain's earlier stock.
+ */
+export const GENEALOGY_RETENTION_MINUTES = 3 * 24 * 60;
+/** Switch for the rule: false keeps every lot's genealogy (the measurement turns it off). */
+export const GENEALOGY_RETENTION = { enabled: true };
+/**
+ * Each grain's earlier stock, as one lot. Once a hold or a recall stands on
+ * it, later merges go to a fresh one (`<id>-2`, `-3`, ...), so a notice on old
+ * stock never stops the rule.
+ */
+export const EARLIER_STOCK_LOT_IDS = {
+  wheat_grain: 'lot-earlier-wheat',
+  corn_grain: 'lot-earlier-corn',
+} as const;
+const isEarlierStock = (id: string) => id.startsWith('lot-earlier-');
+/** The earlier-stock lot a grain's aged lots merge into now. */
+function earlierStockTarget(
+  lots: ReadonlyMap<string, SourceLot>,
+  grain: keyof typeof EARLIER_STOCK_LOT_IDS
+): string {
+  const base = EARLIER_STOCK_LOT_IDS[grain];
+  const id = (generation: number) => (generation === 1 ? base : `${base}-${generation}`);
+  let generation = 1;
+  while (lots.has(id(generation))) generation += 1;
+  const newest = generation > 1 ? lots.get(id(generation - 1)) : undefined;
+  return newest && newest.disposition === 'released' ? newest.id : id(generation);
+}
+/** Material seconds between checks: a game hour at the boot line rate (0.8). */
+const GENEALOGY_RETENTION_INTERVAL_SECONDS = 96;
+/**
+ * A lot with no receipt minute (opening stock, a lot from before it was
+ * stamped) is aged on the material clock, which runs at plant seconds times
+ * the line rate: at the rate the record's own manifests show (material
+ * seconds per game minute between the first and last of them), never faster
+ * than the boot rate's, and at the fastest line rate (2.0) when they cannot
+ * say. Each errs young, so a lot is never merged early.
+ */
+const MATERIAL_SECONDS_PER_GAME_MINUTE = {
+  boot: 60 * PLANT_SECONDS_PER_GAME_SECOND * 0.8,
+  fastest: 60 * PLANT_SECONDS_PER_GAME_SECOND * 2,
+} as const;
+
+type RetentionState = Pick<
+  MaterialFlowState,
+  | 'machineBuffers'
+  | 'network'
+  | 'sourceLots'
+  | 'productionBatches'
+  | 'manifests'
+  | 'wasteSourceContributions'
+  | 'byproductSourceContributions'
+  | 'shippedSourceContributions'
+>;
+
+/** A batch whose lots are kept as they are: held, recalled, or begun to ship. */
+const batchKeepsItsLots = (batch: ProductionBatch) =>
+  batch.disposition !== 'released' || batch.dispatchManifestIds.length > 0;
+
+/**
+ * The record with the retention rule applied, or null when it changes
+ * nothing. Pure. "Now" is the newest game clock the record carries (its
+ * latest manifest); a record with none is left as it is.
+ */
+export function retainGenealogy(state: RetentionState): Partial<RetentionState> | null {
+  let anchor: { minute: number; time: number } | null = null;
+  let first: { minute: number; time: number } | null = null;
+  const receiptMinute = new Map<string, number>();
+  for (const manifest of state.manifests) {
+    if (!manifest.gameClock) continue;
+    const minute = toSimulationMinutes(manifest.gameClock);
+    if (manifest.kind === 'receiving') receiptMinute.set(manifest.id, minute);
+    if (!anchor || manifest.simulationTime >= anchor.time)
+      anchor = { minute, time: manifest.simulationTime };
+    if (!first || manifest.simulationTime < first.time)
+      first = { minute, time: manifest.simulationTime };
+  }
+  if (!anchor || !first) return null;
+  const now = anchor;
+  const spanMinutes = now.minute - first.minute;
+  const secondsPerMinute =
+    spanMinutes >= 30 && now.time > first.time
+      ? Math.max(MATERIAL_SECONDS_PER_GAME_MINUTE.boot, (now.time - first.time) / spanMinutes)
+      : MATERIAL_SECONDS_PER_GAME_MINUTE.fastest;
+  let lots = state.sourceLots;
+  const editLots = () => (lots === state.sourceLots ? (lots = new Map(lots)) : lots);
+  // Stamp each lot's receipt while its manifest is still in the record.
+  for (const lot of state.sourceLots.values()) {
+    if (lot.receivedAtMinute !== undefined || !lot.sourceManifestId) continue;
+    const minute = receiptMinute.get(lot.sourceManifestId);
+    if (minute !== undefined) editLots().set(lot.id, { ...lot, receivedAtMinute: minute });
+  }
+  const minuteOf = (lot: SourceLot) =>
+    lot.receivedAtMinute ??
+    now.minute - Math.max(0, now.time - lot.simulationTime) / secondsPerMinute;
+  const merge = new Map<string, string>();
+  const targets = {
+    wheat_grain: earlierStockTarget(lots, 'wheat_grain'),
+    corn_grain: earlierStockTarget(lots, 'corn_grain'),
+  };
+  for (const lot of lots.values()) {
+    if (isEarlierStock(lot.id) || lot.mergedInto || lot.disposition !== 'released') continue;
+    if (lot.materialType !== 'wheat_grain' && lot.materialType !== 'corn_grain') continue;
+    if (now.minute - minuteOf(lot) >= GENEALOGY_RETENTION_MINUTES)
+      merge.set(lot.id, targets[lot.materialType]);
+  }
+  const rewrite = <T extends readonly SourceContribution[] | undefined>(list: T): T =>
+    list && merge.size > 0 && list.some((c) => merge.has(c.lotId))
+      ? (mergeSourceContributions(
+          [],
+          list.map((c) => (merge.has(c.lotId) ? { ...c, lotId: merge.get(c.lotId)! } : c))
+        ) as unknown as T)
+      : list;
+  const update: Partial<RetentionState> = {};
+  if (merge.size > 0) {
+    let buffersChanged = false;
+    const machineBuffers = new Map(state.machineBuffers);
+    machineBuffers.forEach((buffer, id) => {
+      const material = (list: MaterialAmount[]) => {
+        let changed = false;
+        const next = list.map((m) => {
+          const sourceContributions = rewrite(m.sourceContributions);
+          if (sourceContributions === m.sourceContributions) return m;
+          changed = true;
+          return { ...m, sourceContributions };
+        });
+        return changed ? next : list;
+      };
+      const inputBuffer = material(buffer.inputBuffer);
+      const outputBuffer = material(buffer.outputBuffer);
+      if (inputBuffer === buffer.inputBuffer && outputBuffer === buffer.outputBuffer) return;
+      buffersChanged = true;
+      machineBuffers.set(id, { ...buffer, inputBuffer, outputBuffer });
+    });
+    if (buffersChanged) update.machineBuffers = machineBuffers;
+    let segmentsChanged = false;
+    const segments = state.network.segments.map((segment) => {
+      let changed = false;
+      const inTransit = segment.inTransit.map((parcel) => {
+        const sourceContributions = rewrite(parcel.sourceContributions);
+        if (sourceContributions === parcel.sourceContributions) return parcel;
+        changed = true;
+        return { ...parcel, sourceContributions };
+      });
+      if (!changed) return segment;
+      segmentsChanged = true;
+      return { ...segment, inTransit };
+    });
+    if (segmentsChanged) update.network = { ...state.network, segments };
+    let batchesChanged = false;
+    const productionBatches = state.productionBatches.map((batch) => {
+      if (batchKeepsItsLots(batch)) return batch;
+      const sourceContributions = rewrite(batch.sourceContributions);
+      if (sourceContributions === batch.sourceContributions) return batch;
+      batchesChanged = true;
+      return { ...batch, sourceContributions };
+    });
+    if (batchesChanged) update.productionBatches = productionBatches;
+    let manifestsChanged = false;
+    const manifests = state.manifests.map((manifest) => {
+      const sourceLots = rewrite(manifest.sourceLots);
+      if (sourceLots === manifest.sourceLots) return manifest;
+      manifestsChanged = true;
+      return { ...manifest, sourceLots };
+    });
+    if (manifestsChanged) update.manifests = manifests;
+    for (const key of [
+      'wasteSourceContributions',
+      'byproductSourceContributions',
+      'shippedSourceContributions',
+    ] as const) {
+      const next = rewrite(state[key]);
+      if (next !== state[key]) update[key] = next;
+    }
+    // Each grain's earlier stock takes the merged lots' mass and, under a
+    // charter, their crop readings weighted by it.
+    for (const [lotId, target] of merge) {
+      const lot = lots.get(lotId)!;
+      const into = lots.get(target);
+      const kg = into?.receivedKg ?? 0;
+      const total = kg + lot.receivedKg;
+      const weigh = (a: number, b: number) =>
+        total > 0 ? (a * kg + b * lot.receivedKg) / total : b;
+      const crop =
+        into?.crop && lot.crop
+          ? {
+              ...lot.crop,
+              moisturePct: weigh(into.crop.moisturePct, lot.crop.moisturePct),
+              proteinPct: weigh(into.crop.proteinPct, lot.crop.proteinPct),
+              fallingNumberS: weigh(into.crop.fallingNumberS, lot.crop.fallingNumberS),
+            }
+          : (into?.crop ?? lot.crop);
+      editLots().set(target, {
+        id: target,
+        materialType: lot.materialType,
+        origin: into?.origin ?? lot.origin,
+        sourceManifestId: null,
+        supplier: translate(materialFlowStoreMessages, 'earlierStock'),
+        supplierKey: 'earlierStock',
+        receivedKg: total,
+        simulationTime: Math.min(into?.simulationTime ?? lot.simulationTime, lot.simulationTime),
+        disposition: into?.disposition ?? 'released',
+        dispositionReason: into?.dispositionReason ?? null,
+        ...(into?.dispositionReasonKey ? { dispositionReasonKey: into.dispositionReasonKey } : {}),
+        ...(crop ? { crop: { ...crop } } : {}),
+        receivedAtMinute: Math.max(into?.receivedAtMinute ?? -Infinity, minuteOf(lot)),
+      });
+      editLots().set(lotId, { ...lot, mergedInto: target });
+    }
+  }
+  // A merged lot's record goes once no kept batch names it, and never while a
+  // hold or recall stands on it (an open alert must find its lots).
+  const named = new Set<string>();
+  for (const batch of update.productionBatches ?? state.productionBatches)
+    for (const c of batch.sourceContributions) named.add(c.lotId);
+  for (const lot of lots.values())
+    if (lot.mergedInto && lot.disposition === 'released' && !named.has(lot.id))
+      editLots().delete(lot.id);
+  if (lots !== state.sourceLots) update.sourceLots = lots;
+  return Object.keys(update).length > 0 ? update : null;
+}
+
 function openingMaterial(machineId: string, type: MaterialType, amount: number): MaterialAmount {
   return {
     type,
@@ -969,6 +1324,12 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
     let feedWindow: Array<{ plantSeconds: number; kgByMachine: Map<string, number> }> = [];
     let feedWindowSession = '';
     let feedWindowSeconds = 0;
+    // The genealogy retention check (retainGenealogy): on the first tick of a
+    // session in this page (a restored record is trimmed at once), then every
+    // GENEALOGY_RETENTION_INTERVAL_SECONDS of the material clock. Only the live
+    // plant's tick asks for it (planFeed): never a benchmark, never a sandbox.
+    let retentionSession = '';
+    let retentionAt = 0;
     const recordFeedWindow = (
       sessionId: string,
       plantSeconds: number,
@@ -1015,7 +1376,28 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
       processSequence: 0,
       simulationTime: 0,
 
-      tickMaterialFlow: (deltaSeconds, productionSpeed, productionPlan, productQuality) => {
+      tickMaterialFlow: (
+        deltaSeconds,
+        productionSpeed,
+        productionPlan,
+        productQuality,
+        options
+      ) => {
+        const labBench = options?.labBench === true;
+        const planFeed = PLAN_ONLY_SILO_FEED && options?.planFeed === true;
+        if (options?.planFeed === true && GENEALOGY_RETENTION.enabled) {
+          const current = get();
+          if (
+            retentionSession !== current.sessionId ||
+            current.simulationTime < retentionAt ||
+            current.simulationTime - retentionAt >= GENEALOGY_RETENTION_INTERVAL_SECONDS
+          ) {
+            retentionSession = current.sessionId;
+            retentionAt = current.simulationTime;
+            const retained = retainGenealogy(current);
+            if (retained) set(retained);
+          }
+        }
         if (
           !Number.isFinite(deltaSeconds) ||
           !Number.isFinite(productionSpeed) ||
@@ -1257,6 +1639,10 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 candidate.materialType === materialType &&
                 !candidate.sealed &&
                 candidate.disposition === disposition &&
+                // Untested flour joins only untested flour: on the bench a
+                // batch forms awaiting its test, and outside it (a benchmark)
+                // it never joins one that is.
+                !!candidate.awaitingTest === labBench &&
                 // A recalled batch is written off as it forms, so it never
                 // holds its produced mass; it still fills toward the target.
                 (disposition === 'recalled' || candidate.availableKg === candidate.producedKg)
@@ -1291,6 +1677,7 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
                 qcTestIds: [],
                 dispatchManifestIds: [],
                 sealed: false,
+                ...(labBench ? { awaitingTest: true } : {}),
               };
               productionBatches.push(batch);
             }
@@ -1303,10 +1690,19 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
             );
             // Mass-weighted, so a batch carries the quality its flour was
             // made at rather than whatever the plant reads when it ships.
-            if (productQuality !== undefined && Number.isFinite(productQuality)) {
+            const lineStamp =
+              typeof productQuality === 'number'
+                ? productQuality
+                : productQuality?.[materialType as 'flour' | 'semolina'];
+            // Intake (plan item 3.1): flour carries the penalty of its own grain.
+            const stamp =
+              lineStamp !== undefined && materialType === 'flour' && options?.flourPenalty
+                ? Math.max(0, lineStamp - options.flourPenalty(portionSources))
+                : lineStamp;
+            if (stamp !== undefined && Number.isFinite(stamp)) {
               const previousKg = batch.producedKg;
               batch.qualityScore =
-                ((batch.qualityScore ?? productQuality) * previousKg + productQuality * portion) /
+                ((batch.qualityScore ?? stamp) * previousKg + stamp * portion) /
                 Math.max(GENEALOGY_EPSILON_KG, previousKg + portion);
             }
             batch.producedKg += portion;
@@ -1595,6 +1991,33 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           const routedMaterial =
             fromBuffer.machineType === 'silo' ? productionPlan?.sourceMaterial : undefined;
           if (routedMaterial && segment.fromOutputType !== routedMaterial) return;
+          if (planFeed && fromBuffer.machineType === 'silo') {
+            // No plan, no grain: unbudgeted, every valve fed both grains to
+            // every mill, and at the slider's top the packers filled with
+            // semolina no order took until a lane jammed (PLAN_ONLY_SILO_FEED).
+            if (!productionPlan) return;
+            // One grain to a hopper: the next waits until the last is milled
+            // and off the belts into it.
+            if (
+              toBuffer.inputBuffer.some(
+                (m) =>
+                  m.type !== segment.fromOutputType &&
+                  GRAIN_TYPES.has(m.type) &&
+                  m.amount > GENEALOGY_EPSILON_KG
+              ) ||
+              newSegments.some(
+                (other) =>
+                  other.toMachineId === segment.toMachineId &&
+                  other.inTransit.some(
+                    (parcel) =>
+                      parcel.type !== segment.fromOutputType &&
+                      GRAIN_TYPES.has(parcel.type) &&
+                      parcel.amount > GENEALOGY_EPSILON_KG
+                  )
+              )
+            )
+              return;
+          }
           // A silo valve stays shut to a machine that is not processing, with
           // or without an order: grain admitted there would sit in its hopper.
           if (fromBuffer.machineType === 'silo' && !toBuffer.isProcessing) return;
@@ -1778,6 +2201,21 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
         });
         if (!emptiest) return 0;
 
+        // Intake's named silo, where it stores this grain and has room.
+        const named = details?.siloId ? state.machineBuffers.get(details.siloId) : undefined;
+        if (named && named.machineType === 'silo') {
+          const namedIndex = Number.parseInt(named.machineId.replace('silo-', ''), 10) || 0;
+          const namedMaterial = namedIndex % 2 === 0 ? 'wheat_grain' : 'corn_grain';
+          const namedTotal = named.outputBuffer.reduce((sum, m) => sum + m.amount, 0);
+          if (
+            (!details?.materialType || details.materialType === namedMaterial) &&
+            named.outputCapacity - namedTotal > 0
+          ) {
+            emptiest = named;
+            emptiestTotal = namedTotal;
+          }
+        }
+
         const target: MachineBuffer = emptiest;
         // Even silo indices store wheat, odd store corn (matches initial fill)
         const siloIndex = Number.parseInt(target.machineId.replace('silo-', ''), 10) || 0;
@@ -1877,6 +2315,10 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
         const shippedBatchContributions: ProductBatchContribution[] = [];
         let shippedSourceContributions: SourceContribution[] = [];
         let remaining = amountKg;
+        // The plan's allocation, by batch: what may still be taken of each.
+        const wanted = details?.loads ? new Map<string, number>() : null;
+        for (const load of details?.loads ?? [])
+          if (load.kg > 0) wanted!.set(load.batchId, (wanted!.get(load.batchId) ?? 0) + load.kg);
 
         // Prefer the requested product across every packer before mixed fallback.
         // Both product order and machine order remain deterministic.
@@ -1902,9 +2344,21 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               const batch = productBatches.find(
                 (candidate) => candidate.id === contribution.batchId
               );
-              if (!batch || batch.disposition !== 'released' || batch.availableKg <= 0) continue;
-              const toShip = Math.min(contribution.amount, batch.availableKg, remaining);
+              if (
+                !batch ||
+                batch.disposition !== 'released' ||
+                batch.awaitingTest ||
+                batch.availableKg <= 0
+              )
+                continue;
+              const toShip = Math.min(
+                contribution.amount,
+                batch.availableKg,
+                remaining,
+                wanted ? (wanted.get(batch.id) ?? 0) : Infinity
+              );
               if (toShip <= 0) continue;
+              if (wanted) wanted.set(batch.id, (wanted.get(batch.id) ?? 0) - toShip);
 
               contribution.amount -= toShip;
               material.amount -= toShip;
@@ -1951,6 +2405,21 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
 
         const manifestSequence = state.manifestSequence + 1;
         const manifestId = `shipping-${String(manifestSequence).padStart(4, '0')}`;
+        // What each order was loaded with: the plan's parts, in its order, up
+        // to what of each batch actually left.
+        let orderLoads: ShipmentLoad[] | undefined;
+        if (details?.loads) {
+          const left = new Map<string, number>();
+          for (const shipped of shippedBatchContributions)
+            left.set(shipped.batchId, (left.get(shipped.batchId) ?? 0) + shipped.amount);
+          orderLoads = [];
+          for (const load of details.loads) {
+            const kg = Math.min(load.kg, left.get(load.batchId) ?? 0);
+            if (kg <= GENEALOGY_EPSILON_KG) continue;
+            left.set(load.batchId, (left.get(load.batchId) ?? 0) - kg);
+            orderLoads.push({ batchId: load.batchId, orderId: load.orderId, kg });
+          }
+        }
         for (const shippedBatch of shippedBatchContributions) {
           const batch = productBatches.find((candidate) => candidate.id === shippedBatch.batchId);
           if (batch && !batch.dispatchManifestIds.includes(manifestId)) {
@@ -1968,6 +2437,8 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
           productBatches: mergeProductBatchContributions([], shippedBatchContributions),
           simulationTime: state.simulationTime,
           ...(details?.gameClock ? { gameClock: { ...details.gameClock } } : {}),
+          ...(details?.orderId ? { orderId: details.orderId } : {}),
+          ...(orderLoads ? { orderLoads } : {}),
         };
         const cumulativeShippedSources = mergeSourceContributions(
           state.shippedSourceContributions,
@@ -1998,8 +2469,10 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
             changed.push(batch.id);
             if (disposition === 'recalled' && batch.disposition !== 'recalled')
               newlyRecalled.add(batch.id);
+            // A test's result is the test the bench was waiting for.
+            const { awaitingTest: _tested, ...untagged } = batch;
             return {
-              ...withDispositionReason(batch, reason, reasonKey),
+              ...withDispositionReason(qcTestId ? untagged : batch, reason, reasonKey),
               disposition,
               sealed: batch.sealed || disposition !== 'released',
               qcTestIds:
@@ -2018,6 +2491,9 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
 
       setLotDisposition: (lotIds, disposition, reason, retainedHolds, reasonKey) => {
         const requested = new Set(lotIds);
+        // A lot merged into earlier stock (genealogy retention) goes with it.
+        for (const lot of get().sourceLots.values())
+          if (lot.mergedInto && requested.has(lot.mergedInto)) requested.add(lot.id);
         const affectedBatchIds: string[] = [];
         set((state) => {
           const sourceLots = new Map(state.sourceLots);
@@ -2044,6 +2520,10 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
               : sourceDispositions.includes('hold')
                 ? 'hold'
                 : disposition;
+            // Releasing lots only ever releases. A batch that still draws on a
+            // lot held elsewhere (an open supplier alert) keeps the disposition
+            // it has: a retest that released it stays released.
+            if (disposition === 'released' && nextDisposition !== 'released') return batch;
             // Releasing a lot does not release a batch held on its own evidence
             // (a failed test of that batch, or its own open investigation).
             if (
@@ -2091,9 +2571,34 @@ function createMaterialFlowInitializer(snapshot?: MaterialFlowData) {
         };
       },
 
+      sealBatch: (batchId) =>
+        set((state) => {
+          const index = state.productionBatches.findIndex((batch) => batch.id === batchId);
+          if (index < 0 || state.productionBatches[index].sealed) return state;
+          const productionBatches = [...state.productionBatches];
+          productionBatches[index] = { ...productionBatches[index], sealed: true };
+          return { productionBatches };
+        }),
+
+      setAwaitingTest: (batchIds) => {
+        const requested = new Set(batchIds);
+        const changed: string[] = [];
+        set((state) => {
+          const productionBatches = state.productionBatches.map((batch) => {
+            if (!requested.has(batch.id) || batch.awaitingTest) return batch;
+            if (batch.disposition !== 'released' || batch.availableKg <= 0) return batch;
+            changed.push(batch.id);
+            return { ...batch, awaitingTest: true, sealed: true };
+          });
+          return changed.length > 0 ? { productionBatches } : state;
+        });
+        return changed;
+      },
+
       getDispatchableFinishedGoods: () =>
         get().productionBatches.reduce(
-          (sum, batch) => sum + (batch.disposition === 'released' ? batch.availableKg : 0),
+          (sum, batch) =>
+            sum + (batch.disposition === 'released' && !batch.awaitingTest ? batch.availableKg : 0),
           0
         ),
 

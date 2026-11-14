@@ -12,11 +12,13 @@ import {
   campaignStory,
   requiredChecks,
   WORKPLACE_CHECKS,
+  mondayMinute,
 } from './workplaceCampaign';
 import { useWorkplaceStore } from '../stores/workplaceStore';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import type { WorkplaceMission, WorkplaceMissionObservation } from '../types/workplace';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 const binding = (): WorkplaceMission => ({
   orderId: 'order-real',
@@ -66,7 +68,11 @@ function runMission() {
   };
   const finish = () => {
     while (state.phase === 'active') {
-      if (state.campaign?.shift === 1 && state.minute >= 25 && !state.campaign.decision)
+      if (
+        state.campaign?.shift === 1 &&
+        state.minute >= mondayMinute(state) &&
+        !state.campaign.decision
+      )
         run({ type: 'campaignDecision', args: ['inspect', 'quality'] });
       tick();
     }
@@ -91,6 +97,7 @@ beforeEach(() => {
 
 describe('ordinary customer commitment and working agreement', () => {
   it('binds only outstanding commitment, without adding revenue or changing the order', () => {
+    fulfilFirstDelivery();
     const ops = useOperationsCampaignStore.getState();
     const order = ops.orders.find((o) => o.id === ops.activeOrderId)!;
     useOperationsCampaignStore.setState({
@@ -112,10 +119,13 @@ describe('ordinary customer commitment and working agreement', () => {
     useOperationsCampaignStore.setState({
       orders: ops.orders.map((o) => ({ ...o, qualityFailureKg: 1 })),
     });
+    fulfilFirstDelivery();
     expect(useWorkplaceStore.getState().startMission('cooperative').changed).toBe(false);
     useOperationsCampaignStore.setState({ orders: ops.orders });
+    fulfilFirstDelivery();
     expect(useWorkplaceStore.getState().startMission('cooperative').changed).toBe(true);
     const current = useWorkplaceStore.getState().workplace;
+    fulfilFirstDelivery();
     expect(useWorkplaceStore.getState().startMission('team').changed).toBe(false);
     expect(useWorkplaceStore.getState().workplace).toBe(current);
   });

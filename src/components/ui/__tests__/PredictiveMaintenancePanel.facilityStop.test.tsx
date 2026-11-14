@@ -55,18 +55,19 @@ describe('PredictiveMaintenancePanel scheduled maintenance under a facility stop
   it('locks Complete while the facility is stopped and leaves the unit stopped', () => {
     useGameSimulationStore.setState({ emergencyActive: true });
     render(<PredictiveMaintenancePanel />);
-    const complete = screen.getByRole('button', { name: 'Complete maintenance on Stop mill' });
+    const complete = screen.getByRole('button', { name: 'Start maintenance on Stop mill' });
     expect(complete).toBeDisabled();
-    expect(complete).toHaveAttribute(
-      'title',
-      'The facility is stopped. Clear the stop before servicing a unit.'
-    );
+    // D14: the reason is printed on the card; the button carries no tooltip.
+    expect(complete).not.toHaveAttribute('title');
+    expect(
+      screen.getByText('The facility is stopped. Clear the stop before servicing a unit.')
+    ).toBeVisible();
 
     fireEvent.click(complete);
     expect(useProductionStore.getState().machines[0].status).toBe('critical');
     expect(useBreakdownStore.getState().maintenanceSchedule[0].completed).toBe(false);
 
     act(() => useGameSimulationStore.setState({ emergencyActive: false }));
-    expect(screen.getByRole('button', { name: 'Complete maintenance on Stop mill' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Start maintenance on Stop mill' })).toBeEnabled();
   });
 });

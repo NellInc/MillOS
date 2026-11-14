@@ -1,0 +1,352 @@
+{
+  "schemaVersion": 1,
+  "revision": 6,
+  "mode": "game",
+  "phase": "review",
+  "seed": 18,
+  "minute": 29,
+  "durationMinutes": 90,
+  "targetKg": 600,
+  "shippedKg": 0,
+  "planId": "steady",
+  "practices": [
+    "information",
+    "work-choice",
+    "rest",
+    "remedy",
+    "budget",
+    "gainsharing",
+    "cooperative"
+  ],
+  "workerAutonomy": "team",
+  "governance": "member-vote",
+  "aiAuthority": "bounded",
+  "members": [
+    {
+      "id": "packing",
+      "role": "Packing",
+      "publicBoundary": "At least 15 minutes protected rest; qualified packing work only.",
+      "preference": "",
+      "willingToCover": false,
+      "eligibleTasks": [
+        "Packing",
+        "Pallet checks"
+      ],
+      "sharing": false,
+      "shareUntilMinute": null,
+      "understood": false,
+      "ballot": null,
+      "coverConsent": null,
+      "refusalRespected": false,
+      "extraMinutes": 0,
+      "restMinutes": 0,
+      "earnedPay": 8.7,
+      "compensationPaid": 0,
+      "recoveryMinutes": 0,
+      "recoveryOwedMinutes": 0,
+      "chosenTask": "Packing"
+    },
+    {
+      "id": "quality",
+      "role": "Quality",
+      "publicBoundary": "Quality release stays with qualified quality staff; rest remains protected.",
+      "preference": "",
+      "willingToCover": false,
+      "eligibleTasks": [
+        "Quality release",
+        "Sampling"
+      ],
+      "sharing": false,
+      "shareUntilMinute": null,
+      "understood": false,
+      "ballot": null,
+      "coverConsent": null,
+      "refusalRespected": false,
+      "extraMinutes": 0,
+      "restMinutes": 0,
+      "earnedPay": 8.7,
+      "compensationPaid": 0,
+      "recoveryMinutes": 0,
+      "recoveryOwedMinutes": 0,
+      "chosenTask": "Quality release"
+    },
+    {
+      "id": "maintenance",
+      "role": "Maintenance",
+      "publicBoundary": "No maintenance on running equipment; rest remains protected.",
+      "preference": "",
+      "willingToCover": false,
+      "eligibleTasks": [
+        "Maintenance planning",
+        "Pallet checks"
+      ],
+      "sharing": false,
+      "shareUntilMinute": null,
+      "understood": false,
+      "ballot": null,
+      "coverConsent": null,
+      "refusalRespected": false,
+      "extraMinutes": 0,
+      "restMinutes": 0,
+      "earnedPay": 8.7,
+      "compensationPaid": 0,
+      "recoveryMinutes": 0,
+      "recoveryOwedMinutes": 0,
+      "chosenTask": "Maintenance planning"
+    },
+    {
+      "id": "coordinator",
+      "role": "Coordinator",
+      "publicBoundary": "Coordination grants no power to waive another member’s boundary.",
+      "preference": "",
+      "willingToCover": false,
+      "eligibleTasks": [
+        "Coordination",
+        "Packing"
+      ],
+      "sharing": false,
+      "shareUntilMinute": null,
+      "understood": false,
+      "ballot": null,
+      "coverConsent": null,
+      "refusalRespected": false,
+      "extraMinutes": 0,
+      "restMinutes": 0,
+      "earnedPay": 8.7,
+      "compensationPaid": 0,
+      "recoveryMinutes": 0,
+      "recoveryOwedMinutes": 0,
+      "chosenTask": "Coordination"
+    }
+  ],
+  "objections": [],
+  "events": [
+    {
+      "id": "e-1",
+      "minute": 27,
+      "actorId": "team",
+      "kind": "shift-resumed",
+      "detail": "Shift resumed at minute 27 after a reload; it continues once everyone consents again."
+    },
+    {
+      "id": "e-2",
+      "minute": 27,
+      "actorId": "packing",
+      "kind": "understanding-demonstrated",
+      "detail": "refusal: correct boundary identified in this fictional role exercise."
+    },
+    {
+      "id": "e-3",
+      "minute": 27,
+      "actorId": "packing",
+      "kind": "understanding-demonstrated",
+      "detail": "privacy: correct boundary identified in this fictional role exercise."
+    },
+    {
+      "id": "e-4",
+      "minute": 27,
+      "actorId": "packing",
+      "kind": "understanding-demonstrated",
+      "detail": "repayment: correct boundary identified in this fictional role exercise."
+    },
+    {
+      "id": "e-5",
+      "minute": 27,
+      "actorId": "packing",
+      "kind": "understood",
+      "detail": "Role confirmed the current plan, boundaries, compensation and right to refuse."
+    },
+    {
+      "id": "e-6",
+      "minute": 27,
+      "actorId": "packing",
+      "kind": "ballot",
+      "detail": "Plan approved; this ballot grants no individual cover consent."
+    },
+    {
+      "id": "e-7",
+      "minute": 27,
+      "actorId": "simulation",
+      "kind": "authored-responses",
+      "detail": "The other roles and the adviser answered from their own values. Packing understanding, ballot and cover consent are yours to give."
+    },
+    {
+      "id": "e-8",
+      "minute": 27,
+      "actorId": "team",
+      "kind": "activated",
+      "detail": "Revision, objections, ballots, individual consent and funds checked atomically. Full wage and compensation obligations reserved."
+    },
+    {
+      "id": "e-9",
+      "minute": 27,
+      "actorId": "quality",
+      "kind": "inspection-started",
+      "detail": "Five modeled minutes of line pacing hold initiated; batch quality authority remains unchanged."
+    },
+    {
+      "id": "e-10",
+      "minute": 29,
+      "actorId": "system",
+      "kind": "settled",
+      "detail": "Reload safety: future authority and consent revoked; earned pay retained."
+    }
+  ],
+  "finance": {
+    "cash": 437.20000000000005,
+    "initialCapital": 472,
+    "wageReserve": 0,
+    "compensationReserve": 0,
+    "operatingRevenue": 0,
+    "operatingCost": 0,
+    "wagesPaid": 34.8,
+    "compensationPaid": 0,
+    "improvementSpend": 0,
+    "distributed": 0,
+    "communityAllocation": 0
+  },
+  "chairBallots": {},
+  "surplusBallots": {},
+  "electedChair": null,
+  "distributionComplete": false,
+  "activeCoverMemberId": null,
+  "coverRemainingMinutes": 0,
+  "refusalsRespected": 0,
+  "promisesKept": 0,
+  "aiActions": 1,
+  "reviewReason": "Reload safety: future authority and consent revoked; earned pay retained.",
+  "campaign": {
+    "version": 1,
+    "profile": "cooperative",
+    "shift": 1,
+    "history": [
+      {
+        "shift": 0,
+        "seed": 17,
+        "planId": "steady",
+        "targetKg": 600,
+        "shippedKg": 600,
+        "minute": 90,
+        "finance": {
+          "cash": 472,
+          "initialCapital": 400,
+          "wageReserve": 0,
+          "compensationReserve": 0,
+          "operatingRevenue": 300,
+          "operatingCost": 120.00000000000007,
+          "wagesPaid": 108,
+          "compensationPaid": 0,
+          "improvementSpend": 0,
+          "distributed": 0,
+          "communityAllocation": 0
+        },
+        "members": [
+          {
+            "id": "packing",
+            "extraMinutes": 0,
+            "restMinutes": 15,
+            "earnedPay": 27,
+            "compensationPaid": 0,
+            "recoveryMinutes": 0,
+            "recoveryOwedMinutes": 0,
+            "refusalRespected": false
+          },
+          {
+            "id": "quality",
+            "extraMinutes": 0,
+            "restMinutes": 15,
+            "earnedPay": 27,
+            "compensationPaid": 0,
+            "recoveryMinutes": 0,
+            "recoveryOwedMinutes": 0,
+            "refusalRespected": false
+          },
+          {
+            "id": "maintenance",
+            "extraMinutes": 0,
+            "restMinutes": 15,
+            "earnedPay": 27,
+            "compensationPaid": 0,
+            "recoveryMinutes": 0,
+            "recoveryOwedMinutes": 0,
+            "refusalRespected": false
+          },
+          {
+            "id": "coordinator",
+            "extraMinutes": 0,
+            "restMinutes": 15,
+            "earnedPay": 27,
+            "compensationPaid": 0,
+            "recoveryMinutes": 0,
+            "recoveryOwedMinutes": 0,
+            "refusalRespected": false
+          }
+        ],
+        "refusalsRespected": 0,
+        "promisesKept": 0,
+        "objectionsRaised": 0,
+        "objectionsResolved": 0,
+        "decision": "keep-target",
+        "inspectionComplete": false,
+        "repairs": 0,
+        "practices": [
+          "information",
+          "work-choice",
+          "rest",
+          "remedy",
+          "budget",
+          "gainsharing",
+          "cooperative"
+        ],
+        "workerAutonomy": "team",
+        "governance": "member-vote",
+        "aiAuthority": "bounded",
+        "agreementProved": true,
+        "relationshipEvents": []
+      }
+    ],
+    "checks": {},
+    "decision": "inspect",
+    "inspectionUntilMinute": 32,
+    "inspectionComplete": false,
+    "adviserAcknowledged": false,
+    "repairs": 0,
+    "agreementProved": true,
+    "draw": {
+      "pressures": [
+        "disclosure",
+        "repeat-cover",
+        "blind-override"
+      ],
+      "decliner": "coordinator",
+      "mondayMinute": 26
+    },
+    "understoodChecks": {
+      "packing": [
+        "privacy",
+        "refusal",
+        "repayment"
+      ],
+      "mind": [
+        "authority",
+        "privacy",
+        "refusal"
+      ],
+      "quality": [
+        "privacy",
+        "refusal",
+        "repayment"
+      ],
+      "maintenance": [
+        "privacy",
+        "refusal",
+        "repayment"
+      ],
+      "coordinator": [
+        "privacy",
+        "refusal",
+        "repayment"
+      ]
+    }
+  }
+}

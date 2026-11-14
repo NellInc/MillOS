@@ -7,6 +7,7 @@ import { useOperationsCampaignStore } from '../../../stores/operationsCampaignSt
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { setLocale } from '../../../i18n';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 beforeEach(() => {
   setLocale('en');
@@ -31,6 +32,7 @@ afterEach(() => {
 describe('the shift debrief keeps the left-season status in the active language', () => {
   it('re-renders the status after a switch to pt-BR', () => {
     useOperationsCampaignStore.getState().initializeCampaign();
+    fulfilFirstDelivery();
     expect(useWorkplaceStore.getState().startMission('toe-dip').changed).toBe(true);
     render(<ShiftDebrief />);
     fireEvent.click(screen.getByRole('button', { name: 'Leave this season' }));

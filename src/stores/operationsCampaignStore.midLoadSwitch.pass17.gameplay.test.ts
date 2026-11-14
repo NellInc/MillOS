@@ -42,7 +42,13 @@ function setReleasedFlour(kg: number) {
       batch.materialType !== 'flour' || batch.disposition !== 'released'
         ? batch
         : batch.id === first.id
-          ? { ...batch, availableKg: kg, producedKg: Math.max(batch.producedKg, kg) }
+          ? // Tested stock (plan item 3.2): the fixture predates the lab's bench.
+            {
+              ...batch,
+              availableKg: kg,
+              producedKg: Math.max(batch.producedKg, kg),
+              awaitingTest: undefined,
+            }
           : { ...batch, availableKg: 0 }
     ),
   }));

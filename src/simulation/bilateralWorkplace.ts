@@ -11,6 +11,10 @@ import type {
   WorkplaceTransitionResult,
   WorkplaceMission,
   WorkplaceMissionObservation,
+  WorkplaceSampleReading,
+  WorkplaceCampaign,
+  WorkplaceCheckId,
+  ImprovementId,
 } from '../types/workplace';
 import {
   CAMPAIGN_SHIFTS,
@@ -31,6 +35,27 @@ import {
   validRelationshipEvents,
   restoreRelationshipEvents,
   shiftResumable,
+  campaignShiftPause,
+  campaignDraw,
+  campaignPressure,
+  mondayMinute,
+  mondayHolds,
+  validMondaySample,
+  seasonDraw,
+  validSeasonDraw,
+  seasonEnded,
+  sobrasSettlement,
+  reserveFunds,
+  chairBreaksTie,
+  reserveLeft,
+  qualifiedToCover,
+  shiftAbsentee,
+  ABSENCE_MINUTES,
+  seasonHadOperatingLoss,
+  seasonSobrasPool,
+  RESERVE_FUND_SHARE,
+  FATES_SHARE,
+  type AuthoredRefusalKey,
 } from './workplaceCampaign';
 
 import {
@@ -49,7 +74,10 @@ import {
   improvementSummary,
   workplaceMission,
   HANDOFF_EPISODES,
+  HANDOFF_EPISODE_ANSWERS,
   HANDOFF_EPISODE_CHOICES,
+  retainedArrangements,
+  validArrangementsInPlace,
   validImprovementEpisode,
 } from './workplaceImprovement';
 import { displayAdviceText, validPackingAdvice } from './workplaceAdvice';
@@ -81,6 +109,11 @@ type EngineReasonKey = {
 // in the active language.
 const BALLOT_DECLINED_DETAIL = wm.en.evBallotDeclined;
 const RELOAD_SAFETY_DETAIL = wm.en.evReloadSafety;
+// A campaign shift an E-stop, a drill or an objection paused (shiftResumable).
+const SAFETY_PAUSE_DETAIL = wm.en.settleEmergencyPaused;
+const OBJECTION_PAUSE_DETAIL = wm.en.settleObjectionPaused;
+/** A campaign shift pauses where a standalone exercise or a handoff ends. */
+const pausesCampaign = (s: WorkplaceState) => !!s.campaign && !s.improvement;
 
 /**
  * Receipts and review reasons are written in the language active when they
@@ -191,7 +224,7 @@ function recordIdLabel(slot: string, id: string): string | null {
     return id === 'ordinary'
       ? translate(wm, 'recordEpisodeOrdinary')
       : (HANDOFF_EPISODES.find((e) => e.id === id)?.title ?? null);
-  if (slot === 'choice') return HANDOFF_EPISODE_CHOICES.find((c) => c.id === id)?.label ?? null;
+  if (slot === 'choice') return HANDOFF_EPISODE_ANSWERS.find((c) => c.id === id)?.label ?? null;
   if (slot === 'question') return WORKPLACE_CHECKS.find((q) => q.id === id)?.prompt ?? null;
   return null;
 }
@@ -213,24 +246,43 @@ const ID_RECEIPTS = [
   'evCheckCorrect',
   'evEpisodeDecision',
   'evSurplusDecided',
+  // Review 2: the pre-phase-5 wording, which saved seasons still hold.
+  'evSurplusDecidedV1',
 ] as const;
+/**
+ * Review 2: wordings an earlier build recorded for a key whose copy has since
+ * changed, matched exactly and shown with that key's copy now. English said
+ * "FATES" until the glossary's one name, the Assistance Fund.
+ */
+const LEGACY_ID_RECEIPTS: { key: (typeof ID_RECEIPTS)[number]; locale: Locale; text: string }[] = [
+  {
+    key: 'evSurplusDecided',
+    locale: 'en',
+    text: '{destination}: {amount} illustrative credits after {reserve} to the Reserve Fund and {fates} to FATES; members’ shares follow the minutes each worked.',
+  },
+];
 let recordedIdReceipts:
   | { pattern: RegExp; names: string[]; locale: Locale; key: (typeof ID_RECEIPTS)[number] }[]
   | null = null;
 function recordedIdReceipt(detail: string): string | null {
   if (!recordedIdReceipts) {
     recordedIdReceipts = [];
-    for (const key of ID_RECEIPTS)
-      for (const locale of LOCALES) {
-        const names: string[] = [];
-        const source = (wm[locale][key] as string)
-          .replace(/[.*+?^$()|[\]\\]/g, '\\$&')
-          .replace(/\{(\w+)\}/g, (_, name: string) => {
-            names.push(name);
-            return RECORD_ID_SLOTS.has(name) ? '([\\w-]+)' : '(.+?)';
-          });
-        recordedIdReceipts.push({ pattern: new RegExp(`^${source}$`, 's'), names, locale, key });
-      }
+    const sources = [
+      ...ID_RECEIPTS.flatMap((key) =>
+        LOCALES.map((locale) => ({ key, locale, text: wm[locale][key] as string }))
+      ),
+      ...LEGACY_ID_RECEIPTS,
+    ];
+    for (const { key, locale, text } of sources) {
+      const names: string[] = [];
+      const source = text
+        .replace(/[.*+?^$()|[\]\\]/g, '\\$&')
+        .replace(/\{(\w+)\}/g, (_, name: string) => {
+          names.push(name);
+          return RECORD_ID_SLOTS.has(name) ? '([\\w-]+)' : '(.+?)';
+        });
+      recordedIdReceipts.push({ pattern: new RegExp(`^${source}$`, 's'), names, locale, key });
+    }
   }
   const current = getLocale();
   for (const { pattern, names, locale, key } of recordedIdReceipts) {
@@ -416,6 +468,11 @@ export const PRACTICES: { id: PracticeId; title: string; detail: string }[] = [
   },
 ];
 
+// D4: cooperating is never the slow option. The plant's own rate already
+// includes rest, so the steady plan runs the line at it (1.0), as no season
+// does, and no legal plan runs below it. Governance grants no capacity bonus:
+// resequence and cover keep their credit, cover and recovery terms at 1.0.
+// Working if the HUD rate under an active steady shift equals the rate with no season.
 export const WORKPLACE_PLANS: WorkplacePlan[] = [
   {
     id: 'steady',
@@ -425,7 +482,7 @@ export const WORKPLACE_PLANS: WorkplacePlan[] = [
     get explanation() {
       return translate(wm, 'planSteadyExplanation');
     },
-    capacity: 0.78,
+    capacity: 1,
     budgetCost: 0,
     optionalCoverMinutes: 0,
     compensationPerMinute: 0,
@@ -442,7 +499,7 @@ export const WORKPLACE_PLANS: WorkplacePlan[] = [
     get explanation() {
       return translate(wm, 'planResequenceExplanation');
     },
-    capacity: 0.9,
+    capacity: 1,
     budgetCost: 40,
     optionalCoverMinutes: 0,
     compensationPerMinute: 0,
@@ -459,7 +516,7 @@ export const WORKPLACE_PLANS: WorkplacePlan[] = [
     get explanation() {
       return translate(wm, 'planCoverExplanation');
     },
-    capacity: 0.98,
+    capacity: 1,
     budgetCost: 0,
     optionalCoverMinutes: 10,
     compensationPerMinute: 0.8,
@@ -497,6 +554,17 @@ const COST_PER_KG = 0.2;
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
 const validSeed = (n: unknown): n is number =>
   finite(n) && Number.isSafeInteger(n) && n >= 0 && n <= 0xffffffff;
+const validReserve = (n: unknown): n is number => finite(n) && n >= 0 && n <= 1e6;
+/** A season's place in the order seasons began: 1, 2, 3 ... (review 2). */
+const validSeasonNumber = (n: unknown): n is number =>
+  Number.isSafeInteger(n) && (n as number) >= 1 && (n as number) <= 1e6;
+/**
+ * 5.9: "individual" and "team" worker choice did the same thing (only
+ * "directed" gates task choice), so they are one setting, "team". An older
+ * save or command that says "individual" means it.
+ */
+const mergedAutonomy = (value: WorkplaceState['workerAutonomy']) =>
+  value === 'individual' ? 'team' : value;
 const planOf = (s: WorkplaceState) => WORKPLACE_PLANS.find((p) => p.id === s.planId)!;
 /** A non-integer interpolated as `${n}`: English keeps String(n) exactly. */
 const plainNumber = (n: number) =>
@@ -595,7 +663,10 @@ export function createWorkplace(mode: WorkplaceMode = 'game', seed = 1): Workpla
       id: 'maintenance',
       ...copy[2],
       willingToCover: true,
-      eligibleTasks: ['Maintenance planning', 'Pallet checks'],
+      // Review 2: the cooperative's second member qualified for Quality's
+      // release (workplaceCampaign `qualifiedToCover`), so cover on a shift
+      // Quality is away can release. Appended: the first task stays its own.
+      eligibleTasks: ['Maintenance planning', 'Pallet checks', 'Quality release'],
     },
     {
       id: 'coordinator',
@@ -771,13 +842,361 @@ export function workplaceReadiness(s: WorkplaceState): WorkplaceReadiness {
 const eligibleCover = (m: WorkplaceState['members'][number]) =>
   m.eligibleTasks.includes('Packing') || m.eligibleTasks.includes('Pallet checks');
 
+/**
+ * Where the members send the sobras left after the statutory funds, and on
+ * what basis: three of four ballots; a two-two tie the elected chair breaks
+ * (5.9); or, once every member has voted and nothing carried, the law's
+ * default (review 2): Lei 5.764/71 art. 4 VII returns the net surplus to the
+ * members in proportion to their operations "salvo deliberação em contrário
+ * da Assembléia Geral" (quoted at sobrasSettlement's source note), so a split
+ * vote is no contrary decision. A charter without shared surplus decides it
+ * in its own terms: the rest stays in the Reserve Fund. Null while a member
+ * has still to vote.
+ * Working if every season whose members have all voted has an outcome.
+ */
+export function surplusOutcome(
+  s: WorkplaceState
+): { destination: SurplusDestination; basis: 'majority' | 'chair' | 'default' | 'charter' } | null {
+  if (!s.practices.includes('gainsharing')) return { destination: 'reserve', basis: 'charter' };
+  const majority = DESTINATIONS.find(
+    (d) => Object.values(s.surplusBallots).filter((v) => v === d).length >= 3
+  );
+  if (majority) return { destination: majority, basis: 'majority' };
+  const chair = chairBreaksTie(s, s.surplusBallots);
+  if (chair) return { destination: chair, basis: 'chair' };
+  return s.members.every((m) => s.surplusBallots[m.id] !== undefined)
+    ? { destination: 'members', basis: 'default' }
+    : null;
+}
+export function surplusDestination(s: WorkplaceState): SurplusDestination | null {
+  return surplusOutcome(s)?.destination ?? null;
+}
+
+/**
+ * Review 2: an authored role's sobras ballot follows from its need and what
+ * the season did, never from a fixed table, and nothing in it is a number
+ * about a member:
+ * - Quality approves only on evidence: after a shift that lost money its need
+ *   is that the loss is repaired from the reserve first (art. 28 I), so it
+ *   votes for the Reserve Fund; otherwise for the members;
+ * - the Coordinator pays the team first: its need is a Reserve Fund that pays
+ *   a season's wages, so while what the reserve would carry falls short of
+ *   that it votes for the Reserve Fund; otherwise for the members;
+ * - Maintenance accepts change when pay is reserved: its need is the minutes
+ *   each member worked, cover included, paid back, so it votes for the members.
+ */
+export function authoredSobrasBallot(s: WorkplaceState, memberId: string): SurplusDestination {
+  if (memberId === 'quality') return seasonHadOperatingLoss(s) ? 'reserve' : 'members';
+  if (memberId === 'coordinator') return reserveThin(s) ? 'reserve' : 'members';
+  return 'members';
+}
+/** What the reserve would carry with only its statutory share falls short of a season's wages. */
+function reserveThin(s: WorkplaceState): boolean {
+  const carried = reserveLeft(s) + seasonSobrasPool(s) * RESERVE_FUND_SHARE;
+  return carried + 1e-8 < WAGE * s.durationMinutes * s.members.length * CAMPAIGN_SHIFTS.length;
+}
+/** Whether an authored role's need is met by the destination the season settled on. */
+function sobrasNeedMet(s: WorkplaceState, memberId: string, destination: SurplusDestination) {
+  if (memberId === 'quality') return destination === 'reserve' || !seasonHadOperatingLoss(s);
+  if (memberId === 'coordinator') return destination === 'reserve' || !reserveThin(s);
+  return destination === 'members';
+}
+const SOBRAS_NEED_KEYS = {
+  quality: ['needQualityMet', 'needQualityOutvoted'],
+  maintenance: ['needMaintenanceMet', 'needMaintenanceOutvoted'],
+  coordinator: ['needCoordinatorMet', 'needCoordinatorOutvoted'],
+} as const;
+
+/** A role covers at most this many minutes in a season before it declines more. */
+const SEASON_COVER_LIMIT_MINUTES = 10;
+
+export interface AuthoredResponse {
+  ballot: boolean;
+  /** Why the member said no, when it did, in its own terms. */
+  ballotReason: AuthoredRefusalKey | null;
+  /** Null when the plan asks no one to cover. */
+  cover: boolean | null;
+  coverReason: AuthoredRefusalKey | null;
+}
+
+/**
+ * 5.3 (D5): how an authored role answers, from its stated values, the way the
+ * Chronicle's crew vote (src/chronicle/governance.ts): nothing is rolled and
+ * nothing about the member is a number. In a season the player is Packing; the
+ * others answer for themselves:
+ * - the Coordinator, who values a team that is always paid, refuses a plan
+ *   whose own spending (a purchase, cover pay) would leave the books under one
+ *   shift's wages; steady spends nothing more, so it is never refused;
+ * - Quality, who values release only on evidence, refuses while a quality
+ *   investigation is open on the line (the plant says so through `plant`);
+ * - of the two authored roles qualified to cover (Maintenance and the
+ *   Coordinator), the season's draw names one that will not, and the other
+ *   covers until it has covered ten minutes this season.
+ * Outside a season the authored preferences answer as before.
+ * Working if one plan activates under member vote and is refused under team consent.
+ */
+export function authoredResponse(
+  s: WorkplaceState,
+  memberId: string,
+  plant: { inspectionOpen?: boolean } = {}
+): AuthoredResponse {
+  const m = s.members.find((item) => item.id === memberId);
+  const plan = planOf(s);
+  const response: AuthoredResponse = {
+    ballot: s.planId !== 'rush',
+    ballotReason: null,
+    cover: plan?.optionalCoverMinutes && m ? m.willingToCover && eligibleCover(m) : null,
+    coverReason: null,
+  };
+  if (!s.campaign || !m || !plan) return response;
+  if (response.ballot && memberId === 'quality' && plant.inspectionOpen) {
+    response.ballot = false;
+    response.ballotReason = 'refuseQualityInspection';
+  }
+  if (response.ballot && memberId === 'coordinator') {
+    // Only a plan's own spending is refused: steady costs nothing beyond the
+    // wages every plan pays, so the Coordinator never refuses it and team
+    // consent always has a plan it can agree.
+    const funding = workplaceFunding(s, plan);
+    const spend = funding.purchase + funding.compensation;
+    const after = s.finance.cash - funding.wages - spend;
+    if (spend > 1e-8 && after + 1e-8 < WAGE * s.durationMinutes * s.members.length) {
+      response.ballot = false;
+      response.ballotReason = 'refuseCoordinatorWages';
+    }
+  }
+  if (response.cover === null) return response;
+  if (!eligibleCover(m)) response.cover = false;
+  else if (memberId === campaignDraw(s.campaign).decliner) {
+    response.cover = false;
+    response.coverReason =
+      memberId === 'maintenance' ? 'declineCoverMaintenance' : 'declineCoverCoordinator';
+  } else if (
+    (campaignTotals(s).members.find((t) => t.id === memberId)?.extraMinutes ?? 0) + 1e-8 >=
+    SEASON_COVER_LIMIT_MINUTES
+  ) {
+    response.cover = false;
+    response.coverReason =
+      memberId === 'coordinator' ? 'declineCoverDoneCoordinator' : 'declineCoverDone';
+  } else response.cover = true;
+  return response;
+}
+
+/**
+ * Review 2: who would cover under the cover plan on this shift, as activation
+ * chooses (a member qualified for an absent Quality's release first), among
+ * those who have not refused and whose authored answer is not a refusal;
+ * undefined when no one would.
+ */
+export function prospectiveCover(s: WorkplaceState): WorkplaceState['members'][number] | undefined {
+  const away = shiftAbsentee(s);
+  const asCover = { ...s, planId: 'cover' as const };
+  const willing = s.members.filter(
+    (m) =>
+      m.id !== away &&
+      eligibleCover(m) &&
+      m.coverConsent !== false &&
+      (m.id === 'packing' || authoredResponse(asCover, m.id).cover !== false)
+  );
+  return (
+    willing.find((m) => qualifiedToCover(m, away) && m.id !== 'packing') ??
+    willing.find((m) => qualifiedToCover(m, away)) ??
+    willing[0]
+  );
+}
+
+/**
+ * Review 2: what each plan leaves waiting this shift, in minutes: the bench
+ * (no new lab test) and Maintenance's services. Nothing waits on a shift no one
+ * is away. Cover releases Quality's bench only by a qualified member, whose own
+ * work then waits; cover keeps services going while Maintenance is away.
+ */
+export function planCrewWaits(
+  s: WorkplaceState,
+  planId: WorkplaceState['planId']
+): { bench: number; service: number } {
+  const away = shiftAbsentee(s);
+  const left = Math.max(0, ABSENCE_MINUTES - s.minute);
+  if (!away || left <= 0) return { bench: 0, service: 0 };
+  const cover = planId === 'cover' ? prospectiveCover(s) : undefined;
+  const covers = !!cover && qualifiedToCover(cover, away);
+  if (away === 'quality')
+    return covers
+      ? { bench: 0, service: cover!.id === 'maintenance' ? left : 0 }
+      : { bench: left, service: 0 };
+  return { bench: 0, service: covers ? 0 : left };
+}
+
+/** Each authored role's stated value, its why-line where it said yes (5.3). */
+const AUTHORED_VALUE_KEYS = {
+  quality: 'valueQuality',
+  maintenance: 'valueMaintenance',
+  coordinator: 'valueCoordinator',
+  mind: 'valueAdviser',
+} as const;
+/** Whom each authored role backs for chair, from its value (5.9). */
+const AUTHORED_CHAIR: Record<string, string> = {
+  quality: 'quality',
+  maintenance: 'coordinator',
+  coordinator: 'coordinator',
+};
+/** The calls the season's roles make for themselves, and why (5.3). */
+export const AUTHORED_CALL_KEYS = {
+  renegotiate: 'callInstallment',
+  'protect-refusal': 'callProtectRefusal',
+  inspect: 'callInspect',
+} as const;
+
+/**
+ * Why an authored role answered as it did, in one short line of its own: the
+ * refusal it gave this time, else its stated value. Words only (D-008, D-058).
+ * Working if every authored row of the role table reads a reason and no number.
+ */
+export function authoredWhy(s: WorkplaceState, memberId: string): string {
+  const valueKey = AUTHORED_VALUE_KEYS[memberId as keyof typeof AUTHORED_VALUE_KEYS];
+  if (!valueKey) return '';
+  const m = s.members.find((item) => item.id === memberId);
+  if (m && (m.ballot === false || m.coverConsent === false)) {
+    for (let i = s.events.length - 1; i >= 0; i--) {
+      const e = s.events[i];
+      if (e.kind === 'authored-responses') break;
+      if (e.kind === 'authored-refusal' && e.actorId === memberId)
+        return displayEventDetail(e.detail);
+    }
+  }
+  return translate(wm, valueKey);
+}
+
+/** How an authored role reviews a handoff trial, from its value. */
+function authoredVerdict(s: WorkplaceState, memberId: string): 'adopt' | 'stop' {
+  const i = s.improvement;
+  if (!i || !i.funded || i.stopped || s.minute !== s.durationMinutes) return 'stop';
+  // Quality approves only on evidence: something shipped under the trial.
+  if (memberId === 'quality' && !(s.shippedKg > 0)) return 'stop';
+  // Maintenance accepts a change only once pay and recovery are delivered.
+  if (memberId === 'maintenance' && s.members.some((m) => m.recoveryOwedMinutes > 0)) return 'stop';
+  return 'adopt';
+}
+
+/**
+ * 5.3 (D5): the next thing an authored role of a solo season does by itself,
+ * if anything: the Coordinator's Friday and Thursday calls when the shift
+ * opens, Quality's inspection when Monday holds the line, and the chair,
+ * sobras and handoff-verdict ballots the player does not cast. The store
+ * applies it in solo play only; the engine still accepts any actor's command,
+ * so separate turns and workshops keep every role's own input.
+ * Working if the player makes none of these calls and the season still runs.
+ */
+export function authoredSeasonCommand(s: WorkplaceState): WorkplaceCommand | null {
+  if (s.mode !== 'game') return null;
+  const authored = s.members.filter((m) => m.id !== 'packing');
+  if (s.improvement) {
+    const i = s.improvement;
+    if (s.phase !== 'review' || !i.reviewAcknowledged || i.verdict) return null;
+    const voter = authored.find((m) => !i.ballots[m.id]);
+    return voter
+      ? { type: 'voteImprovementReview', args: [voter.id, authoredVerdict(s, voter.id)] }
+      : null;
+  }
+  const c = s.campaign;
+  if (!c) return null;
+  // An authored role resolves its own objection once its terms are restated
+  // (a pressure's challenge), as only a raiser can; any other it raised (an
+  // older save's, or the adviser's) it resolves when next asked.
+  if (s.phase === 'deliberating' || s.phase === 'review') {
+    const raised = s.objections.find((o) => {
+      if (o.status !== 'open' || o.actorId === 'packing') return false;
+      const pressure = CAMPAIGN_PRESSURES.find((item) => item.objection === o.statement);
+      return (
+        !pressure ||
+        s.events.some(
+          (e) => e.kind === 'pressure-protected' && e.detail.startsWith(`${pressure.id}: `)
+        )
+      );
+    });
+    if (raised) return { type: 'resolveObjection', args: [raised.id, raised.actorId] };
+  }
+  if (s.phase === 'deliberating') {
+    if (c.shift !== 1 && c.decision === null)
+      return {
+        type: 'campaignDecision',
+        args: [c.shift === 0 ? 'renegotiate' : 'protect-refusal', 'coordinator'],
+      };
+    if (s.governance === 'member-vote' && s.practices.includes('cooperative')) {
+      const voter = authored.find((m) => s.chairBallots[m.id] === undefined);
+      if (voter) return { type: 'elect', args: [voter.id, AUTHORED_CHAIR[voter.id]] };
+    }
+    return null;
+  }
+  if (s.phase === 'active')
+    return c.shift === 1 && mondayHolds(s) && c.decision === null
+      ? { type: 'campaignDecision', args: ['inspect', 'quality'] }
+      : null;
+  if (
+    s.phase === 'review' &&
+    seasonEnded(s) &&
+    !campaignShiftPause(s) &&
+    !s.distributionComplete &&
+    s.practices.includes('gainsharing')
+  ) {
+    const voter = authored.find((m) => s.surplusBallots[m.id] === undefined);
+    if (voter) return { type: 'voteSurplus', args: [voter.id, authoredSobrasBallot(s, voter.id)] };
+  }
+  return null;
+}
+
+/**
+ * 5.2: a check is asked again only when its terms change. Each correct answer
+ * is remembered (`understoodChecks`); expiring consent (a plan change, a new
+ * shift, a reload) clears the answers, and this puts back the remembered ones.
+ * New terms (configure) forget them.
+ */
+function refillUnderstoodChecks(s: WorkplaceState) {
+  const c = s.campaign;
+  // Only a deliberation holds answers; a review is saved with none.
+  if (!c?.understoodChecks || s.phase !== 'deliberating') return;
+  for (const [actor, ids] of Object.entries(c.understoodChecks))
+    for (const id of ids ?? [])
+      c.checks[actor] = {
+        ...c.checks[actor],
+        [id]: WORKPLACE_CHECKS.find((q) => q.id === id)!.correct,
+      };
+  c.adviserAcknowledged = checksPassed(c, 'mind');
+}
+function rememberCheck(s: WorkplaceState, actor: string, id: WorkplaceCheckId, known: boolean) {
+  const c = s.campaign;
+  if (!c) return;
+  const ids = new Set(c.understoodChecks?.[actor] ?? []);
+  if (known) ids.add(id);
+  else ids.delete(id);
+  c.understoodChecks = { ...c.understoodChecks, [actor]: [...ids].sort() };
+}
+/** Carry the arrangements in place onto a fresh workplace (5.9); none is no field. */
+function keepArrangements(fresh: WorkplaceState, ids: readonly ImprovementId[] | undefined) {
+  if (ids?.length) fresh.arrangementsInPlace = [...ids].sort();
+  else delete fresh.arrangementsInPlace;
+}
+/** A remembered-checks record as saved: known actors and their own check ids only. */
+function validUnderstoodChecks(input: unknown): WorkplaceCampaign['understoodChecks'] | undefined {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return undefined;
+  const out: Partial<Record<string, WorkplaceCheckId[]>> = {};
+  for (const [actor, ids] of Object.entries(input)) {
+    if (![...MEMBER_ORDER, 'mind'].includes(actor) || !Array.isArray(ids)) return undefined;
+    const allowed = requiredChecks(actor);
+    if (ids.some((id) => !allowed.includes(id)) || new Set(ids).size !== ids.length)
+      return undefined;
+    out[actor] = [...ids].sort();
+  }
+  return out;
+}
+
 export function workplaceCapacity(s: WorkplaceState): number {
   if (s.mode !== 'game' || s.phase !== 'active') return 1;
   const improvement = improvementCapacity(s);
   if (improvement !== null) return improvement;
   const p = planOf(s);
   if (!p || p.illegalReason) return 1;
-  if (s.campaign?.shift === 1 && s.minute >= 25 && !s.campaign.inspectionComplete) return 0;
+  if (mondayHolds(s)) return 0;
   return p.id === 'cover' && (!s.activeCoverMemberId || s.coverRemainingMinutes <= 0)
     ? WORKPLACE_PLANS[0].capacity
     : p.capacity;
@@ -796,9 +1215,13 @@ export function workplaceTickCapacity(s: WorkplaceState, deltaMinutes: number): 
   const boundaries = [s.minute, end];
   const coverEnd = s.minute + s.coverRemainingMinutes;
   const inspectionEnd = s.campaign?.inspectionUntilMinute ?? Infinity;
+  // 5.7: a held sample holds until the bench reads it, whatever the minute;
+  // the scripted hold (no bench read) ends at its inspection minute.
+  const sampled = !!s.campaign?.mondaySample;
+  const monday = s.campaign?.mondaySample?.heldAtMinute ?? mondayMinute(s);
   for (const point of [
     coverEnd,
-    25,
+    monday,
     inspectionEnd,
     improvementArrangement(s)?.briefingMinutes ?? Infinity,
   ])
@@ -807,11 +1230,7 @@ export function workplaceTickCapacity(s: WorkplaceState, deltaMinutes: number): 
   let pacedMinutes = Math.max(0, s.minute + deltaMinutes - s.durationMinutes);
   for (let i = 0; i < boundaries.length - 1; i++) {
     const time = (boundaries[i] + boundaries[i + 1]) / 2;
-    const held =
-      s.campaign?.shift === 1 &&
-      time >= 25 &&
-      !s.campaign.inspectionComplete &&
-      time < inspectionEnd;
+    const held = mondayHolds(s, time) && (sampled || time < inspectionEnd);
     if (held) continue;
     const factor =
       improvementCapacity(s, time) ??
@@ -929,6 +1348,8 @@ export function workplaceAlternatives(s: WorkplaceState) {
       ...p,
       // What activating now buys, so the reservation line sums to the cash after it.
       budgetCost: funding.purchase,
+      // 5.9: the part of that purchase the Reserve Fund brought forward pays.
+      fromReserve: reserveFunds(s, funding.purchase),
       reserve,
       maximumCompensation,
       cashAfterReservations: s.finance.cash - reserve - funding.purchase - maximumCompensation,
@@ -1110,6 +1531,7 @@ function invalidate(s: WorkplaceState) {
     s.campaign.checks = {};
     s.campaign.adviserAcknowledged = false;
     s.campaign.agreementProved = false;
+    refillUnderstoodChecks(s);
   }
 }
 function releaseCover(s: WorkplaceState) {
@@ -1166,6 +1588,95 @@ function settle(s: WorkplaceState, reason: string) {
 }
 
 /** Working if unrelated orders, duplicate receipts and a reset material session earn no mission credit. */
+/** A bench reading of Monday's sample, as the store sends it; null when malformed. */
+function validSampleReading(value: unknown, batchId: string): WorkplaceSampleReading | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const r = value as Record<string, unknown>;
+  const score = (n: unknown) => n === null || (finite(n) && n >= 0 && n <= 100);
+  return r.batchId === batchId &&
+    typeof r.tested === 'boolean' &&
+    typeof r.passed === 'boolean' &&
+    score(r.quality) &&
+    score(r.minimum)
+    ? (r as unknown as WorkplaceSampleReading)
+    : null;
+}
+
+/**
+ * 5.7: Monday's sample, as the store reads the lab's bench. Once the bench is
+ * read, Monday holds the line only when a real batch of the season's order
+ * awaits its test, from Monday's minute on; Quality's inspection puts that
+ * batch first on the bench, and the hold ends when the bench has read it:
+ * the result is the batch's own stamp against the order's minimum. A sample
+ * that leaves the bench untested (shipped, recalled, held) ends the hold too,
+ * so nothing here can keep the line held. A scripted inspection a save began
+ * before the bench was read finishes on its own terms.
+ * Working if Monday holds only with a pending sample, and the record names
+ * the real stamp.
+ */
+function observeMondaySample(
+  s: WorkplaceState,
+  startMinute: number,
+  observation?: WorkplaceMissionObservation
+) {
+  const c = s.campaign;
+  if (
+    s.mode !== 'game' ||
+    c?.shift !== 1 ||
+    c.inspectionComplete ||
+    !observation ||
+    observation.pendingSampleBatchId === undefined
+  )
+    return;
+  // A Monday this build began before its minute reads the bench; one a save
+  // brought back already held (scripted) finishes on the scripted terms.
+  if (c.mondaySample === undefined) {
+    if (c.decision !== null || c.inspectionUntilMinute !== null || startMinute >= mondayMinute(s))
+      return;
+    c.mondaySample = null;
+  }
+  if (c.mondaySample === null) {
+    const pending = observation.pendingSampleBatchId;
+    if (
+      typeof pending === 'string' &&
+      pending.length > 0 &&
+      pending.length <= 200 &&
+      s.minute >= mondayMinute(s)
+    ) {
+      c.mondaySample = { batchId: pending, heldAtMinute: s.minute };
+      record(s, 'quality', 'sample-held', translate(wm, 'evSampleHeld', { batch: pending }));
+    }
+    return;
+  }
+  const sample = c.mondaySample;
+  const reading = validSampleReading(observation.sampleReading, sample.batchId);
+  if (!reading) return;
+  if (c.decision === null) {
+    // It left the bench before Quality inspected it: the line runs again,
+    // and a later sample of the order may hold it.
+    if (!reading.tested) {
+      c.mondaySample = null;
+      record(s, 'quality', 'sample-left', translate(wm, 'evSampleLeft', { batch: sample.batchId }));
+    }
+    return;
+  }
+  if (c.inspectionUntilMinute === null || s.minute < c.inspectionUntilMinute) return;
+  c.inspectionComplete = true;
+  const params = {
+    batch: sample.batchId,
+    quality: reading.quality === null ? '-' : formatFixed(reading.quality, 1),
+    minimum: reading.minimum === null ? '-' : formatFixed(reading.minimum, 0),
+  };
+  record(
+    s,
+    'quality',
+    'inspection-completed',
+    !reading.tested
+      ? translate(wm, 'evSampleLeft', { batch: sample.batchId })
+      : translate(wm, reading.passed ? 'evSamplePassed' : 'evSampleFailed', params)
+  );
+}
+
 function observeMission(s: WorkplaceState, observation?: WorkplaceMissionObservation): number {
   return observeLink(workplaceMission(s), observation);
 }
@@ -1242,6 +1753,7 @@ export function transitionWorkplace(
       )
         return reject('rejBeginImprovement');
       const fresh = createWorkplace(mode, s.seed);
+      keepArrangements(fresh, s.arrangementsInPlace);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
       Object.assign(
@@ -1288,6 +1800,7 @@ export function transitionWorkplace(
       )
         return reject('rejCancelImprovement');
       const origin = restoreWorkplace(i.origin, true);
+      keepArrangements(origin, s.arrangementsInPlace);
       origin.revision = s.revision + 1;
       record(origin, 'members', 'improvement-cancelled', translate(wm, 'evImprovementCancelled'));
       return { state: origin, changed: true, reason: null };
@@ -1513,6 +2026,7 @@ export function transitionWorkplace(
       const { improvement: _improvement, ...snapshot } = saveWorkplace(s) as WorkplaceState;
       const history = [...i.history, { ...improvementTerms(s), snapshot }];
       const fresh = createWorkplace(s.mode, s.seed === 0xffffffff ? 1 : s.seed + 1);
+      keepArrangements(fresh, s.arrangementsInPlace);
       Object.assign(fresh, {
         phase: 'deliberating',
         revision: s.revision + 1,
@@ -1551,9 +2065,10 @@ export function transitionWorkplace(
       if (!Number.isSafeInteger(command.args[0]) || command.args[0] !== s.revision)
         return reject('rejStaleRevision');
       if (!shiftResumable(s)) return reject('rejResumeShift');
+      const pause = campaignShiftPause(s);
       // Back to deliberation at the minute reached. invalidate() keeps every
       // understanding, ballot and proof expired; checks and cover consent were
-      // cleared by the reload's settle, so nothing runs without fresh consent.
+      // cleared by the pausing settle, so nothing runs without fresh consent.
       s.phase = 'deliberating';
       s.reviewReason = null;
       if (s.improvement) {
@@ -1567,7 +2082,15 @@ export function transitionWorkplace(
         s,
         'team',
         'shift-resumed',
-        translate(wm, 'evShiftResumed', { minute: formatFixed(s.minute, 0) })
+        translate(
+          wm,
+          pause === 'safety'
+            ? 'evShiftResumedAfterSafety'
+            : pause === 'objection'
+              ? 'evShiftResumedAfterObjection'
+              : 'evShiftResumed',
+          { minute: formatFixed(s.minute, 0) }
+        )
       );
       break;
     }
@@ -1590,15 +2113,19 @@ export function transitionWorkplace(
         return reject('rejCloseImprovement');
       const fresh = createWorkplace(s.mode, s.seed === 0xffffffff ? 1 : s.seed + 1);
       fresh.revision = s.revision + 1;
+      // 5.9: what the experiment adopted stays in place after it closes.
+      keepArrangements(fresh, retainedArrangements(s, true));
       return { state: fresh, changed: true, reason: null };
     }
     case 'startCampaign': {
-      const [profile, seed = 1, mission] = command.args;
+      const [profile, seed = 1, mission, reserveBrought = 0, season] = command.args;
       if (
         s.phase !== 'idle' ||
         s.campaign ||
         !WORKPLACE_PROFILES.includes(profile) ||
         !validSeed(seed) ||
+        !validReserve(reserveBrought) ||
+        (season !== undefined && !validSeasonNumber(season)) ||
         (mission !== undefined &&
           (!validWorkplaceMission(mission) ||
             mission.creditedKg !== 0 ||
@@ -1606,6 +2133,7 @@ export function transitionWorkplace(
       )
         return reject('rejStartCampaign');
       const fresh = createWorkplace('game', seed);
+      keepArrangements(fresh, s.arrangementsInPlace);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
       fresh.campaign = {
@@ -1621,12 +2149,28 @@ export function transitionWorkplace(
         repairs: 0,
         agreementProved: false,
         ...(mission ? { mission: structuredClone(mission) } : {}),
+        // 5.10: the seed draws this season's order of pressures, who declines
+        // cover and Monday's minute.
+        draw: seasonDraw(seed),
+        // 5.9: the last season's Reserve Fund opens this one's books.
+        ...(reserveBrought > 0 ? { reserveBrought } : {}),
+        // Review 2: the season's place in the order seasons began.
+        ...(season !== undefined ? { season } : {}),
       };
+      fresh.finance.cash += reserveBrought;
+      fresh.finance.initialCapital += reserveBrought;
       Object.assign(
         fresh,
         structuredClone(MANAGEMENT_APPROACHES.find((item) => item.id === profile)!.settings)
       );
       record(fresh, 'system', 'campaign-started', translate(wm, 'evCampaignStarted'));
+      if (reserveBrought > 0)
+        record(
+          fresh,
+          'members',
+          'reserve-brought',
+          translate(wm, 'evReserveBrought', { amount: formatFixed(reserveBrought, 2) })
+        );
       return { state: fresh, changed: true, reason: null };
     }
     case 'nextCampaignShift': {
@@ -1655,6 +2199,7 @@ export function transitionWorkplace(
         return reject('rejNextShift');
       const history = [...s.campaign.history, campaignRecord(s)];
       const fresh = createWorkplace('game', (s.seed + 1) >>> 0);
+      keepArrangements(fresh, s.arrangementsInPlace);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
       fresh.practices = [...s.practices];
@@ -1676,7 +2221,16 @@ export function transitionWorkplace(
         repairs: 0,
         agreementProved: false,
         ...(s.campaign.mission ? { mission: structuredClone(s.campaign.mission) } : {}),
+        ...(s.campaign.draw ? { draw: structuredClone(s.campaign.draw) } : {}),
+        ...(s.campaign.reserveBrought !== undefined
+          ? { reserveBrought: s.campaign.reserveBrought }
+          : {}),
+        ...(s.campaign.season !== undefined ? { season: s.campaign.season } : {}),
+        ...(s.campaign.understoodChecks
+          ? { understoodChecks: structuredClone(s.campaign.understoodChecks) }
+          : {}),
       };
+      refillUnderstoodChecks(fresh);
       const nextLink = followOn ?? s.campaign.followOn;
       if (nextLink) fresh.campaign.followOn = structuredClone(nextLink);
       record(fresh, 'system', 'campaign-shift-opened', translate(wm, 'evShiftOpened'));
@@ -1701,6 +2255,7 @@ export function transitionWorkplace(
       )
         return reject('rejLeaveCampaign');
       const fresh = createWorkplace('game', s.seed === 0xffffffff ? 1 : s.seed + 1);
+      keepArrangements(fresh, s.arrangementsInPlace);
       fresh.revision = s.revision + 1;
       return { state: fresh, changed: true, reason: null };
     }
@@ -1721,6 +2276,7 @@ export function transitionWorkplace(
         return reject('rejEndExercise');
       // Idle is the game's setup: the season and the automatic demo start there.
       const fresh = createWorkplace('game', s.seed);
+      keepArrangements(fresh, s.arrangementsInPlace);
       fresh.revision = s.revision + 1;
       return { state: fresh, changed: true, reason: null };
     }
@@ -1739,6 +2295,7 @@ export function transitionWorkplace(
       const answers = s.campaign.checks[actor] ?? {};
       if (answers[question] === answer) return reject('rejAnswerUnchanged');
       s.campaign.checks[actor] = { ...answers, [question]: answer };
+      rememberCheck(s, actor, question, answer === check.correct);
       if (actor === 'mind') s.campaign.adviserAcknowledged = checksPassed(s.campaign, actor);
       else {
         const m = member(actor)!;
@@ -1773,11 +2330,18 @@ export function transitionWorkplace(
       if (decision === 'penalize-refusal') return reject('rejPenalizeRefusal');
       if (decision === 'skip-inspection') return reject('rejSkipInspection');
       if (c.shift === 1) {
-        if (s.phase !== 'active' || s.minute < 25 || c.decision !== null)
+        if (s.phase !== 'active' || !mondayHolds(s) || c.decision !== null)
           return reject('rejInspectionTiming');
         c.decision = decision;
         c.inspectionUntilMinute = s.minute + 5;
-        record(s, actor, 'inspection-started', translate(wm, 'evInspectionStarted'));
+        // 5.7: a real sample goes first on the lab's bench (the store puts it
+        // there); the hold lasts until the bench has read it.
+        record(
+          s,
+          actor,
+          'inspection-started',
+          translate(wm, c.mondaySample ? 'evInspectionStartedSample' : 'evInspectionStarted')
+        );
       } else {
         if (!deliberating || c.decision === decision) return reject('rejDifferentResponse');
         c.decision = decision;
@@ -1802,7 +2366,7 @@ export function transitionWorkplace(
     }
     case 'respondToPressure': {
       const [id, response] = command.args;
-      const pressure = s.campaign && CAMPAIGN_PRESSURES[s.campaign.shift];
+      const pressure = campaignPressure(s);
       const reviewRepair =
         response === 'protect-boundary' &&
         s.phase === 'review' &&
@@ -1861,6 +2425,7 @@ export function transitionWorkplace(
       if (s.phase === 'active' || s.members.some((m) => m.recoveryOwedMinutes > 0))
         return reject('rejStopActiveFirst');
       const fresh = createWorkplace(mode, seed);
+      keepArrangements(fresh, s.arrangementsInPlace);
       fresh.phase = 'deliberating';
       fresh.revision = s.revision + 1;
       record(fresh, 'system', 'started', translate(wm, 'evStarted'));
@@ -1899,7 +2464,7 @@ export function transitionWorkplace(
         return reject('rejInvalidAuthority');
       const next = {
         practices: [...(practices ?? s.practices)],
-        workerAutonomy: workerAutonomy ?? s.workerAutonomy,
+        workerAutonomy: mergedAutonomy(workerAutonomy ?? s.workerAutonomy),
         governance: governance ?? s.governance,
         aiAuthority: aiAuthority ?? s.aiAuthority,
       };
@@ -1922,6 +2487,8 @@ export function transitionWorkplace(
       )
         return reject('rejResolveBeforeRemoving');
       Object.assign(s, next);
+      // New terms: every check is asked again (5.2).
+      if (s.campaign) delete s.campaign.understoodChecks;
       invalidate(s);
       s.chairBallots = {};
       s.electedChair = null;
@@ -2023,39 +2590,59 @@ export function transitionWorkplace(
     }
     case 'simulateResponses': {
       if (!deliberating || s.mode !== 'game') return reject('rejSimulateMode');
+      const [plant] = command.args;
       let changed = false;
+      const refusals: { actor: string; key: AuthoredRefusalKey }[] = [];
+      // 5.3: the adviser is not the player's role either; it answers its own
+      // checks from its terms (bounded authority), as the members do.
+      if (s.campaign && !checksPassed(s.campaign, 'mind')) {
+        for (const question of requiredChecks('mind')) {
+          const correct = WORKPLACE_CHECKS.find((q) => q.id === question)!.correct;
+          if (s.campaign.checks.mind?.[question] === correct) continue;
+          s.campaign.checks.mind = { ...s.campaign.checks.mind, [question]: correct };
+          rememberCheck(s, 'mind', question, true);
+        }
+        s.campaign.adviserAcknowledged = true;
+        changed = true;
+      }
       for (const m of s.members) {
         if (s.campaign) {
           // Working if peer simulation never fills any playable Packing decision,
           // even after correct answers or explicit confirmation. Comprehension
           // grants neither a ballot nor individual extra-duty consent.
           if (m.id === 'packing') continue;
-          if (m.id !== 'packing') {
-            for (const question of requiredChecks(m.id)) {
-              if (s.campaign.checks[m.id]?.[question] !== undefined) continue;
-              s.campaign.checks[m.id] = {
-                ...s.campaign.checks[m.id],
-                [question]: WORKPLACE_CHECKS.find((q) => q.id === question)!.correct,
-              };
-              changed = true;
-            }
-            if (!checksPassed(s.campaign, m.id)) continue;
+          for (const question of requiredChecks(m.id)) {
+            if (s.campaign.checks[m.id]?.[question] !== undefined) continue;
+            s.campaign.checks[m.id] = {
+              ...s.campaign.checks[m.id],
+              [question]: WORKPLACE_CHECKS.find((q) => q.id === question)!.correct,
+            };
+            rememberCheck(s, m.id, question, true);
+            changed = true;
           }
+          if (!checksPassed(s.campaign, m.id)) continue;
         }
-        const ballot = s.planId !== 'rush';
-        const cover = s.planId === 'cover' ? m.willingToCover && eligibleCover(m) : null;
+        const answer = authoredResponse(s, m.id, plant ?? {});
         if (!m.understood) {
           m.understood = true;
           changed = true;
         }
-        if (m.ballot === null) {
-          m.ballot = ballot;
+        // In a season an authored role owns its answers and gives them afresh
+        // each time it is asked (5.3), so a refusal lifts when its reason
+        // does. Outside a season a recorded answer stands, as before.
+        if (s.campaign ? m.ballot !== answer.ballot : m.ballot === null) {
+          m.ballot = answer.ballot;
           changed = true;
         }
-        if (m.coverConsent === null && cover !== null) {
-          m.coverConsent = cover;
+        if (
+          answer.cover !== null &&
+          (s.campaign ? m.coverConsent !== answer.cover : m.coverConsent === null)
+        ) {
+          m.coverConsent = answer.cover;
           changed = true;
         }
+        for (const key of [answer.ballotReason, answer.coverReason])
+          if (key) refusals.push({ actor: m.id, key });
       }
       if (!changed) return reject('rejAuthoredAlready');
       record(
@@ -2064,6 +2651,18 @@ export function transitionWorkplace(
         'authored-responses',
         s.campaign ? translate(wm, 'evAuthoredCampaign') : translate(wm, 'evAuthoredRoles')
       );
+      for (const r of refusals) record(s, r.actor, 'authored-refusal', translate(wm, r.key));
+      if (refusals.length > 0)
+        return {
+          state: s,
+          changed: true,
+          reason: refusals.map((r) => translate(wm, r.key)).join(' '),
+          reasonCopy: {
+            catalog: 'engine',
+            key: 'readinessRefused',
+            params: { reasons: refusals.map((r) => r.key).join(' ') },
+          },
+        };
       break;
     }
     case 'object': {
@@ -2086,7 +2685,10 @@ export function transitionWorkplace(
         resolution: null,
       });
       record(s, id, 'objection', translate(wm, 'evObjection', { kind }));
-      if (s.phase === 'active') settle(s, translate(wm, 'settleObjection'));
+      // Voice never costs the season: a campaign shift pauses, and resumes
+      // once the raiser resolves it (shiftResumable).
+      if (s.phase === 'active')
+        settle(s, pausesCampaign(s) ? OBJECTION_PAUSE_DETAIL : translate(wm, 'settleObjection'));
       break;
     }
     case 'resolveObjection': {
@@ -2129,10 +2731,23 @@ export function transitionWorkplace(
           state: previous,
         };
       const p = planOf(s);
+      // 5.9: a handoff trial the team answered "defer" runs as ordinary paid
+      // work and buys nothing, as its outcome says. Working if improvementSpend
+      // stays 0 after such a shift is activated.
+      if (
+        s.improvement &&
+        !s.improvement.stopped &&
+        !s.improvement.funded &&
+        s.improvement.episode?.choice === 'defer'
+      ) {
+        s.improvement.stopped = true;
+        record(s, 'team', 'improvement-stopped', translate(wm, 'evImprovementStopped'));
+      }
       // Reloads expire consent. Reserve only unpaid work, retaining the setup
       // already purchased while charging any newly selected setup before work.
       const funding = workplaceFunding(s, p);
       const { resumed, coverLeft } = funding;
+      const fromReserve = reserveFunds(s, funding.purchase);
       s.finance.wageReserve = funding.wages;
       s.finance.compensationReserve = funding.compensation;
       s.finance.cash -= funding.purchase;
@@ -2152,7 +2767,15 @@ export function transitionWorkplace(
             : undefined
           : s.members
               .filter((m) => m.coverConsent === true && eligibleCover(m))
-              .sort((a, b) => burden(a.id) - burden(b.id) || a.id.localeCompare(b.id))[0];
+              .sort(
+                (a, b) =>
+                  // Review 2: on Quality's absence, a member qualified for
+                  // release covers first, so cover can release at the bench.
+                  Number(qualifiedToCover(b, shiftAbsentee(s))) -
+                    Number(qualifiedToCover(a, shiftAbsentee(s))) ||
+                  burden(a.id) - burden(b.id) ||
+                  a.id.localeCompare(b.id)
+              )[0];
         if (chosen) {
           s.activeCoverMemberId = chosen.id;
           s.coverRemainingMinutes = coverLeft;
@@ -2168,7 +2791,34 @@ export function transitionWorkplace(
       if (s.mode === 'game' && s.aiAuthority === 'bounded' && s.aiActions === 0) s.aiActions += 1;
       s.phase = 'active';
       if (s.campaign) s.campaign.agreementProved = true;
+      // Review 2: a resequenced shift's deliveries count for the season
+      // whichever of its orders the agreed plan made active. The store links
+      // the order it activates, from that order's shipped weight now, so
+      // nothing shipped before (or during a pause) is credited. Another plan,
+      // or an order the season already links, keeps no such link.
+      if (s.campaign) {
+        const [, sequenced] = command.args;
+        const linked = [s.campaign.mission?.orderId, s.campaign.followOn?.orderId];
+        if (
+          s.planId === 'resequence' &&
+          s.campaign.mission &&
+          sequenced !== undefined &&
+          validWorkplaceMission(sequenced) &&
+          sequenced.creditedKg === 0 &&
+          sequenced.evidence === 'current' &&
+          !linked.includes(sequenced.orderId)
+        )
+          s.campaign.sequenced = structuredClone(sequenced);
+        else delete s.campaign.sequenced;
+      }
       record(s, 'team', 'activated', translate(wm, 'evActivated'));
+      if (fromReserve > 1e-8)
+        record(
+          s,
+          'members',
+          'reserve-funded',
+          translate(wm, 'evReserveFunded', { amount: formatFixed(fromReserve, 2) })
+        );
       break;
     }
     case 'withdraw': {
@@ -2197,7 +2847,8 @@ export function transitionWorkplace(
       break;
     }
     case 'tick': {
-      const [delta, shipped, emergency, observation, followOnObservation] = command.args;
+      const [delta, shipped, emergency, observation, followOnObservation, sequencedObservation] =
+        command.args;
       if (
         (!['active', 'review'].includes(s.phase) &&
           !(s.phase === 'deliberating' && workplaceMission(s))) ||
@@ -2211,7 +2862,8 @@ export function transitionWorkplace(
         typeof emergency !== 'boolean'
       )
         return reject('rejNoTick');
-      const links = () => JSON.stringify([workplaceMission(s), s.campaign?.followOn]);
+      const links = () =>
+        JSON.stringify([workplaceMission(s), s.campaign?.followOn, s.campaign?.sequenced]);
       const beforeMission = links();
       const observing = !(s.phase === 'review' && (s.campaign?.shift === 2 || s.improvement));
       const missionDelivered = observing ? observeMission(s, observation) : 0;
@@ -2220,6 +2872,11 @@ export function transitionWorkplace(
       const followOnDelivered =
         observing && s.campaign?.followOn && followOnObservation
           ? observeLink(s.campaign.followOn, followOnObservation)
+          : 0;
+      // Review 2: so does the order a resequenced shift made active.
+      const sequencedDelivered =
+        observing && s.campaign?.sequenced && sequencedObservation
+          ? observeLink(s.campaign.sequenced, sequencedObservation)
           : 0;
       if (s.phase === 'deliberating') {
         if (links() === beforeMission) return reject('rejNoMissionReceipt');
@@ -2242,21 +2899,27 @@ export function transitionWorkplace(
         break;
       }
       if (emergency) {
-        settle(s, translate(wm, 'settleEmergency'));
+        // Nor does safety: an E-stop or drill pauses a campaign shift, which
+        // resumes with its rest and obligations intact (shiftResumable).
+        settle(s, pausesCampaign(s) ? SAFETY_PAUSE_DETAIL : translate(wm, 'settleEmergency'));
         break;
       }
       const elapsed = Math.min(delta, s.durationMinutes - s.minute);
       const delivered =
         s.mode === 'game'
-          ? (workplaceMission(s) ? missionDelivered + followOnDelivered : shipped) *
+          ? (workplaceMission(s)
+              ? missionDelivered + followOnDelivered + sequencedDelivered
+              : shipped) *
             (elapsed / delta)
           : 0;
       const ordinaryRest = Math.max(0, Math.min(s.minute + elapsed, 90) - Math.max(s.minute, 75));
       for (const m of s.members) m.restMinutes += ordinaryRest;
+      const startMinute = s.minute;
       s.minute += elapsed;
       if (
         s.campaign?.shift === 1 &&
-        s.minute >= 25 &&
+        s.campaign.mondaySample === undefined &&
+        s.minute >= mondayMinute(s) &&
         s.campaign.inspectionUntilMinute !== null &&
         s.minute >= s.campaign.inspectionUntilMinute &&
         !s.campaign.inspectionComplete
@@ -2264,6 +2927,7 @@ export function transitionWorkplace(
         s.campaign.inspectionComplete = true;
         record(s, 'quality', 'inspection-completed', translate(wm, 'evInspectionCompleted'));
       }
+      observeMondaySample(s, startMinute, observation);
       s.shippedKg += delivered;
       s.finance.operatingRevenue += delivered * REVENUE_PER_KG;
       s.finance.operatingCost += delivered * COST_PER_KG;
@@ -2318,6 +2982,12 @@ export function transitionWorkplace(
     }
     case 'voteSurplus': {
       const [voter, destination] = command.args;
+      // A paused shift has not ended: its remaining wages would shrink the
+      // surplus below a share already paid (restore then rejects the save).
+      // Working if sobras wait for the resumed shift to end.
+      if (campaignShiftPause(s)) return reject('rejSurplusPaused');
+      // 5.5: sobras are the season's, settled once it has ended (art. 44).
+      if (s.phase === 'review' && !seasonEnded(s)) return reject('rejSurplusSeasonEnd');
       if (
         s.phase !== 'review' ||
         s.distributionComplete ||
@@ -2332,48 +3002,83 @@ export function transitionWorkplace(
       break;
     }
     case 'distributeSurplus': {
+      // Review 2: a season left early settles what it earned so far by the
+      // statutory default (the store asks, as it keeps the left season).
+      const leaving = command.args[0] === 'left' && !!s.campaign && !seasonEnded(s);
+      if (campaignShiftPause(s) && !leaving) return reject('rejSurplusPaused');
+      if (s.phase === 'review' && !seasonEnded(s) && !leaving) return reject('rejSurplusSeasonEnd');
+      // Review 2: a charter without shared surplus settles it too, in its own
+      // terms (surplusOutcome), so a season's pool is never lost at archive;
+      // only a season does, never a standalone exercise.
       if (
         s.phase !== 'review' ||
         s.distributionComplete ||
-        !s.practices.includes('gainsharing') ||
+        (!s.practices.includes('gainsharing') && !s.campaign) ||
         s.finance.wageReserve > 0 ||
         s.finance.compensationReserve > 0 ||
         s.members.some((m) => m.recoveryOwedMinutes > 0) ||
         s.objections.some((o) => o.status === 'open')
       )
         return reject('rejSettleFirst');
-      const destination = DESTINATIONS.find(
-        (d) => Object.values(s.surplusBallots).filter((v) => v === d).length >= 3
-      );
-      if (!destination) return reject('rejSurplusAgree');
-      const surplus = Math.min(
-        s.finance.cash,
-        Math.max(
-          0,
-          s.finance.operatingRevenue -
-            s.finance.operatingCost -
-            s.finance.wagesPaid -
-            s.finance.compensationPaid -
-            s.finance.improvementSpend
-        )
-      );
-      if (surplus <= 1e-8) return reject('rejNoSurplus');
+      const outcome = leaving
+        ? ({ destination: 'reserve', basis: 'left' } as const)
+        : surplusOutcome(s);
+      if (!outcome) return reject('rejSurplusAgree');
+      const { destination } = outcome;
+      // 5.5 (D18): the Reserve Fund and FATES first, then the members'
+      // destination for the rest, in proportion to minutes worked
+      // (sobrasSettlement, which quotes Lei 5.764/71).
+      const sobras = sobrasSettlement(s, destination);
+      if (sobras.pool <= 1e-8) return reject('rejNoSurplus');
       if (destination === 'members') {
-        s.finance.cash -= surplus;
-        s.finance.distributed += surplus;
-        for (const m of s.members) m.earnedPay += surplus / s.members.length;
+        s.finance.cash -= sobras.remainder;
+        s.finance.distributed += sobras.remainder;
+        for (const m of s.members) m.earnedPay += sobras.shares[m.id];
       }
       if (destination === 'community') {
-        s.finance.cash -= surplus;
-        s.finance.communityAllocation += surplus;
+        s.finance.cash -= sobras.remainder;
+        s.finance.communityAllocation += sobras.remainder;
       }
+      s.sobras = sobras;
       s.distributionComplete = true;
+      // Review 2: how it carried, when not by three of four, is on the record.
+      if (outcome.basis !== 'majority')
+        record(
+          s,
+          'members',
+          outcome.basis === 'left' ? 'surplus-left' : 'surplus-basis',
+          translate(
+            wm,
+            outcome.basis === 'chair'
+              ? 'evSurplusChair'
+              : outcome.basis === 'default'
+                ? 'evSurplusDefault'
+                : outcome.basis === 'left'
+                  ? 'evSurplusLeft'
+                  : 'evSurplusCharter'
+          )
+        );
       record(
         s,
         'members',
         'surplus-decided',
-        translate(wm, 'evSurplusDecided', { destination, amount: formatFixed(surplus, 2) })
+        translate(wm, 'evSurplusDecided', {
+          destination,
+          amount: formatFixed(sobras.remainder, 2),
+          reserve: formatFixed(sobras.reserve, 2),
+          fates: formatFixed(sobras.fates, 2),
+        })
       );
+      // Which need each authored role brought was met or outvoted, in words.
+      if (outcome.basis !== 'charter' && outcome.basis !== 'left')
+        for (const [id, [met, outvoted]] of Object.entries(SOBRAS_NEED_KEYS))
+          if (member(id))
+            record(
+              s,
+              id,
+              'surplus-need',
+              translate(wm, sobrasNeedMet(s, id, destination) ? met : outvoted)
+            );
       break;
     }
     default:
@@ -2404,6 +3109,8 @@ const SETTLE_REASON_KEYS = [
   'settleEnded',
   'reasonReloaded',
 ] as const;
+const settledWith = (key: (typeof SETTLE_REASON_KEYS)[number], reason: unknown) =>
+  LOCALES.some((locale) => wm[locale][key] === reason);
 const knownSettleReason = (reason: unknown) =>
   typeof reason === 'string' &&
   LOCALES.some((locale) => SETTLE_REASON_KEYS.some((key) => wm[locale][key] === reason));
@@ -2543,14 +3250,21 @@ function restoreImprovementSnapshot(input: object): WorkplaceState {
       ...restored,
       improvement: { version: 1, origin: redactedOrigin, history, ...terms },
     };
-    const expectedForecast = improvementForecast({
+    const unfrozen: WorkplaceState = {
       ...shaped,
       improvement: { ...shaped.improvement!, forecastKg: null, stopped: false },
-    }).kg;
+    };
+    // A shift an earlier build forecast and priced (5.4 paces, 5.9 retention)
+    // restores on the figures it was given; the current ones apply from now on.
+    const forecastMatches = (legacy: boolean) =>
+      Math.abs(terms.forecastKg! - improvementForecast(unfrozen, legacy).kg) <= 1e-6;
+    const spendMatches = (legacy: boolean) =>
+      Math.abs(
+        restored.finance.improvementSpend - (terms.funded ? improvementCost(shaped, legacy) : 0)
+      ) <= 1e-6;
     if (
-      (terms.proposalId && Math.abs(terms.forecastKg! - expectedForecast) > 1e-6) ||
-      Math.abs(restored.finance.improvementSpend - (terms.funded ? improvementCost(shaped) : 0)) >
-        1e-6 ||
+      (terms.proposalId && !forecastMatches(false) && !forecastMatches(true)) ||
+      (!spendMatches(false) && !spendMatches(true)) ||
       (terms.verdict && improvementReviewWinner(shaped) !== terms.verdict) ||
       (terms.verdict === 'adopt' && (!terms.funded || terms.stopped || restored.minute !== 90)) ||
       (terms.verdict && improvementObligations(restored).length) ||
@@ -2608,8 +3322,16 @@ function restoreWorkplaceSnapshot(
 ): WorkplaceState {
   const fallback = createWorkplace();
   if (!input || typeof input !== 'object' || Array.isArray(input)) return fallback;
-  // Version-one standalone saves predate the optional campaign field.
-  const raw = input as Record<string, unknown>;
+  // Version-one standalone saves predate the optional campaign field. Settled
+  // sobras are optional too (absent before they settle, and in every save
+  // written before 5.5); they are checked against the books further down.
+  // 5.9: the arrangements in place are optional too; a malformed list is
+  // dropped, never the save.
+  const {
+    sobras: rawSobras,
+    arrangementsInPlace: rawArrangements,
+    ...raw
+  } = input as Record<string, unknown>;
   const r: Record<string, unknown> = { ...raw, campaign: raw.campaign ?? null };
   if (!MODES.includes(r.mode as WorkplaceMode) || !validSeed(r.seed)) return fallback;
   const canonical = createWorkplace(r.mode as WorkplaceMode, r.seed);
@@ -2674,7 +3396,38 @@ function restoreWorkplaceSnapshot(
       (!c.mission || !validWorkplaceMission(c.followOn) || c.followOn.orderId === c.mission.orderId)
     )
       return fallback;
-    const { mission: _mission, followOn: _followOn, ...campaignShape } = c;
+    // Review 2: a season's number and a resequenced shift's link are optional
+    // (older saves have neither); each must be well formed, like the rest.
+    if (
+      (c.season !== undefined && !validSeasonNumber(c.season)) ||
+      (c.sequenced !== undefined &&
+        (!c.mission ||
+          !validWorkplaceMission(c.sequenced) ||
+          c.sequenced.orderId === c.mission.orderId ||
+          c.sequenced.orderId === c.followOn?.orderId))
+    )
+      return fallback;
+    // 5.10 and 5.9: a season's draw and the reserve it opened with are
+    // optional (older seasons have neither); each must be exactly what the
+    // season's first seed draws and a bounded amount.
+    const {
+      mission: _mission,
+      followOn: _followOn,
+      sequenced: _sequenced,
+      season: _season,
+      draw: _draw,
+      reserveBrought: _reserveBrought,
+      understoodChecks: _understoodChecks,
+      mondaySample: _mondaySample,
+      ...campaignShape
+    } = c;
+    const seasonSeed = Array.isArray(c.history) && c.history.length ? c.history[0]?.seed : r.seed;
+    if (
+      (c.draw !== undefined && !validSeasonDraw(c.draw, Number(seasonSeed))) ||
+      (c.reserveBrought !== undefined && (!validReserve(c.reserveBrought) || c.reserveBrought <= 0))
+    )
+      return fallback;
+    const monday = campaignDraw(c).mondayMinute;
     if (
       !validShape(
         {
@@ -2713,16 +3466,32 @@ function restoreWorkplaceSnapshot(
       c.repairs !==
         (c.shift === 2 && ['protect-refusal', 'renegotiate'].includes(c.decision ?? '') ? 1 : 0) ||
       (c.shift !== 1 && (c.inspectionUntilMinute !== null || c.inspectionComplete)) ||
+      (c.shift !== 1 && c.mondaySample !== undefined) ||
       (c.shift === 1 &&
+        c.mondaySample === undefined &&
         (c.decision === null
           ? c.inspectionUntilMinute !== null || c.inspectionComplete
           : !finite(c.inspectionUntilMinute) ||
-            c.inspectionUntilMinute < 30 ||
+            c.inspectionUntilMinute < monday + 5 ||
             c.inspectionUntilMinute > 95 ||
-            c.inspectionComplete !== Number(r.minute) >= c.inspectionUntilMinute))
+            c.inspectionComplete !== Number(r.minute) >= c.inspectionUntilMinute)) ||
+      // 5.7: a held sample is read at or after Monday's minute, and the hold
+      // ends only once the inspection minutes have run and the bench has read it.
+      (c.shift === 1 &&
+        c.mondaySample !== undefined &&
+        (!validMondaySample(c.mondaySample) ||
+          (c.mondaySample === null || c.decision === null
+            ? c.inspectionUntilMinute !== null || c.inspectionComplete
+            : !finite(c.inspectionUntilMinute) ||
+              c.inspectionUntilMinute < c.mondaySample.heldAtMinute + 5 ||
+              c.inspectionUntilMinute > 95 ||
+              (c.inspectionComplete && Number(r.minute) < c.inspectionUntilMinute)) ||
+          (c.mondaySample !== null &&
+            (c.mondaySample.heldAtMinute < monday ||
+              c.mondaySample.heldAtMinute > Number(r.minute)))))
     )
       return fallback;
-    let cash = 400;
+    let cash = 400 + (c.reserveBrought ?? 0);
     let previousSeed: number | null = null;
     for (let i = 0; i < c.history.length; i++) {
       const h = c.history[i];
@@ -2731,10 +3500,16 @@ function restoreWorkplaceSnapshot(
         campaign: { ...c, shift: i, history: [] },
       });
       if (!h) return fallback;
-      const { relationshipEvents: remembered, ...historyShape } = h;
-      const { relationshipEvents: _templateEvents, ...historyTemplate } = recordTemplate;
+      const { relationshipEvents: remembered, mondaySample: sample, ...historyShape } = h;
+      const {
+        relationshipEvents: _templateEvents,
+        mondaySample: _templateSample,
+        ...historyTemplate
+      } = recordTemplate;
       if (
         (remembered !== undefined && !validRelationshipEvents(remembered)) ||
+        (sample !== undefined && (i !== 1 || !validMondaySample(sample))) ||
+        (sample === null && (h.decision !== null || h.inspectionComplete)) ||
         !validShape(
           { ...historyShape, decision: h.decision ?? '' },
           { ...historyTemplate, decision: '' }
@@ -2758,7 +3533,7 @@ function restoreWorkplaceSnapshot(
           )) ||
         h.repairs !== 0 ||
         (i !== 1 && h.inspectionComplete) ||
-        (h.inspectionComplete && (h.decision !== 'inspect' || h.minute < 30)) ||
+        (h.inspectionComplete && (h.decision !== 'inspect' || h.minute < monday + 5)) ||
         (previousSeed !== null && h.seed !== (previousSeed + 1) >>> 0)
       )
         return fallback;
@@ -2843,7 +3618,13 @@ function restoreWorkplaceSnapshot(
       m.sharing ||
       m.understood ||
       !expected.eligibleTasks.includes(m.chosenTask) ||
-      JSON.stringify(m.eligibleTasks) !== JSON.stringify(expected.eligibleTasks) ||
+      // A save from before review 2 holds Maintenance's list without its
+      // release qualification; it restores, and gains it below.
+      (JSON.stringify(m.eligibleTasks) !== JSON.stringify(expected.eligibleTasks) &&
+        !(
+          m.id === 'maintenance' &&
+          JSON.stringify(m.eligibleTasks) === JSON.stringify(expected.eligibleTasks.slice(0, 2))
+        )) ||
       m.extraMinutes > 10 ||
       Math.abs(m.restMinutes - Math.max(0, Number(r.minute) - 75)) > 1e-6 ||
       m.recoveryMinutes > 10 ||
@@ -2893,6 +3674,46 @@ function restoreWorkplaceSnapshot(
   const s = structuredClone(r) as unknown as WorkplaceState;
   const f = s.finance;
   const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+  // 5.5: settled sobras must be exactly what the season's books give.
+  if (rawSobras !== undefined) {
+    const o = rawSobras as WorkplaceState['sobras'];
+    const ids = s.members.map((m) => m.id).join(',');
+    if (
+      !o ||
+      typeof o !== 'object' ||
+      Array.isArray(o) ||
+      Object.keys(o).sort().join(',') !== 'destination,fates,pool,remainder,reserve,shares' ||
+      !DESTINATIONS.includes(o.destination) ||
+      ![o.pool, o.reserve, o.fates, o.remainder].every((n) => finite(n) && n >= 0 && n <= 1e12) ||
+      !o.shares ||
+      typeof o.shares !== 'object' ||
+      Array.isArray(o.shares) ||
+      Object.keys(o.shares).join(',') !== ids ||
+      !Object.values(o.shares).every((n) => finite(n) && n >= 0 && n <= 1e12) ||
+      !s.distributionComplete ||
+      // A charter without shared surplus keeps it in the Reserve Fund (review 2).
+      (!s.practices.includes('gainsharing') && o.destination !== 'reserve')
+    )
+      return fallback;
+    s.sobras = structuredClone(o);
+    const expected = sobrasSettlement(s, o.destination);
+    // A season left early settles before its end, into the reserve (review 2).
+    const leftSettled =
+      o.destination === 'reserve' && s.events.some((e) => e.kind === 'surplus-left');
+    if (
+      (!seasonEnded(s) && !leftSettled) ||
+      !near(o.pool, expected.pool) ||
+      !near(o.reserve, o.pool * RESERVE_FUND_SHARE) ||
+      !near(o.fates, o.pool * FATES_SHARE) ||
+      !near(o.remainder, expected.remainder) ||
+      s.members.some((m) => !near(o.shares[m.id], expected.shares[m.id])) ||
+      !near(f.distributed, o.destination === 'members' ? o.remainder : 0) ||
+      !near(f.communityAllocation, o.destination === 'community' ? o.remainder : 0)
+    )
+      return fallback;
+  }
+  // A member's return: its settled share, or an equal share an older build paid.
+  const returned = (id: string) => (s.sobras ? s.sobras.shares[id] : f.distributed / 4);
   if (
     !near(f.initialCapital, openingCash) ||
     f.wageReserve !== 0 ||
@@ -2920,7 +3741,7 @@ function restoreWorkplaceSnapshot(
     s.aiActions > 1 ||
     s.promisesKept !== s.members.filter((m) => m.recoveryMinutes === 10).length ||
     s.members.filter((m) => m.extraMinutes > 0).length > 1 ||
-    s.members.some((m) => !near(m.earnedPay, s.minute * WAGE + f.distributed / 4))
+    s.members.some((m) => !near(m.earnedPay, s.minute * WAGE + returned(m.id)))
   )
     return fallback;
   const earnedSurplus = Math.max(
@@ -2928,7 +3749,8 @@ function restoreWorkplaceSnapshot(
     f.operatingRevenue - f.operatingCost - f.wagesPaid - f.compensationPaid - f.improvementSpend
   );
   if (
-    f.distributed + f.communityAllocation > earnedSurplus + 1e-6 ||
+    // Settled sobras are the season's, checked against its books above.
+    (!s.sobras && f.distributed + f.communityAllocation > earnedSurplus + 1e-6) ||
     ((f.distributed > 0 || f.communityAllocation > 0) && !s.distributionComplete)
   )
     return fallback;
@@ -2939,6 +3761,7 @@ function restoreWorkplaceSnapshot(
   // Persisted prose is not authoritative. Regenerate identities and known public receipts.
   s.members = s.members.map((m, i) => ({
     ...m,
+    eligibleTasks: [...canonical.members[i].eligibleTasks],
     role: canonical.members[i].role,
     publicBoundary: canonical.members[i].publicBoundary,
     preference: canonical.members[i].preference,
@@ -2960,14 +3783,39 @@ function restoreWorkplaceSnapshot(
         o.status === 'resolved' ? translate(wm, 'restoredResolution', { actor: o.actorId }) : null,
     };
   });
-  // Imported prose never survives a restore; only the exact reload-safety
-  // sentinel does, so a shift a reload paused stays resumable (shiftResumable).
+  // Imported prose never survives a restore; only the exact pause sentinels
+  // do, so a shift a reload, a safety stop or an objection paused stays
+  // resumable (shiftResumable). A live save from before pauses existed holds
+  // the emergency or objection sentence (either language) on an unfinished
+  // campaign shift: it becomes that pause. Retained records keep the sentence
+  // and stay ended. Working if such a save loads resumable and an archived
+  // season ended that way still reads incomplete.
+  const legacyPause =
+    !keepReason && s.phase === 'review' && pausesCampaign(s) && s.minute < s.durationMinutes
+      ? settledWith('settleEmergency', s.reviewReason)
+        ? SAFETY_PAUSE_DETAIL
+        : settledWith('settleObjection', s.reviewReason)
+          ? OBJECTION_PAUSE_DETAIL
+          : null
+      : null;
   s.reviewReason =
     s.phase !== 'review'
       ? null
-      : s.reviewReason === RELOAD_SAFETY_DETAIL || (keepReason && knownSettleReason(s.reviewReason))
+      : s.reviewReason === RELOAD_SAFETY_DETAIL ||
+          s.reviewReason === SAFETY_PAUSE_DETAIL ||
+          s.reviewReason === OBJECTION_PAUSE_DETAIL ||
+          (keepReason && knownSettleReason(s.reviewReason))
         ? s.reviewReason
-        : translate(wm, 'reasonReloaded');
+        : (legacyPause ?? translate(wm, 'reasonReloaded'));
+  s.workerAutonomy = mergedAutonomy(s.workerAutonomy);
+  // 5.2: remembered checks are optional; a malformed record is dropped, never
+  // the season (they are then simply asked again).
+  keepArrangements(s, validArrangementsInPlace(rawArrangements));
+  if (s.campaign) {
+    const understood = validUnderstoodChecks(s.campaign.understoodChecks);
+    if (understood) s.campaign.understoodChecks = understood;
+    else delete s.campaign.understoodChecks;
+  }
   s.revision += 1;
   return s;
 }

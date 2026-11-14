@@ -7,22 +7,37 @@ import { defineMessages } from '../i18n';
 export const knowledgeStoreMessages = defineMessages({
   en: {
     historyUnlock: 'Unlocked by an event in the Mill Chronicle',
-    // Loading-screen principles
-    quoteTraceEveryLot: 'Trace every lot, state change, alarm, and dispatch.',
-    quoteSafeStop: 'A safe stop is part of production, not a failure of it.',
-    quoteMotion: 'Motion should reveal process state before decoration.',
-    quoteOneWorld: 'One world, one clock, one source of operational truth.',
-    quoteAutonomyTrust: 'Autonomy earns trust through legible evidence.',
-    quoteAlarmNeeds: 'Every alarm needs a condition, disposition, and recovery path.',
-    quoteBoringMill: 'A well-run mill is boring. Boring is the goal.',
-    quoteCheckMeasurement: 'Check the measurement, its context, and the action it supports.',
-    quoteForklifts: 'If the forklifts are confused, so is the system.',
-    authorControl: 'MillOS control principle',
-    authorVisual: 'MillOS visual principle',
-    authorArchitecture: 'MillOS architecture principle',
-    authorAutonomy: 'MillOS autonomy principle',
-    authorScada: 'MillOS SCADA principle',
-    authorLogistics: 'MillOS logistics principle',
+    farmLessonUnlock: 'Unlocked by finishing the henhouse inspection on the farm',
+    windmillNoteUnlock:
+      'Unlocked by the farm windmill’s lesson, or by a wind turbine in the Mill Chronicle',
+    // farm-henhouse: the henhouse inspection's own copy (ProcessInspectionCard.messages.ts).
+    // Source, read 2026-11-13: Defra, Code of Practice for the Welfare of Laying Hens and
+    // Pullets (2018), paras 130-131 (nests a separate, secluded space for laying), the Five
+    // Freedoms and para 94 (fresh water, feed), 129 (perches for roosting), 42 (no sudden
+    // movement near the birds). assets.publishing.service.gov.uk/media/5b69652be5274a1518c298db
+    farmHenhouseTitle: 'The Henhouse',
+    farmHenhouseTooltip: 'Nests, feed and water, perches, and gentle collection.',
+    farmHenhouseBrief: 'What the farm henhouse gives its hens, and how the eggs are collected.',
+    farmHenhouseArticle: `## The Henhouse\n\nNesting boxes provide a sheltered place for hens to lay eggs.\n\nFeed and fresh water support the hens each day.\n\nPerches give hens a raised place to rest.\n\nCollect eggs gently from the nests, keeping movement calm around the hens.`,
+    farmHenhouseSeeInAction: 'Farm henhouse',
+    // Loading-screen facts (D14): each worded as the milling article that
+    // cites the same source, with its hedge; the source is in LOADING_FACTS.
+    factExplosibleDust:
+      'Flour is an explosible dust: in air at the right concentration and confined, it explodes violently when lit.',
+    factStaticSpark:
+      'The spark that lights a dust cloud can be as small as the static from pulling off a synthetic jumper.',
+    factSecondaryBlast:
+      'A weak first dust explosion can lift settled dust and set off very powerful secondary ones.',
+    factExtraction:
+      'About 70 to 75% of the grain becomes flour; the rest leaves largely as animal feed.',
+    factTempering:
+      'Tempering brings clean wheat to approximately 15% moisture, then rests it for 2 to 24 hours.',
+    factRolls: 'Corrugated rolls break the wheat; smooth rolls reduce the middlings into flour.',
+    factStreams:
+      'Very white flours come from the early streams only; wholemeal blends every stream back together.',
+    factFallingNumber:
+      'A high falling number, for example above 300 seconds, means sound grain; a low one, for example below 250, sprouted wheat.',
+    factIntake: 'UK mills test protein, the Hagberg Falling Number and moisture as wheat arrives.',
     // Library labels
     alwaysAvailable: 'Available in the autonomous operations library',
     historySeeInAction: 'Mill Chronicle',
@@ -95,13 +110,14 @@ export const knowledgeStoreMessages = defineMessages({
     resourceTradeoffsBrief:
       'Speed has a cost. Compare energy, waste and delay with the useful flour that reaches the customer.',
     resourceTradeoffsArticle: `## Make the Tradeoff Visible\n\nThe campaign accounts for energy, automation, waste, maintenance, dock delays and late deliveries. Revenue comes from credited customer shipments. The shift debrief puts these costs beside dispatched kilograms and open risks.\n\nA lower line setpoint can give constrained downstream equipment room to recover. Waiting also risks the order's due time. Compare both effects rather than treating maximum speed as the objective.\n\nUse a recovery challenge to observe a bounded power, packaging or control interruption. Read the response's consequence before choosing it. Quality and unresolved serious incidents limit the shift grade even when the financial margin is positive. These are simulator accounts, not a real mill's tariff or food-safety certificate.`,
-    resourceTradeoffsSeeInAction: 'Overview recovery challenges\nShift debrief\nSCADA utilities',
+    resourceTradeoffsSeeInAction:
+      'Overview recovery challenges\nShift debrief\nEnergy dashboard line rate',
     // community-commitments
     communityCommitmentsTitle: 'The Mill and Its Neighbours',
     communityCommitmentsTooltip: 'A completed cooperative order supplies the village bakery.',
     communityCommitmentsBrief:
       'The bakery needs a real flour delivery. Safe, traceable production is a promise to the people who use its output.',
-    communityCommitmentsArticle: `## A Delivery Has a Destination\n\nThe Riverside Bakers' Cooperative order links the mill to the village bakery. Its display is stocked only after the campaign records a fulfilled flour order with shipment evidence. The display is a visual response to that delivery; it does not create another quantity of flour in the ledger.\n\nThe school-meals and pasta commitments have their own recipes, deadlines and shipments. Finishing one customer's order does not supply every shop in the world. Read the active customer and the remaining kilograms before changing the recipe.\n\nVillage residents retain ordinary walks, work and tea breaks. Mill tasks respond to equipment, maintenance and quality conditions. A safety stop holds personnel in their current positions while automated egress verification checks the site; it does not certify a worker evacuation.`,
+    communityCommitmentsArticle: `## A Delivery Has a Destination\n\nThe Riverside Bakers' Cooperative order links the mill to the village bakery. Its display is stocked only after the campaign records a fulfilled flour order with shipment evidence. The display is a visual response to that delivery; it does not create another quantity of flour in the ledger.\n\nThe school-meals and polenta commitments have their own recipes, deadlines and shipments. Finishing one customer's order does not supply every shop in the world. Read the active customer and the remaining kilograms before changing the recipe.\n\nVillage residents retain ordinary walks, work and tea breaks. Mill tasks respond to equipment, maintenance and quality conditions. A safety stop holds personnel in their current positions while automated egress verification checks the site; it does not certify a worker evacuation.`,
     communityCommitmentsSeeInAction:
       'Overview customer orders\nVillage bakery\nSafety egress verification',
     // depth-and-material-policy
@@ -120,26 +136,81 @@ export const knowledgeStoreMessages = defineMessages({
       'Autonomy is trustworthy when you can ask it why. Every decision carries its evidence.',
     autonomousEvidenceArticle: `## Legible Autonomy\n\nTrust requires transparency. Every autonomous decision captures its telemetry, timestamp, assumptions, alternatives, expected effect, and the equipment in scope. You can always ask why.\n\nThe replay ledger samples machine state, alerts, and vehicle positions without credentials or personal data. Commands are stored separately from frames, so a review can tell what happened from what requested it.\n\nConfidence comes with reasoning attached, not as an unexplained percentage. When evidence does not justify intervention, the system holds steady rather than guessing.`,
     autonomousEvidenceSeeInAction: 'AI Command Centre\nDecision replay',
+    // How a flour mill works. Sources for every fact: millingSources.ts.
+    categoryMilling: 'How Flour Is Milled',
+    // milling-cleaning-tempering
+    millingCleaningTemperingTitle: 'Cleaning and Tempering',
+    millingCleaningTemperingTooltip: 'Clean the wheat, then dampen and rest it before the rolls.',
+    millingCleaningTemperingBrief:
+      'Before milling, wheat is cleaned of metal, stones and other seeds, then tempered: water is added and the grain rests, so the bran toughens and the endosperm mellows.',
+    millingCleaningTemperingArticle: `## Before the First Break\n\nWheat reaches the mill carrying things that must not reach the rolls. The cleaning house takes them out in stages: a magnetic separator removes iron and steel, screens remove stones and sticks, air currents lift off lighter impurities, disc separators remove barley, oats and other seeds, and a scourer rubs off what is left on the grain.\n\nThe clean wheat is then tempered, which millers also call conditioning. Water is added to bring its moisture to approximately 15%, and the grain stands for 2 to 24 hours so the water can work into the kernel. Soft wheats need less water and less time than hard wheats.\n\nTempering toughens the bran, so it comes away in large flakes instead of breaking up into the flour, and it softens the endosperm so it reduces more easily on the rolls.\n\n## At This Mill\n\nThis mill tempers every lot to approximately 15% from its intake reading and rests it for 2 hours, the shortest rest in that range. In a wet crop year the wheat comes in above the target, and once a shift the AI partner asks whether to dry it first. Dried wheat mills without the wet year's quality loss; the drying is paid for in energy, and the dried wheat reaches the rolls after its 2-hour rest.`,
+    millingCleaningTemperingSeeInAction:
+      'Silo cutaway\nSCADA Process workspace\nAI Partner, Decisions: Tempering (wet crop years)',
+    // milling-break-reduction
+    millingBreakReductionTitle: 'Break and Reduction',
+    millingBreakReductionTooltip: 'Fluted rolls open the grain; smooth rolls grind it to flour.',
+    millingBreakReductionBrief:
+      'Fluted break rolls shear the grain open and part the endosperm from the bran. Smooth reduction rolls then grind that endosperm, step by step, into flour.',
+    millingBreakReductionArticle: `## Two Kinds of Roll\n\nIn the break system, pairs of fluted (corrugated) rolls shear the grain open gradually, opening it rather than pulverising it. After each pair the stock is sifted: the finest is taken off as flour, and the coarsest goes on to the next break, whose flutes are finer and whose gap is closer.\n\nThe two rolls of a pair turn at different speeds, and the ratio of the fast roll's speed to the slow roll's is the differential. One maker's patent puts break rolls typically at {breakLow} to {breakHigh} to 1, names {breakBest} to 1 as the best ratio for its break rolls, and puts smooth rolls at {reductionLow} to {reductionHigh} to 1. The fluted pair in the roller mill cutaway runs at {breakBest} to 1.\n\nIn the reduction system, the purified middlings pass between smooth rolls, each pair set finer than the last, with flour sifted out after each one. Some particles pass through just one break and one reduction roll; those closer to the bran and germ pass through several. Raising the differential on smooth rolls raises starch damage, water absorption and milling energy, and the flour's ash and colour get worse.`,
+    millingBreakReductionSeeInAction: 'Roller mill cutaway\nMilling floor',
+    // milling-purifiers
+    millingPurifiersTitle: 'Purifiers',
+    millingPurifiersTooltip: 'Air and sieves take fine bran out of the middlings.',
+    millingPurifiersBrief:
+      'Between the break and reduction rolls, purifiers sift the middlings again while air currents draw off small, light bran, so cleaner endosperm goes on to be ground.',
+    millingPurifiersArticle: `## Cleaning the Middlings\n\nThe break rolls leave a mix. Coarse pieces of endosperm, called middlings, come out with small flakes of bran among them, some still attached. Sifters and purifiers sort this stock by particle size and density.\n\nIn a purifier the middlings are sifted while air currents draw off the small, light bran particles. The purified middlings go on to the smooth reduction rolls.\n\nIt matters because the bran carries most of the ash. Bran left in the middlings is ground into the flour, where it shows as higher ash and a darker colour.`,
+    millingPurifiersSeeInAction: 'Plansifter cutaway\nMilling floor',
+    // milling-extraction-ash
+    millingExtractionAshTitle: 'Extraction Rate and Ash',
+    millingExtractionAshTooltip: 'How much flour the wheat gives, and how much bran came with it.',
+    millingExtractionAshBrief:
+      'Extraction is the share of the wheat that becomes flour. The miller wants as much as possible with as little bran as possible, and the ash test shows how much bran got in.',
+    millingExtractionAshArticle: `## How Much Flour, and How Clean\n\nDuring milling, about 70 to 75% of the grain becomes flour. The other 25 to 30% leaves as by-products such as bran, shorts and germ, largely for animal feed.\n\nThe miller's aim is to take out as much endosperm as possible while keeping ash low. Ash is what remains when a sample is heated at 585 °C until its weight is stable, usually overnight: the minerals, which sit mostly in the bran. For example, a wheat might test at {wheatAsh}% ash and a flour at {flourAsh}%, usually expressed on a 14% moisture basis.\n\nSo ash shows how much bran got into the flour, and it darkens the flour. Very white flours come from the early streams only, brown flours take in most streams, and wholemeal blends every stream back together.`,
+    millingExtractionAshSeeInAction: 'Overview batch genealogy\nSCADA quality provenance',
+    // milling-baker-needs
+    millingBakerNeedsTitle: 'What a Baker Needs from Flour',
+    millingBakerNeedsTooltip: 'Protein, falling number and water absorption.',
+    millingBakerNeedsBrief:
+      'A baker buys flour to a specification: enough protein for the product, a falling number that shows sound grain, and a known water absorption.',
+    millingBakerNeedsArticle: `## Protein, Falling Number and Water\n\nProtein: bread flour needs plenty, because the gluten it forms holds the gas bubbles and keeps the loaf risen. Cakes and biscuits need less. Higher protein usually needs more water and a longer mix.\n\nFalling number: a flour and water paste is heated in a boiling water bath, and the seconds a stirrer takes to fall through it are the reading. A high number (for example, above 300 seconds) means little enzyme activity and sound grain; a low one (for example, below 250 seconds) means a lot, the mark of sprouted wheat. Too much activity makes sticky dough and a poor texture, and the enzymes cannot be taken back out of the flour. UK mills test the Hagberg Falling Number as wheat arrives.\n\nWater absorption: the water a flour takes to reach a set dough consistency on the farinograph, given as a percentage. A weak-gluten flour absorbs less, and holds that consistency for less time, than a strong one.`,
+    millingBakerNeedsSeeInAction: 'Overview customer orders\nSCADA quality provenance',
+    // milling-dust-explosions
+    millingDustExplosionsTitle: 'Dust Explosions',
+    millingDustExplosionsTooltip: 'Flour dust in a cloud, confined and lit, explodes.',
+    millingDustExplosionsBrief:
+      'Flour dust burns. Raised into a cloud in a vessel or a room and lit, it explodes, and the blast can lift settled dust into stronger explosions after it.',
+    millingDustExplosionsArticle: `## Why a Mill Keeps Itself Clean\n\nFlour is an explosible dust. Fine dust suspended in air at the right concentration, inside a vessel or a building, explodes violently when it is lit; in the open it can burn as a fireball. The spark can be as small as the static from pulling off a synthetic jumper.\n\nA dust explosion needs five things at once: fuel, an ignition source, oxygen, a dust cloud and confinement. A first explosion can lift the dust settled on floors and ledges into the air and light it, and a weak first blast can set off very powerful secondary ones. In the catastrophic incidents the Board studied, secondary explosions caused much of the damage and casualties. The US Chemical Safety Board quotes the NFPA's warning that more than 1/32 of an inch of dust over 5 percent of a room's surface is a significant explosion hazard.\n\nSo a mill seals its leaks, cleans with an earthed central vacuum rather than brushes or compressed air, keeps surfaces no hotter than 200 °C, earths its metalwork and the delivery tankers, and fits silos and bucket elevators with explosion relief. In the US, flour mills come under OSHA's 1987 Grain Handling Facilities Standard, which the Chemical Safety Board credits with reducing the number and severity of grain dust explosions.`,
+    millingDustExplosionsSeeInAction: 'Safety panel\nPredictive maintenance',
   },
   'pt-BR': {
     historyUnlock: 'Desbloqueado por um evento na Crônica do Moinho',
-    // Loading-screen principles
-    quoteTraceEveryLot: 'Rastreie cada lote, mudança de estado, alarme e expedição.',
-    quoteSafeStop: 'Uma parada segura faz parte da produção, não é uma falha dela.',
-    quoteMotion: 'O movimento deve mostrar o estado do processo antes de servir de decoração.',
-    quoteOneWorld: 'Um mundo, um relógio, uma única fonte de verdade operacional.',
-    quoteAutonomyTrust: 'A autonomia conquista confiança com evidências legíveis.',
-    quoteAlarmNeeds:
-      'Todo alarme precisa de uma condição, um tratamento e um caminho de recuperação.',
-    quoteBoringMill: 'Um moinho bem operado é monótono. A monotonia é o objetivo.',
-    quoteCheckMeasurement: 'Confira a medição, o contexto dela e a ação que ela sustenta.',
-    quoteForklifts: 'Se as empilhadeiras estão confusas, o sistema também está.',
-    authorControl: 'Princípio de controle do MillOS',
-    authorVisual: 'Princípio visual do MillOS',
-    authorArchitecture: 'Princípio de arquitetura do MillOS',
-    authorAutonomy: 'Princípio de autonomia do MillOS',
-    authorScada: 'Princípio SCADA do MillOS',
-    authorLogistics: 'Princípio de logística do MillOS',
+    farmLessonUnlock: 'Desbloqueado ao concluir a inspeção do galinheiro na fazenda',
+    windmillNoteUnlock:
+      'Desbloqueado pela lição do moinho de vento da fazenda ou por uma turbina eólica na Crônica do Moinho',
+    farmHenhouseTitle: 'O galinheiro',
+    farmHenhouseTooltip: 'Ninhos, ração e água, poleiros e coleta cuidadosa.',
+    farmHenhouseBrief:
+      'O que o galinheiro da fazenda oferece às galinhas e como os ovos são recolhidos.',
+    farmHenhouseArticle: `## O galinheiro\n\nOs ninhos oferecem um lugar protegido para as galinhas botarem ovos.\n\nRação e água fresca atendem às necessidades diárias das galinhas.\n\nOs poleiros dão às galinhas um lugar elevado para descansar.\n\nRecolha os ovos dos ninhos com cuidado, mantendo movimentos calmos perto das galinhas.`,
+    farmHenhouseSeeInAction: 'Galinheiro da fazenda',
+    // Fatos da tela de carregamento (D14), com as mesmas ressalvas dos artigos.
+    factExplosibleDust:
+      'A farinha é uma poeira explosiva: suspensa no ar na concentração certa e confinada, explode violentamente quando inflamada.',
+    factStaticSpark:
+      'A faísca que inflama uma nuvem de poeira pode ser tão pequena quanto a eletricidade estática de tirar uma blusa de fibra sintética.',
+    factSecondaryBlast:
+      'Uma primeira explosão de poeira fraca pode levantar a poeira assentada e desencadear explosões secundárias muito fortes.',
+    factExtraction:
+      'Cerca de 70 a 75% do grão vira farinha; o resto sai em grande parte como ração animal.',
+    factTempering:
+      'O condicionamento eleva a umidade do trigo limpo a aproximadamente 15% e o deixa descansar de 2 a 24 horas.',
+    factRolls: 'Rolos estriados quebram o trigo; rolos lisos reduzem as semolinas a farinha.',
+    factStreams:
+      'As farinhas muito brancas vêm apenas dos primeiros fluxos; a integral reúne de novo todos eles.',
+    factFallingNumber:
+      'Um número de queda alto, por exemplo acima de 300 segundos, indica grão sadio; um baixo, por exemplo abaixo de 250, trigo germinado.',
+    factIntake:
+      'Os moinhos do Reino Unido medem proteína, o número de queda de Hagberg e umidade quando o trigo chega.',
     // Library labels
     alwaysAvailable: 'Disponível na biblioteca de operações autônomas',
     historySeeInAction: 'Crônica do moinho',
@@ -220,13 +291,13 @@ export const knowledgeStoreMessages = defineMessages({
       'Velocidade tem custo. Compare energia, desperdício e atraso com a farinha útil que chega ao cliente.',
     resourceTradeoffsArticle: `## Deixe o custo-benefício visível\n\nA campanha contabiliza energia, automação, desperdício, manutenção, atrasos na doca e entregas atrasadas. A receita vem das expedições creditadas aos clientes. O balanço do turno coloca esses custos ao lado dos quilos expedidos e dos riscos em aberto.\n\nUm setpoint de linha mais baixo pode dar folga para o equipamento restrito a jusante se recuperar. Esperar também põe em risco o prazo do pedido. Compare os dois efeitos em vez de tratar a velocidade máxima como objetivo.\n\nUse um desafio de recuperação para observar uma interrupção delimitada de energia, embalagem ou controle. Leia a consequência de cada resposta antes de escolhê-la. A qualidade e ocorrências graves não resolvidas limitam a nota do turno mesmo quando a margem financeira é positiva. Estas são contas do simulador, não a tarifa de um moinho real nem um certificado de segurança de alimentos.`,
     resourceTradeoffsSeeInAction:
-      'Desafios de recuperação na Visão geral\nBalanço do turno\nUtilidades no SCADA',
+      'Desafios de recuperação na Visão geral\nBalanço do turno\nRitmo da linha no painel de energia',
     // community-commitments
     communityCommitmentsTitle: 'O moinho e seus vizinhos',
     communityCommitmentsTooltip: 'Um pedido cooperativo concluído abastece a padaria da vila.',
     communityCommitmentsBrief:
       'A padaria precisa de uma entrega real de farinha. Uma produção segura e rastreável é uma promessa às pessoas que usam o que ela produz.',
-    communityCommitmentsArticle: `## Uma entrega tem destino\n\nO pedido da Riverside Bakers' Cooperative liga o moinho à padaria da vila. A vitrine da padaria só é abastecida depois que a campanha registra um pedido de farinha atendido, com evidência de expedição. A vitrine é uma resposta visual a essa entrega; ela não cria mais nenhuma quantidade de farinha no livro-razão.\n\nOs compromissos de merenda escolar e de massas têm receitas, prazos e expedições próprios. Concluir o pedido de um cliente não abastece todas as lojas do mundo. Confira o cliente ativo e os quilos restantes antes de mudar a receita.\n\nOs moradores da vila mantêm as caminhadas, o trabalho e as pausas para o chá de sempre. As tarefas do moinho respondem às condições dos equipamentos, da manutenção e da qualidade. Uma parada de segurança mantém as pessoas nas posições em que estão enquanto a verificação automatizada das rotas de saída confere o local; ela não certifica uma evacuação de trabalhadores.`,
+    communityCommitmentsArticle: `## Uma entrega tem destino\n\nO pedido da Riverside Bakers' Cooperative liga o moinho à padaria da vila. A vitrine da padaria só é abastecida depois que a campanha registra um pedido de farinha atendido, com evidência de expedição. A vitrine é uma resposta visual a essa entrega; ela não cria mais nenhuma quantidade de farinha no livro-razão.\n\nOs compromissos de merenda escolar e de polenta têm receitas, prazos e expedições próprios. Concluir o pedido de um cliente não abastece todas as lojas do mundo. Confira o cliente ativo e os quilos restantes antes de mudar a receita.\n\nOs moradores da vila mantêm as caminhadas, o trabalho e as pausas para o chá de sempre. As tarefas do moinho respondem às condições dos equipamentos, da manutenção e da qualidade. Uma parada de segurança mantém as pessoas nas posições em que estão enquanto a verificação automatizada das rotas de saída confere o local; ela não certifica uma evacuação de trabalhadores.`,
     communityCommitmentsSeeInAction:
       'Pedidos de clientes na Visão geral\nPadaria da vila\nVerificação das rotas de saída em Segurança',
     // depth-and-material-policy
@@ -245,5 +316,53 @@ export const knowledgeStoreMessages = defineMessages({
       'A autonomia é confiável quando você pode perguntar o porquê. Cada decisão traz suas evidências.',
     autonomousEvidenceArticle: `## Autonomia legível\n\nConfiança exige transparência. Cada decisão autônoma registra sua telemetria, o horário, as premissas, as alternativas, o efeito esperado e os equipamentos no escopo. Você sempre pode perguntar por quê.\n\nO registro de reprodução amostra o estado das máquinas, os alertas e as posições dos veículos sem credenciais nem dados pessoais. Os comandos ficam armazenados separados dos quadros, para que uma revisão consiga distinguir o que aconteceu daquilo que o solicitou.\n\nO nível de confiança vem acompanhado do raciocínio, e não como uma porcentagem sem explicação. Quando as evidências não justificam uma intervenção, o sistema se mantém estável em vez de adivinhar.`,
     autonomousEvidenceSeeInAction: 'Central de comando de IA\nReprodução da decisão',
+    categoryMilling: 'Como a farinha é moída',
+    // milling-cleaning-tempering
+    millingCleaningTemperingTitle: 'Limpeza e condicionamento',
+    millingCleaningTemperingTooltip:
+      'Limpe o trigo e depois umedeça-o e deixe-o descansar antes dos rolos.',
+    millingCleaningTemperingBrief:
+      'Antes da moagem, o trigo é limpo de metal, pedras e outras sementes e depois condicionado: recebe água e descansa, para que o farelo fique mais resistente e o endosperma, mais macio.',
+    millingCleaningTemperingArticle: `## Antes da primeira quebra\n\nO trigo chega ao moinho trazendo coisas que não podem chegar aos rolos. A limpeza as retira por etapas: um separador magnético remove ferro e aço, peneiras removem pedras e gravetos, correntes de ar levam as impurezas mais leves, separadores de discos removem cevada, aveia e outras sementes, e uma despontadeira esfrega o que ainda resta no grão.\n\nDepois, o trigo limpo é condicionado. Adiciona-se água para elevar a umidade a aproximadamente 15%, e o grão descansa de 2 a 24 horas para que a água penetre no grão. Os trigos moles precisam de menos água e de menos tempo que os duros.\n\nO condicionamento torna o farelo mais resistente, de modo que ele se solta em flocos grandes em vez de se fragmentar na farinha, e amacia o endosperma, que então se reduz com mais facilidade nos rolos.\n\n## Neste moinho\n\nEste moinho condiciona cada lote a aproximadamente 15% a partir da leitura do recebimento e o deixa descansar por 2 horas, o descanso mais curto dessa faixa. Em um ano agrícola úmido, o trigo chega acima da meta, e uma vez por turno o parceiro de IA pergunta se deve secá-lo antes. O trigo seco é moído sem a perda de qualidade do ano úmido; a secagem é paga em energia, e o trigo seco chega aos rolos depois do descanso de 2 horas.`,
+    millingCleaningTemperingSeeInAction:
+      'Corte do silo\nEspaço de trabalho de Processo do SCADA\nParceiro de IA, Decisões: Condicionamento (anos agrícolas úmidos)',
+    // milling-break-reduction
+    millingBreakReductionTitle: 'Quebra e redução',
+    millingBreakReductionTooltip:
+      'Rolos estriados abrem o grão; rolos lisos o moem até virar farinha.',
+    millingBreakReductionBrief:
+      'Os rolos estriados de quebra cortam o grão e separam o endosperma do farelo. Depois, os rolos lisos de redução moem esse endosperma, etapa por etapa, até virar farinha.',
+    millingBreakReductionArticle: `## Dois tipos de rolo\n\nNo sistema de quebra, pares de rolos estriados (corrugados) abrem o grão aos poucos por cisalhamento, em vez de pulverizá-lo. Depois de cada par, o produto é peneirado: o mais fino sai como farinha e o mais grosso segue para a quebra seguinte, de estrias mais finas e com a abertura entre os rolos mais fechada.\n\nOs dois rolos de um par giram a velocidades diferentes, e a razão entre a velocidade do rolo rápido e a do lento é o diferencial. A patente de um fabricante coloca os rolos de quebra tipicamente entre {breakLow} e {breakHigh} para 1, aponta {breakBest} para 1 como a melhor razão para seus rolos de quebra e coloca os rolos lisos entre {reductionLow} e {reductionHigh} para 1. O par estriado no corte do moinho de rolos gira a {breakBest} para 1.\n\nNo sistema de redução, as semolinas purificadas passam entre rolos lisos, cada par mais fechado que o anterior, e a farinha é peneirada depois de cada um. Algumas partículas passam por apenas um rolo de quebra e um de redução; as mais próximas do farelo e do gérmen passam por vários. Aumentar o diferencial nos rolos lisos aumenta o amido danificado, a absorção de água e a energia de moagem, e piora as cinzas e a cor da farinha.`,
+    millingBreakReductionSeeInAction: 'Corte do moinho de rolos\nAndar de moagem',
+    // milling-purifiers
+    millingPurifiersTitle: 'Sassores (purificadores)',
+    millingPurifiersTooltip: 'Ar e peneiras retiram o farelo fino das semolinas.',
+    millingPurifiersBrief:
+      'Entre os rolos de quebra e os de redução, os sassores peneiram de novo as semolinas enquanto correntes de ar levam o farelo pequeno e leve, e o endosperma mais limpo segue para ser moído.',
+    millingPurifiersArticle: `## Limpando as semolinas\n\nOs rolos de quebra deixam uma mistura. Pedaços grossos de endosperma, chamados semolinas, saem com pequenos flocos de farelo no meio, alguns ainda presos a eles. Plansifters e sassores separam esse produto por tamanho de partícula e densidade.\n\nNo sassor, as semolinas são peneiradas enquanto correntes de ar levam as partículas pequenas e leves de farelo. As semolinas purificadas seguem para os rolos lisos de redução.\n\nIsso importa porque o farelo concentra a maior parte das cinzas. O farelo que fica nas semolinas é moído junto com a farinha, onde aparece como mais cinzas e uma cor mais escura.`,
+    millingPurifiersSeeInAction: 'Corte do plansifter\nAndar de moagem',
+    // milling-extraction-ash
+    millingExtractionAshTitle: 'Taxa de extração e cinzas',
+    millingExtractionAshTooltip: 'Quanta farinha o trigo rende e quanto farelo veio junto.',
+    millingExtractionAshBrief:
+      'A extração é a parte do trigo que vira farinha. O moleiro quer o máximo possível com o mínimo de farelo, e o teste de cinzas mostra quanto farelo entrou.',
+    millingExtractionAshArticle: `## Quanta farinha, e quão limpa\n\nNa moagem, cerca de 70 a 75% do grão vira farinha. Os outros 25 a 30% saem como subprodutos, como farelo, farelinho e gérmen, em grande parte para ração animal.\n\nO objetivo do moleiro é extrair o máximo de endosperma possível mantendo as cinzas baixas. Cinzas são o que resta quando uma amostra é aquecida a 585 °C até o peso se estabilizar, normalmente durante a noite: os minerais, que ficam sobretudo no farelo. Por exemplo, um trigo pode ter {wheatAsh}% de cinzas e uma farinha, {flourAsh}%, normalmente expressos na base de 14% de umidade.\n\nAssim, as cinzas mostram quanto farelo foi parar na farinha, e escurecem a farinha. As farinhas muito brancas vêm apenas dos primeiros fluxos, as farinhas escuras usam a maior parte dos fluxos e a integral reúne de novo todos eles.`,
+    millingExtractionAshSeeInAction:
+      'Genealogia dos lotes na Visão geral\nProcedência da qualidade no SCADA',
+    // milling-baker-needs
+    millingBakerNeedsTitle: 'O que um padeiro precisa da farinha',
+    millingBakerNeedsTooltip: 'Proteína, número de queda e absorção de água.',
+    millingBakerNeedsBrief:
+      'O padeiro compra farinha por especificação: proteína suficiente para o produto, um número de queda que mostre grão sadio e uma absorção de água conhecida.',
+    millingBakerNeedsArticle: `## Proteína, número de queda e água\n\nProteína: a farinha para pão precisa de bastante, porque o glúten que ela forma retém as bolhas de gás e mantém o pão crescido. Bolos e biscoitos precisam de menos. Mais proteína normalmente exige mais água e uma mistura mais longa.\n\nNúmero de queda: uma pasta de farinha e água é aquecida em banho-maria fervente, e os segundos que um agitador leva para atravessá-la são a leitura. Um número alto (por exemplo, acima de 300 segundos) indica pouca atividade enzimática e grão sadio; um baixo (por exemplo, abaixo de 250 segundos) indica muita, o sinal de trigo germinado. Atividade demais deixa a massa pegajosa e a textura ruim, e as enzimas não podem ser retiradas da farinha. Os moinhos do Reino Unido medem o número de queda de Hagberg quando o trigo chega.\n\nAbsorção de água: a água de que uma farinha precisa para atingir uma consistência de massa definida no farinógrafo, em porcentagem. Uma farinha de glúten fraco absorve menos, e mantém essa consistência por menos tempo, que uma de glúten forte.`,
+    millingBakerNeedsSeeInAction:
+      'Pedidos de clientes na Visão geral\nProcedência da qualidade no SCADA',
+    // milling-dust-explosions
+    millingDustExplosionsTitle: 'Explosões de poeira',
+    millingDustExplosionsTooltip: 'Poeira de farinha em nuvem, confinada e inflamada, explode.',
+    millingDustExplosionsBrief:
+      'A poeira de farinha queima. Levantada em nuvem dentro de um equipamento ou de uma sala e inflamada, ela explode, e a onda de choque pode levantar a poeira assentada em explosões mais fortes em seguida.',
+    millingDustExplosionsArticle: `## Por que um moinho se mantém limpo\n\nA farinha é uma poeira explosiva. Poeira fina suspensa no ar na concentração certa, dentro de um equipamento ou de um prédio, explode violentamente quando inflamada; ao ar livre, pode queimar como uma bola de fogo. A faísca pode ser tão pequena quanto a eletricidade estática de tirar uma blusa de fibra sintética.\n\nUma explosão de poeira precisa de cinco coisas ao mesmo tempo: combustível, uma fonte de ignição, oxigênio, uma nuvem de poeira e confinamento. Uma primeira explosão pode levantar a poeira assentada no chão e nas saliências e inflamá-la, e uma primeira explosão fraca pode desencadear explosões secundárias muito fortes. Nos incidentes catastróficos estudados pelo Board, as explosões secundárias causaram grande parte dos danos e das vítimas. O US Chemical Safety Board cita o alerta da NFPA de que mais de 1/32 de polegada de poeira sobre 5 por cento da superfície de uma sala é um risco significativo de explosão.\n\nPor isso, um moinho veda seus vazamentos, limpa com um aspirador central aterrado em vez de vassouras ou ar comprimido, mantém as superfícies a no máximo 200 °C, aterra suas partes metálicas e os caminhões-tanque de entrega, e equipa silos e elevadores de canecas com alívio de explosão. Nos EUA, os moinhos de farinha seguem a norma de instalações de manuseio de grãos da OSHA, de 1987, à qual o Chemical Safety Board atribui a redução do número e da gravidade das explosões de poeira de grãos.`,
+    millingDustExplosionsSeeInAction: 'Painel de segurança\nManutenção preditiva',
   },
 });

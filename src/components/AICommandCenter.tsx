@@ -16,6 +16,7 @@ import { AIDecision } from '../types';
 import { useProductionStore } from '../stores/productionStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
+import { usePartnerProposalStore } from '../stores/partnerProposalStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
 import { CLOUD_MODELS } from '../utils/cloudAIClient';
 import { useShallow } from 'zustand/react/shallow';
@@ -38,6 +39,8 @@ import {
 import { capitalizeIn, formatFixed, useLocale, useT } from '../i18n';
 import { alertText } from '../i18n/alertCopy';
 import { aiCommandCenterMessages } from './AICommandCenter.messages';
+import { PartnerProposalCards } from './PartnerProposalCards';
+import { pendingProposalFocus, subscribeProposalFocus } from './proposalCardFocus';
 
 interface AICommandCenterProps {
   isOpen: boolean;
@@ -59,13 +62,16 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   const t = useT(aiCommandCenterMessages);
   const locale = useLocale();
   const [activeTab, setActiveTab] = useState<'decisions' | 'strategic' | 'advisory'>('decisions');
+  // The bell's route to an asked card shows the tab its card is on.
+  useEffect(() => {
+    const show = () => {
+      if (pendingProposalFocus()) setActiveTab('decisions');
+    };
+    show();
+    return subscribeProposalFocus(show);
+  }, []);
   const [selectedDecision, setSelectedDecision] = useState<AIDecision | null>(null);
 
-  const [systemStatus, setSystemStatus] = useState({
-    cpu: 15,
-    memory: 35,
-    decisions: 0,
-  });
   // Subscribed, not read imperatively, so the readout follows BYOK usage settlement.
   const formattedSessionCost = useAIConfigStore((state) => state.getFormattedCost());
   // Paid advisories bill the player's key whatever strategy runs on, so any
@@ -93,6 +99,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   );
 
   const alerts = useUIStore((state) => state.alerts);
+  const hasOpenProposal = usePartnerProposalStore((state) =>
+    state.proposals.some((proposal) => proposal.status === 'open')
+  );
 
   const {
     weather,
@@ -185,18 +194,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   const isStrategicThinking = useAIConfigStore((state) => state.strategic?.isThinking ?? false);
   const isThinking = isTacticalThinking || isStrategicThinking;
 
-  // Update system status from store instead of local calculation
-  const storeSystemStatus = useAIConfigStore((state) => state.systemStatus);
-  useEffect(() => {
-    // Sync store status to local state for display
-    setSystemStatus((prev) => ({
-      ...prev,
-      cpu: storeSystemStatus.cpu,
-      memory: storeSystemStatus.memory,
-      decisions: storeSystemStatus.decisions,
-    }));
-  }, [storeSystemStatus]);
-
   // Decision icon/color functions now imported from utils/decisionIcons
 
   // Weather icon helper - kept for future UI expansion
@@ -246,15 +243,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 onClick={() => setShowAISettings(true)}
                 aria-label={t('settingsLabel', { mode: String(modeLabel) })}
                 className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition-colors"
-                title={
-                  aiMode === 'gemini'
-                    ? isLocalBackend
-                      ? t('settingsTitleLocal')
-                      : t('settingsTitleCloud', { label: String(cloudLabel) })
-                    : aiMode === 'hybrid'
-                      ? t('settingsTitleHybrid')
-                      : t('settingsTitleHeuristic')
-                }
               >
                 {aiMode === 'gemini' && llmReady ? (
                   <>
@@ -281,20 +269,10 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 <Settings className="w-3 h-3 text-slate-400" aria-hidden="true" />
               </button>
             </div>
-            {/* System Status - compact */}
-            <div className="grid grid-cols-4 gap-1.5 text-[10px]">
-              <div className="bg-slate-800/50 rounded px-2 py-1">
-                <span className="text-slate-400">CPU</span>
-                <span className="text-cyan-400 ml-1" data-testid="ai-cpu-value">
-                  {formatFixed(systemStatus.cpu, 0)}%
-                </span>
-              </div>
-              <div className="bg-slate-800/50 rounded px-2 py-1">
-                <span className="text-slate-400">MEM</span>
-                <span className="text-green-400 ml-1" data-testid="ai-memory-value">
-                  {formatFixed(systemStatus.memory, 0)}%
-                </span>
-              </div>
+            {/* System Status - compact. No CPU or MEM tile: the rules layer has
+                no such reading, and the old figures were made from the card
+                count (review 10, F3). */}
+            <div className="grid grid-cols-2 gap-1.5 text-[10px]">
               <div className="bg-slate-800/50 rounded px-2 py-1">
                 <span className="text-slate-400">DEC</span>
                 <span className="text-purple-400 ml-1" data-testid="ai-decisions-count">
@@ -341,7 +319,9 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
           <div
             role="tablist"
             aria-label={t('tabsLabel')}
-            className="px-3 py-2 border-b border-slate-800 flex gap-2"
+            // Icon and label on one line in either language: an equal third
+            // was too narrow for "Recomendações", which wrapped under its icon.
+            className="px-3 py-2 border-b border-slate-800 flex gap-1.5"
           >
             <button
               role="tab"
@@ -349,13 +329,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               aria-selected={activeTab === 'decisions'}
               aria-controls="ai-command-tabpanel"
               onClick={() => setActiveTab('decisions')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`inline-flex min-w-0 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[11px] font-medium transition-all ${
                 activeTab === 'decisions'
                   ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                   : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
               }`}
             >
-              <Activity className="w-3 h-3 inline mr-1" aria-hidden="true" />
+              <Activity className="h-3 w-3 shrink-0" aria-hidden="true" />
               {t('tabDecisions', { count: formatFixed(aiDecisions.length, 0) })}
             </button>
 
@@ -365,13 +345,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               aria-selected={activeTab === 'strategic'}
               aria-controls="ai-command-tabpanel"
               onClick={() => setActiveTab('strategic')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`inline-flex min-w-0 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[11px] font-medium transition-all ${
                 activeTab === 'strategic'
                   ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                   : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
               }`}
             >
-              <Target className="w-3 h-3 inline mr-1" aria-hidden="true" />
+              <Target className="h-3 w-3 shrink-0" aria-hidden="true" />
               {t('tabStrategic')}
             </button>
             <button
@@ -380,13 +360,13 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               aria-selected={activeTab === 'advisory'}
               aria-controls="ai-command-tabpanel"
               onClick={() => setActiveTab('advisory')}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`inline-flex min-w-0 flex-auto items-center justify-center gap-1 whitespace-nowrap rounded-lg px-1.5 py-1.5 text-[11px] font-medium transition-all ${
                 activeTab === 'advisory'
                   ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                   : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'
               }`}
             >
-              <Shield className="w-3 h-3 inline mr-1" aria-hidden="true" />
+              <Shield className="h-3 w-3 shrink-0" aria-hidden="true" />
               {t('tabAdvisory')}
             </button>
           </div>
@@ -423,6 +403,8 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
             </div>
             {activeTab === 'advisory' ? null : activeTab === 'decisions' ? (
               <>
+                {/* The partner's proposals: the floor decisions, each priced (plan 3.0). */}
+                <PartnerProposalCards />
                 {listedDecisions.map((decision: AIDecision) => {
                   // A card the engine filed reads in the language active now.
                   const text = decisionCardText(decision, locale);
@@ -538,7 +520,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                     {t('showingDecisions', { count: formatFixed(aiDecisions.length, 0) })}
                   </p>
                 )}
-                {aiDecisions.length === 0 && (
+                {aiDecisions.length === 0 && !hasOpenProposal && (
                   <div className="text-center py-6 text-slate-500">
                     <Bot className="w-6 h-6 mx-auto mb-2" />
                     <p className="text-xs">{t('noRecommendations')}</p>

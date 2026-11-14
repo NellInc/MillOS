@@ -1,5 +1,8 @@
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useMobileControlStore } from '../stores/mobileControlStore';
+import { useChronicleStore } from '../stores/chronicleStore';
 import { setLocale, translate, type Locale } from '../i18n';
 import { keyboardShortcutsMessages } from '../hooks/useKeyboardShortcuts.messages';
 import { DeferredOperationalUI } from './DeferredOperationalUI';
@@ -55,6 +58,55 @@ const renderNotification = (qualityNotification: string) =>
       enableAudioReactive={false}
     />
   );
+
+// Seen in play: PAUSED drew over a dialog that opened while paused (or that
+// paused the game). A dialog, a phone sheet or a Chronicle decision is what is
+// read, so the notice steps aside at once, as the rain badge does; the live
+// region still announces it. Working if no shortcut notice shows over one.
+describe('shortcut notice under a dialog', () => {
+  afterEach(() => {
+    document.querySelectorAll('[data-test-modal]').forEach((node) => node.remove());
+    useMobileControlStore.setState({ mobilePanelVisible: false });
+    useChronicleStore.setState({ dialogOpen: false });
+  });
+  const notice = () => document.querySelector('[data-shortcut-notice]');
+  const openModal = () => {
+    const modal = document.createElement('div');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('data-test-modal', '');
+    document.body.appendChild(modal);
+  };
+
+  it('shows over the plant when nothing is open', () => {
+    renderNotification('PAUSED');
+    expect(notice()).not.toHaveClass('invisible');
+  });
+
+  it('is hidden from the first frame under a modal already open', () => {
+    openModal();
+    renderNotification('PAUSED');
+    expect(notice()).toHaveClass('invisible');
+    expect(screen.getByRole('status')).toHaveTextContent('PAUSED');
+  });
+
+  it('steps aside when a modal opens over it', async () => {
+    renderNotification('PAUSED');
+    openModal();
+    await waitFor(() => expect(notice()).toHaveClass('invisible'));
+  });
+
+  it('is hidden under a phone sheet and a Chronicle decision', () => {
+    useMobileControlStore.setState({ mobilePanelVisible: true });
+    renderNotification('PAUSED');
+    expect(notice()).toHaveClass('invisible');
+    cleanup();
+    useMobileControlStore.setState({ mobilePanelVisible: false });
+    useChronicleStore.setState({ dialogOpen: true });
+    renderNotification('PAUSED');
+    expect(notice()).toHaveClass('invisible');
+  });
+});
 
 describe('Space-bar stop notification', () => {
   // The Space-bar stop raises translate(keyboardShortcutsMessages, 'emergencyStop').

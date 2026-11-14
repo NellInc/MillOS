@@ -66,6 +66,7 @@ import { useProcessInspectionStore } from '../../stores/processInspectionStore';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { MachineInspectionInterior, type MachineInspectionPose } from './MachineInspectionInterior';
 import { machineInspectionKind } from './machineInspectionGeometry';
+import { BREAK_ROLL_DIFFERENTIAL } from '../../stores/millingSources';
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 /**
@@ -691,6 +692,19 @@ const BLOCKED_COLOUR = new THREE.Color('#d86735');
 const INSTANCE_TINT = new THREE.Color();
 
 /** Spin around the installed X shaft; Y rotation swings the barrel sideways. */
+/** Radians per phase unit of the outside view's fast (upper) roll. */
+const MILL_FAST_ROLL_RATE = 4.5;
+/**
+ * The outside view's roll spin, at the break differential the cutaway uses
+ * (millingSources BREAK_ROLL_DIFFERENTIAL): the upper roll turns 2.5 times as
+ * fast as the lower one, the other way. Working if over any span the first
+ * roll turns BREAK_ROLL_DIFFERENTIAL times as far as the second.
+ */
+export const millRollerSpin = (phase: number, rollerIndex: number): number =>
+  rollerIndex === 0
+    ? phase * MILL_FAST_ROLL_RATE
+    : (-phase * MILL_FAST_ROLL_RATE) / BREAK_ROLL_DIFFERENTIAL;
+
 export const getMillRollerRotation = (spin: number): [number, number, number] => [
   spin,
   0,
@@ -1919,7 +1933,7 @@ function CompactMachineSet({
           object,
           [x, y + 2.25 + rollerIndex * 1.1, z + 2.05],
           [0.48, 3.25, 0.48],
-          getMillRollerRotation((phase ?? 0) * (rollerIndex === 0 ? 4.5 : -4.5)),
+          getMillRollerRotation(millRollerSpin(phase ?? 0, rollerIndex)),
           frame
         );
       }

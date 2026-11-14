@@ -6,18 +6,33 @@ import {
   withAutomaticWorkplaceStep,
 } from './workplaceParticipation';
 import { peekSCADAService } from '../scada/SCADAService';
-import { useWorkplaceStore, workplaceReasonText } from '../stores/workplaceStore';
+import {
+  firstDeliveryFulfilled,
+  useWorkplaceStore,
+  workplaceReasonText,
+} from '../stores/workplaceStore';
 import { registerAlertCatalog } from '../i18n/alertCopy';
-import { selectClockHolder, useGameSimulationStore } from '../stores/gameSimulationStore';
+import {
+  selectClockHolder,
+  selectRestartPending,
+  useGameSimulationStore,
+} from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { isWorkplaceReplayActive } from './workplaceReplayRuntime';
 import {
-  CAMPAIGN_PRESSURES,
   WORKPLACE_CHECKS,
+  campaignPressure,
+  qualifiedToCover,
   requiredChecks,
+  seasonEnded,
+  seasonSobrasPool,
+  shiftAbsentee,
   shiftResumable,
 } from './workplaceCampaign';
+import { authoredResponse, prospectiveCover } from './bilateralWorkplace';
 import type {
+  SurplusDestination,
+  WorkplacePlanId,
   WorkplaceProfile,
   WorkplaceReasonCopy,
   WorkplaceTransitionResult,
@@ -28,8 +43,12 @@ import { workplaceAutoplayMessages as msg } from './workplaceAutoplay.messages';
 export type WorkplaceAutoplayMessageKey = keyof typeof msg.en;
 
 // Bell notices are keyed (alertText), so they read in the language active now.
-// A stop names its reason, the runner's own or a workplace refusal, and then
-// where to restart; both are resolved when the bell renders.
+// A stop names its reason, the runner's own or a workplace refusal, resolved
+// when the bell renders. D14: it no longer says where to restart the demo (its
+// control sits beside the reason in Autonomy). An activation refused on
+// readiness is a refusal whose ways on are behind the closed facilitator
+// tools, so that refusal keeps them (`hint` 2); a notice saved with `hint` 1,
+// the cut restart line, reads its reason alone.
 // Working if a held or stopped notice filed in English reads in Portuguese.
 const AUTOPLAY_ALERTS = 'workplaceAutoplay';
 const AUTOPLAY_STOP_ALERTS = 'workplaceAutoplayStop';
@@ -37,6 +56,7 @@ const AUTOPLAY_STOP_ALERTS = 'workplaceAutoplayStop';
 // refused on readiness carries its reason keys that way).
 type StopParams = { source: string; key: string; hint: number } & Record<string, string | number>;
 const REASON_PARAM = 'p.';
+const READINESS_WAY_OUT = 2;
 const stopMessage = ({ source, key, hint, ...rest }: StopParams) => {
   const params: Record<string, string | number> = {};
   for (const [name, value] of Object.entries(rest))
@@ -55,11 +75,10 @@ const stopMessage = ({ source, key, hint, ...rest }: StopParams) => {
           },
         }) ?? '');
   // An unknown reason resolves empty, so the bell keeps the stored text.
-  return !reason ? '' : hint ? `${reason} ${translate(msg, stopHintKey(hint))}` : reason;
+  return reason && hint === READINESS_WAY_OUT
+    ? `${reason} ${translate(msg, 'readinessRefusedWayOut')}`
+    : reason;
 };
-/** Where to go after a stop: 1 runs it again, 2 changes the agreement or leaves; 0 says nothing. */
-const stopHintKey = (hint: number): WorkplaceAutoplayMessageKey =>
-  hint === 2 ? 'readinessHint' : 'restartHint';
 const stopTitle = () => translate(msg, 'stoppedTitle');
 const stopAlertMessages = defineMessages({
   en: { title: stopTitle, stopped: stopMessage },
@@ -72,17 +91,28 @@ export type WorkplaceAutoplayStepResult = WorkplaceTransitionResult & {
   reasonKey?: WorkplaceAutoplayMessageKey;
 };
 
-/** An E-stop or a drill: transient, so a running season waits it out. */
+/**
+ * An E-stop or a drill, and the idle line after CLEAR until RESTART LINE:
+ * transient, so a running season waits it out and resumes with the line.
+ */
 const safetyStopActive = () => {
   const safety = useGameSimulationStore.getState();
-  return safety.emergencyActive || safety.emergencyDrillMode;
+  return safety.emergencyActive || safety.emergencyDrillMode || selectRestartPending(safety);
 };
 
 /** Explicit synthetic solo demonstration, using the supported game actions.
  * Working if facilitated turns, replay and pilot preparation never receive
  * automatic ballots, disclosure, authority or artificial output from this path.
  */
-export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceAutoplayStepResult {
+export function autoplayWorkplaceStep(
+  profile: WorkplaceProfile,
+  /**
+   * Review 2: a headless run may choose Packing's plan and sobras ballot, so
+   * a resequenced season and the other destinations are played to their end.
+   * The default runner is unchanged (cover or steady; the members).
+   */
+  choices: { plan?: WorkplacePlanId; sobras?: SurplusDestination } = {}
+): WorkplaceAutoplayStepResult {
   const store = useWorkplaceStore.getState();
   const s = store.workplace;
   const blocked = (reasonKey: WorkplaceAutoplayMessageKey) => ({
@@ -97,9 +127,10 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceAutop
     return blocked('safetyBoundary');
   if (s.phase === 'idle') return store.startMission(profile, s.seed);
   if (!s.campaign || s.improvement) return blocked('needsCampaign');
-  // A shift a reload paused resumes first, before any sobras or a next shift:
-  // its fictional members then consent afresh through the steps below.
-  // Working if a reload mid-season still lets the default season be honoured.
+  // A shift a reload, a safety stop or a resolved objection paused resumes
+  // first, before any sobras or a next shift: its fictional members then
+  // consent afresh through the steps below. Working if a reload or a drill
+  // mid-season still lets the default season be honoured.
   if (shiftResumable(s)) return store.resumeShift(s.revision);
   if (s.objections.some((o) => o.status === 'open')) return blocked('openObjection');
   const c = s.campaign;
@@ -108,22 +139,34 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceAutop
     // plant reset) refuses every later approval; say so, rather than walking
     // the roles through consent to a refusal. Working if the stop names it.
     if (c.mission && c.mission.evidence !== 'current') return blocked('missionEvidence');
-    const pressure = CAMPAIGN_PRESSURES[c.shift];
-    if (!s.events.some((e) => e.kind === 'pressure-protected'))
+    const pressure = campaignPressure(s);
+    if (pressure && !s.events.some((e) => e.kind === 'pressure-protected'))
       return store.respondToPressure(pressure.id, 'protect-boundary');
-    if (c.shift !== 1 && c.decision === null)
-      return store.campaignDecision(
-        c.shift === 0 ? 'renegotiate' : 'protect-refusal',
-        'coordinator'
-      );
-    if (s.planId !== 'cover' && !s.members.some((m) => m.understood))
-      return store.selectPlan('cover');
+    // The Coordinator's Friday and Thursday calls are its own (5b): the store
+    // makes them as each shift opens.
+    // The runner plays Packing (D5), which offers cover except on Thursday.
+    // Cover is asked for only when someone would give it: the authored roles
+    // answer from their values, and a member who has covered this season, or
+    // the one the season's draw says will not, declines.
+    // Review 2: cover only where it does something: on the shift someone is
+    // away, when the one who would cover can do that work (an absent
+    // Quality's release needs a qualified member); steady otherwise.
+    const asCover = { ...s, planId: 'cover' as const };
+    const away = shiftAbsentee(s);
+    const coverer = away ? prospectiveCover(asCover) : undefined;
+    const coverOffered =
+      !!coverer &&
+      qualifiedToCover(coverer, away) &&
+      (coverer.id !== 'packing' || c.shift !== 2) &&
+      (coverer.id === 'packing' || authoredResponse(asCover, coverer.id).cover === true);
+    const plan = choices.plan ?? (coverOffered ? 'cover' : 'steady');
+    if (s.planId !== plan && !s.members.some((m) => m.understood)) return store.selectPlan(plan);
     // Optional fictional sharing is demonstrated once, then revoked. No reason
     // enters the public receipt, and the qualified Quality role never shares.
     const privacy = s.events.filter((e) => e.kind === 'privacy-consent' && e.actorId === 'packing');
     if (c.shift === 0 && privacy.length < 2)
       return store.sharePreference('packing', privacy.length === 0);
-    for (const actor of [...s.members.map((m) => m.id), 'mind']) {
+    for (const actor of ['packing', 'mind']) {
       for (const id of requiredChecks(actor)) {
         const q = WORKPLACE_CHECKS.find((q) => q.id === id)!;
         if (c.checks[actor]?.[id] !== q.correct) return store.answerCheck(actor, id, q.correct);
@@ -132,39 +175,40 @@ export function autoplayWorkplaceStep(profile: WorkplaceProfile): WorkplaceAutop
       if (!m) continue;
       if (!m.understood) return store.understand(actor);
       if (m.ballot === null) return store.vote(actor, true);
-      if (m.coverConsent === null)
-        return store.consentToCover(
-          actor,
-          actor === 'maintenance' || (actor === 'packing' && c.shift !== 2)
-        );
+      if (m.coverConsent === null && s.planId === 'cover')
+        return store.consentToCover(actor, c.shift !== 2);
     }
+    // The other roles answer for themselves, from their values (5.3).
+    if (s.members.some((m) => m.id !== 'packing' && (!m.understood || m.ballot === null)))
+      return store.simulateResponses();
     const result = store.activate(s.revision);
     // Release only a workplace hold. A pause the player made stays theirs.
     if (result.changed) useGameSimulationStore.getState().releaseClock('workplace');
     return result;
   }
-  if (s.phase === 'active') {
-    if (c.shift === 1 && s.minute >= 25 && c.decision === null)
-      return store.campaignDecision('inspect', 'quality');
-    return { changed: false, reason: null }; // Actual plant tick owns time and dispatch.
-  }
+  // Quality starts Monday's inspection itself when the line holds (5b), and
+  // the plant tick owns time and dispatch.
+  if (s.phase === 'active') return { changed: false, reason: null };
   if (s.members.some((m) => m.recoveryOwedMinutes > 0)) return { changed: false, reason: null };
-  // Sobras: once a reviewed shift owes nothing, the fictional members vote to
-  // share a positive surplus among themselves, then the allocation runs.
+  // Sobras: once the season's last shift ends and owes nothing, Packing votes
+  // to return the season's sobras to the members, after the statutory funds
+  // (5.5); the Coordinator and Maintenance agree from their values, and the
+  // settlement runs.
   // Working if the default season shows a real rateio whenever it earned one.
   const f = s.finance;
-  const surplus =
-    f.operatingRevenue - f.operatingCost - f.wagesPaid - f.compensationPaid - f.improvementSpend;
   if (
     s.practices.includes('gainsharing') &&
     !s.distributionComplete &&
-    surplus > 1e-8 &&
-    f.cash > 1e-8 &&
+    seasonEnded(s) &&
+    seasonSobrasPool(s) > 1e-8 &&
     f.wageReserve === 0 &&
     f.compensationReserve === 0
   ) {
-    const voter = s.members.find((m) => s.surplusBallots[m.id] !== 'members');
-    return voter ? store.voteSurplus(voter.id, 'members') : store.distributeSurplus();
+    // The runner casts Packing's ballot; the others vote from their values.
+    const ballot = choices.sobras ?? 'members';
+    return s.surplusBallots.packing !== ballot
+      ? store.voteSurplus('packing', ballot)
+      : store.distributeSurplus();
   }
   if (c.shift < 2) return store.nextCampaignShift();
   return blocked('seasonComplete');
@@ -213,6 +257,14 @@ export const useWorkplaceAutoplay = create<{
         // during a replay files no bell notice and the status names why.
         if (isWorkplaceReplayActive()) {
           set(status('soloOnly'));
+          return;
+        }
+        // D4: a new season arrives after the first delivery. Refused here,
+        // before the runner is marked manual, so the default season is still
+        // offered once that delivery is in. Working if pressing the control
+        // during the first delivery starts nothing and says when it can.
+        if (useWorkplaceStore.getState().workplace.phase === 'idle' && !firstDeliveryFulfilled()) {
+          set(status('firstDeliveryFirst'));
           return;
         }
         set({
@@ -275,28 +327,24 @@ export const useWorkplaceAutoplay = create<{
               message: result.reason,
               messageKey: result.reasonKey ?? null,
               reasonCopy: result.reasonKey ? null : (result.reasonCopy ?? null),
+              // 5.10: a season the runner finished itself is not a take-over:
+              // once it is archived, the next season may arrive by itself
+              // (after the first delivery, on an open order). Working if a
+              // second default season starts with no player action but Archive.
+              ...(result.reasonKey === 'seasonComplete' ? { manual: false } : {}),
             });
-            // Nothing else restarts a stopped season, so say where to; but not
-            // where running it again would stop the same way (no season of its
-            // own to run: a standalone exercise or a handoff is on the table),
-            // nor where its commitment is bound to a material session a plant
-            // reset has replaced, which refuses every approval for good. Where
-            // activation refused on readiness (unpaid wages) the runner had
-            // already walked every consent step, so a rerun stops the same way:
-            // that notice names the player's own ways on instead.
+            // D14: the notice is the stop's reason; the demo's restart sits
+            // beside the same reason in Autonomy. Where activation refused on
+            // readiness (unpaid wages) the runner had already walked every
+            // consent step, so a rerun stops the same way: that refusal names
+            // the player's own ways on, which sit in the closed facilitator tools.
             const hint =
               result.reasonCopy?.catalog === 'engine' &&
               result.reasonCopy.key === 'readinessRefused'
-                ? 2
-                : result.reasonKey === 'seasonComplete' ||
-                    result.reasonKey === 'needsCampaign' ||
-                    result.reasonKey === 'missionEvidence' ||
-                    (result.reasonCopy?.catalog === 'store' &&
-                      result.reasonCopy.key === 'materialSessionChanged')
-                  ? 0
-                  : 1;
+                ? READINESS_WAY_OUT
+                : 0;
             const reason = hint
-              ? `${result.reason} ${translate(msg, stopHintKey(hint))}`
+              ? `${result.reason} ${translate(msg, 'readinessRefusedWayOut')}`
               : result.reason;
             // A reason with no key keeps its stored text.
             const reasonParams: Record<string, string | number> = {};
@@ -323,6 +371,9 @@ export const useWorkplaceAutoplay = create<{
                     },
                   }
                 : {}),
+              // The season's end is read once to a screen reader as it is
+              // filed (never spoken on the PA); the debrief stays on screen.
+              ...(result.reasonKey === 'seasonComplete' ? { announce: 'polite' as const } : {}),
               timestamp: new Date(),
               acknowledged: false,
             });

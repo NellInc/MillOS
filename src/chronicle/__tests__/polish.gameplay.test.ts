@@ -161,7 +161,8 @@ describe('the ledger names where the fund went', () => {
   it('books a crop treatment from the Overview as treatment, not as an event', () => {
     const state: ChronicleState = {
       ...withFund(signed(), 1000),
-      crop: { index: 1, kind: 'wet', treated: false },
+      // A sprouted year: a wet one is dried on the temper card (plan item 7.7).
+      crop: { index: 1, kind: 'sprouted', treated: false },
     };
     const next = treatCropDirectly(state).state;
     expect(next.crop?.treated).toBe(true);

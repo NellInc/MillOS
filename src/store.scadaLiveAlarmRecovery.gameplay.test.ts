@@ -25,6 +25,8 @@ const fakeService = {
   getConnectionStatus: () => ({ connected: true, reconnectAttempts: 0, lastConnectTime }),
   updateMachineStates: () => undefined,
   updateOperationalValues: () => undefined,
+  // The bridge binds the mills' roll-speed setpoints to the line rate.
+  writeSetpoint: async () => true,
   acknowledgeAlarm: () => undefined,
   stop: async () => undefined,
 };

@@ -45,9 +45,9 @@ describe('PredictiveMaintenancePanel booked service waiting on parts', () => {
 
   it('shows which parts the locked Complete waits on', () => {
     useBreakdownStore.setState({
-      partsInventory: { bearings: 10, belts: 8, filters: 15, motors: 1, sensors: 12 },
+      partsInventory: { bearings: 0, belts: 0, filters: 0, motors: 1, sensors: 1 },
     });
-    // The one motor in stock is held for this diagnosed repair.
+    // The only stock, a sensor and a motor, is held for this diagnosed repair.
     store().triggerBreakdown('mill-a', 'Mill A', 'electrical');
     store().scheduleMaintenanceTask({
       machineId: mill.id,
@@ -55,15 +55,18 @@ describe('PredictiveMaintenancePanel booked service waiting on parts', () => {
       scheduledTime: 10,
       type: 'predictive',
       priority: 'high',
-      partsNeeded: ['sensors', 'motors'],
+      partsNeeded: [],
     });
     render(<PredictiveMaintenancePanel />);
 
+    // A service takes any one free part, so each is named.
     expect(screen.getByRole('button', { name: /Mill C/ })).toBeDisabled();
-    expect(screen.getAllByText('Awaiting stock: motors')).toHaveLength(1);
+    expect(
+      screen.getAllByText('Awaiting stock: filters, bearings, belts, sensors, motors')
+    ).toHaveLength(1);
 
     act(() => setLocale('pt-BR'));
-    expect(screen.getByText('Aguardando estoque: motores')).toBeInTheDocument();
+    expect(screen.getByText(/^Aguardando estoque: filtros, rolamentos/)).toBeInTheDocument();
   });
 
   it('says nothing about stock when the parts are free', () => {

@@ -12,6 +12,17 @@ import {
   defaultSavedLogisticsLayout,
 } from '../../stores/logisticsLayoutStore';
 import { setLocale } from '../../i18n';
+import { usePartnerProposalStore } from '../../stores/partnerProposalStore';
+import { PROPOSAL_KIND_IDS } from '../../simulation/partnerProposals';
+
+// Written with every proposal kind asking (a programme waits its card's
+// window); a kind's default now follows the delegation rule, so "ask me" is
+// set here, as the card's toggle sets it.
+beforeEach(() => {
+  usePartnerProposalStore.getState().reset();
+  for (const kind of PROPOSAL_KIND_IDS)
+    usePartnerProposalStore.getState().setDelegation(kind, 'ask');
+});
 
 // After a programme completes, the line builds stock at its 70% setpoint. A
 // shipping truck that loaded then would carry that stock to no customer: no

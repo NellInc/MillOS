@@ -90,6 +90,8 @@ export interface VehicleFootprint {
   readonly x: number;
   readonly z: number;
   readonly radius: number;
+  /** The fleet tag painted on it (FLT01), for the drill's record. */
+  readonly id?: string;
 }
 
 /** Half a wheelchair's width plus a margin: how close a vehicle may stand to a route. */
@@ -120,6 +122,36 @@ export function blockingVehicle(
         return vehicle;
   }
   return null;
+}
+
+/** Every vehicle standing on a zone's route or its refuge. */
+function vehiclesOn(
+  egress: StepFreeEgress,
+  vehicles: readonly VehicleFootprint[],
+  into: string[]
+): void {
+  for (const vehicle of vehicles)
+    if (vehicle.id && !into.includes(vehicle.id) && blockingVehicle(egress, [vehicle]))
+      into.push(vehicle.id);
+}
+
+/**
+ * The fleet tags of the stopped forklifts behind a result: those on the zone's
+ * own route, and for a blocked zone those on its alternative's as well. Empty
+ * for a clear zone. For the drill's record, once per check; not per frame.
+ */
+export function egressBlockers(
+  result: StepFreeEgressResult,
+  vehicles: readonly VehicleFootprint[]
+): string[] {
+  const tags: string[] = [];
+  if (result.status === 'clear') return tags;
+  const egress = stepFreeEgressFor(result.zoneId);
+  if (!egress) return tags;
+  vehiclesOn(egress, vehicles, tags);
+  const alternative = stepFreeEgressFor(egress.alternative);
+  if (result.status === 'blocked' && alternative) vehiclesOn(alternative, vehicles, tags);
+  return tags;
 }
 
 export type StepFreeEgressResult =
@@ -160,7 +192,12 @@ export function readStoppedVehicles(): readonly VehicleFootprint[] {
   for (const site of FORKLIFT_CREW_SITES) {
     const vehicle = forkliftCrewLive(site.forkliftId).vehicle;
     if (vehicle)
-      vehicleScratch.push({ x: vehicle.x, z: vehicle.z, radius: FORKLIFT_FOOTPRINT_RADIUS });
+      vehicleScratch.push({
+        x: vehicle.x,
+        z: vehicle.z,
+        radius: FORKLIFT_FOOTPRINT_RADIUS,
+        id: site.tag,
+      });
   }
   return vehicleScratch;
 }

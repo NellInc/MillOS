@@ -13,14 +13,10 @@ afterEach(() => {
 
 /** Advice frozen while the game was in English, as the engine records it. */
 function englishAdvice(reasonToAbstain: string | null): PackingAdvice {
-  const en = (key: keyof typeof workplaceAdviceMessages.en, params?: Record<string, string>) =>
-    translate(workplaceAdviceMessages, key, params);
+  // A save from before D14 holds the assumption captions it was modelled with.
   const assumptions = [
-    en('assumptionHorizon', { minutes: '90', seconds: String(plantSecondsForGameSeconds(5400)) }),
-    en('assumptionEngine'),
-    en('assumptionFixed'),
-    en('assumptionPacing'),
-    en('assumptionDispatch'),
+    `90 workplace minutes = ${plantSecondsForGameSeconds(5400)} plant seconds at every resume pace.`,
+    'Real material engine at 0.5 and 0.25 physical-second steps; bounds reflect time resolution, not statistical confidence.',
   ];
   return {
     version: 1,
@@ -62,18 +58,10 @@ function englishAdvice(reasonToAbstain: string | null): PackingAdvice {
 }
 
 describe('Workplace lane, eighth pass: frozen advice after a language switch', () => {
-  it('lists its assumptions in the language chosen after it was frozen', () => {
+  // D14: the assumption captions are cut, including those an old save holds.
+  it('shows no assumption caption, even from advice saved with them', () => {
     const advice = englishAdvice(null);
-    setLocale('pt-BR');
     render(<FrozenPackingAdvice advice={advice} />);
-    expect(
-      screen.getByText(translate(workplaceAdviceMessages, 'assumptionEngine'))
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        '90 minutos de trabalho = 180 segundos da planta em qualquer ritmo de retomada.'
-      )
-    ).toBeInTheDocument();
     expect(screen.queryByText(/^Real material engine/)).toBeNull();
     expect(screen.queryByText(/^90 workplace minutes/)).toBeNull();
   });
@@ -89,7 +77,7 @@ describe('Workplace lane, eighth pass: frozen advice after a language switch', (
     render(<FrozenPackingAdvice advice={advice} />);
     expect(
       screen.getByText(
-        'O pedido ativo e a receita não estão disponíveis. O relógio de material é inválido. Evidência desconhecida continua desconhecida.'
+        'O pedido ativo e a receita não estão disponíveis. O relógio de material é inválido.'
       )
     ).toBeInTheDocument();
   });

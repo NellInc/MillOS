@@ -1,0 +1,298 @@
+/**
+ * ARCHIVED COPY, NOT RUN. The engine-only balance probe the 2026-11-12 review
+ * used, kept as its record. Its relative imports (../charter, ../cropYears,
+ * ...) resolve only from src/chronicle/__tests__/, and the .txt suffix keeps
+ * vitest and every tsconfig from picking it up here. The live instrument is
+ * src/systems/__tests__/chronicleProbe.playtest.test.ts, which plays the
+ * chronicle with the real tick in the loop; to run this one again, copy it to
+ * src/chronicle/__tests__/ as chronicleBalanceProbe.playtest.test.ts.
+ *
+ * Balance probe (review instrument, not a gate): whole seeded chronicles under
+ * three throughput models and three simple players, to see which medals,
+ * eras and decisions a real run can reach. Writes its tables to the path in
+ * MILLOS_BALANCE_OUT and asserts nothing about balance.
+ */
+import { writeFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_CHARTER } from '../charter';
+import { CHRONICLE_SHIFTS } from '../cropYears';
+import {
+  canAfford,
+  choiceAvailable,
+  chooseEventOption,
+  closeShift,
+  createInitialState,
+  currentScore,
+  effectInput,
+  fundOf,
+  installBlockReason,
+  knowHowOf,
+  mitigateForecast,
+  planImprovement,
+  resolveShortfall,
+  settleUnfinishedInstalls,
+  signCharter,
+  startInstall,
+  upkeepPerShift,
+  type ChronicleState,
+  type ShiftCloseEvidence,
+} from '../engine';
+import { chronicleEffect } from '../effects';
+import { EVENT_DECK } from '../eventDeck';
+import { IMPROVEMENTS } from '../plans';
+import type { Charter } from '../types';
+
+const OUT = process.env.MILLOS_BALANCE_OUT;
+const SEEDS = 20;
+const baseline = { reportId: null, qcTestIds: [], challengeIds: [], orders: [] };
+
+type Throughput = 'ideal' | 'measured' | 'strong';
+type Player = 'lapse' | 'builder' | 'chooser';
+
+/**
+ * ideal: what the engine's own tests assume (3,000 kg and grade A every shift).
+ * measured: docs/CHRONICLE.md "Measured tuning": shifts alternate between no
+ *   truck and one 5,000 kg truckload, about 0.088 energy per kg, and a shift
+ *   with no truck is graded F.
+ * strong: a truckload every shift.
+ */
+function evidence(
+  model: Throughput,
+  seed: number,
+  index: number,
+  energyMultiplier: number
+): ShiftCloseEvidence {
+  const ships = model === 'ideal' || model === 'strong' || index % 2 === 1;
+  const dispatchedKg = model === 'ideal' ? 3000 : ships ? 5000 : 0;
+  const revenue = model === 'ideal' ? 2000 : ships ? 2700 : 0;
+  // The tick multiplies recorded energy by the Chronicle effect, so energy plans
+  // reach the evidence. Mass stays as given: dispatch is bounded by orders.
+  const energyCost = Math.round((model === 'ideal' ? 0 : ships ? 440 : 150) * energyMultiplier);
+  const grade = model === 'measured' && !ships ? 'F' : model === 'measured' ? 'B' : 'A';
+  const endedAtMinute = (index + 1) * 480;
+  return {
+    report: {
+      id: `probe-${seed}-${index}`,
+      grade,
+      endedAtMinute,
+      metrics: {
+        revenue,
+        energyCost,
+        automationCost: 0,
+        wasteCost: 0,
+        maintenanceCost: 0,
+        demurrageCost: 0,
+        latePenalties: 0,
+        dispatchedKg,
+        qualityFailureKg: 0,
+        incidentsResolved: 0,
+        automaticActions: 0,
+        commitmentMinutes: 0,
+      },
+    },
+    orders: [],
+    incidents: [],
+    challengeActive: false,
+    challengeHistory: [],
+    qcTests: [{ id: `probe-qc-${seed}-${index}`, passed: true }],
+  } as ShiftCloseEvidence;
+}
+
+interface RunResult {
+  state: ChronicleState;
+  quietShifts: number;
+  longestQuiet: number;
+  decisions: number;
+  eventsSeen: string[];
+  choicesTaken: string[];
+  fundZeroShifts: number;
+  shortfalls: number;
+  minFund: number;
+  installs: number;
+}
+
+function play(model: Throughput, player: Player, seed: number, charter: Partial<Charter>): RunResult {
+  let state = signCharter(
+    createInitialState(),
+    { ...DEFAULT_CHARTER, ...charter },
+    seed,
+    baseline
+  ).state;
+  const result: RunResult = {
+    state,
+    quietShifts: 0,
+    longestQuiet: 0,
+    decisions: 0,
+    eventsSeen: [],
+    choicesTaken: [],
+    fundZeroShifts: 0,
+    shortfalls: 0,
+    minFund: Infinity,
+    installs: 0,
+  };
+  let quietRun = 0;
+  for (let i = 0; i < CHRONICLE_SHIFTS + 2 && state.status === 'active'; i++) {
+    const before = {
+      events: state.pendingEvents.length,
+      forecasts: state.forecasts.filter((f) => f.status === 'pending' && !f.mitigated).length,
+      history: state.eventHistory.length,
+    };
+    const effect = chronicleEffect(effectInput(state), true);
+    state = closeShift(state, evidence(model, seed, i, effect.energyMultiplier), EVENT_DECK).state;
+    let decisionsThisShift = 0;
+
+    for (const pending of state.pendingEvents)
+      if (!result.eventsSeen.includes(pending.eventId)) result.eventsSeen.push(pending.eventId);
+    const fresh = state.pendingEvents.filter((p) => p.appearedShift === state.shift).length;
+    decisionsThisShift += fresh;
+
+    if (state.upkeepShortfall !== null) {
+      result.shortfalls += 1;
+      decisionsThisShift += 1;
+      state = resolveShortfall(state, 'conserve').state;
+    }
+
+    if (player !== 'lapse') {
+      for (const forecast of state.forecasts) {
+        if (forecast.status !== 'pending' || forecast.mitigated) continue;
+        const next = mitigateForecast(state, forecast.id, 'player').state;
+        if (next !== state) {
+          decisionsThisShift += 1;
+          state = next;
+        }
+      }
+      const plans = [...IMPROVEMENTS].sort((a, b) => a.planCost - b.planCost);
+      for (const plan of plans) {
+        const planned = planImprovement(state, plan.id).state;
+        if (planned !== state) {
+          decisionsThisShift += 1;
+          state = planned;
+        }
+      }
+      for (const progress of state.improvements) {
+        if (progress.phase !== 'planned') continue;
+        if (installBlockReason(state, progress.id) !== null) continue;
+        const started = startInstall(state, progress.id, 'player').state;
+        if (started !== state) {
+          result.installs += 1;
+          decisionsThisShift += 1;
+          state = started;
+        }
+      }
+    }
+    if (player === 'chooser') {
+      for (const pending of [...state.pendingEvents]) {
+        const event = EVENT_DECK.find((e) => e.id === pending.eventId);
+        if (!event) continue;
+        const choice = event.choices.find(
+          (c) => c.id !== event.defaultChoiceId && choiceAvailable(state, c) && canAfford(state, c.cost)
+        );
+        if (!choice) continue;
+        state = chooseEventOption(state, pending.instanceId, choice.id, 'player', EVENT_DECK).state;
+        result.choicesTaken.push(`${event.id}:${choice.id}`);
+      }
+    }
+
+    const trialBeat = state.trials.some((t) => t.phase === 'active' || t.phase === 'telegraphed');
+    const anything =
+      decisionsThisShift > 0 ||
+      state.pendingEvents.length > before.events ||
+      state.eventHistory.length > before.history;
+    if (!anything && !trialBeat) {
+      result.quietShifts += 1;
+      quietRun += 1;
+      result.longestQuiet = Math.max(result.longestQuiet, quietRun);
+    } else quietRun = 0;
+    result.decisions += decisionsThisShift;
+    const fund = fundOf(state);
+    result.minFund = Math.min(result.minFund, fund);
+    if (fund <= 0) result.fundZeroShifts += 1;
+  }
+  result.state = settleUnfinishedInstalls(state);
+  return result;
+}
+
+const mean = (values: number[]) =>
+  values.length ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10 : 0;
+const tally = (values: string[]) =>
+  values.reduce<Record<string, number>>((acc, value) => {
+    acc[value] = (acc[value] ?? 0) + 1;
+    return acc;
+  }, {});
+
+// Inert in the ordinary suite: it runs only when an output path is given.
+describe.skipIf(!OUT)('chronicle balance probe', () => {
+  it('runs whole chronicles and writes what they reached', () => {
+    const report: Record<string, unknown> = {
+      seeds: SEEDS,
+      shifts: CHRONICLE_SHIFTS,
+      deckSize: EVENT_DECK.length,
+      plans: IMPROVEMENTS.map((p) => ({
+        id: p.id,
+        column: p.column,
+        planCost: p.planCost,
+        installCost: p.installCost,
+        installShifts: p.installShifts,
+        upkeep: p.upkeep,
+      })),
+    };
+    const charters: Array<[string, Partial<Charter>]> = [
+      ['beginner', {}],
+      ['historical', { grain: 'open_market', plant: 'working', customers: 'mixed', fortune: 'even' }],
+      ['hard', { grain: 'marginal', plant: 'tired', customers: 'demanding', fortune: 'hard' }],
+    ];
+    const cells: Record<string, unknown> = {};
+    const everSeen = new Set<string>();
+    for (const [charterName, charter] of charters)
+      for (const model of ['measured', 'strong'] as Throughput[])
+        for (const player of ['lapse', 'builder'] as Player[]) {
+          const runs: RunResult[] = [];
+          for (let seed = 1; seed <= SEEDS; seed++) runs.push(play(model, player, seed, charter));
+          for (const run of runs) run.eventsSeen.forEach((id) => everSeen.add(id));
+          const trials: Record<string, Record<string, number>> = {};
+          for (const run of runs)
+            for (const trial of run.state.trials) {
+              trials[trial.id] ??= {};
+              const key = trial.phase === 'passed' ? (trial.medal ?? 'passed') : trial.phase;
+              trials[trial.id][key] = (trials[trial.id][key] ?? 0) + 1;
+            }
+          const scores = runs.map((run) => (run.state.finalScore ?? currentScore(run.state)).total);
+          cells[`${charterName}/${model}/${player}`] = {
+            ended: runs.filter((run) => run.state.status === 'ended').length,
+            shiftsReached: mean(runs.map((run) => run.state.shift)),
+            trials,
+            era: tally(runs.map((run) => run.state.era)),
+            score: { mean: mean(scores), min: Math.min(...scores), max: Math.max(...scores) },
+            rank: tally(
+              runs.map((run) => String((run.state.finalScore ?? currentScore(run.state)).rank))
+            ),
+            fundEnd: mean(runs.map((run) => fundOf(run.state))),
+            fundMin: mean(runs.map((run) => run.minFund)),
+            knowHowEnd: mean(runs.map((run) => knowHowOf(run.state))),
+            upkeepEnd: mean(runs.map((run) => upkeepPerShift(run.state))),
+            installed: mean(
+              runs.map((run) => run.state.improvements.filter((p) => p.phase === 'installed').length)
+            ),
+            fundZeroShifts: mean(runs.map((run) => run.fundZeroShifts)),
+            shortfalls: mean(runs.map((run) => run.shortfalls)),
+            austerityRuns: runs.filter((run) => run.state.austerity.shifts > 0).length,
+            eventsPerRun: mean(runs.map((run) => run.state.eventHistory.length)),
+            decisionsPerRun: mean(runs.map((run) => run.decisions)),
+            quietShifts: mean(runs.map((run) => run.quietShifts)),
+            longestQuiet: mean(runs.map((run) => run.longestQuiet)),
+            certifierStanding: mean(runs.map((run) => Math.floor(run.state.certifier.score / 100))),
+            suspendedRuns: runs.filter((run) => run.state.certifier.suspended).length,
+            trialFailReasons: tally(
+              runs.flatMap((run) =>
+                run.state.trials.filter((t) => t.phase === 'failed').map((t) => `${t.id}: ${t.failureReason}`)
+              )
+            ),
+            trainingOffered: runs.filter((run) => run.state.trainingOffered).length,
+          };
+        }
+    report.cells = cells;
+    report.eventsNeverSeen = EVENT_DECK.map((e) => e.id).filter((id) => !everSeen.has(id));
+    if (OUT) writeFileSync(OUT, JSON.stringify(report, null, 1));
+    expect(Object.keys(cells).length).toBe(12);
+  }, 600_000);
+});

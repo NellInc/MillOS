@@ -73,7 +73,17 @@ describe('Long-night preparation in Brazilian Portuguese', () => {
     act(() => useChronicleStore.setState({ chronicle: spreadCover(true) }));
     render(<ChronicleEventHost />);
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('(1,5 de 2 preparados)');
-    expect(dialog).not.toHaveTextContent('1.5 de 2');
+    expect(dialog).toHaveTextContent('(1,5 preparados, 2 necessários)');
+    expect(dialog).not.toHaveTextContent('1.5');
+  });
+
+  // Seen in a capture of the shift-54 dialog: a front past its threshold read
+  // "the roller floor will hold (3 of 2 prepared)". It names both counts.
+  it('words a front past its threshold as prepared and needed', () => {
+    act(() => useChronicleStore.setState({ chronicle: spreadCover(true) }));
+    render(<ChronicleEventHost />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('(1.5 prepared, 2 needed)');
+    expect(dialog).not.toHaveTextContent(/of 2 prepared/);
   });
 });

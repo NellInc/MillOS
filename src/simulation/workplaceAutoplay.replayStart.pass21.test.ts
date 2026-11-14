@@ -22,8 +22,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// During a matched replay the Lab still offers "Skip guide and run fictional
-// demo". Its first step stops on the replay boundary and the bell then says to
+// During a matched replay the Lab still offers "Let fictional roles decide".
+// Its first step stops on the replay boundary and the bell then says to
 // open Autonomy and choose the same control again, which stops the same way
 // for as long as the replay runs.
 it('refuses to start during a matched replay instead of filing a stop that says to run it again', () => {

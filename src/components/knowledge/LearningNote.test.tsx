@@ -6,7 +6,9 @@ import { setLocale } from '../../i18n';
 import {
   getKnowledgeEntries,
   useKnowledgeStore,
+  FARM_LESSON_UNLOCK,
   HISTORY_ENTRY_UNLOCK,
+  WINDMILL_NOTE_UNLOCK,
   KNOWLEDGE_ENTRIES,
 } from '../../stores/knowledgeStore';
 
@@ -73,10 +75,17 @@ describe('contextual operating guide', () => {
     const ids = KNOWLEDGE_ENTRIES.map((entry) => entry.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const entry of KNOWLEDGE_ENTRIES) {
-      // Only Mill Chronicle history notes wait for a live event to unlock them;
-      // every operating explanation stays readable from the start.
+      // Only Mill Chronicle history notes and the henhouse note (opened by its
+      // farm inspection) wait to unlock; every operating explanation stays
+      // readable from the start.
       expect(entry.unlockCondition).toBe(
-        entry.id.startsWith('history-') ? HISTORY_ENTRY_UNLOCK : always
+        entry.id === 'history-windmills'
+          ? WINDMILL_NOTE_UNLOCK
+          : entry.id.startsWith('history-')
+            ? HISTORY_ENTRY_UNLOCK
+            : entry.id === 'farm-henhouse'
+              ? FARM_LESSON_UNLOCK
+              : always
       );
       for (const related of entry.relatedEntries) expect(ids).toContain(related);
       expect(entry.seeInAction.length).toBeGreaterThan(0);
@@ -84,7 +93,9 @@ describe('contextual operating guide', () => {
     expect(getKnowledgeEntries().some((entry) => entry.id === 'depth-and-material-policy')).toBe(
       false
     );
+    // The shader-cache note joined the developer reference (report 10 F1).
     expect(getKnowledgeEntries('developer').map((entry) => entry.id)).toEqual([
+      'environment-cycle',
       'depth-and-material-policy',
     ]);
   });

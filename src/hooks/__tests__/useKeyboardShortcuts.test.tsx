@@ -1,6 +1,6 @@
 import { fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useKeyboardShortcuts } from '../useKeyboardShortcuts';
+import { useKeyboardShortcuts, WORKSPACE_KEY_EVENT } from '../useKeyboardShortcuts';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { selectClockHolder, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useUIStore } from '../../stores/uiStore';
@@ -217,14 +217,19 @@ describe('keyboard control ownership', () => {
   });
 
   // Nothing reads panelMinimized, so M was a key that clicked and did nothing.
-  // Working if M is unbound: no click, no store write, the key left to others.
-  it('leaves M unbound now that no panel minimises', () => {
+  // It now opens the Chronicle (plan 2.10). Working if M asks for the
+  // Chronicle and writes nothing to the dead minimise flag.
+  it('gives M to the Chronicle, not the old minimise', () => {
     useUIStore.setState({ panelMinimized: false });
     renderHook(() => useKeyboardShortcuts(config));
+    const verbs: unknown[] = [];
+    const listen = (event: Event) => verbs.push((event as CustomEvent).detail);
+    window.addEventListener(WORKSPACE_KEY_EVENT, listen);
     const event = new KeyboardEvent('keydown', { key: 'm', cancelable: true });
     window.dispatchEvent(event);
+    window.removeEventListener(WORKSPACE_KEY_EVENT, listen);
     expect(useUIStore.getState().panelMinimized).toBe(false);
-    expect(audioManager.playClick).not.toHaveBeenCalled();
-    expect(event.defaultPrevented).toBe(false);
+    expect(verbs).toEqual(['chronicle']);
+    expect(event.defaultPrevented).toBe(true);
   });
 });

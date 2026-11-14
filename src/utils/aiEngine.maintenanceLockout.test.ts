@@ -58,6 +58,9 @@ describe('maintenance decision on a tripped unit', () => {
     applyDecisionEffects(decision, 'accepted');
     expect(status()).toBe('idle');
     useGameSimulationStore.getState().resolveEmergency();
+    // Clearing the stop leaves the line idle; the restart starts it (D13).
+    expect(status()).toBe('idle');
+    useGameSimulationStore.getState().restartLine();
     expect(status()).toBe('warning');
   });
 });

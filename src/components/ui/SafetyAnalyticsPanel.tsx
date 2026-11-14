@@ -1,14 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, ChevronDown, ChevronUp, Truck, FileText, Download } from 'lucide-react';
+import { TrendingUp, ChevronDown, ChevronUp, FileText, Download } from 'lucide-react';
 import { incidentDescription, useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { formatFixed, useT } from '../../i18n';
 import { safetyAnalyticsPanelMessages } from './SafetyAnalyticsPanel.messages';
 
-// The expanded body owns the metric subscriptions, so a collapsed panel does not
-// re-render every time the forklift metrics or incident log change.
+// The expanded body owns the store subscriptions, so a collapsed panel does not
+// re-render every time the incident log or heat map changes. No per-forklift
+// figure is shown: each forklift has one roster operator, so its moving share
+// read as a number about that person, and it fell every time the forklift
+// gave way to someone (D-008, D-058; mechanics review D16).
 const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) => {
   const t = useT(safetyAnalyticsPanelMessages);
   // Plant hours at one-minute resolution: enough to age Last Hour, no more.
@@ -17,9 +20,7 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
   );
   // Two-step inline confirmation for destructive, irreversible data wipes.
   const [confirmClearHeatMap, setConfirmClearHeatMap] = useState(false);
-  const [confirmResetMetrics, setConfirmResetMetrics] = useState(false);
   const clearConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resetConfirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safetyIncidents = useSafetyStore((state) => state.safetyIncidents);
   // A session restored from a save that predates the counter has a log and no
   // count; the total never reads below the incidents the log is showing.
@@ -29,12 +30,10 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
       state.safetyIncidents.length
     )
   );
-  const forkliftMetrics = useSafetyStore((state) => state.forkliftMetrics);
   const incidentHeatMap = useSafetyStore((state) => state.incidentHeatMap);
   const showIncidentHeatMap = useSafetyStore((state) => state.showIncidentHeatMap);
   const setShowIncidentHeatMap = useSafetyStore((state) => state.setShowIncidentHeatMap);
   const clearIncidentHeatMap = useSafetyStore((state) => state.clearIncidentHeatMap);
-  const resetForkliftMetrics = useSafetyStore((state) => state.resetForkliftMetrics);
 
   // "Last Hour" is read against the wall clock at render. Re-render on a timer
   // so an incident ages out while nothing else writes to the store (a held
@@ -51,7 +50,6 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
   useEffect(() => {
     return () => {
       if (clearConfirmTimer.current) clearTimeout(clearConfirmTimer.current);
-      if (resetConfirmTimer.current) clearTimeout(resetConfirmTimer.current);
     };
   }, []);
 
@@ -67,18 +65,6 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
     setConfirmClearHeatMap(true);
     if (clearConfirmTimer.current) clearTimeout(clearConfirmTimer.current);
     clearConfirmTimer.current = setTimeout(() => setConfirmClearHeatMap(false), 4000);
-  };
-
-  const handleResetMetrics = () => {
-    if (confirmResetMetrics) {
-      if (resetConfirmTimer.current) clearTimeout(resetConfirmTimer.current);
-      setConfirmResetMetrics(false);
-      resetForkliftMetrics();
-      return;
-    }
-    setConfirmResetMetrics(true);
-    if (resetConfirmTimer.current) clearTimeout(resetConfirmTimer.current);
-    resetConfirmTimer.current = setTimeout(() => setConfirmResetMetrics(false), 4000);
   };
 
   // Calculate stats. The incident log is capped at 50, so Last Hour reads it
@@ -102,15 +88,6 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
   const weekAgoMs = today.getTime() - 7 * 24 * 60 * 60 * 1000;
   const weekIncidents = safetyIncidents.filter((i) => i.timestamp >= weekAgoMs);
 
-  // Calculate forklift efficiency
-  const forkliftIds = Object.keys(forkliftMetrics);
-  const efficiencyData = forkliftIds.map((id) => {
-    const m = forkliftMetrics[id];
-    const total = m.totalMovingTime + m.totalStoppedTime;
-    const efficiency = total > 0 ? (m.totalMovingTime / total) * 100 : 100;
-    return { id, efficiency, movingTime: m.totalMovingTime, stoppedTime: m.totalStoppedTime };
-  });
-
   // Generate safety report
   const generateReport = () => {
     const report = {
@@ -130,7 +107,6 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
           evasion: weekIncidents.filter((i) => i.type === 'evasion').length,
         },
       },
-      forkliftEfficiency: efficiencyData,
       incidents: weekIncidents.map((i) => ({
         timestamp: new Date(i.timestamp).toISOString(),
         type: i.type,
@@ -222,7 +198,6 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
             <button
               onClick={handleClearHeatMap}
               aria-label={confirmClearHeatMap ? t('confirmClearLabel') : t('clearLabel')}
-              title={confirmClearHeatMap ? t('confirmClearTitle') : t('clearTitle')}
               className={`py-1 px-2 rounded text-[10px] font-medium ${
                 confirmClearHeatMap
                   ? 'bg-red-600 text-white hover:bg-red-500'
@@ -235,84 +210,6 @@ const SafetyAnalyticsBody: React.FC<{ theme: 'dark' | 'light' }> = ({ theme }) =
             </button>
           </div>
         </div>
-      </div>
-
-      {/* Forklift Efficiency */}
-      <div className={`rounded-lg p-2 ${theme === 'light' ? 'bg-slate-100' : 'bg-slate-800/50'}`}>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <Truck className="w-3.5 h-3.5 text-amber-500" />
-            <span
-              className={`text-[10px] uppercase tracking-wider ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}
-            >
-              {t('forkliftEfficiency')}
-            </span>
-          </div>
-          <button
-            onClick={handleResetMetrics}
-            aria-label={confirmResetMetrics ? t('confirmResetLabel') : t('resetLabel')}
-            title={confirmResetMetrics ? t('confirmResetTitle') : t('resetTitle')}
-            className={`text-[9px] font-medium transition-colors ${
-              confirmResetMetrics
-                ? 'text-red-500'
-                : theme === 'light'
-                  ? 'text-slate-400 hover:text-red-500'
-                  : 'text-slate-500 hover:text-red-400'
-            }`}
-          >
-            {confirmResetMetrics ? t('confirm') : t('reset')}
-          </button>
-        </div>
-        {efficiencyData.length === 0 ? (
-          <div
-            className={`text-[10px] text-center py-2 ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
-          >
-            {t('waitingForData')}
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            {efficiencyData.map(({ id, efficiency, movingTime, stoppedTime }) => (
-              <div key={id} className="space-y-0.5">
-                <div className="flex items-center justify-between text-[10px]">
-                  <span className={theme === 'light' ? 'text-slate-500' : 'text-slate-400'}>
-                    {t('forkliftName', { id })}
-                  </span>
-                  <span
-                    className={`font-bold ${
-                      efficiency >= 80
-                        ? 'text-green-500'
-                        : efficiency >= 60
-                          ? 'text-yellow-500'
-                          : 'text-red-500'
-                    }`}
-                  >
-                    {formatFixed(efficiency, 1)}%
-                  </span>
-                </div>
-                <div
-                  className={`h-1.5 rounded-full overflow-hidden ${theme === 'light' ? 'bg-slate-200' : 'bg-slate-700'}`}
-                >
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      efficiency >= 80
-                        ? 'bg-green-500'
-                        : efficiency >= 60
-                          ? 'bg-yellow-500'
-                          : 'bg-red-500'
-                    }`}
-                    style={{ width: `${efficiency}%` }}
-                  />
-                </div>
-                <div
-                  className={`flex justify-between text-[8px] ${theme === 'light' ? 'text-slate-400' : 'text-slate-500'}`}
-                >
-                  <span>{t('moving', { seconds: formatFixed(movingTime, 0) })}</span>
-                  <span>{t('stopped', { seconds: formatFixed(stoppedTime, 0) })}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Generate Report Button */}

@@ -111,6 +111,12 @@ export interface TagDefinition {
   machineId: string;
   /** Functional grouping for filtering/display */
   group: TagGroup;
+  /**
+   * What an alarm on this tag puts at risk, which sets its priority (alarm
+   * rationalisation): people, the running plant, or the process and product.
+   * A tag without one keeps the threshold mapping (HI/LO HIGH, HIHI/LOLO CRITICAL).
+   */
+  consequence?: AlarmConsequence;
 
   // === Simulation ===
   /** Parameters for physics-based simulation */
@@ -158,6 +164,9 @@ export type AlarmState =
 
 /** Alarm priority levels */
 export type AlarmPriority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+
+/** What an alarm puts at risk: people, the running plant, or the process and product. */
+export type AlarmConsequence = 'people' | 'plant' | 'process';
 
 /** Alarm type based on threshold exceeded */
 export type AlarmType = 'HIHI' | 'HI' | 'LO' | 'LOLO' | 'BAD_QUALITY' | 'RATE_OF_CHANGE';

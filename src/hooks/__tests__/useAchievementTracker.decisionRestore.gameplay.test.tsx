@@ -53,7 +53,7 @@ describe('decision-response achievements across a checkpoint restore', () => {
 
     useProductionStore.getState().recordDecisionResponse(pending.id, 'accepted');
     expect(progressOf('collaborative-spirit')).toBe(1);
-    expect(progressOf('vote-participant')).toBe(1);
+    expect(progressOf('first-preference')).toBe(1);
 
     // Restore: the decision is pending again and the achievements are as captured.
     useProductionStore.setState({ aiDecisions: checkpoint.decisions });
@@ -62,7 +62,7 @@ describe('decision-response achievements across a checkpoint restore', () => {
 
     useProductionStore.getState().recordDecisionResponse(pending.id, 'accepted');
     expect(progressOf('collaborative-spirit')).toBe(1);
-    expect(progressOf('vote-participant')).toBe(1);
+    expect(progressOf('first-preference')).toBe(1);
     hook.unmount();
   });
 

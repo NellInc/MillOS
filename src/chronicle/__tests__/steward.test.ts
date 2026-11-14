@@ -1,6 +1,6 @@
 /**
  * Part two of the Chronicle (docs/CHRONICLE.md, systems 16-24): the record,
- * scheduled events and chains, organisations, the certifier, desks, the long
+ * scheduled events and chains, organisations, the certifier, the long
  * night, the mill's character and the epilogue.
  */
 import { readFileSync } from 'node:fs';
@@ -9,7 +9,6 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_CHARTER } from '../charter';
 import { CHRONICLE_SHIFTS } from '../cropYears';
 import { standingOf } from '../certifier';
-import { DESK_START_ROOM } from '../desks';
 import {
   canAfford,
   chooseEventOption,
@@ -18,14 +17,20 @@ import {
   createInitialState,
   currentForecastChance,
   longNightScore,
+  recentPartyChanges,
   REINSTATEMENT_EVENT_ID,
   signCharter,
   treatmentPrice,
   type ChronicleState,
   type ShiftCloseEvidence,
 } from '../engine';
-import { EPILOGUE_SECTIONS, epilogue, GOVERNANCE_EPILOGUE_SECTIONS } from '../epilogue';
-import { GOVERNANCE_MARKS } from '../governance';
+import {
+  EPILOGUE_SECTIONS,
+  epilogue,
+  GOVERNANCE_EPILOGUE_SECTIONS,
+  SEASON_EPILOGUE_SECTIONS,
+} from '../epilogue';
+import { GOVERNANCE_MARKS, RULING_OBJECTIONS } from '../governance';
 import { EVENT_DECK } from '../eventDeck';
 import { HISTORY_NOTES } from '../history';
 import {
@@ -38,7 +43,7 @@ import { improvementById } from '../plans';
 import { describeEffect } from '../describe';
 import { conditionMet, ENGINE_MARKS, MARKS, millCharacter } from '../record';
 import { chronicleChance } from '../rng';
-import { COURT_EVENT_IDS } from '../stewardDeck';
+import { COURT_EVENT_IDS, FEDERATION_ADMINISTRATOR_EVENT_ID } from '../stewardDeck';
 import type {
   ChronicleCondition,
   ChronicleEventEffect,
@@ -174,9 +179,15 @@ describe('the record has no dead marks', () => {
   ]);
   const read = new Set<string>([
     ...EVENT_DECK.flatMap((event) => conditions(event).flatMap(conditionMarks)),
-    ...[...EPILOGUE_SECTIONS, ...GOVERNANCE_EPILOGUE_SECTIONS].flatMap((section) =>
-      section.slides.flatMap((slide) => conditionMarks(slide.when))
-    ),
+    ...[
+      ...EPILOGUE_SECTIONS,
+      ...GOVERNANCE_EPILOGUE_SECTIONS,
+      // Cooperative seasons (item 5.10; seasons.gameplay.test.ts reaches their slides).
+      ...SEASON_EPILOGUE_SECTIONS,
+    ].flatMap((section) => section.slides.flatMap((slide) => conditionMarks(slide.when))),
+    // The crew read the record: a ruling against a member's value raises their
+    // objection (item 4.10).
+    ...RULING_OBJECTIONS.map((entry) => entry.mark),
     // The long night and standing forecast relief read marks from the registry.
     ...Object.entries(MARKS)
       .filter(([, definition]) => definition.prepares?.length || definition.forecastRelief)
@@ -197,7 +208,8 @@ describe('the record has no dead marks', () => {
 
   it('points every follow-up and chain at a real event, and reaches every chained event', () => {
     const ids = new Set(EVENT_DECK.map((event) => event.id));
-    const reached = new Set<string>([REINSTATEMENT_EVENT_ID]);
+    // The engine places these: the reinstatement audit and the federation's offer.
+    const reached = new Set<string>([REINSTATEMENT_EVENT_ID, FEDERATION_ADMINISTRATOR_EVENT_ID]);
     for (const event of EVENT_DECK) {
       for (const effect of effectsOf(event)) {
         const followUps = !effect.followUp
@@ -236,10 +248,6 @@ describe('the record has no dead marks', () => {
       expect(choice, event.id).toBeDefined();
       expect(choice!.cost?.fund ?? 0, event.id).toBe(0);
       expect(choice!.cost?.knowHow ?? 0, event.id).toBe(0);
-      expect(
-        Object.values(choice!.cost?.attention ?? {}).every((n) => !n),
-        event.id
-      ).toBe(true);
       expect(choice!.requires, event.id).toBeUndefined();
     }
   });
@@ -256,7 +264,6 @@ describe('the record has no dead marks', () => {
       'longNight',
       'epilogue',
       'certifier',
-      'desks',
       'stakeholders',
       'engine',
     ])
@@ -394,7 +401,7 @@ describe('scheduled events and chains', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Organisations, the certifier and desks
+// Organisations and the certifier
 // ---------------------------------------------------------------------------
 
 describe('organisations who show up', () => {
@@ -459,11 +466,13 @@ describe('the certifier', () => {
       }),
       []
     ).state;
-    expect(state.certifier.score).toBe(516);
+    // Passes wait for the review at the crop year's turn (item 4.9).
+    expect(state.certifier.score).toBe(500);
+    expect(state.certifier.review).toEqual({ batches: 2, hundredths: 16 });
     const failing = evidence();
     failing.report.metrics.qualityFailureKg = 200;
     state = closeShift(state, failing, []).state;
-    expect(state.certifier.score).toBe(491);
+    expect(state.certifier.score).toBe(475);
     expect(standingOf(state.certifier)).toBe(4);
   });
 
@@ -507,38 +516,6 @@ describe('the certifier', () => {
     expect(reachedEra('district', 12, 400, 5, 'historical', 5)).toBe('regional');
     expect(reachedEra('district', 12, 400, 5, 'historical', 6)).toBe('federated');
     expect(reachedEra('village', 12, 400, 5, 'historical', 9, true)).toBe('village');
-  });
-});
-
-describe('desks of attention', () => {
-  it('charges, locks when empty, refills each close and widens with use', () => {
-    let state = rich(signed());
-    const cost = { attention: { council: 1 } };
-    expect(state.desks.council.points).toBe(DESK_START_ROOM);
-    for (let i = 0; i < DESK_START_ROOM; i++) {
-      state = pend(state, 'evt-court-short-weight');
-      state = chooseEventOption(
-        state,
-        'pending-evt-court-short-weight',
-        'dock',
-        'player',
-        EVENT_DECK
-      ).state;
-    }
-    expect(state.desks.council.points).toBe(0);
-    expect(canAfford(state, cost)).toBe(false);
-    state = closeShift(state, evidence(), []).state;
-    expect(state.desks.council.points).toBe(1);
-    state = { ...state, desks: { ...state.desks, council: { points: 2, room: 2, spent: 3 } } };
-    state = pend(state, 'evt-court-short-weight');
-    state = chooseEventOption(
-      state,
-      'pending-evt-court-short-weight',
-      'dock',
-      'player',
-      EVENT_DECK
-    ).state;
-    expect(state.desks.council).toEqual({ points: 1, room: 3, spent: 4 });
   });
 });
 
@@ -591,6 +568,27 @@ describe('the long night', () => {
     expect(event.defaultChoiceId).toBe('partner');
     const step = night(signed(), 'partner');
     expect(step.state.marks['held-floor']?.actor).toBe('ai-partner');
+  });
+
+  // The recommended answer lost (the last tuning pass): the partner always held
+  // the roller floor, so a mill whose floor was ready and whose intake was not
+  // lost the intake. The partner now holds the front that is less ready.
+  it('has the AI partner hold the less prepared front, so the better prepared one holds', () => {
+    const floorReady = withMarks(signed(), 'cover-floor', 'switchgear-surveyed');
+    expect(frontPreparation(floorReady, 'floor')).toBe(FRONT_HOLD_THRESHOLD);
+    expect(frontPreparation(floorReady, 'intake')).toBeLessThan(FRONT_HOLD_THRESHOLD);
+    const step = night(floorReady, 'partner');
+    expect(step.state.marks['held-intake']?.actor).toBe('ai-partner');
+    expect(step.state.marks['held-floor']).toBeDefined();
+    expect(step.state.marks['fell-intake']).toBeUndefined();
+    expect(step.commands).toEqual([]);
+    expect(longNightScore(step.state)).toBe(3);
+    // The intake ready instead: the partner holds the floor and both hold.
+    const intakeReady = withMarks(signed(), 'cover-intake', 'culvert-rebuilt');
+    expect(frontPreparation(intakeReady, 'intake')).toBeGreaterThanOrEqual(FRONT_HOLD_THRESHOLD);
+    const other = night(intakeReady, 'partner');
+    expect(other.state.marks['held-floor']?.actor).toBe('ai-partner');
+    expect(longNightScore(other.state)).toBe(3);
   });
 });
 
@@ -841,5 +839,105 @@ describe('what review found', () => {
     state = run(state, 8);
     expect(state.marks['sacks-kept']?.actor).toBe('ai-partner');
     expect(state.followUps.some((f) => f.eventId === 'evt-sacks-short-again')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The cause reaches the player (mechanics review 08, F2)
+// ---------------------------------------------------------------------------
+
+describe('a ruling says what it changed', () => {
+  const choose = (state: ChronicleState, eventId: string, choiceId: string) =>
+    chooseEventOption(state, `pending-${eventId}`, choiceId, 'player', EVENT_DECK).state;
+
+  it('ends the result notice with the organisation change, as the button names it', () => {
+    const state = choose(
+      pend(rich(signed()), 'evt-court-short-weight'),
+      'evt-court-short-weight',
+      'terminate'
+    );
+    expect(state.notices.at(-1)?.body).toBe(
+      'The contract is ended and the shortfall claimed. The hill farms take note. (Growers’ cooperative -10)'
+    );
+  });
+
+  it('names a standing change with the organisations, and the variant’s extra change', () => {
+    let state = pend(rich(withMarks(signed(), 'cover-intake')), 'evt-valley-meeting');
+    state = choose(state, 'evt-valley-meeting', 'speak');
+    expect(state.notices.at(-1)?.body).toMatch(
+      /\(Village committee \+8; Growers’ cooperative \+8; standing \+0\.10\)$/
+    );
+    state = pend(rich(withMarks(signed(), 'haulier-terminated')), 'evt-valley-meeting');
+    state = choose(state, 'evt-valley-meeting', 'close');
+    expect(state.notices.at(-1)?.body).toMatch(
+      /^Because Valley Haulage’s contract was ended at arbitration\. .*\(Village committee -10; Growers’ cooperative -8; Valley Haulage -8\)$/
+    );
+  });
+
+  it('names a suspension once, and the reinstatement', () => {
+    let state = pend(rich(signed()), 'evt-cleaning-log');
+    state = choose(state, 'evt-cleaning-log', 'backdate');
+    expect(state.notices.at(-1)?.body).toMatch(/\(approval suspended; all customers -10\)$/);
+    // A suspended mill's standing does not move, so a later ruling names none.
+    state = choose(pend(state, 'evt-cleaning-log'), 'evt-cleaning-log', 'leave');
+    expect(state.notices.at(-1)?.body).toBe('The auditor finds the blank week and writes it up.');
+    state = choose(pend(state, 'evt-reinstatement-audit'), 'evt-reinstatement-audit', 'open');
+    expect(state.notices.at(-1)?.body).toMatch(/\(approval restored\)$/);
+  });
+
+  it('adds nothing to a ruling that changes no organisation', () => {
+    const state = choose(
+      pend(rich(signed()), 'evt-court-short-weight'),
+      'evt-court-short-weight',
+      'dock'
+    );
+    expect(state.notices.at(-1)?.body).toBe(
+      'The shortfall comes off the next payment and the contract stands.'
+    );
+  });
+
+  it('lists the changes on a lapse and on the partner’s chained rulings too', () => {
+    let state = pend(rich(signed()), 'evt-court-short-weight');
+    state = { ...state, pendingEvents: [{ ...state.pendingEvents[0], lapsesShift: 1 }] };
+    state = closeShift(state, evidence(), EVENT_DECK).state;
+    const lapsed = state.notices.find((n) => n.title === 'The short-weighted lots: lapsed');
+    expect(lapsed?.body).toMatch(/\(Growers’ cooperative -10\)$/);
+    const ruled = state.notices.filter((n) => n.title.endsWith('(ruled by the AI partner)'));
+    expect(ruled.some((n) => /\(Valley Haulage -\d+\)$/.test(n.body))).toBe(true);
+  });
+});
+
+describe('an organisation’s last changes come from the record', () => {
+  it('lists the latest three rulings that moved it, newest first, with their causes', () => {
+    const state: ChronicleState = {
+      ...signed(),
+      eventHistory: [
+        { eventId: 'evt-court-short-weight', shift: 6, choiceId: 'terminate', actor: 'player' },
+        { eventId: 'evt-court-short-weight', shift: 7, choiceId: 'dock', actor: 'player' },
+        { eventId: 'evt-valley-meeting', shift: 33, choiceId: 'close', actor: 'player' },
+        { eventId: 'evt-valley-meeting', shift: 34, choiceId: 'reserve', actor: 'player' },
+        { eventId: 'evt-valley-meeting', shift: 35, choiceId: 'principles', actor: 'player' },
+      ],
+    };
+    expect(recentPartyChanges(state, 'growers', EVENT_DECK)).toEqual([
+      { eventId: 'evt-valley-meeting', shift: 35, choiceId: 'principles', delta: 6 },
+      { eventId: 'evt-valley-meeting', shift: 34, choiceId: 'reserve', delta: 6 },
+      { eventId: 'evt-valley-meeting', shift: 33, choiceId: 'close', delta: -8 },
+    ]);
+  });
+
+  it('reads a variant only when its mark was on the record at the time', () => {
+    const history = [
+      { eventId: 'evt-valley-meeting', shift: 33, choiceId: 'close', actor: 'player' as const },
+    ];
+    const before = { ...signed(), eventHistory: history };
+    const terminated = (shift: number): ChronicleState => ({
+      ...before,
+      marks: { 'haulier-terminated': { ...mark('haulier-terminated'), shift } },
+    });
+    expect(recentPartyChanges(terminated(8), 'haulier', EVENT_DECK)).toEqual([
+      { eventId: 'evt-valley-meeting', shift: 33, choiceId: 'close', delta: -8 },
+    ]);
+    expect(recentPartyChanges(terminated(40), 'haulier', EVENT_DECK)).toEqual([]);
   });
 });

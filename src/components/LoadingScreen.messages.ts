@@ -18,7 +18,7 @@ export const loadingScreenMessages = defineMessages({
     progressLabel: 'Loading MillOS',
     slowAnimation: 'The scene is loaded, but animation is still slow on this device.',
     trucksPreparing: 'The scene is loaded, but the delivery trucks are still being prepared.',
-    slowLoad: 'Loading is taking longer than usual. Low graphics can help on a slower device.',
+    slowLoad: 'Loading is taking longer than usual.',
     resourcesFailed: 'Some resources could not be loaded.',
     stalledLoad: 'Loading has not moved for a while.',
     reload: 'Reload',
@@ -43,8 +43,7 @@ export const loadingScreenMessages = defineMessages({
     slowAnimation: 'A cena foi carregada, mas a animação ainda está lenta neste dispositivo.',
     trucksPreparing:
       'A cena foi carregada, mas os caminhões de entrega ainda estão sendo preparados.',
-    slowLoad:
-      'O carregamento está demorando mais do que o normal. A qualidade gráfica baixa pode ajudar em um dispositivo mais lento.',
+    slowLoad: 'O carregamento está demorando mais do que o normal.',
     resourcesFailed: 'Alguns recursos não puderam ser carregados.',
     stalledLoad: 'O carregamento não avança há algum tempo.',
     reload: 'Recarregar',

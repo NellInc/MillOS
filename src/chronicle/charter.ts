@@ -6,6 +6,7 @@ import { copy } from './charter.messages';
 import type {
   Charter,
   CharterTier,
+  ChronicleLength,
   ChronicleMode,
   CropKind,
   CustomerTemper,
@@ -130,12 +131,25 @@ export const MODE_OPTIONS: readonly CharterOption<ChronicleMode>[] = [
   { id: 'sandbox', label: 'Sandbox', tier: 'beginner', effect: 'no events or trials', score: 0 },
 ];
 
+/** D3 (item 4.2): the same chronicle in 63 or 27 shifts; neither changes the score. */
+export const LENGTH_OPTIONS: readonly CharterOption<ChronicleLength>[] = [
+  { id: 'full', label: 'Full chronicle', tier: 'historical', effect: '63 shifts', score: 0 },
+  {
+    id: 'short',
+    label: 'Short chronicle',
+    tier: 'beginner',
+    effect: '27 shifts, the same trials and years closer together',
+    score: 0,
+  },
+];
+
 export const CHARTER_COLUMNS = [
   { key: 'grain', label: 'Grain supply', options: GRAIN_OPTIONS },
   { key: 'plant', label: 'Plant condition', options: PLANT_OPTIONS },
   { key: 'customers', label: 'Customers', options: CUSTOMER_OPTIONS },
   { key: 'fortune', label: 'Fortune', options: FORTUNE_OPTIONS },
   { key: 'mode', label: 'Chronicle', options: MODE_OPTIONS },
+  { key: 'length', label: 'Length', options: LENGTH_OPTIONS },
 ] as const;
 
 export const DEFAULT_CHARTER: Omit<Charter, 'seed'> = {
@@ -198,6 +212,19 @@ export function fortuneWeights(fortune: Fortune): {
 
 export function fortuneForecastShift(fortune: Fortune): number {
   return fortune === 'kind' ? -0.1 : fortune === 'hard' ? 0.1 : 0;
+}
+
+/** A turn is one closed shift report: eight game hours (docs/CHRONICLE.md, "The beat"). */
+export const SHIFT_GAME_MINUTES = 480;
+
+/**
+ * Real hours a run of shifts takes at a pace in game seconds per real second,
+ * for the commitment the Sign button states (report 07, F13). 0 for no pace.
+ */
+export function realHoursForShifts(shifts: number, gameSpeed: number): number {
+  return Number.isFinite(gameSpeed) && gameSpeed > 0 && Number.isFinite(shifts) && shifts > 0
+    ? (shifts * SHIFT_GAME_MINUTES * 60) / gameSpeed / 3600
+    : 0;
 }
 
 export const TRAINING_MODE = {

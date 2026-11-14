@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   WorkplaceMission,
+  WorkplaceMissionObservation,
+  WorkplaceSampleReading,
   WorkplaceActions,
   WorkplaceState,
   WorkplaceProfile,
@@ -9,15 +11,35 @@ import type {
   WorkplaceTransitionResult,
 } from '../types/workplace';
 import { bilateralWorkplaceMessages } from '../simulation/bilateralWorkplace.messages';
-import { useOperationsCampaignStore } from './operationsCampaignStore';
+import { FIRST_ORDER_ID, useOperationsCampaignStore } from './operationsCampaignStore';
 import { useMaterialFlowStore } from './materialFlowStore';
 import { useProductionStore } from './productionStore';
-import { useGameSimulationStore } from './gameSimulationStore';
+import { selectRestartPending, useGameSimulationStore } from './gameSimulationStore';
 import { useTruckScheduleStore } from './truckScheduleStore';
-import { getDispatchQualityStatus, useQCLabStore } from './qcLabStore';
+import {
+  benchOrderFor,
+  getDispatchQualityStatus,
+  prioritiseBenchTest,
+  useQCLabStore,
+} from './qcLabStore';
+import { compareDispatchOrder, gradedStock, shipmentOrdersFrom } from '../simulation/shipmentPlan';
+import { provideCrewAvailability } from '../simulation/workplaceCrew';
+import { isBenchmarkRuntime } from '../runtime/runtimeMode';
+import {
+  queueFirst,
+  resequenceEffect,
+  resequenceTarget,
+  type ResequenceDock,
+} from '../simulation/workplaceResequence';
+import { dockState } from '../systems/partnerProposalRuntime';
+import { forecastPlans, type PlanForecast } from '../simulation/workplaceForecast';
+import { customerDisplayName } from './customerNames';
 import { capturePackingPlant, derivePackingAdvice } from '../simulation/workplaceAdvice';
 import {
+  authoredSeasonCommand,
   createWorkplace,
+  planCrewWaits,
+  prospectiveCover,
   localizeWorkplaceMembers,
   restoreWorkplace,
   saveWorkplace,
@@ -25,10 +47,20 @@ import {
   type WorkplaceCommand,
 } from '../simulation/bilateralWorkplace';
 import { handoffHoldsClock, workplaceMission } from '../simulation/workplaceImprovement';
-import { shiftResumable } from '../simulation/workplaceCampaign';
+import {
+  ABSENCE_MINUTES,
+  campaignShiftPause,
+  crewAwayMinutes,
+  qualifiedToCover,
+  seasonEnded,
+  seasonReserveCarried,
+  seasonSobrasPool,
+  shiftAbsentee,
+  shiftResumable,
+} from '../simulation/workplaceCampaign';
 import { safeJSONStorage } from './storage';
 import { isWorkplaceReplayActive } from '../simulation/workplaceReplayRuntime';
-import { translate, useLocaleStore } from '../i18n';
+import { formatFixed, translate, useLocaleStore } from '../i18n';
 import { workplaceStoreMessages as msg } from './workplaceStore.messages';
 import { workplaceReplayStoreMessages } from './workplaceReplayStore.messages';
 import { workplaceCampaignMessages } from '../simulation/workplaceCampaign.messages';
@@ -116,6 +148,13 @@ function openActiveOrderMission(exceptOrderId?: string): WorkplaceMission | unde
     order.requiredKg <= order.shippedKg
   )
     return undefined;
+  return missionFor(order);
+}
+
+/** A fresh link to `order`, from its shipped weight now, so nothing shipped before is credited. */
+function missionFor(
+  order: ReturnType<typeof useOperationsCampaignStore.getState>['orders'][number]
+): WorkplaceMission {
   return {
     orderId: order.id,
     customer: order.customer,
@@ -128,6 +167,35 @@ function openActiveOrderMission(exceptOrderId?: string): WorkplaceMission | unde
     manifestIds: [...order.manifestIds],
     evidence: 'current',
   };
+}
+
+/**
+ * Whether the tour's own first delivery is behind the player (D4): no new
+ * cooperative season starts before it, by itself or from a player control. A
+ * missing first order counts as delivered: the campaign keeps only its last 30
+ * orders, and a programme is accepted only once every order is in. A season
+ * already under way never asks, so a save that began one earlier carries on.
+ * Working if no season starts while order-001 is open.
+ */
+export function firstDeliveryFulfilled(
+  orders: readonly { id: string; status: string }[] = useOperationsCampaignStore.getState().orders
+): boolean {
+  const first = orders.find((order) => order.id === FIRST_ORDER_ID);
+  return !first || first.status === 'fulfilled' || first.status === 'cancelled';
+}
+
+/** A new season (idle, none begun) that D4 still holds for the first delivery. */
+function awaitsFirstDelivery(workplace: WorkplaceState): boolean {
+  return workplace.phase === 'idle' && !workplace.campaign && !firstDeliveryFulfilled();
+}
+
+/**
+ * Whether the default season may arrive by itself now: after the first
+ * delivery, and on an open order a new season can bind, so admission never
+ * starts a runner whose first step would refuse.
+ */
+export function defaultSeasonMayArrive(): boolean {
+  return firstDeliveryFulfilled() && openActiveOrderMission() !== undefined;
 }
 
 /**
@@ -164,13 +232,21 @@ export function captureCurrentPackingPlant(state: WorkplaceState) {
   const qualityRelease =
     getDispatchQualityStatus(useQCLabStore.getState().qcLab, material.productionBatches).released &&
     !operations.getIncidentEffect().dispatchBlocked;
-  const packed = material.productionBatches.filter(
-    (b) => b.materialType === order?.recipe.finishedMaterial
-  );
-  const released = packed
-    .filter((b) => b.disposition === 'released')
-    .reduce((n, b) => n + b.availableKg, 0);
-  const available = packed.reduce((n, b) => n + b.availableKg, 0);
+  // The execution reads packed stock by grade, for the orders in the line's
+  // walk (UnifiedGameTick lineWalkOrders and gradedStock, plan item 3.4): only
+  // tested stock that meets an order's minimum is released. Read the same way,
+  // or every capture with a batch on the bench reads as stale.
+  const open = shipmentOrdersFrom(operations.orders);
+  const activeOpen = open.find((o) => o.id === operations.activeOrderId);
+  const walk = [
+    ...(activeOpen ? [activeOpen] : []),
+    ...open.filter((o) => o !== activeOpen).sort(compareDispatchOrder),
+  ];
+  const graded = order
+    ? gradedStock(walk, material.productionBatches, order.recipe.finishedMaterial)
+    : { availableKg: 0, releasedKg: 0 };
+  const released = graded.releasedKg;
+  const available = graded.availableKg;
   const inventory = (type: string | undefined) =>
     [...material.machineBuffers.values()].reduce(
       (n, b) =>
@@ -191,7 +267,13 @@ export function captureCurrentPackingPlant(state: WorkplaceState) {
   const close = (a: number, b: number) => Number.isFinite(a) && Math.abs(a - b) <= 0.01;
   const executionFresh =
     !!order &&
-    (!mission || mission.orderId === order.id) &&
+    // A season's follow-on order is the one it works once its commitment is in;
+    // a resequenced shift works the order it made active (review 2).
+    (!mission ||
+      mission.orderId === order.id ||
+      state.campaign?.followOn?.orderId === order.id ||
+      state.campaign?.sequenced?.orderId === order.id ||
+      (resequencing(state) && resequenceTarget(operations.orders)?.targetOrderId === order.id)) &&
     operations.lastMaterialSessionId === material.sessionId &&
     execution.orderId === order.id &&
     execution.recipeId === order.recipe.id &&
@@ -229,6 +311,324 @@ export function captureCurrentPackingPlant(state: WorkplaceState) {
     executionFresh,
   });
 }
+/**
+ * 5.3: whether a quality investigation is open on the line, as Quality reads
+ * it: an unresolved contamination alert, or a failed test whose batch still
+ * has stock on hold. Its way out is in the lab. An expired certificate is not
+ * an inspection. Working if Quality refuses while either holds dispatch.
+ */
+export function qualityInspectionOpen(): boolean {
+  const reason = getDispatchQualityStatus(
+    useQCLabStore.getState().qcLab,
+    useMaterialFlowStore.getState().productionBatches
+  ).reason;
+  return reason === 'unresolved_contamination' || reason === 'failed_quality_test';
+}
+
+/**
+ * 5.7: the bench as Monday reads it, for the order the season works now: a
+ * released batch of that order's product, awaiting its test, that the bench
+ * would read against that order's minimum (`benchOrderFor`); and, once a
+ * sample holds the line, what the bench made of it: its latest test, or that
+ * it left the bench untested. Read only on Monday's shift of a game season.
+ */
+function mondayBench(
+  state: WorkplaceState,
+  orderId: string
+): Pick<WorkplaceMissionObservation, 'pendingSampleBatchId' | 'sampleReading'> {
+  const c = state.campaign;
+  if (state.mode !== 'game' || c?.shift !== 1 || c.inspectionComplete) return {};
+  const orders = useOperationsCampaignStore.getState().orders;
+  const order = orders.find((o) => o.id === orderId);
+  const batches = useMaterialFlowStore.getState().productionBatches;
+  const benchOrders = shipmentOrdersFrom(orders);
+  const pending =
+    order && order.status !== 'fulfilled' && order.status !== 'cancelled'
+      ? batches.find(
+          (b) =>
+            b.awaitingTest &&
+            b.disposition === 'released' &&
+            b.availableKg > 0 &&
+            b.materialType === order.recipe.finishedMaterial &&
+            benchOrderFor(b, benchOrders)?.id === order.id
+        )
+      : undefined;
+  const sampleId = c.mondaySample?.batchId;
+  let sampleReading: WorkplaceSampleReading | null = null;
+  if (sampleId) {
+    const batch = batches.find((b) => b.id === sampleId);
+    const waiting =
+      !!batch?.awaitingTest && batch.disposition === 'released' && batch.availableKg > 0;
+    if (!waiting) {
+      const test = [...useQCLabStore.getState().qcLab.testHistory]
+        .reverse()
+        .find((t) => t.batchId === sampleId);
+      const quality = test?.qualityScore ?? batch?.qualityScore;
+      sampleReading = {
+        batchId: sampleId,
+        tested: !!test,
+        passed: !!test?.passed,
+        quality: typeof quality === 'number' && Number.isFinite(quality) ? quality : null,
+        minimum:
+          typeof test?.minimumQuality === 'number' && Number.isFinite(test.minimumQuality)
+            ? test.minimumQuality
+            : null,
+      };
+    }
+  }
+  return { pendingSampleBatchId: pending?.id ?? null, sampleReading };
+}
+
+/**
+ * 5.7: once Quality has begun Monday's inspection, its sample goes first on
+ * the lab's bench (the Overview's Test first), so the inspection is the lab's
+ * real test. Never in a replay or a benchmark; nothing when the batch no
+ * longer awaits its test (the engine then ends the hold).
+ */
+function putMondaySampleFirst(state: WorkplaceState) {
+  const c = state.campaign;
+  const id = c?.mondaySample?.batchId;
+  if (
+    !id ||
+    state.mode !== 'game' ||
+    c.shift !== 1 ||
+    c.decision !== 'inspect' ||
+    c.inspectionComplete ||
+    isWorkplaceReplayActive() ||
+    isBenchmarkRuntime()
+  )
+    return;
+  const lab = useQCLabStore.getState().qcLab;
+  if (lab.benchFirst === id || lab.bench?.batchId === id) return;
+  prioritiseBenchTest(id);
+}
+
+/**
+ * 5.4 and 5.6: the dock and the line as the plant's projection reads them now:
+ * the partner's own reading (partnerProposalRuntime `dockState`), every order
+ * taken as one the line can make.
+ */
+export function workplaceDockNow(): ResequenceDock {
+  const { orders: _orders, latestProgramme: _latest, ...dock } = dockState(undefined);
+  return dock;
+}
+
+/**
+ * 5.6: each plan's forecast from the plant as it stands (workplaceForecast):
+ * the adviser's steady rehearsal of the real material flow for what is
+ * packed, the dock for what can leave. Six flow simulations, so a caller runs
+ * it on a press and keeps the result, never on every render.
+ * Working if the forecast follows the plant and a shift's shipped kilograms
+ * fall within its bounds.
+ */
+export function forecastWorkplacePlansNow(state: WorkplaceState): PlanForecast[] {
+  const operations = useOperationsCampaignStore.getState();
+  const c = state.campaign;
+  return forecastPlans({
+    advice: derivePackingAdvice(captureCurrentPackingPlant(state), 'steady'),
+    dock: workplaceDockNow(),
+    orders: operations.orders,
+    activeOrderId: operations.activeOrderId,
+    // Review 2: what each plan ships for the season, from the orders it credits.
+    seasonOrderIds: [c?.mission?.orderId, c?.followOn?.orderId].filter((id): id is string => !!id),
+    minute: operations.elapsedMinutes,
+    // Review 2: what each plan leaves waiting on a shift someone is away.
+    waits: Object.fromEntries(
+      (['steady', 'resequence', 'cover'] as const).map((id) => [id, planCrewWaits(state, id)])
+    ),
+  });
+}
+
+/**
+ * 5.4: what a plan does to the plant this shift, one line each, read from the
+ * live stores on render: who is away at the shift's start and what waits for
+ * them, or what agreed cover keeps going; and, for resequence, which order the
+ * next truck serves and the minutes each open order then has in hand.
+ * Working if every plan that costs the plant something says so on its choice.
+ */
+export function planPlantEffect(
+  state: WorkplaceState,
+  planId: WorkplaceState['planId'] = state.planId
+): string[] {
+  if (state.mode !== 'game' || !state.campaign || state.improvement) return [];
+  const wm = bilateralWorkplaceMessages;
+  const lines: string[] = [];
+  const away = shiftAbsentee(state);
+  const minute = formatFixed(ABSENCE_MINUTES, 0);
+  // Review 2: release stays with a member qualified for it: the one covering
+  // now, or the one activation would choose.
+  const coverer =
+    state.phase === 'active'
+      ? state.members.find((m) => m.id === state.activeCoverMemberId)
+      : prospectiveCover({ ...state, planId });
+  if (away && !(state.phase === 'active' && state.minute >= ABSENCE_MINUTES))
+    lines.push(
+      translate(
+        wm,
+        planId === 'cover'
+          ? away === 'quality'
+            ? coverer && qualifiedToCover(coverer, away)
+              ? 'effectCoverQuality'
+              : 'effectCoverQualityHeld'
+            : 'effectCoverMaintenance'
+          : away === 'quality'
+            ? 'effectAwayQuality'
+            : 'effectAwayMaintenance',
+        { minute, role: coverer?.role ?? '' }
+      )
+    );
+  if (planId === 'resequence') {
+    const operations = useOperationsCampaignStore.getState();
+    const effect = resequenceEffect(
+      operations.orders,
+      workplaceDockNow(),
+      operations.elapsedMinutes
+    );
+    if (!effect) lines.push(translate(wm, 'effectNoResequence'));
+    else {
+      const first = operations.orders.find((o) => o.id === effect.targetOrderId)!;
+      const list = effect.inHand
+        .map((entry) =>
+          translate(wm, entry.minutes < 0 ? 'effectLate' : 'effectInHand', {
+            customer: customerDisplayName(entry.customer),
+            minutes: formatFixed(Math.abs(entry.minutes), 0),
+          })
+        )
+        .join('; ');
+      lines.push(
+        translate(wm, effect.rushFirst ? 'effectRushFirst' : 'effectRushLast', {
+          customer: customerDisplayName(first.customer),
+          list,
+        })
+      );
+    }
+  }
+  return lines;
+}
+
+/**
+ * 5.4: resequencing, agreed and activated, moves the rush by the campaign's
+ * own order activation (the guide's order picker's call), and for the shift
+ * only: when the shift stops being worked, the order it put first gives way
+ * to the dispatch queue's own first, if both are still open. Both read the
+ * queue, not memory, so a reload or a pause mid-shift resequences the same way
+ * on resume. Never in a replay or a benchmark, outside a game season, or
+ * inside a handoff trial.
+ */
+const resequencing = (state: WorkplaceState) =>
+  state.mode === 'game' &&
+  !!state.campaign &&
+  !state.improvement &&
+  state.planId === 'resequence' &&
+  !isWorkplaceReplayActive() &&
+  !isBenchmarkRuntime();
+function applyResequence(state: WorkplaceState) {
+  if (state.phase !== 'active' || !resequencing(state)) return;
+  const operations = useOperationsCampaignStore.getState();
+  const target = resequenceTarget(operations.orders);
+  if (target && operations.activeOrderId !== target.targetOrderId)
+    operations.activateOrder(target.targetOrderId, 'operator');
+}
+function endResequence(before: WorkplaceState['phase'], state: WorkplaceState) {
+  if (before !== 'active' || state.phase === 'active' || !resequencing(state)) return;
+  const operations = useOperationsCampaignStore.getState();
+  const target = resequenceTarget(operations.orders);
+  const first = queueFirst(operations.orders);
+  if (target && first && operations.activeOrderId === target.targetOrderId)
+    operations.activateOrder(first.id, 'operator');
+}
+
+/**
+ * 5.3 (D5): in solo play of a season the player is Packing. The other roles
+ * answer for themselves (simulateResponses), so their understanding, ballots
+ * and cover consent are not the player's to cast. Separate turns, workshop and
+ * standalone exercises keep every role's own input, as before.
+ */
+const AUTHORED_ROLE_COMMANDS = new Set([
+  'understand',
+  'vote',
+  'consentToCover',
+  // 5b: each role's own calls and ballots (authoredSeasonCommand casts them).
+  'campaignDecision',
+  'elect',
+  'voteSurplus',
+  // A role's voice is its own: it raises and resolves its own objections.
+  'object',
+  'resolveObjection',
+]);
+function castsForAuthoredRole(
+  participationMode: WorkplaceStore['participationMode'],
+  workplace: WorkplaceState,
+  command: WorkplaceCommand
+): boolean {
+  if (participationMode !== 'solo' || workplace.mode !== 'game') return false;
+  // A handoff trial's verdict is each role's own too; its other steps are not
+  // a season's, and stay as they were.
+  const authoredCommand = workplace.improvement
+    ? command.type === 'voteImprovementReview'
+    : !!workplace.campaign && AUTHORED_ROLE_COMMANDS.has(command.type);
+  if (!authoredCommand) return false;
+  // A decision and a resolution name their actor second (commandActor's rule).
+  const actor = (command.args as unknown[])[
+    command.type === 'resolveObjection' || command.type === 'campaignDecision' ? 1 : 0
+  ];
+  return typeof actor === 'string' && actor !== 'packing';
+}
+
+/**
+ * 5.3 (D5): in solo play, after any change, the authored roles do what is
+ * theirs to do now (authoredSeasonCommand), one step at a time, applied
+ * straight to the engine so the automatic season is not interrupted by it.
+ * Working if the player never makes another role's call and the season runs.
+ */
+function withAuthoredSteps(
+  participationMode: WorkplaceStore['participationMode'],
+  workplace: WorkplaceState
+): WorkplaceState {
+  if (participationMode !== 'solo') return workplace;
+  let state = workplace;
+  for (let step = 0; step < 8; step++) {
+    const command = authoredSeasonCommand(state);
+    if (!command) break;
+    const result = transitionWorkplace(state, command);
+    if (!result.changed) break;
+    state = result.state;
+  }
+  return state;
+}
+
+/**
+ * Review 2: an ended season whose pool is still unsettled. A charter that
+ * shares surplus must share it before the season is kept (`'vote'`); one that
+ * does not is settled in its own terms here (`settled`), so a kept season
+ * never loses its pool. Null when there is nothing to settle.
+ */
+function unsettledSurplus(
+  kept: Omit<WorkplaceState, 'improvement'>
+): { kind: 'vote' } | { kind: 'settled'; state: WorkplaceState } | null {
+  // A handoff's origin is a season without its handoff; the rules are the same.
+  const state = kept as WorkplaceState;
+  if (!state.campaign || !seasonEnded(state) || state.distributionComplete) return null;
+  if (!(seasonSobrasPool(state) > 1e-8)) return null;
+  if (state.practices.includes('gainsharing')) return { kind: 'vote' };
+  const charter = transitionWorkplace(state, { type: 'distributeSurplus', args: [] });
+  return charter.changed ? { kind: 'settled', state: charter.state } : { kind: 'vote' };
+}
+
+/**
+ * Review 2: a season left early never loses what it earned: it is settled by
+ * the statutory default (the Reserve Fund and the Assistance Fund first, the
+ * rest kept in the Reserve Fund) and the record says the season was left.
+ * Unchanged when nothing was earned or it is already settled.
+ */
+function settleLeft(kept: Omit<WorkplaceState, 'improvement'>): WorkplaceState {
+  const state = kept as WorkplaceState;
+  if (!state.campaign || state.distributionComplete || !(seasonSobrasPool(state) > 1e-8))
+    return state;
+  const settled = transitionWorkplace(state, { type: 'distributeSurplus', args: ['left'] });
+  return settled.changed ? settled.state : state;
+}
+
 const recoveryOutstanding = (state: WorkplaceState) =>
   state.members.some((member) => member.recoveryOwedMinutes > 0) ||
   state.campaign?.history.some((shift) =>
@@ -305,7 +705,21 @@ export interface WorkplaceStore extends WorkplaceActions {
   completedCampaigns: WorkplaceState[];
   /** Seasons left before their final review, kept with what they earned. */
   leftCampaigns: WorkplaceState[];
-  startMission: (profile: WorkplaceProfile, seed?: number) => WorkplaceTransitionResult;
+  /**
+   * Review 2: how many seasons have begun, so each new one is numbered after
+   * the last and the Reserve Fund passes on from the season begun last, once.
+   */
+  seasonsBegun: number;
+  /**
+   * `seed` defaults to the idle workplace's own, so every season has its own
+   * draw. `replaces`: the season a matched replay puts this one in place of;
+   * it keeps that season's number and Reserve Fund.
+   */
+  startMission: (
+    profile: WorkplaceProfile,
+    seed?: number,
+    replaces?: WorkplaceState
+  ) => WorkplaceTransitionResult;
   archiveCampaign: (expectedRevision: number) => WorkplaceTransitionResult;
 }
 
@@ -338,6 +752,8 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           else if (command.type !== 'tick' && command.type !== 'stop' && access.turn)
             return refuse('endTurnBeforeSetup');
         }
+        if (castsForAuthoredRole(access.participationMode, access.workplace, command))
+          return refuse('authoredRoleAnswers');
         if (
           [
             'beginImprovement',
@@ -349,10 +765,11 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           isWorkplaceReplayActive()
         )
           return refuse('finishReplayBeforeObligations');
-        const { state, changed, reason, reasonCopy } = transitionWorkplace(
-          get().workplace,
-          command
-        );
+        const result = transitionWorkplace(get().workplace, command);
+        const { changed, reason, reasonCopy } = result;
+        const state = changed
+          ? withAuthoredSteps(get().participationMode, result.state)
+          : result.state;
         if (changed) {
           const turn = get().turn;
           set({
@@ -415,6 +832,57 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
               )
             : undefined;
         return apply({ type: 'acknowledgeImprovement', args: advice ? [advice] : [] }, token);
+      };
+      /**
+       * Review 2: a new season is numbered after the last one begun, and opens
+       * with the Reserve Fund only the season begun just before it carries:
+       * the reserve leaves that account when a season takes it, and returns
+       * only when that season is archived or left. Seasons saved before they
+       * were numbered are read as before (the latest by seed), once. A season
+       * a matched replay puts in place of another keeps that one's number and
+       * reserve, so a replay never brings it twice.
+       * Working if A, then B from the Overview card, then C never brings A's reserve twice.
+       */
+      const beginSeason = (
+        profile: WorkplaceProfile,
+        seed: number,
+        mission: WorkplaceMission | undefined,
+        replaces?: WorkplaceState
+      ) => {
+        const begun = get().seasonsBegun;
+        let season: number;
+        let reserve: number;
+        if (replaces?.campaign) {
+          season = replaces.campaign.season ?? begun;
+          reserve = replaces.campaign.reserveBrought ?? 0;
+        } else {
+          const retained = [...get().completedCampaigns, ...get().leftCampaigns];
+          const numbered = retained
+            .filter((s) => s.campaign?.season !== undefined)
+            .sort((a, b) => b.campaign!.season! - a.campaign!.season!);
+          const last =
+            numbered[0] ??
+            [get().completedCampaigns.at(-1), get().leftCampaigns.at(-1)]
+              .filter((s): s is WorkplaceState => !!s)
+              .sort((a, b) => b.seed - a.seed)[0];
+          season = begun + 1;
+          reserve =
+            last && (last.campaign?.season ?? 0) === begun
+              ? Math.min(1e6, seasonReserveCarried(last))
+              : 0;
+        }
+        const result = apply({
+          type: 'startCampaign',
+          args: [
+            profile,
+            seed,
+            mission,
+            reserve > 1e-8 ? reserve : 0,
+            season >= 1 ? season : undefined,
+          ],
+        });
+        if (result.changed && !replaces?.campaign) set({ seasonsBegun: Math.max(begun, season) });
+        return result;
       };
       return {
         participationMode: 'solo',
@@ -509,8 +977,16 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             reasonCopy: { catalog: 'store', key: 'reloadRehearsed' },
           };
         },
-        beginImprovement: (profile, revision, _mission, mode = get().workplace.mode) =>
-          apply({ type: 'beginImprovement', args: [profile, revision, linkedMission(mode), mode] }),
+        beginImprovement: (profile, revision, _mission, mode = get().workplace.mode) => {
+          // Review 2: a handoff begun from a season's final review keeps that
+          // season when it closes, so the season's surplus is shared first.
+          if (unsettledSurplus(get().workplace)?.kind === 'vote')
+            return refuse('settleSurplusBeforeArchive');
+          return apply({
+            type: 'beginImprovement',
+            args: [profile, revision, linkedMission(mode), mode],
+          });
+        },
         cancelImprovement: (...args) => apply({ type: 'cancelImprovement', args }),
         proposeImprovement: (...args) => apply({ type: 'proposeImprovement', args }),
         challengeImprovement: (...args) => apply({ type: 'challengeImprovement', args }),
@@ -531,8 +1007,14 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           // A season the experiment opened from is kept as archiving or leaving
           // keeps it: completed after its final review, otherwise left early.
           // Working if closing never silently drops the season it began from.
-          const completed = result.changed && origin ? completedReview(origin) : null;
-          const left = result.changed && origin?.campaign && !completed ? leftReview(origin) : null;
+          // Review 2: a season kept from here never loses its pool either.
+          const surplus = origin ? unsettledSurplus(origin) : null;
+          const kept = surplus?.kind === 'settled' ? surplus.state : origin;
+          const completed = result.changed && kept ? completedReview(kept) : null;
+          const left =
+            result.changed && origin?.campaign && !completed
+              ? leftReview(settleLeft(origin))
+              : null;
           if (completed)
             set({
               completedCampaigns: [...get().completedCampaigns, completed].slice(
@@ -562,10 +1044,16 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             current.campaign.history.length !== 2
           )
             return refuse('completeThreeShifts');
-          // An archived season can never resume, so a final shift a reload
-          // paused would be kept as "agreement pending" for good. Working if
-          // it archives only once resumed and finished or ended.
-          if (shiftResumable(current)) return refuse('resumePausedBeforeArchive');
+          // An archived season can never resume, so a final shift a reload,
+          // a safety stop or a resolved objection paused would be kept as
+          // "agreement pending" for good. Working if it archives only once
+          // resumed and finished or ended.
+          if (shiftResumable(current))
+            return refuse(
+              campaignShiftPause(current) === 'reload'
+                ? 'resumePausedBeforeArchive'
+                : 'resumeStoppedBeforeArchive'
+            );
           if (
             recoveryOutstanding(current) ||
             current.objections.some((objection) => objection.status === 'open') ||
@@ -575,10 +1063,19 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             current.coverRemainingMinutes > 0
           )
             return refuse('settleBeforeArchive');
-          const review = completedReview(saveWorkplace(current));
+          // Review 2: archiving never loses the season's pool. A charter that
+          // shares surplus waits for its members to share it; one that does
+          // not settles it in its own terms (the Reserve Fund) as it archives.
+          const surplus = unsettledSurplus(current);
+          if (surplus?.kind === 'vote') return refuse('settleSurplusBeforeArchive');
+          const settled = surplus?.kind === 'settled' ? surplus.state : current;
+          const review = completedReview(saveWorkplace(settled));
           if (!review) return refuse('reviewNotValidated');
           const fresh = createWorkplace('game', current.seed === 0xffffffff ? 1 : current.seed + 1);
-          fresh.revision = current.revision + 1;
+          fresh.revision = settled.revision + 1;
+          // 5.9: an adopted handoff arrangement outlives the season it ran in.
+          if (current.arrangementsInPlace?.length)
+            fresh.arrangementsInPlace = [...current.arrangementsInPlace];
           set({
             workplace: fresh,
             turn: null,
@@ -589,6 +1086,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           return { changed: true, reason: null };
         },
         leftCampaigns: [],
+        seasonsBegun: 0,
         leaveCampaign: (expectedRevision) => {
           interruptAutomaticWorkplace();
           if (get().participationMode === 'separate-turns' && get().turn)
@@ -612,7 +1110,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             current.phase === 'deliberating'
               ? transitionWorkplace(current, { type: 'stop', args: [] }).state
               : current;
-          const record = leftReview(saveWorkplace(stopped));
+          const record = leftReview(saveWorkplace(settleLeft(stopped)));
           if (!record) return refuse('reviewNotValidated');
           set({
             workplace: result.state,
@@ -625,12 +1123,26 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           if (isWorkplaceReplayActive()) return refuse('finishReplayFirst');
           return apply({ type: 'endExercise', args: [expectedRevision] });
         },
-        startMission: (profile, seed = 1) => {
+        // D4: a new season, linked or the lab's own, starts only after the
+        // first delivery. Only a new one asks: a season already under way
+        // (restored or not) never passes through here.
+        // Working if no caller starts a season while order-001 is open.
+        // 5.9: a new season opens with the Reserve Fund the last archived
+        // season carried, which pays its first purchases.
+        startMission: (profile, seed = get().workplace.seed, replaces) => {
+          if (awaitsFirstDelivery(get().workplace)) return refuse('firstDeliveryFirst');
           const mission = openActiveOrderMission();
           if (!mission) return refuse('openCommitmentRequired');
-          return apply({ type: 'startCampaign', args: [profile, seed, mission] });
+          return beginSeason(profile, seed, mission, replaces);
         },
-        startCampaign: (...args) => apply({ type: 'startCampaign', args }),
+        // The Lab's season (no linked order) is a season too: numbered, and
+        // it carries the Reserve Fund on (review 2).
+        startCampaign: (profile, seed, mission, reserveBrought) => {
+          if (awaitsFirstDelivery(get().workplace)) return refuse('firstDeliveryFirst');
+          if (reserveBrought !== undefined)
+            return apply({ type: 'startCampaign', args: [profile, seed, mission, reserveBrought] });
+          return beginSeason(profile, seed ?? get().workplace.seed, mission);
+        },
         // Once the order being worked is fulfilled, or a follow-on can no
         // longer earn, the next shift works the mill's active order, so later
         // dispatch still earns the cooperative (see pendingFollowOn).
@@ -649,7 +1161,12 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         consentToCover: (...args) => apply({ type: 'consentToCover', args }),
         sharePreference: (...args) => apply({ type: 'sharePreference', args }),
         chooseTask: (...args) => apply({ type: 'chooseTask', args }),
-        simulateResponses: (...args) => apply({ type: 'simulateResponses', args }),
+        // The authored roles read the plant: Quality, whether an inspection is open.
+        simulateResponses: (plant) =>
+          apply({
+            type: 'simulateResponses',
+            args: [plant ?? { inspectionOpen: qualityInspectionOpen() }],
+          }),
         object: (...args) => apply({ type: 'object', args }),
         resolveObjection: (...args) => apply({ type: 'resolveObjection', args }),
         activate: (...args) => {
@@ -660,6 +1177,10 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
             (safety.emergencyActive || safety.emergencyDrillMode)
           )
             return refuse('safetyStopHolds');
+          // CLEAR releases the interlock but leaves the units idle (D13): the
+          // agreement runs again with the line, after RESTART LINE.
+          if (get().workplace.mode === 'game' && selectRestartPending(safety))
+            return refuse('restartLineFirst');
           if (get().participationMode === 'separate-turns' && get().turn)
             return refuse('endTurnBeforeActivation');
           const mission = workplaceMission(get().workplace);
@@ -677,8 +1198,29 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
           const activationInput = refreshed
             ? { ...current, improvement: { ...current.improvement!, mission: refreshed } }
             : current;
-          const result = transitionWorkplace(activationInput, { type: 'activate', args });
-          if (result.changed) set({ workplace: result.state, turn: null });
+          // Review 2: the order resequencing makes active is linked from its
+          // shipped weight now, so its deliveries count for the season.
+          const sequencedOrder = resequencing(current)
+            ? useOperationsCampaignStore
+                .getState()
+                .orders.find(
+                  (o) =>
+                    o.id ===
+                    resequenceTarget(useOperationsCampaignStore.getState().orders)?.targetOrderId
+                )
+            : undefined;
+          const result = transitionWorkplace(activationInput, {
+            type: 'activate',
+            args: sequencedOrder ? [args[0], missionFor(sequencedOrder)] : [args[0]],
+          });
+          // A shift resumed past Monday's minute holds at once: Quality acts.
+          if (result.changed) {
+            set({
+              workplace: withAuthoredSteps(get().participationMode, result.state),
+              turn: null,
+            });
+            applyResequence(get().workplace);
+          }
           return {
             changed: result.changed,
             reason: result.reason,
@@ -688,8 +1230,10 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         withdraw: (...args) => apply({ type: 'withdraw', args }),
         stop: (...args) => apply({ type: 'stop', args }),
         tick: (...args) => {
+          const phaseBefore = get().workplace.phase;
           const mission = workplaceMission(get().workplace);
           const followOn = get().workplace.campaign?.followOn;
+          const sequenced = get().workplace.campaign?.sequenced;
           const observe = (orderId: string) => {
             const order = useOperationsCampaignStore
               .getState()
@@ -703,18 +1247,34 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
               cancelled: order?.status === 'cancelled',
             };
           };
-          if (mission)
+          if (mission) {
+            // 5.7: Monday reads the bench for the order the season works now
+            // (a follow-on once the commitment is in), never in a replay.
+            // Review 2: on a resequenced shift, the order the agreed plan made active.
+            const working =
+              sequenced && get().workplace.phase === 'active'
+                ? sequenced.orderId
+                : followOn &&
+                    useOperationsCampaignStore
+                      .getState()
+                      .orders.find((o) => o.id === mission.orderId)?.status === 'fulfilled'
+                  ? followOn.orderId
+                  : mission.orderId;
+            const bench = isWorkplaceReplayActive() ? {} : mondayBench(get().workplace, working);
             apply({
               type: 'tick',
               args: [
                 args[0],
                 args[1],
                 args[2],
-                observe(mission.orderId),
+                { ...observe(mission.orderId), ...bench },
                 followOn ? observe(followOn.orderId) : undefined,
+                sequenced ? observe(sequenced.orderId) : undefined,
               ],
             });
-          else apply({ type: 'tick', args });
+            putMondaySampleFirst(get().workplace);
+          } else apply({ type: 'tick', args });
+          endResequence(phaseBefore, get().workplace);
         },
         elect: (...args) => apply({ type: 'elect', args }),
         voteSurplus: (...args) => apply({ type: 'voteSurplus', args }),
@@ -730,6 +1290,7 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
         workplace: saveWorkplace(state.workplace),
         completedCampaigns: state.completedCampaigns.map(saveWorkplace),
         leftCampaigns: state.leftCampaigns.map(saveWorkplace),
+        seasonsBegun: state.seasonsBegun,
       }),
       migrate: (persisted, version) => {
         if (version !== 1 || !persisted || typeof persisted !== 'object') return {};
@@ -743,6 +1304,30 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
       },
       merge: (persisted, current) => {
         const saved = persisted && typeof persisted === 'object' ? persisted : {};
+        const workplace = restoreWorkplace('workplace' in saved ? saved.workplace : null);
+        const completedCampaigns = retainedReviews(
+          'completedCampaigns' in saved ? saved.completedCampaigns : null
+        );
+        const leftCampaigns = retainedLeftSeasons(
+          'leftCampaigns' in saved ? saved.leftCampaigns : null
+        );
+        // Review 2: optional (older saves have none). Never below a season the
+        // save holds; a live season begun before seasons were numbered is
+        // numbered now, so the reserve it holds passes on once it is retained.
+        const numbers = [workplace, ...completedCampaigns, ...leftCampaigns].map(
+          (s) => s.campaign?.season ?? 0
+        );
+        const recorded =
+          'seasonsBegun' in saved &&
+          Number.isSafeInteger(saved.seasonsBegun) &&
+          (saved.seasonsBegun as number) >= 0
+            ? (saved.seasonsBegun as number)
+            : 0;
+        let seasonsBegun = Math.max(recorded, ...numbers);
+        if (workplace.campaign && workplace.campaign.season === undefined) {
+          seasonsBegun += 1;
+          workplace.campaign.season = seasonsBegun;
+        }
         return {
           ...current,
           participationMode:
@@ -750,15 +1335,23 @@ export const useWorkplaceStore = create<WorkplaceStore>()(
               ? 'solo'
               : 'separate-turns',
           turn: null,
-          workplace: restoreWorkplace('workplace' in saved ? saved.workplace : null),
-          completedCampaigns: retainedReviews(
-            'completedCampaigns' in saved ? saved.completedCampaigns : null
-          ),
-          leftCampaigns: retainedLeftSeasons('leftCampaigns' in saved ? saved.leftCampaigns : null),
+          workplace,
+          completedCampaigns,
+          leftCampaigns,
+          seasonsBegun,
         };
       },
     }
   )
+);
+
+// 5.4: the plant asks whether a role is at work (workplaceCrew): no while the
+// season has it away at a shift's start with no cover doing its work. Never in
+// a replay or a benchmark, so neither changes a test or a service there.
+provideCrewAvailability((role) =>
+  isWorkplaceReplayActive() || isBenchmarkRuntime()
+    ? 0
+    : crewAwayMinutes(useWorkplaceStore.getState().workplace, role)
 );
 
 // External replay replacement (including rollback) cannot retain a participant grant.

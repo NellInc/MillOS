@@ -5,18 +5,23 @@ import { RecoverableFeatureBoundary } from '../ErrorBoundary';
 import { Dock, DockMode, DOCK_LABELS } from './dock/Dock';
 import { ContextSidebar } from './sidebar/ContextSidebar';
 import { StatusHUD } from './hud/StatusHUD';
+import { HudResult } from './hud/HudResult';
 import { EmergencyOverlay } from '../EmergencyOverlay';
 import { AlertSystem } from '../AlertSystem';
 import { MachineData, MachineType } from '../../types';
-import { PAAnnouncementSystem, MiniMap, IncidentReplayControls } from '../GameFeatures';
+import {
+  PAAnnouncementSystem,
+  MiniMap,
+  IncidentReplayControls,
+  AchievementsPanel,
+} from '../GameFeatures';
 import { isKeyboardlessTouch } from '../../utils/keyboardlessTouch';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { AchievementTracker } from '../../hooks/useAchievementTracker';
-import { Datalinks, AINarration, UnlockNotificationContainer } from '../knowledge';
+import { WORKSPACE_KEY_EVENT, type WorkspaceKeyVerb } from '../../hooks/useKeyboardShortcuts';
+import { Datalinks, UnlockNotificationContainer } from '../knowledge';
 import { FEATURE_FLAGS } from '../../config/featureFlags';
-import { useAINarrationStore } from '../../stores/aiNarrationStore';
-import type { NarrationEntry } from '../../stores/aiNarrationStore';
-import { useKnowledgeStore } from '../../stores/knowledgeStore';
+import { useAINarrationStore, type NarrationEntry } from '../../stores/aiNarrationStore';
 import { useKnowledgeIntegration } from '../../hooks/useKnowledgeIntegration';
 import { isStandingCriticalAlert, useUIStore } from '../../stores/uiStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -327,43 +332,21 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       focusDockItem('overview');
   };
 
-  // AI Narration - get current narration to display
-  const { getNarration, markShown } = useAINarrationStore();
-  // Settings' AI reflections switch: a card already queued behind the tour, a
-  // sidebar or a safety state must not appear once reflections are off.
-  const narrationEnabled = useAINarrationStore((s) => s.enabled);
-  const { unlockEntry } = useKnowledgeStore();
-  const [currentNarration, setCurrentNarration] = useState<ReturnType<typeof getNarration>>(null);
+  // D14: the AI narration cards (a welcome, a library pointer, an hour-in
+  // prompt) told the player what screens are for, and are cut. A trigger
+  // still unlocks its library entry in useKnowledgeIntegration; no card shows,
+  // and the narration is marked delivered so it does not fire again.
+  const markNarrationShown = useAINarrationStore((s) => s.markShown);
+  const deliverNarration = React.useCallback(
+    (narration: NarrationEntry) => markNarrationShown(narration.id),
+    [markNarrationShown]
+  );
+  const knowledgeIntegration = useKnowledgeIntegration(deliverNarration);
 
-  // Knowledge system integration - handles unlock conditions and narrations
-  const handleKnowledgeNarration = React.useCallback((narration: NarrationEntry) => {
-    // A reflection still queued (behind the tour or a sidebar) keeps its place;
-    // a later trigger is not marked shown, so it returns another session.
-    setCurrentNarration((queued) => queued ?? narration);
-  }, []);
-  const knowledgeIntegration = useKnowledgeIntegration(handleKnowledgeNarration);
-
-  // Handle Datalinks opened event - trigger narration and unlock
+  // Handle Datalinks opened event - unlock the library's narration entry
   const handleDatalinksOpen = () => {
     setDatalinksOpen(true);
     knowledgeIntegration.triggerNarration('library-opened');
-  };
-
-  // Handle narration dismissal
-  const handleNarrationDismiss = () => {
-    if (currentNarration) {
-      markShown(currentNarration.id);
-      if (currentNarration.unlocksEntry) {
-        unlockEntry(currentNarration.unlocksEntry);
-      }
-    }
-    // The card unmounts with focus inside it, which would leave focus on <body>
-    // (where Space stops every forklift). It has no opener, so the dock takes it.
-    const focusInCard = !!(document.activeElement as HTMLElement | null)?.closest?.(
-      '[data-reflection-card]'
-    );
-    setCurrentNarration(null);
-    if (focusInCard) focusDockItem('overview');
   };
 
   // Sync external selection with Dock/Sidebar state
@@ -471,19 +454,31 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   useEffect(() => {
     const openWorkspace = (event: Event) => {
       const requestedMode = (event as CustomEvent<unknown>).detail;
-      if (requestedMode !== 'overview' && requestedMode !== 'scada' && requestedMode !== 'autonomy')
+      // 'chronicle' is the shift card's Restore controls for an incident the
+      // Chronicle raised. Working if it opens the Chronicle, never SCADA.
+      // 'safety' opens Safety for any panel that routes there. 'ai' is the
+      // bell's route to an asked card (proposalCardFocus.ts).
+      if (
+        requestedMode !== 'overview' &&
+        requestedMode !== 'scada' &&
+        requestedMode !== 'autonomy' &&
+        requestedMode !== 'chronicle' &&
+        requestedMode !== 'safety' &&
+        requestedMode !== 'ai'
+      )
         return;
       const mode = requestedMode === 'autonomy' ? 'management' : requestedMode;
       if (isCompactLayout) useMobileControlStore.getState().openMobilePanel(mode);
       else {
         // The control that sent this (Take over, the companion's Open) often
         // unmounts as the panel opens; the panel heading takes focus instead.
-        // A repair route keeps its own target, the maintenance section.
-        if (!useUIStore.getState().maintenanceFocusRequested)
+        // A repair route keeps its own target, the maintenance section, and
+        // the AI route its card.
+        if (mode !== 'ai' && !useUIStore.getState().maintenanceFocusRequested)
           useUIStore.getState().requestPanelFocus();
         setActiveMode(mode);
         setSidebarVisible(true);
-        onAIPanelChange?.(false);
+        onAIPanelChange?.(mode === 'ai');
         onSCADAPanelChange?.(mode === 'scada');
         if (mode !== 'scada') onCloseSelection();
       }
@@ -491,6 +486,53 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
     window.addEventListener('millos:open-operations-workspace', openWorkspace);
     return () => window.removeEventListener('millos:open-operations-workspace', openWorkspace);
   }, [isCompactLayout, onAIPanelChange, onCloseSelection, onSCADAPanelChange]);
+
+  // N, B, L and M (useKeyboardShortcuts): N opens Overview, whose first card
+  // is the shift commitment; L Safety; M the Chronicle; B presses the bell.
+  // Each opens as the operations route above does and closes on a second
+  // press, as I and O do. Read through a ref, so the listener is added once.
+  // Working if each key opens its surface and pressing it again closes it.
+  const workspaceKeyRef = React.useRef<(verb: WorkspaceKeyVerb) => void>(() => undefined);
+  workspaceKeyRef.current = (verb) => {
+    if (verb === 'bell') {
+      // StatusHUD keeps the list's open state; its own bell button is the route.
+      document.querySelector<HTMLButtonElement>('button[data-notification-bell]')?.click();
+      return;
+    }
+    const mode: DockMode = verb === 'commitment' ? 'overview' : verb;
+    if (isCompactLayout) {
+      const mobile = useMobileControlStore.getState();
+      if (mobile.mobilePanelVisible && mobile.mobilePanelContent === mode)
+        mobile.closeMobilePanel();
+      else mobile.openMobilePanel(mode);
+      return;
+    }
+    if (sidebarVisible && activeMode === mode && !selectedMachine) {
+      handleSidebarClose();
+      return;
+    }
+    if (!useUIStore.getState().maintenanceFocusRequested) useUIStore.getState().requestPanelFocus();
+    sidebarTriggerRef.current = null;
+    setActiveMode(mode);
+    setSidebarVisible(true);
+    onAIPanelChange?.(false);
+    onSCADAPanelChange?.(false);
+    onCloseSelection();
+  };
+  useEffect(() => {
+    const onWorkspaceKey = (event: Event) => {
+      const verb = (event as CustomEvent<unknown>).detail;
+      if (verb === 'commitment' || verb === 'bell' || verb === 'safety' || verb === 'chronicle')
+        workspaceKeyRef.current(verb);
+    };
+    window.addEventListener(WORKSPACE_KEY_EVENT, onWorkspaceKey);
+    return () => window.removeEventListener(WORKSPACE_KEY_EVENT, onWorkspaceKey);
+  }, []);
+
+  // On a phone the achievements list opens from the More menu (Dock); on a
+  // desktop it lives in Overview's quick actions.
+  const showAchievements = useUIStore((s) => s.showAchievements);
+  const setShowAchievements = useUIStore((s) => s.setShowAchievements);
 
   const handleSidebarClose = () => {
     const closingMode = activeMode;
@@ -523,6 +565,12 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         icon: introStepDef.icon,
       }
     : null;
+
+  // A wear notice selects its unit so the Inspector opens on Maintain. SCADA
+  // shows no Inspector for a selection, so there the notice takes the repair
+  // route (StatusHUD falls back to it without a focus route).
+  // Working if a wear notice opens the unit's Maintain, or the work orders in SCADA.
+  const hudFocusMachine = activeMode === 'scada' ? undefined : onFocusMachine;
 
   // Determine if Sidebar should be visible
   const isSidebarVisible = sidebarVisible;
@@ -560,8 +608,16 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
       {!isCompactLayout && (
         <StatusHUD
           workspace={activeMode === 'production' ? t('productionFloor') : DOCK_LABELS[activeMode]}
+          onFocusMachine={hudFocusMachine}
         />
       )}
+
+      {/* 1b. Compact layout: the same bell and held-clock chip, without the
+          metrics row. Inert under an open sheet, so it goes with it. */}
+      {isCompactLayout && !mobilePanelVisible && (
+        <StatusHUD compact onFocusMachine={hudFocusMachine} />
+      )}
+      <HudResult compact={isCompactLayout} />
 
       {/* 2. Emergency Flasher - Always visible */}
       <EmergencyOverlay />
@@ -654,30 +710,7 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
         />
       )}
 
-      {/* 9. Quiet AI reflection card. It queues behind focused or safety-critical work. */}
-      {FEATURE_FLAGS.AI_NARRATION_ENABLED &&
-        narrationEnabled &&
-        currentNarration &&
-        !hasWorkingAgreement &&
-        !showShortcuts &&
-        introStep === null &&
-        !journeyVisible &&
-        activeMode === 'overview' &&
-        !isSidebarVisible &&
-        !mobilePanelVisible &&
-        !fpsMode &&
-        !hasCriticalAlert &&
-        !safetyStateActive && (
-          <aside
-            data-reflection-card
-            aria-label={t('aiReflection')}
-            className="pointer-events-auto fixed bottom-[11.5rem] right-4 z-40 max-h-[calc(100dvh-13rem)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-xl"
-          >
-            <AINarration narration={currentNarration} onDismiss={handleNarrationDismiss} />
-          </aside>
-        )}
-
-      {/* The tour owns the quiet onboarding slot. Narration remains queued until it closes. */}
+      {/* The tour owns the quiet onboarding slot. */}
       {introStep !== null && introStepCopy && (
         <OnboardingGuide
           step={introStepCopy}
@@ -728,8 +761,17 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
           />
         )}
 
-      {/* Mill Chronicle decisions: events, upkeep shortfall, duct fire. */}
-      <ChronicleEventHost hidden={introStep !== null || fpsMode || showShortcuts} />
+      {/* Mill Chronicle decisions: events, upkeep shortfall, duct fire. Walk
+          mode hides them on a desktop (pointer lock); a phone walks in first
+          person by default and holds no lock, and there its Decide closed the
+          sheet and opened nothing. */}
+      <ChronicleEventHost
+        hidden={introStep !== null || (fpsMode && !isCompactLayout) || showShortcuts}
+      />
+
+      {isCompactLayout && showAchievements && (
+        <AchievementsPanel onClose={() => setShowAchievements(false)} />
+      )}
 
       {/* 10. Keyboard Shortcuts Help (? key) */}
       <KeyboardShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />

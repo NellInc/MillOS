@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GameInterface } from '../GameInterface';
 import { useUIStore } from '../../../stores/uiStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
@@ -14,8 +14,9 @@ import { createInitialState } from '../../../chronicle/engine';
 import { EVENT_DECK } from '../../../chronicle/eventDeck';
 
 const runtime = vi.hoisted(() => ({ setPreset: vi.fn(), cancelAnimation: vi.fn() }));
+const layout = vi.hoisted(() => ({ compact: false }));
 vi.mock('../../../hooks/useMobileDetection', () => ({
-  useMobileDetection: () => ({ isCompactLayout: false, isMobile: false }),
+  useMobileDetection: () => ({ isCompactLayout: layout.compact, isMobile: layout.compact }),
 }));
 vi.mock('../../CameraController', () => ({ useCameraStore: { getState: () => runtime } }));
 vi.mock('../dock/Dock', async (importOriginal) => ({
@@ -112,5 +113,56 @@ describe('a deferred Chronicle decision while the HUD steps aside', () => {
     act(() => useUIStore.setState(enter));
     act(() => useUIStore.setState(leave));
     expect(screen.queryByRole('dialog', { name: event.title })).toBeNull();
+  });
+});
+
+// Seen on a landscape phone, which walks in first person by default: the
+// Chronicle's Decide closed the sheet and no decision opened, because walk mode
+// hid the decision host. Touch first person holds no pointer lock, so on a
+// phone the decision shows in walk mode; on a desktop it still waits.
+describe('a Chronicle decision on a phone walking in first person', () => {
+  const event = EVENT_DECK.find((candidate) => !candidate.requires?.cropKinds)!;
+  beforeAll(() => {
+    layout.compact = true;
+  });
+  afterAll(() => {
+    layout.compact = false;
+  });
+  beforeEach(() => {
+    document.documentElement.dataset.sceneReady = 'true';
+    useUIStore.setState({ hasSeenIntro: true, alerts: [], fpsMode: true, showShortcuts: false });
+    useMobileControlStore.getState().closeMobilePanel();
+    useChronicleStore.setState({ chronicle: createInitialState(), quiz: null });
+    act(() => useChronicleStore.getState().sign(DEFAULT_CHARTER, 4));
+    act(() =>
+      useChronicleStore.setState((s) => ({
+        chronicle: {
+          ...s.chronicle,
+          pendingEvents: [
+            { instanceId: 'event-y', eventId: event.id, appearedShift: 0, lapsesShift: 3 },
+          ],
+        },
+      }))
+    );
+  });
+  afterEach(() => {
+    cleanup();
+    delete document.documentElement.dataset.sceneReady;
+    useUIStore.setState({ fpsMode: false });
+    useChronicleStore.setState({ chronicle: createInitialState(), quiz: null });
+  });
+
+  it('shows the decision in walk mode', () => {
+    render(
+      <GameInterface
+        productionSpeed={1}
+        setProductionSpeed={vi.fn()}
+        showZones={false}
+        setShowZones={vi.fn()}
+        selectedMachine={null}
+        onCloseSelection={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('dialog', { name: event.title })).toBeInTheDocument();
   });
 });

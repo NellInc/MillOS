@@ -16,9 +16,12 @@ const PT_SHIFT_OF: Record<string, string> = {
   night: 'da noite',
 };
 
+// The 'semolina' stream is milled from corn: maize meal, fubá (D17; sources in
+// src/stores/customerNames.messages.ts). The id stays 'semolina'.
+const EN_MATERIALS: Record<string, string> = { semolina: 'cornmeal' };
 const PT_MATERIALS: Record<string, string> = {
   flour: 'farinha liberada',
-  semolina: 'semolina liberada',
+  semolina: 'fubá liberado',
 };
 
 type ShiftCaptionParams = { variant: string; shift: string; grade?: string };
@@ -59,8 +62,6 @@ export const unifiedGameTickMessages = defineMessages({
               ? 'No orders were due yet.'
               : 'We had no orders to fill.'
       }`,
-    dailyTargetReached: 'Daily target reached: {target} bags!',
-    dailyTargetMilestone: 'Daily target {threshold}% complete',
     certificationExpired: 'Quality certification is expired.',
     unresolvedContamination: 'A contamination alert remains unresolved.',
     failedQualityTest: 'The latest laboratory result failed.',
@@ -68,7 +69,7 @@ export const unifiedGameTickMessages = defineMessages({
     qualityInterlockNotReleased: 'The quality interlock is not released.',
     departedWithoutLoad: 'Truck departed without a released load.',
     waitingForMaterial: (p: { material: string }) =>
-      `Waiting for released ${p.material} at the packers.`,
+      `Waiting for released ${EN_MATERIALS[p.material] ?? p.material} at the packers.`,
     dispatchQualityHoldTitle: 'Dispatch Quality Hold',
     shippingAwaitingProductTitle: 'Shipping Awaiting Product',
     shippingAwaitingProgrammeTitle: 'Shipping Waiting for a Programme',
@@ -84,6 +85,11 @@ export const unifiedGameTickMessages = defineMessages({
     wearWarningTitle: 'Wear warning',
     wearWarningMessage:
       '{name} has reached its wear warning and is losing efficiency. Schedule maintenance before it breaks down: Mill Overview, Maintenance and repairs.',
+    orderForfeitedTitle: 'Order forfeited',
+    orderForfeitedMessage: (p: { customer: string }) =>
+      `The order for ${p.customer} ran out of time and is forfeited. Its penalty is booked and the next programme can be taken.`,
+    orderForfeitedUnreachableMessage: (p: { customer: string; minimum: number; best: number }) =>
+      `The order for ${p.customer} is forfeited: the best the line can make is ${formatFixed(p.best, 1, 'en')}, under its ${formatFixed(p.minimum, 0, 'en')}. Its penalty is booked and the next programme can be taken.`,
   },
   'pt-BR': {
     supplierTraceabilityNote:
@@ -112,8 +118,6 @@ export const unifiedGameTickMessages = defineMessages({
               ? 'Nenhum pedido venceu ainda.'
               : 'Não tínhamos pedidos para atender.'
       }`,
-    dailyTargetReached: 'Meta diária atingida: {target} sacos!',
-    dailyTargetMilestone: 'Meta diária: {threshold}% concluída',
     certificationExpired: 'A certificação de qualidade está vencida.',
     unresolvedContamination: 'Um alerta de contaminação continua sem resolução.',
     failedQualityTest: 'O resultado de laboratório mais recente foi reprovado.',
@@ -137,5 +141,10 @@ export const unifiedGameTickMessages = defineMessages({
     wearWarningTitle: 'Alerta de desgaste',
     wearWarningMessage:
       '{name} atingiu o alerta de desgaste e está perdendo eficiência. Agende a manutenção antes que entre em pane: Visão geral do moinho, Manutenção e reparos.',
+    orderForfeitedTitle: 'Pedido perdido',
+    orderForfeitedMessage: (p: { customer: string }) =>
+      `O pedido de ${p.customer} ficou sem prazo e foi perdido. A multa foi lançada e o próximo programa pode ser aceito.`,
+    orderForfeitedUnreachableMessage: (p: { customer: string; minimum: number; best: number }) =>
+      `O pedido de ${p.customer} foi perdido: o melhor que a linha produz é ${formatFixed(p.best, 1, 'pt-BR')}, abaixo do mínimo de ${formatFixed(p.minimum, 0, 'pt-BR')}. A multa foi lançada e o próximo programa pode ser aceito.`,
   },
 });

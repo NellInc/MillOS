@@ -189,6 +189,9 @@ describe('every notice the engine writes has a pt-BR template', () => {
       play(seed, 'delegate', brief);
   }
   play(7, 'answer', 'conventional', { plant: 'tired', fortune: 'hard', customers: 'demanding' });
+  // A short chronicle's trials carry their own briefings and figures (item 4.2).
+  for (const seed of [3, 29]) play(seed, 'answer', 'conventional', { length: 'short' });
+  play(5, 'answer', 'conventional', { length: 'short' }, 0);
   // Trials missed for want of dispatch: the failures, and training offered and taken.
   play(5, 'answer', 'conventional', {}, 0);
   edges();
@@ -212,6 +215,14 @@ describe('every notice the engine writes has a pt-BR template', () => {
     expect(
       [...notices.values()].some((n) => /^Upkeep paid in full: \d+ from the fund\.$/.test(n.body))
     ).toBe(true);
+    // A ruling's result carrying its changes, on the player's, the lapse's and the partner's path.
+    for (const title of [/: (?!lapsed$)[^(]+$/, /: lapsed$/, / \(ruled by the AI partner\)$/])
+      expect(
+        [...notices.values()].some(
+          (n) => n.kind === 'event' && title.test(n.title) && / [+-]\d+(?:\.\d+)?\)$/.test(n.body)
+        ),
+        String(title)
+      ).toBe(true);
     expect(
       [...initiatives.values()].some(
         (entry) => / brief/.test(entry.reason) && entry.kind === 'install'

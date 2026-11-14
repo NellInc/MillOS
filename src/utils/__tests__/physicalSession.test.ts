@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 const startup = vi.hoisted(() => ({
   ready: false,
@@ -22,6 +22,7 @@ import {
   isPhysicalSessionRestoring,
   PHYSICAL_SESSION_KEY,
   MAX_SAVE_BYTES,
+  RESTORE_STALL_LIMIT_MS,
 } from '../physicalSession';
 import {
   registerReplayParticipant,
@@ -60,6 +61,28 @@ import { createMachineObstacles } from '../../constants/factoryObstacles';
 import { registerLogisticsVehicle } from '../../simulation/logisticsRuntime';
 
 const SAVE_FIXTURES = join(__dirname, 'fixtures', 'physical-saves');
+// Real saves from the build served at www.millos.net before this one (see below).
+const LIVE_SAVES = [
+  '2026-11-09-bb193231-fresh-session.json',
+  '2026-11-09-bb193231-mid-charter.json',
+];
+/** Ids this build's scene registers as replay participants; a `prefix:` stands for a family. */
+function sceneOwnerIds(): Set<string> {
+  const ids = new Set<string>();
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name))
+        for (const match of readFileSync(path, 'utf8').matchAll(
+          /registerReplayParticipant\(\s*['`]([^'`$]+)(\$\{)?/g
+        ))
+          ids.add(match[1]);
+    }
+  };
+  walk(join(__dirname, '..', '..'));
+  return ids;
+}
 let dispose: (() => void) | undefined;
 let removeOwners: (() => void)[] = [];
 let restored: unknown[];
@@ -194,6 +217,35 @@ describe('saves written before a saved field was added', () => {
     expect(useMaterialFlowStore.getState().sessionId).toBe(record.material.sessionId);
   });
 
+  // Services asked for while the season's Maintenance is away are saved from
+  // 13 November (unitService); every older save has none waiting.
+  it('restores a save that predates servicesAwaitingCrew, with nothing waiting', () => {
+    const older = JSON.parse(encodePhysicalSession(capturePhysicalSession())) as {
+      maintenance: Record<string, unknown>;
+    };
+    delete older.maintenance.servicesAwaitingCrew;
+    const saved = decodePhysicalSession(JSON.stringify(older));
+    expect(saved.maintenance.servicesAwaitingCrew).toEqual([]);
+  });
+
+  // Every save before 12 November carries the retired daily bag target (D11).
+  it('drops the retired production.productionTarget from an older save', () => {
+    const older = JSON.parse(encodePhysicalSession(capturePhysicalSession())) as {
+      production: Record<string, unknown>;
+    };
+    older.production.productionTarget = {
+      id: 'daily-target-1',
+      date: '2026-11-02',
+      targetBags: 1200,
+      producedBags: 0,
+      targetThroughput: 1500,
+      actualThroughput: 0,
+      status: 'in_progress',
+    };
+    const saved = decodePhysicalSession(JSON.stringify(older));
+    expect('productionTarget' in saved.production).toBe(false);
+  });
+
   // Real saves, each written by the deployed build of its date (named by
   // commit), one per distinct saved shape since 4 October. They were captured
   // under test, where no scene owner registers, so the owners' records are
@@ -222,6 +274,21 @@ describe('saves written before a saved field was added', () => {
     }
   );
 
+  // Real saves written by the build served at www.millos.net before this one
+  // replaced it (v0.40-bb1932312f8a, commit bb193231 of 9 November), captured
+  // headless from the live site on 13 November: a session three game hours in
+  // with the first order delivered, and a session with a Chronicle charter
+  // signed, events answered, an install under way and four shifts closed. Each
+  // is a version 1 record still carrying production.productionTarget and
+  // lacking maintenance.servicesAwaitingCrew. Unlike the records above, their
+  // scene owners' records are the live build's own, so each must have an owner here.
+  // Each is skipped, by name, until its fixture file is in the folder.
+  for (const name of LIVE_SAVES)
+    it.skipIf(!existsSync(join(SAVE_FIXTURES, name)))(
+      `restores the live v0.40 save ${name} with its own scene records`,
+      () => restoresLiveSave(name)
+    );
+
   it('pins the saved field set (add a fallback for any field added here)', () => {
     const capture = capturePhysicalSession() as unknown as Record<string, object>;
     const keys = Object.fromEntries(
@@ -234,6 +301,65 @@ describe('saves written before a saved field was added', () => {
   });
 });
 
+function restoresLiveSave(name: string) {
+  {
+    const raw = readFileSync(join(SAVE_FIXTURES, name), 'utf8');
+    const live = JSON.parse(raw) as {
+      version: number;
+      production: Record<string, unknown>;
+      maintenance: Record<string, unknown>;
+      operations: { elapsedMinutes: number; orders: { id: string; status: string }[] };
+      material: { sessionId: string };
+      participants: { id: string; value: unknown }[];
+    };
+    expect(live.version).toBe(1);
+    expect('productionTarget' in live.production).toBe(true);
+    expect('servicesAwaitingCrew' in live.maintenance).toBe(false);
+    // Every scene record in the save is one this build's scene registers.
+    const owned = sceneOwnerIds();
+    for (const { id } of live.participants)
+      expect(owned.has(id) || owned.has(`${id.split(':')[0]}:`), id).toBe(true);
+    const extra = live.participants
+      .map((p) => p.id)
+      .filter((id) => !(REQUIRED_REPLAY_PARTICIPANTS as readonly string[]).includes(id));
+    removeOwners.push(
+      ...extra.map((id) =>
+        registerReplayParticipant(id, {
+          capture: () => ({ phase: 'waiting', value: 17 }),
+          restore: (value) => restored.push(value),
+        })
+      )
+    );
+    const saved = decodePhysicalSession(raw);
+    expect('productionTarget' in saved.production).toBe(false);
+    expect(saved.maintenance.servicesAwaitingCrew).toEqual([]);
+    localStorage.setItem(PHYSICAL_SESSION_KEY, raw);
+    dispose = installPhysicalSession();
+    expect(isPhysicalSessionRestoring()).toBe(true);
+    expect(useMaterialFlowStore.getState().sessionId).toBe(live.material.sessionId);
+    expect(useMaterialFlowStore.getState().getMaterialBalance().errorKg).toBeCloseTo(0, 5);
+    expect(useOperationsCampaignStore.getState().elapsedMinutes).toBe(
+      live.operations.elapsedMinutes
+    );
+    expect(useOperationsCampaignStore.getState().orders.map((o) => [o.id, o.status])).toEqual(
+      live.operations.orders.map((o) => [o.id, o.status])
+    );
+    ready();
+    expect(isPhysicalSessionRestoring()).toBe(false);
+    const valueOf = (id: string) => live.participants.find((p) => p.id === id)?.value;
+    expect(restored).toEqual([...REQUIRED_REPLAY_PARTICIPANTS, ...extra].map(valueOf));
+    expect(useGameSimulationStore.getState().clockHolds.map((hold) => hold.holder)).toEqual([]);
+    expect(useUIStore.getState().alerts.map((alert) => alert.id)).not.toContain(
+      'physical-save-unavailable'
+    );
+    // The next write is this build's version 2 record, and it reads back.
+    exit();
+    const rewritten = localStorage.getItem(PHYSICAL_SESSION_KEY)!;
+    expect(JSON.parse(rewritten).version).toBe(2);
+    expect(decodePhysicalSession(rewritten).material.sessionId).toBe(live.material.sessionId);
+  }
+}
+
 const PINNED_SAVED_FIELDS: Record<string, string[]> = {
   production: [
     '_indices',
@@ -245,7 +371,6 @@ const PINNED_SAVED_FIELDS: Record<string, string[]> = {
     'machines',
     'metrics',
     'productionSpeed',
-    'productionTarget',
     'scadaLive',
     'selectedMachine',
     'showHeatMap',
@@ -332,6 +457,7 @@ const PINNED_SAVED_FIELDS: Record<string, string[]> = {
     'maintenanceSchedule',
     'partsInventory',
     'predictiveAlerts',
+    'servicesAwaitingCrew',
     'workOrders',
   ],
   trucks: ['truckSchedule'],
@@ -854,6 +980,9 @@ describe('atomic local physical shift continuation', () => {
       expect(notices).toHaveLength(1);
       expect(notices[0]?.title).toBe('Autosave stopped');
       expect(notices[0]?.message).toContain('a reload returns to the last good save');
+      // A refusal is a problem the bell carries (plan wave 3d), not an aside.
+      expect(notices[0]?.type).toBe('warning');
+      expect(notices[0]?.acknowledged).toBe(false);
       expect(logged).toHaveBeenCalledTimes(1);
       expect(String(logged.mock.calls[0]?.[1])).toContain('Physical save is too large');
       expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
@@ -1149,6 +1278,49 @@ describe('save size and scene-owner visibility', () => {
       expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
       vi.advanceTimersByTime(60000);
       expect(notices()).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // A restore that stalls without an error held its 'restore' hold forever, and
+  // a pace button no longer lifts a hold (D21). Working if, once the game is up,
+  // a restore still unfinished after RESTORE_STALL_LIMIT_MS of wall time takes
+  // the failed-restore path, whose "Continue without the save" releases it.
+  it('treats a restore that stalls without an error as failed, with a way out', () => {
+    heldShift();
+    useGameSimulationStore.getState().setGameSpeed(30);
+    localStorage.setItem(PHYSICAL_SESSION_KEY, encodePhysicalSession(capturePhysicalSession()));
+    resetPlant();
+    removeOwners.shift()?.();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    try {
+      dispose = installPhysicalSession();
+      const holders = () => useGameSimulationStore.getState().clockHolds.map((h) => h.holder);
+      // Before the game is up the wait is the loading screen's, not a stall.
+      vi.advanceTimersByTime(RESTORE_STALL_LIMIT_MS * 2);
+      expect(holders()).toEqual(['restore']);
+      ready();
+      vi.advanceTimersByTime(RESTORE_STALL_LIMIT_MS - 1);
+      expect(holders()).toEqual(['restore']);
+      expect(isPhysicalSessionRestoring()).toBe(true);
+      vi.advanceTimersByTime(1);
+      expect(holders()).toEqual(['restore', 'restoreFailed']);
+      expect(isPhysicalSessionRestoring()).toBe(false);
+      expect(
+        useUIStore.getState().alerts.find((a) => a.id === 'physical-save-unavailable')?.message
+      ).toContain('Scene continuation could not be restored');
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+      // "Continue without the save" (the pace hold note's release).
+      useGameSimulationStore.getState().releaseNoticeHold('restoreFailed');
+      expect(holders()).toEqual([]);
+      expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
+      // A scene owner registering late never rewinds the shift now under way.
+      vi.advanceTimersByTime(RESTORE_STALL_LIMIT_MS * 2);
+      ready();
+      expect(restored).toEqual([]);
+      expect(holders()).toEqual([]);
     } finally {
       vi.useRealTimers();
     }

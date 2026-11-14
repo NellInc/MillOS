@@ -7,6 +7,7 @@ import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { setLocale } from '../../../i18n';
 import type { WorkplaceTransitionResult } from '../../../types/workplace';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 beforeEach(() => {
   setLocale('en');
@@ -29,6 +30,7 @@ afterEach(() => {
 // Working if it reads in the language chosen after leaving.
 describe('leaving a season, tenth pass', () => {
   it('re-renders the left-early status in the language chosen after leaving', () => {
+    fulfilFirstDelivery();
     expect(useWorkplaceStore.getState().startCampaign('toe-dip', 17).changed).toBe(true);
     render(<WorkplaceLeaveSeason />);
     fireEvent.click(screen.getByRole('button', { name: 'Leave this season' }));
@@ -40,6 +42,7 @@ describe('leaving a season, tenth pass', () => {
   });
 
   it('hands the guided card a keyed result it can re-render', () => {
+    fulfilFirstDelivery();
     expect(useWorkplaceStore.getState().startCampaign('toe-dip', 17).changed).toBe(true);
     const onLeft = vi.fn<(message: string, result?: WorkplaceTransitionResult) => void>();
     render(<WorkplaceLeaveSeason onLeft={onLeft} />);

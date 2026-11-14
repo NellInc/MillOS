@@ -9,6 +9,7 @@ import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { setLocale } from '../../../i18n';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
 
@@ -18,7 +19,13 @@ const PT_DISCLOSURE =
 /** A campaign in which Quality has challenged the disclosure demand. */
 const challenged = () => {
   const store = useWorkplaceStore.getState();
+  fulfilFirstDelivery();
   expect(store.startCampaign('toe-dip', 17).changed).toBe(true);
+  // The fixed order a season begun before seeded draws keeps (5.10), so the
+  // disclosure demand falls on the first shift.
+  const { workplace } = useWorkplaceStore.getState();
+  const { draw: _draw, ...campaign } = workplace.campaign!;
+  useWorkplaceStore.setState({ workplace: { ...workplace, campaign } });
   expect(store.respondToPressure('disclosure', 'accept-demand').changed).toBe(true);
 };
 
@@ -64,6 +71,7 @@ describe('Workplace interface, third pass', () => {
   });
 
   it('offers a restart only where the engine allows one, never inside a season', () => {
+    fulfilFirstDelivery();
     expect(useWorkplaceStore.getState().startCampaign('toe-dip', 17).changed).toBe(true);
     const view = render(<WorkplaceLab />);
     fireEvent.click(screen.getByRole('button', { name: 'Experiment' }));

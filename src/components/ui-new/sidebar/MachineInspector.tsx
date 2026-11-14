@@ -1,29 +1,50 @@
-import React, { useState, useEffect, useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useId, useRef, useSyncExternalStore } from 'react';
 import { MachineData, MachineType } from '../../../types';
 import { ProcessInspectionCard } from '../widgets/ProcessInspectionCard';
 import { useProcessInspectionStore } from '../../../stores/processInspectionStore';
-import { RotateCcw, FileText, CheckCircle, Loader2, Wrench, Focus } from 'lucide-react';
+import {
+  RotateCcw,
+  FileText,
+  CheckCircle,
+  Loader2,
+  Wrench,
+  Focus,
+  ClipboardList,
+} from 'lucide-react';
 import {
   getWearConfig,
   maintenanceRecordText,
   minimumServiceWear,
   useProductionStore,
-  wearHoldsWarning,
 } from '../../../stores/productionStore';
 import {
   freePartsInventory,
-  missingParts,
+  MAINTENANCE_PART_PRIORITY,
+  servicePart,
+  serviceUnderWay,
   useBreakdownStore,
-  PartsInventory,
 } from '../../../stores/breakdownStore';
+import {
+  beginUnitRestart,
+  beginUnitService,
+  serviceAwaitingCrew,
+  subscribeUnitWork,
+  unitInService,
+  unitRestarting,
+  unitServiceMinutes,
+} from '../../../systems/unitService';
+import {
+  openRepairWorkspace,
+  pendingMaintainFocus,
+  subscribeMaintainFocus,
+  takeMaintainFocus,
+} from '../openRepairWorkspace';
 import { useUIStore } from '../../../stores/uiStore';
+import { useCrewAway } from '../widgets/useCrewAway';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useGraphicsStore } from '../../../stores/graphicsStore';
-import {
-  incidentHoldsMachineWarning,
-  recordOperatorAction,
-} from '../../../stores/operationsCampaignStore';
+import { recordOperatorAction } from '../../../stores/operationsCampaignStore';
 import { useSCADATag } from '../../../scada/useSCADA';
 import { getTagsByMachine } from '../../../scada/tagDatabase';
 import type { TagHistoryPoint } from '../../../scada/types';
@@ -37,6 +58,7 @@ import {
   useT,
 } from '../../../i18n';
 import { machineInspectorMessages } from './MachineInspector.messages';
+import { SiloLotReadings } from './SiloLotReadings';
 import { registerAlertCatalog } from '../../../i18n/alertCopy';
 
 // The bell keeps these notices (and a reload restores them), so they are filed
@@ -57,42 +79,9 @@ const inspectorNotice = (
   copy: { catalog: INSPECTOR_ALERT_CATALOG, title, message, params },
 });
 
-// The sidebar keys the Inspector by machine, so reselecting a unit remounts it.
-// A restart outlives that remount (not a reload, whose unit stays idle with the
-// Restart offered), so the Inspector knows its own sequence is still running.
-// Working if a reselected unit mid-restart reads Restarting, not stopped.
-const restartsInFlight = new Set<string>();
-const restartListeners = new Set<() => void>();
-const setRestartInFlight = (machineId: string, inFlight: boolean) => {
-  if (inFlight === restartsInFlight.has(machineId)) return;
-  if (inFlight) restartsInFlight.add(machineId);
-  else restartsInFlight.delete(machineId);
-  restartListeners.forEach((listener) => listener());
-};
-// Maintain's 1.2 s service outlives a remount the same way. Working if a
-// reselected unit mid-service reads Performing Maintenance and is serviced once.
-const maintenancesInFlight = new Set<string>();
-const setMaintenanceInFlight = (machineId: string, inFlight: boolean) => {
-  if (inFlight === maintenancesInFlight.has(machineId)) return;
-  if (inFlight) maintenancesInFlight.add(machineId);
-  else maintenancesInFlight.delete(machineId);
-  restartListeners.forEach((listener) => listener());
-};
-const subscribeRestarts = (listener: () => void) => {
-  restartListeners.add(listener);
-  return () => {
-    restartListeners.delete(listener);
-  };
-};
-
-// Order in which spare parts are consumed by routine maintenance
-const MAINTENANCE_PART_PRIORITY: Array<keyof PartsInventory> = [
-  'filters',
-  'bearings',
-  'belts',
-  'sensors',
-  'motors',
-];
+// Maintain and Restart run on the game clock in the tick (systems/unitService.ts),
+// so they outlive a remount, a closed panel and a pause alike, and a reselected
+// unit reads what is under way from the stores.
 
 export const MachineInspector: React.FC<{
   machine: MachineData;
@@ -143,57 +132,66 @@ export const MachineInspector: React.FC<{
           : flowState === 'stopped' || flowState === 'faulted'
             ? t('processingStopped')
             : t('materialReady');
-  const isRestarting = useSyncExternalStore(subscribeRestarts, () =>
-    restartsInFlight.has(selected.id)
+  const isRestarting = useSyncExternalStore(subscribeUnitWork, () => unitRestarting(selected.id));
+  // Offline for service: the minutes left of its booking, on the game clock.
+  const serviceMinutesLeft = useBreakdownStore(
+    (state) =>
+      state.maintenanceSchedule.find(
+        (task) => task.machineId === selected.id && serviceUnderWay(task)
+      )?.serviceMinutesLeft
   );
-  // Cleared even when the panel has gone: the next Inspector reads it.
-  const setIsRestarting = (inFlight: boolean) => setRestartInFlight(selected.id, inFlight);
-  const isMaintaining = useSyncExternalStore(subscribeRestarts, () =>
-    maintenancesInFlight.has(selected.id)
+  const isMaintaining = serviceMinutesLeft !== undefined;
+  // 5.4: the season's Maintenance away: a service asked for waits to start, one
+  // under way is paused; the readout says until when.
+  const awaitingCrew = useSyncExternalStore(subscribeUnitWork, () =>
+    serviceAwaitingCrew(selected.id)
   );
-  const setIsMaintaining = (inFlight: boolean) => setMaintenanceInFlight(selected.id, inFlight);
+  const maintenanceBack = useCrewAway('maintenance');
   const [showLogs, setShowLogs] = useState(false);
+
+  // A wear notice's Open repair selects this unit and asks for Maintain
+  // (openMachineService). Maintain takes focus; while it is locked (a stop, a
+  // fault, a service or restart running) the wear and service section takes
+  // it, whose line says why. Working if the notice lands the player on Maintain.
+  const maintainRef = useRef<HTMLButtonElement>(null);
+  const serviceSectionRef = useRef<HTMLElement>(null);
+  const maintainFocusPending = useSyncExternalStore(
+    subscribeMaintainFocus,
+    () => pendingMaintainFocus() === selected.id
+  );
+  useEffect(() => {
+    if (!maintainFocusPending || !takeMaintainFocus(selected.id)) return;
+    const maintain = maintainRef.current;
+    if (maintain && !maintain.disabled) maintain.focus();
+    else serviceSectionRef.current?.focus();
+  }, [maintainFocusPending, selected.id]);
 
   // handleRestart refuses while the facility is stopped (an E-stop, drill or
   // crisis interlock); the button says so instead of taking a click that
   // does nothing. Working if Restart is locked exactly while that holds.
   const facilityStopped = useGameSimulationStore((state) => state.emergencyActive);
-  const updateMachineStatus = useProductionStore((state) => state.updateMachineStatus);
-  const updateMachineMetrics = useProductionStore((state) => state.updateMachineMetrics);
-  const performMaintenance = useProductionStore((state) => state.performMaintenance);
   const activeFault = useBreakdownStore((state) =>
     state.activeBreakdowns.find((fault) => fault.machineId === machine.id)
   );
   const repairGuidance = t('repairGuidance');
+  // D14: why Restart is held, on the panel, and naming the button for a screen reader.
+  const restartHeldId = useId();
   const criticalRestartGuidance = t('criticalRestartGuidance');
   const facilityStopMaintainGuidance = t('facilityStopMaintainGuidance');
   const stock = useBreakdownStore((state) => state.partsInventory);
   const workOrders = useBreakdownStore((state) => state.workOrders);
-  const consumePart = useBreakdownStore((state) => state.consumePart);
   const addAlert = useUIStore((state) => state.addAlert);
 
   // Parts held for a diagnosed repair are that repair's, not a service's.
   // Working if Maintain never takes the part a ready work order waits on.
   const partsInventory = freePartsInventory(workOrders, stock);
-  const availablePart = MAINTENANCE_PART_PRIORITY.find((part) => (partsInventory[part] ?? 0) > 0);
+  // A booked unit costs the same one part: Maintain and the planner's Complete
+  // are one service at one price (servicePart), and the service closes the
+  // booking. Working if the Inspector names exactly what Maintain will take.
+  const availablePart = servicePart(workOrders, stock);
   const noFreePart = MAINTENANCE_PART_PRIORITY.some((part) => (stock[part] ?? 0) > 0)
     ? t('partsAllHeld')
     : t('outOfParts');
-  // A booked unit's Maintain performs the booking at its parts, so its cost is
-  // the booking's, or what the booking still waits for.
-  // Working if the Inspector names exactly what Maintain will take.
-  const booking = useBreakdownStore((state) =>
-    state.maintenanceSchedule.find((task) => task.machineId === machine.id && !task.completed)
-  );
-  const bookingShort = booking ? missingParts(partsInventory, booking.partsNeeded) : [];
-  const bookedCost = !booking
-    ? null
-    : bookingShort.length > 0
-      ? t('maintenanceBookedShort', { parts: bookingShort })
-      : t('maintenanceCostBooked', {
-          parts: booking.partsNeeded,
-          counts: booking.partsNeeded.map((part) => formatFixed(stock[part] ?? 0, 0)),
-        });
   const wearConfig = getWearConfig(machine.type);
   // performMaintenance refuses below this; a broken-down unit is exempt.
   const minimumWear = minimumServiceWear(machine.type);
@@ -222,239 +220,43 @@ export const MachineInspector: React.FC<{
     });
   };
 
-  const openBooking = () =>
-    useBreakdownStore
-      .getState()
-      .maintenanceSchedule.find((task) => task.machineId === machine.id && !task.completed);
-  const bookingCovered = () => {
-    const booking = openBooking();
-    if (!booking) return false;
-    const live = useBreakdownStore.getState();
-    return (
-      missingParts(freePartsInventory(live.workOrders, live.partsInventory), booking.partsNeeded)
-        .length === 0
-    );
-  };
-  const reportBookingParts = () =>
-    addAlert({
-      id: `maintenance-noparts-${machine.id}`,
-      type: 'warning',
-      ...inspectorNotice('noPartsTitle', 'noBookedPartsMessage', { name: machine.name }),
-      timestamp: new Date(),
-      machineId: machine.id,
-      acknowledged: false,
-    });
-
-  // performMaintenance returns a critical unit to service whatever the
-  // facility state, so Maintain is locked for the same stop as Restart.
-  const handleMaintenance = async () => {
-    // A service or restart still running from an earlier mount is this unit's.
-    if (maintenancesInFlight.has(machine.id) || restartsInFlight.has(machine.id)) return;
+  // Maintain takes the unit offline for its service minutes on the game clock
+  // (D7) and one part now; the tick brings it back serviced. Locked for the
+  // same stop as Restart, and refused with an open fault.
+  // Working if Maintain costs the part and the minutes the button names.
+  const handleMaintenance = () => {
+    if (unitInService(machine.id) || unitRestarting(machine.id)) return;
     if (useGameSimulationStore.getState().emergencyActive) return;
     if (useBreakdownStore.getState().getBreakdownForMachine(machine.id)) return;
-    // A booked unit gets its booked service, at the booking's parts: Maintain
-    // and the planner's Complete are one service, at one price.
-    if (openBooking()) {
-      if (!bookingCovered()) {
-        reportBookingParts();
-        return;
-      }
-    } else if (!availablePart) {
-      // Maintenance consumes one spare part - block when the store is empty
-      reportMissingParts();
-      return;
-    }
-
-    // The newest service record now. The planner's Complete can service this
-    // unit during the delay; that is the service this press asked for, so a
-    // new record means it has been done. Working if Maintain and a Complete
-    // that lands during it service the unit once, at the booking's parts.
-    const lastRecordId = () =>
-      useProductionStore.getState().machines.find((m) => m.id === machine.id)
-        ?.maintenanceHistory?.[0]?.id;
-    const recordBefore = lastRecordId();
-    setIsMaintaining(true);
-    // Brief delay to simulate the maintenance task
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-
-    // A stop, or a fault, that began during the delay leaves the unit and the
-    // stock as they were; a fault is explained by the repair guidance shown.
-    if (
-      useGameSimulationStore.getState().emergencyActive ||
-      useBreakdownStore.getState().getBreakdownForMachine(machine.id) ||
-      lastRecordId() !== recordBefore
-    ) {
-      setIsMaintaining(false);
-      return;
-    }
-
-    // Another service action may have used the last part during the delay.
-    const booking = openBooking();
-    const live = useBreakdownStore.getState();
-    const free = freePartsInventory(live.workOrders, live.partsInventory);
-    const currentPart = MAINTENANCE_PART_PRIORITY.find((part) => (free[part] ?? 0) > 0);
-    if (booking ? !bookingCovered() : !currentPart) {
-      if (booking) reportBookingParts();
-      else reportMissingParts();
-      setIsMaintaining(false);
-      return;
-    }
-
-    const result = performMaintenance(machine.id);
-    if (result.success) {
+    const result = beginUnitService(machine.id);
+    // 5.4: one waiting for the season's Maintenance is the player's decision too.
+    if (result.started || result.reason === 'awaiting-crew') {
       // The service the player chose is one of their shift decisions.
       recordOperatorAction({ kind: 'maintenance', machine: machine.name });
-      // performMaintenance fires its own success alert; consume the parts used
-      if (booking) useBreakdownStore.getState().completeMaintenanceTask(booking.id);
-      else if (currentPart) consumePart(currentPart);
-      // Service took wear below the warning threshold: the prediction is spent.
-      useBreakdownStore.getState().acknowledgeMachinePredictiveAlerts(machine.id);
-    } else {
+      return;
+    }
+    if (result.reason === 'no-part') reportMissingParts();
+    else if (result.reason === 'below-minimum')
       addAlert({
         id: `maintenance-skip-${machine.id}-${Date.now()}`,
         type: 'info',
         title: translate(machineInspectorMessages, 'maintenanceNotNeededTitle'),
         message: translate(machineInspectorMessages, 'maintenanceNotNeededMessage', {
           name: machine.name,
-          message: result.message,
+          message: belowMinimumReason,
         }),
         timestamp: new Date(),
         machineId: machine.id,
         acknowledged: false,
       });
-    }
-    setIsMaintaining(false);
   };
 
-  const restartBlocked = () =>
-    useGameSimulationStore.getState().emergencyActive ||
-    useProductionStore.getState().machines.find((candidate) => candidate.id === machine.id)
-      ?.status === 'critical' ||
-    Boolean(useBreakdownStore.getState().getBreakdownForMachine(machine.id));
-
-  // A stop that lands mid-sequence recorded this unit as the idle the restart
-  // put it in. Hand the stop the restart's outcome instead, so its release
-  // returns the unit to service as it does a queued work-order restart.
-  // Working if a running unit restarted into an E-stop runs once it clears.
-  const standDown = () => {
-    const live = useProductionStore.getState().machines.find((m) => m.id === machine.id);
-    if (
-      live?.status === 'idle' &&
-      useGameSimulationStore.getState().emergencyActive &&
-      !useBreakdownStore.getState().getBreakdownForMachine(machine.id)
-    ) {
-      useGameSimulationStore
-        .getState()
-        .setReleaseStatus(
-          machine.id,
-          wearHoldsWarning(live) || incidentHoldsMachineWarning(machine.id) ? 'warning' : 'running'
-        );
-    }
-    setIsRestarting(false);
-  };
-
-  const handleRestart = async () => {
-    if (
-      restartBlocked() ||
-      restartsInFlight.has(machine.id) ||
-      maintenancesInFlight.has(machine.id)
-    )
-      return;
-    // The press is the decision; a stop that lands mid-sequence does not undo it.
-    recordOperatorAction({ kind: 'restart', machine: machine.name });
-    setIsRestarting(true);
-    const previousStatus = machine.status;
-
-    // Set to idle during restart
-    updateMachineStatus(machine.id, 'idle');
-
-    // Simulate restart sequence with staged recovery
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    if (restartBlocked()) {
-      standDown();
-      return;
-    }
-
-    // Reset metrics to healthy baseline values during restart
-    // This simulates the machine cooling down and stabilizing
-    updateMachineMetrics(machine.id, {
-      temperature: 45 + Math.random() * 10, // 45-55°C (healthy range)
-      vibration: 1.5 + Math.random() * 1.5, // 1.5-3.0 mm/s (healthy range)
-      load: 60 + Math.random() * 20, // 60-80% (normal operating load)
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // The 2.5 s sequence can outlive the panel or an emergency stop. Never
-    // force a machine back to running after the facility has been stopped,
-    // but always finish the restart when only the panel went away: the
-    // machine must not be stranded idle because the sidebar closed.
-    if (restartBlocked()) {
-      standDown();
-      return;
-    }
-
-    // A restart resets temperature, vibration and load, never wear. A machine
-    // still worn past its warning threshold goes straight back to 'warning'
-    // (no fresh running-to-warning transition, so no second predictive alert)
-    // and the player is told that only maintenance clears it.
-    const live = useProductionStore.getState().machines.find((m) => m.id === machine.id);
-    if (live && wearHoldsWarning(live)) {
-      updateMachineStatus(machine.id, 'warning');
-      setIsRestarting(false);
-      addAlert({
-        id: `restart-${machine.id}-${Date.now()}`,
-        type: 'warning',
-        ...inspectorNotice('machineRestartedWornTitle', 'machineRestartedWornMessage', {
-          name: machine.name,
-          wear: live.metrics.wear,
-          threshold: getWearConfig(live.type).warningThreshold,
-        }),
-        timestamp: new Date(),
-        machineId: machine.id,
-        acknowledged: false,
-      });
-      return;
-    }
-
-    // An unmitigated dust-filter incident holds its unit in warning; the tick
-    // and the cool-off both keep it there, so a restart must too.
-    // Working if Restart leaves an incident-held unit in warning.
-    if (incidentHoldsMachineWarning(machine.id)) {
-      updateMachineStatus(machine.id, 'warning');
-      setIsRestarting(false);
-      addAlert({
-        id: `restart-${machine.id}-${Date.now()}`,
-        type: 'warning',
-        ...inspectorNotice('machineRestartedIncidentTitle', 'machineRestartedIncidentMessage', {
-          name: machine.name,
-        }),
-        timestamp: new Date(),
-        machineId: machine.id,
-        acknowledged: false,
-      });
-      return;
-    }
-
-    // Set back to running with clean state
-    updateMachineStatus(machine.id, 'running');
-    setIsRestarting(false);
-
-    const wasWarning = previousStatus === 'warning';
-    addAlert({
-      id: `restart-${machine.id}-${Date.now()}`,
-      type: 'success',
-      ...(wasWarning
-        ? inspectorNotice('machineRecoveredTitle', 'machineRecoveredMessage', {
-            name: machine.name,
-          })
-        : inspectorNotice('machineRestartedTitle', 'machineRestartedMessage', {
-            name: machine.name,
-          })),
-      timestamp: new Date(),
-      machineId: machine.id,
-      acknowledged: false,
-    });
+  // Restart runs its sequence on the game clock in the tick (unitService.ts).
+  // The press is the decision; a stop that lands mid-sequence does not undo it.
+  const handleRestart = () => {
+    if (unitInService(machine.id)) return;
+    if (beginUnitRestart(machine.id))
+      recordOperatorAction({ kind: 'restart', machine: machine.name });
   };
 
   // An absent history is unknown, never permission to invent service evidence.
@@ -485,20 +287,35 @@ export const MachineInspector: React.FC<{
         {/* An idle unit outside a stop stays idle until restarted: a restart cut
             short by a reload saves it idle, as an AI safety decision leaves it.
             Working if such a unit names the Restart that returns it. */}
-        {(activeFault ||
-          machine.status === 'critical' ||
-          machine.status === 'warning' ||
-          (machine.status === 'idle' && !isRestarting && !facilityStopped)) && (
-          <p className="mt-3 text-sm text-slate-300">
+        {/* D14: why Restart is held, or (idle) where it is, since it sits in
+            the closed Inspect disclosure; the warning hint is cut. */}
+        {(activeFault || machine.status === 'critical' || facilityStopped) && (
+          <p id={restartHeldId} className="mt-3 text-sm text-slate-300">
             {activeFault
               ? repairGuidance
               : machine.status === 'critical'
                 ? criticalRestartGuidance
-                : machine.status === 'idle'
-                  ? t('idleRestartGuidance')
-                  : t('warningGuidance')}
+                : t('facilityStopRestartGuidance')}
           </p>
         )}
+        {/* A fault holds Maintain and Restart; the way out is its work order. */}
+        {activeFault && (
+          <button
+            type="button"
+            onClick={() => openRepairWorkspace()}
+            className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-amber-300/50 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100 transition-colors hover:bg-amber-500/20"
+          >
+            <ClipboardList size={14} className="shrink-0" aria-hidden="true" />
+            {t('openWorkOrder')}
+          </button>
+        )}
+        {machine.status === 'idle' &&
+          !activeFault &&
+          !isRestarting &&
+          !isMaintaining &&
+          !facilityStopped && (
+            <p className="mt-3 text-sm text-slate-300">{t('idleRestartGuidance')}</p>
+          )}
       </div>
 
       <dl className="space-y-1">
@@ -535,7 +352,12 @@ export const MachineInspector: React.FC<{
           its thresholds, and the service and its cost are visible without
           opening Inspect. Working if a player can tell whether a unit needs
           service and what it costs before acting, on touch as well. */}
-      <section aria-label={t('wearAndService')} className="space-y-2">
+      <section
+        ref={serviceSectionRef}
+        tabIndex={-1}
+        aria-label={t('wearAndService')}
+        className="space-y-2 focus:outline-none"
+      >
         <dl>
           <MetricCard label={t('wear')} value={formatReading(metrics?.wear, 1)} unit="%" />
         </dl>
@@ -547,35 +369,46 @@ export const MachineInspector: React.FC<{
           })}
         </p>
         <button
+          ref={maintainRef}
           onClick={handleMaintenance}
           disabled={
             isMaintaining ||
+            awaitingCrew ||
             isRestarting ||
             Boolean(activeFault) ||
             belowMinimumWear ||
             facilityStopped
           }
-          title={
-            activeFault
-              ? repairGuidance
-              : facilityStopped
-                ? facilityStopMaintainGuidance
-                : belowMinimumWear
-                  ? belowMinimumReason
-                  : (bookedCost ??
-                    (!availablePart ? noFreePart : t('maintenanceTitle', { part: availablePart })))
-          }
-          className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
+          // A fault's hold is explained once, in the status block above.
+          aria-describedby={activeFault ? restartHeldId : undefined}
+          // px-3: the priced label wraps on a 304 px inspector, and without
+          // side padding its wrench and last word sat on the border.
+          className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
         >
-          {isMaintaining ? (
+          {isMaintaining && maintenanceBack ? (
+            <>
+              <Loader2 size={14} />
+              {t('servicePausedCrew', { time: maintenanceBack })}
+            </>
+          ) : isMaintaining ? (
             <>
               <Loader2 size={14} className="animate-spin" />
-              {t('performingMaintenance')}
+              {t('servicingMinutesLeft', {
+                minutes: formatFixed(Math.ceil(serviceMinutesLeft ?? 0), 0),
+              })}
+            </>
+          ) : awaitingCrew ? (
+            <>
+              <Loader2 size={14} />
+              {t('serviceAwaitingCrew', { time: maintenanceBack ?? '' })}
             </>
           ) : (
             <>
-              <Wrench size={14} />
-              {t('performMaintenance')}
+              <Wrench size={14} className="shrink-0" aria-hidden="true" />
+              {t('performMaintenanceOffline', {
+                part: availablePart ?? '',
+                minutes: formatFixed(unitServiceMinutes(machine.type), 0),
+              })}
             </>
           )}
         </button>
@@ -586,25 +419,23 @@ export const MachineInspector: React.FC<{
               ? facilityStopMaintainGuidance
               : belowMinimumWear
                 ? belowMinimumReason
-                : bookedCost
-                  ? bookedCost
-                  : availablePart
-                    ? // The count is the stock the Parts panel shows; any held
-                      // for a repair is named, since Maintain will not use it.
-                      (stock[availablePart] ?? 0) > (partsInventory[availablePart] ?? 0)
-                      ? t('maintenanceCostHeld', {
-                          part: availablePart,
-                          count: formatFixed(stock[availablePart] ?? 0, 0),
-                          held: formatFixed(
-                            (stock[availablePart] ?? 0) - (partsInventory[availablePart] ?? 0),
-                            0
-                          ),
-                        })
-                      : t('maintenanceCost', {
-                          part: availablePart,
-                          count: formatFixed(stock[availablePart] ?? 0, 0),
-                        })
-                    : noFreePart}
+                : availablePart
+                  ? // The count is the stock the Parts panel shows; any held
+                    // for a repair is named, since Maintain will not use it.
+                    (stock[availablePart] ?? 0) > (partsInventory[availablePart] ?? 0)
+                    ? t('maintenanceCostHeld', {
+                        part: availablePart,
+                        count: formatFixed(stock[availablePart] ?? 0, 0),
+                        held: formatFixed(
+                          (stock[availablePart] ?? 0) - (partsInventory[availablePart] ?? 0),
+                          0
+                        ),
+                      })
+                    : t('maintenanceCost', {
+                        part: availablePart,
+                        count: formatFixed(stock[availablePart] ?? 0, 0),
+                      })
+                  : noFreePart}
           </p>
         )}
       </section>
@@ -656,6 +487,7 @@ export const MachineInspector: React.FC<{
                 </div>
               </dl>
             )}
+            {buffer?.machineType === 'silo' && <SiloLotReadings machineId={machine.id} />}
           </section>
 
           {/* Actions */}
@@ -678,14 +510,10 @@ export const MachineInspector: React.FC<{
                 Boolean(activeFault) ||
                 facilityStopped
               }
-              title={
-                activeFault
-                  ? repairGuidance
-                  : machine.status === 'critical'
-                    ? criticalRestartGuidance
-                    : facilityStopped
-                      ? t('facilityStopRestartGuidance')
-                      : undefined
+              aria-describedby={
+                activeFault || machine.status === 'critical' || facilityStopped
+                  ? restartHeldId
+                  : undefined
               }
               className="w-full min-h-11 border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium text-xs transition-colors flex items-center justify-center gap-2"
             >
@@ -796,23 +624,23 @@ function RecordedFeedTrend({
 }) {
   const t = useT(machineInspectorMessages);
   const paths = inspectorTrendPaths(history);
+  // Nothing recorded, nothing to read: no empty figure under a caption, which
+  // scrolled to Maintain read as a label without a value. The caption heads
+  // the line it names.
+  if (!paths.length) return null;
   return (
     <figure className="border-y border-dashed border-white/15 py-2">
-      {paths.length ? (
-        <svg
-          viewBox="0 0 280 72"
-          className="h-20 w-full"
-          role="img"
-          aria-label={t('trendLabel', { unit })}
-        >
-          {paths.map((path, index) => (
-            <path key={index} d={path} fill="none" stroke="#67e8f9" strokeWidth="1.5" />
-          ))}
-        </svg>
-      ) : (
-        <p className="py-6 text-xs text-slate-400">{t('trendWaiting')}</p>
-      )}
       <figcaption className="text-[11px] text-slate-400">{t('trendCaption', { unit })}</figcaption>
+      <svg
+        viewBox="0 0 280 72"
+        className="h-20 w-full"
+        role="img"
+        aria-label={t('trendLabel', { unit })}
+      >
+        {paths.map((path, index) => (
+          <path key={index} d={path} fill="none" stroke="#67e8f9" strokeWidth="1.5" />
+        ))}
+      </svg>
     </figure>
   );
 }

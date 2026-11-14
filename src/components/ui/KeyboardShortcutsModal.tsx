@@ -65,6 +65,15 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       ],
     },
     {
+      category: t('categoryWorkspaces'),
+      items: [
+        { key: 'N', description: t('openCommitment') },
+        { key: 'B', description: t('openNotifications') },
+        { key: 'L', description: t('toggleSafety') },
+        { key: 'M', description: t('toggleChronicle') },
+      ],
+    },
+    {
       category: t('categoryGraphics'),
       items: [
         { key: 'F1', description: t('lowQuality') },

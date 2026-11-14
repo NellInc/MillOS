@@ -18,13 +18,16 @@ export const paceMessages = defineMessages({
     heldBy_tour: 'Paused for the tour. It resumes when the tour closes.',
     heldBy_restore: 'Paused while your saved shift is restored.',
     heldBy_restoreFailed:
-      'Paused: the saved shift could not be restored. Choose a pace to continue, or reset in Settings.',
-    heldBy_workplace:
-      'Paused for a cooperative workplace step. Finish it in the Bilateral Autonomy System (BAS) panel, or choose a pace.',
+      'Paused: the saved shift could not be restored. Continue without it, or reset in Settings.',
+    heldBy_workplace: 'Paused for a cooperative workplace step. Finish it in Autonomy to resume.',
     heldBy_handoff:
-      "Held while the team decides the handoff experiment, so the adviser's forecast stays true. A pace you choose now starts when it resumes. To resume, cancel the experiment or finish its member review in the Bilateral Autonomy System (BAS) panel.",
+      "Held while the team decides the handoff experiment, so the adviser's forecast stays true. A pace you choose now starts when it resumes. To resume, cancel the experiment or finish its member review in Autonomy.",
     heldBy_layout: 'Paused for the layout planner. Run the mill from the planner to resume.',
-    heldBy_scada: 'Paused: live SCADA control is active, so the simulation clock is held.',
+    heldBy_scada:
+      'Paused: live SCADA control stopped the workplace trial, so the simulation clock is held.',
+    // The exits for the holds no feature releases (NOTICE_HOLDERS, D21).
+    continueWithoutSave: 'Continue without the save',
+    resumeClock: 'Resume the clock',
     heldBy_orientation: 'Paused while the device is upright. Turn it sideways to resume.',
   },
   'pt-BR': {
@@ -41,15 +44,17 @@ export const paceMessages = defineMessages({
     heldBy_tour: 'Pausado para o tour. Continua quando o tour fechar.',
     heldBy_restore: 'Pausado enquanto o turno salvo é restaurado.',
     heldBy_restoreFailed:
-      'Pausado: não foi possível restaurar o turno salvo. Escolha um ritmo para continuar ou reinicie em Configurações.',
+      'Pausado: não foi possível restaurar o turno salvo. Continue sem ele ou reinicie em Configurações.',
     heldBy_workplace:
-      'Pausado para uma etapa do trabalho cooperativo. Conclua-a no painel Sistema de Autonomia Bilateral (BAS) ou escolha um ritmo.',
+      'Pausado para uma etapa do trabalho cooperativo. Conclua-a em Autonomia para continuar.',
     heldBy_handoff:
-      'Parado enquanto a equipe decide o experimento de passagem de turno, para que a previsão do conselheiro continue válida. O ritmo que você escolher agora começa quando o relógio voltar. Para continuar, cancele o experimento ou conclua a avaliação dos cooperados no painel Sistema de Autonomia Bilateral (BAS).',
+      'Parado enquanto a equipe decide o experimento de passagem de turno, para que a previsão do conselheiro continue válida. O ritmo que você escolher agora começa quando o relógio voltar. Para continuar, cancele o experimento ou conclua a avaliação dos cooperados em Autonomia.',
     heldBy_layout:
       'Pausado para o planejador de layout. Coloque o moinho para rodar pelo planejador para continuar.',
     heldBy_scada:
-      'Pausado: o controle SCADA ao vivo está ativo, então o relógio da simulação fica parado.',
+      'Pausado: o controle SCADA ao vivo parou o teste do trabalho cooperativo, então o relógio da simulação fica parado.',
+    continueWithoutSave: 'Continuar sem o salvamento',
+    resumeClock: 'Retomar o relógio',
     heldBy_orientation: 'Pausado com o aparelho na vertical. Gire-o de lado para continuar.',
   },
 });

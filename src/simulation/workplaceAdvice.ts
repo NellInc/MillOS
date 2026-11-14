@@ -30,63 +30,39 @@ export type {
 
 const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
 const nonnegative = (n: unknown): n is number => finite(n) && n >= 0;
+// 5.4 (D4): every arrangement runs the line at the plant's rate after its
+// briefing minutes (workplaceImprovement.ts). Advice frozen by an earlier build
+// at the old paces stays valid evidence of what was modelled then.
 const ARRANGEMENTS = {
-  steady: { pacing: 0.78, briefing: 0 },
-  briefing: { pacing: 0.9, briefing: 5 },
-  buffer: { pacing: 1.02, briefing: 0 },
+  steady: { pacing: 1, briefing: 0 },
+  briefing: { pacing: 1, briefing: 5 },
+  buffer: { pacing: 1, briefing: 0 },
 };
-// Resolved when advice is modeled, so frozen advice keeps the language it was captured in.
-const assumptions = () => [
-  translate(msg, 'assumptionHorizon', {
-    minutes: formatFixed(90, 0),
-    seconds: formatFixed(plantSecondsForGameSeconds(5400), 0),
-  }),
-  translate(msg, 'assumptionEngine'),
-  translate(msg, 'assumptionFixed'),
-  translate(msg, 'assumptionPacing'),
-  translate(msg, 'assumptionDispatch'),
-];
+const LEGACY_PACING = { steady: 0.78, briefing: 0.9, buffer: 1.02 };
+// D14: advice no longer records its assumption captions (the horizon is the
+// pace readout beside it). The field stays for saved advice, which may hold
+// them; the panel does not show them.
 
 /**
- * Frozen advice keeps the sentences it was modelled with (assumptions, and the
- * missing facts its abstention joins). Each of this catalogue's sentences, in
- * either language, is shown in the language chosen now; the advice itself, and
- * its fingerprint, are unchanged. Working if switching language rewrites a
- * frozen assumption and an abstention reason, and leaves unknown text as stored.
+ * Frozen advice keeps the sentences it was modelled with (the missing facts
+ * its abstention joins). Each of this catalogue's sentences, in either
+ * language, is shown in the language chosen now; the advice itself, and its
+ * fingerprint, are unchanged. Working if switching language rewrites a frozen
+ * abstention reason, and leaves unknown text as stored.
  */
 let adviceSentences: { pattern: RegExp; render: () => string }[] | null = null;
-// Earlier wordings of the same fixed-horizon sentence, which advice frozen by a
-// pre-release build may hold. The pace-dependent horizon sentence before them
-// ("physical seconds = 90 * 60 / selected resume game speed") states a
-// different model, so it is left as stored rather than reworded.
-const LEGACY_HORIZONS = [
-  '90 workplace minutes are {seconds} plant seconds at every pace.',
-  '90 minutos de trabalho correspondem a {seconds} segundos de operação do moinho em qualquer ritmo.',
-];
 export function displayAdviceText(text: string): string {
   if (!adviceSentences) {
     adviceSentences = [];
     const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // The horizon is the one templated sentence; its numbers are constants.
-    const horizon = (value: string) => ({
-      pattern: new RegExp(
-        escape(value).replace('\\{minutes\\}', '[\\d.,]+').replace('\\{seconds\\}', '[\\d.,]+'),
-        'g'
-      ),
-      render: () => assumptions()[0],
-    });
     for (const locale of LOCALES)
       for (const [key, value] of Object.entries(msg[locale])) {
-        if (typeof value !== 'string' || value.length < 20) continue;
-        const escaped = escape(value);
-        if (key === 'assumptionHorizon') adviceSentences.push(horizon(value));
-        else if (!value.includes('{'))
-          adviceSentences.push({
-            pattern: new RegExp(escaped, 'g'),
-            render: () => translate(msg, key as keyof typeof msg.en),
-          });
+        if (typeof value !== 'string' || value.length < 20 || value.includes('{')) continue;
+        adviceSentences.push({
+          pattern: new RegExp(escape(value), 'g'),
+          render: () => translate(msg, key as keyof typeof msg.en),
+        });
       }
-    for (const value of LEGACY_HORIZONS) adviceSentences.push(horizon(value));
   }
   return adviceSentences.reduce((out, { pattern, render }) => out.replace(pattern, render), text);
 }
@@ -395,7 +371,7 @@ function modelPackingAdvice(
     dispatchLowerKg: 0,
     dispatchUpperKg: 0,
     genealogyErrorKg: null,
-    assumptions: assumptions(),
+    assumptions: [],
   };
   if (base.reasonToAbstain) return { advice: base, firstPacking: null };
   const coarse = simulate(capture, arrangement, 0.5),
@@ -719,7 +695,7 @@ export function validPackingAdvice(value: unknown): PackingAdvice | undefined {
         e.qualityRelease === null ||
         e.truckStatus === null ||
         e.missingFacts.length > 0)) ||
-    a.linePacing !== params.pacing ||
+    (a.linePacing !== params.pacing && a.linePacing !== LEGACY_PACING[a.arrangement]) ||
     a.briefingMinutes !== params.briefing ||
     a.dispatchUpperKg > (e.remainingOrderKg ?? 0) ||
     a.dispatchUpperKg > (e.truckCapacityKg ?? 0) ||

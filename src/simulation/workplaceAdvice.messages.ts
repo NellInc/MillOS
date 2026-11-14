@@ -2,16 +2,6 @@ import { defineMessages } from '../i18n';
 
 export const workplaceAdviceMessages = defineMessages({
   en: {
-    assumptionHorizon:
-      '{minutes} workplace minutes = {seconds} plant seconds at every resume pace.',
-    assumptionEngine:
-      'Real material engine at 0.5 and 0.25 physical-second steps; bounds reflect time resolution, not statistical confidence.',
-    assumptionFixed:
-      'Fixed machinery, recipe, quality interlock and source dispositions. No arrivals, maintenance, dock movements or shipping are simulated.',
-    assumptionPacing:
-      'Whole-line pacing only; buffer arrangement adds no physical storage capacity.',
-    assumptionDispatch:
-      'Dispatch lower bound is zero: no departure is simulated. Conditional upper requires release, a compatible truck and available load capacity within the horizon.',
     missingOrder: 'Active order and recipe are unavailable.',
     missingExecution: 'Order execution facts are stale or mismatched.',
     missingSession: 'Mission and material session do not match.',
@@ -79,16 +69,6 @@ export const workplaceAdviceMessages = defineMessages({
       'Which supply, machine or pacing assumption explains the difference, and what would we check before changing the working agreement?',
   },
   'pt-BR': {
-    assumptionHorizon:
-      '{minutes} minutos de trabalho = {seconds} segundos da planta em qualquer ritmo de retomada.',
-    assumptionEngine:
-      'Motor de material real em passos de 0,5 e 0,25 segundo físico; os limites refletem a resolução temporal, não uma confiança estatística.',
-    assumptionFixed:
-      'Maquinário, receita, intertravamento de qualidade e disposições de origem fixos. Não se simulam chegadas, manutenção, movimentações na doca nem expedição.',
-    assumptionPacing:
-      'Apenas ritmo da linha inteira; o arranjo com estoque intermediário não acrescenta capacidade física de armazenagem.',
-    assumptionDispatch:
-      'O limite inferior de saída é zero: nenhuma saída é simulada. O limite superior condicional exige liberação, um caminhão compatível e capacidade de carga disponível dentro do horizonte.',
     missingOrder: 'O pedido ativo e a receita não estão disponíveis.',
     missingExecution: 'Os fatos de execução do pedido estão desatualizados ou não correspondem.',
     missingSession: 'A missão e a sessão de material não correspondem.',

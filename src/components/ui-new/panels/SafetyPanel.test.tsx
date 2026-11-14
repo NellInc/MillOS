@@ -39,8 +39,9 @@ describe('SafetyPanel', () => {
 
     const interlock = screen.getByRole('button', { name: 'DRILL INTERLOCK ACTIVE' });
     expect(interlock).toBeDisabled();
-    expect(interlock).toHaveAttribute(
-      'title',
+    // D14: the reason is printed at the button and describes it; no tooltip.
+    expect(interlock).not.toHaveAttribute('title');
+    expect(interlock).toHaveAccessibleDescription(
       'End the active egress verification drill before using the emergency stop'
     );
   });

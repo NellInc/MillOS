@@ -86,33 +86,34 @@ describe('the multi-objective energy and carbon objectives', () => {
     render(<MultiObjectiveDashboard />);
     const kw = billedKw();
     expect(card('Energy')).toHaveTextContent(`${formatGrouped(Math.round(kw * 10) / 10)}kW`);
-    expect(card('Carbon')).toHaveTextContent(
-      `${formatGrouped(Math.round(kw * 0.4 * 10) / 10)}kg CO₂/h`
-    );
+    expect(screen.queryByText('Carbon')).toBeNull();
   });
 
-  it('can read a well-run, fully running plant as balanced', () => {
-    // Every unit running at a steady 75% load, quality and pace met, at the
-    // afternoon peak of the facility load.
+  // Plan 7.9: the summary follows the rules the bill applies. A well-run plant
+  // at 100% is on target however many kW it draws; above 100% the overdrive
+  // penalty applies, and the summary says so.
+  it('reads a well-run, fully running plant at 100% as on target', () => {
     useProductionStore.setState({
       machines: plant('running', 75),
       metrics: { ...original.metrics, throughput: 300, quality: 99 },
       dailyBagsProduced: 0,
+      productionSpeed: 1,
     });
     useGameSimulationStore.setState({ gameTime: 13 });
     render(<MultiObjectiveDashboard />);
-    expect(screen.getByText('All objectives balanced optimally.')).toBeInTheDocument();
+    expect(screen.getByText('All objectives on target.')).toBeInTheDocument();
   });
 
-  it('still reads a plant drawing well over its target as a trade-off', () => {
-    // Flat out on a summer evening with every unit alarmed (10% over its curve).
+  it('names energy once the line runs above 100%', () => {
     useProductionStore.setState({
       machines: plant('warning', 100),
       metrics: { ...original.metrics, throughput: 300, quality: 99 },
       dailyBagsProduced: 0,
+      productionSpeed: 1.4,
     });
     useGameSimulationStore.setState({ gameTime: 20 });
     render(<MultiObjectiveDashboard />);
-    expect(screen.getByText(/Some objectives need attention/)).toBeInTheDocument();
+    expect(screen.getByText(/^Off target: .*Energy\.$/)).toBeInTheDocument();
+    useProductionStore.setState({ productionSpeed: 1 });
   });
 });

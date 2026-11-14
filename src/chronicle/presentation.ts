@@ -1,10 +1,20 @@
 /** Read-time views of canonical English records. No reducer or saved object is changed. */
-import { createTranslator, formatFixed, formatGrouped, getLocale, upperFirst } from '../i18n';
+import {
+  createTranslator,
+  formatFixed,
+  formatGrouped,
+  getLocale,
+  translate,
+  upperFirst,
+} from '../i18n';
 import { EVENT_DECK, getEventDeck } from './eventDeck';
+import { currentWording, legacyResults } from './legacyWording';
+import { stewardDeckMessages } from './stewardDeck.messages';
 import { HISTORY_NOTES, getHistoryNotes } from './history';
 import { ERAS, getEras, IMPROVEMENTS, getImprovements } from './plans';
 import { FORECASTS, getForecasts } from './forecasts';
-import { TRIALS, getTrials } from './trials';
+import { LEGACY_BRIEFINGS, SHORT_TRIALS, TRIALS, getTrials } from './trials';
+import { copy as trialCopy } from './trials.messages';
 import { CROP_YEARS, getCropYears } from './cropYears';
 import { FRONTS, getFronts, LONG_NIGHT_EVENT_ID } from './longNight';
 import { FIRM_NAMES } from './contractors';
@@ -19,13 +29,18 @@ import {
   getRedLines,
   getStandingConditions,
   localizedCrewMember,
+  localizedRulingObjection,
+  RULING_OBJECTIONS,
   POLICY_LADDERS,
   RED_LINES,
   STANDING_CONDITIONS,
 } from './governance';
 import { localizedStakeholderPhrase, stakeholderPhrase } from './stakeholders';
+import { localizedResultChanges } from './describe';
+import { effectChanges, withChanges } from './engine';
 import { presentationMessages as messages } from './presentation.messages';
 import type {
+  ChronicleEventEffect,
   ChronicleNotice,
   CrewMember,
   Initiative,
@@ -82,9 +97,25 @@ function render(key: Key, fixed: Params, values: Params = {}): string {
   return createTranslator(messages, getLocale())(key, { ...fixed, ...localized });
 }
 
+/** The sentences a trial failure is written in since item 4.5 (trials.ts, `trialFailure`). */
+const FAILURE_SENTENCES = [
+  'failDispatch',
+  'failEnergy',
+  'failGrade',
+  'failQuality',
+  'failQc',
+  'failCleanQuality',
+  'failIncident',
+  'cleanFail',
+] as const satisfies readonly Key[];
+
+/** Answers removed from the deck whose notices saves still hold, by event. */
+const RETIRED_CHOICES: Record<string, readonly string[]> = { 'evt-standby-cover': ['floor'] };
+
 const staticRules: Array<[NoticeKind, Key, Key]> = [
   ['ledger', 't0', 'b0'],
   ['ledger', 't1', 'b1'],
+  ['ledger', 't1', 'shortfallBody'],
   ['ledger', 't2', 'b2'],
   ['ledger', 't3', 'b3'],
   ['ledger', 't4', 'b4'],
@@ -97,6 +128,10 @@ const staticRules: Array<[NoticeKind, Key, Key]> = [
   ['event', 't11', 'b11'],
   ['event', 't12', 'b12'],
   ['event', 't13', 'b13'],
+  // A wet year is dried; saves from before say "conditioned" (t12, t13).
+  ['event', 'grainDried', 'b13'],
+  ['ledger', 'qcReview', 'qcReviewBody'],
+  ['ledger', 'qcReview', 'qcReviewOneBody'],
   ['trial', 't14', 'b14'],
   ['trial', 't15', 'b15'],
   ['initiative', 't16', 'b16'],
@@ -174,6 +209,13 @@ export function localizedBallotReason(reason: string, member: CrewMember | undef
       ['ballotLifts', { ladder: lower(raw.label) }, { ladder: lower(local.label) }],
       ['ballotStands', { ladder: lower(raw.label) }, { ladder: lower(local.label) }],
     ]),
+    ...RULING_OBJECTIONS.map(
+      (entry): Option => [
+        'ballotRulingStands',
+        { ruling: entry.ruling },
+        { ruling: localizedRulingObjection(entry.mark) },
+      ]
+    ),
   ];
   const local = member ? localizedCrewMember(member) : undefined;
   // An unrecognised member's need and value are not guessed at.
@@ -217,7 +259,11 @@ export function localizedConcession(text: string, member: CrewMember | undefined
   return localizedCrewMember(member).need.concession;
 }
 
-/** "Carried 4 to 1. Ladder: step (effect)." then one sentence per outvoted or lifted member. */
+/**
+ * "Carried 4 to 1. Ladder: step (effect)." then, on a tie that carries, why,
+ * and one sentence per outvoted or lifted member. Saves from before the tie
+ * sentence have none, and translate as before.
+ */
 function carriedBody(
   body: string,
   ladder: ReturnType<typeof ladderPairs>[number],
@@ -243,17 +289,18 @@ function carriedBody(
   if (head === null) return null;
   const parts = [head];
   for (const part of rest) {
-    const translated = only(
-      part,
-      crew.flatMap(({ raw, local }): Option[] => [
+    const translated = only(part, [
+      ['tieOffRedLine', {}, {}],
+      ['tieClearsCondition', {}, {}],
+      ...crew.flatMap(({ raw, local }): Option[] => [
         [
           'outvoted',
           { role: lower(raw.role), need: raw.need.text },
           { role: local.role, need: local.need.text },
         ],
         ['objectionLifted', { role: lower(raw.role) }, { role: local.role }],
-      ])
-    );
+      ]),
+    ]);
     if (translated === null) return null;
     parts.push(translated);
   }
@@ -280,6 +327,30 @@ function returnBody(body: string): string | null {
     parts.push(translated);
   }
   return parts.join(' ');
+}
+
+/** One cause in the administrator's offer (`administrationCauses`), or null if unknown. */
+function localizedAdministrationCause(
+  savedCause: string,
+  ladders: ReturnType<typeof ladderPairs>
+): string | null {
+  // Saved before D17's rewording: read in the wording the definitions use now.
+  const cause = currentWording(savedCause);
+  const year = /^the crop year (\d+) return$/.exec(cause);
+  if (year) return render('causeReturn', {}, { n0: year[1] });
+  for (const { raw, local } of ladders)
+    if (cause === `the ${lower(raw.label)} policy`)
+      return render('causePolicy', { ladder: lower(local.label) });
+  const localDeck = getEventDeck();
+  for (const event of EVENT_DECK) {
+    const localEvent = localDeck.find((item) => item.id === event.id);
+    for (const choice of event.choices) {
+      if (cause !== `${event.title} (${lower(choice.label)})`) continue;
+      const localChoice = localEvent?.choices.find((item) => item.id === choice.id);
+      if (localEvent && localChoice) return `${localEvent.title} (${lower(localChoice.label)})`;
+    }
+  }
+  return null;
 }
 
 function governanceCandidates(notice: ChronicleNotice): Rendered[] {
@@ -398,7 +469,45 @@ function governanceCandidates(notice: ChronicleNotice): Rendered[] {
         only(notice.title, [['objectionMet', role, localRole]]),
         only(notice.body, [['objectionMetBody', need, localNeed]])
       );
+      // A ruling that cut against what they value (item 4.10).
+      for (const entry of RULING_OBJECTIONS.filter((e) => e.memberId === raw.id))
+        both(
+          only(notice.title, [
+            [
+              'rulingObjection',
+              { ...role, ruling: entry.ruling },
+              { ...localRole, ruling: localizedRulingObjection(entry.mark) },
+            ],
+          ]),
+          only(notice.body, [['rulingObjectionBody', { value: raw.value }, { value: local.value }]])
+        );
     }
+  }
+
+  // 32. The federation offers its administrator, naming what brought it (item 4.11).
+  if (notice.kind === 'era' && only(notice.title, [['adminOffered', {}, {}]]) !== null) {
+    const marker = ' Brought by: ';
+    const at = notice.body.indexOf(marker);
+    const head = at < 0 ? notice.body : notice.body.slice(0, at);
+    const reason = only(head, [
+      ['adminOfferMissed', {}, {}],
+      ['adminOfferCool', {}, {}],
+    ]);
+    const causes =
+      at < 0
+        ? []
+        : notice.body
+            .slice(at + marker.length)
+            .replace(/\.$/, '')
+            .split('; ')
+            .map((cause) => localizedAdministrationCause(cause, ladders));
+    if (reason !== null && causes.every((cause) => cause !== null))
+      both(
+        render('adminOffered', {}),
+        causes.length
+          ? `${reason}${render('adminBroughtBy', { causes: causes.join('; ') })}`
+          : reason
+      );
   }
 
   // 32. The administrator arrives; an open proposal is set aside with it.
@@ -450,9 +559,43 @@ function governanceCandidates(notice: ChronicleNotice): Rendered[] {
   return out;
 }
 
-/** Unknown, custom and ambiguous records retain their exact original copy. */
-export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
+/**
+ * A ruling's result as the engine writes it now, its changes in brackets
+ * (`effectChanges`), and as saves from before that have it, without. Standing
+ * and a suspension are named only on a mill that was not suspended, so both
+ * forms are offered.
+ */
+function withChangeForms(
+  raw: string,
+  local: string,
+  effect: ChronicleEventEffect
+): Array<{ raw: string; local: string }> {
+  const forms = [{ raw, local }];
+  for (const suspended of [false, true]) {
+    const changes = effectChanges(effect, { suspended });
+    if (changes)
+      forms.push({
+        raw: withChanges(raw, changes),
+        local: withChanges(local, localizedResultChanges(effect, { suspended })),
+      });
+  }
+  return forms;
+}
+
+/**
+ * Unknown, custom and ambiguous records retain their exact original copy. A
+ * notice saved before D17's rewording is read in the wording the definitions
+ * use now (legacyWording.ts), so it is still recognised.
+ */
+export function localizedNotice(saved: ChronicleNotice): ChronicleNotice {
+  const title = currentWording(saved.title);
+  const body = currentWording(saved.body);
+  const notice = title === saved.title && body === saved.body ? saved : { ...saved, title, body };
   if (getLocale() === 'en') return notice;
+  return localizedCurrentNotice(notice);
+}
+
+function localizedCurrentNotice(notice: ChronicleNotice): ChronicleNotice {
   const candidates: Array<{ title: string; body: string }> = [];
   const add = (title: string, body: string, localizedTitle: string, localizedBody: string) => {
     if (notice.title === title && notice.body === body)
@@ -521,20 +664,37 @@ export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
               `${translated.because}. ${translated.text}`
             );
         });
+        // Answers since retired still read in saves (item 4.4 removed "Cover the roller floor").
+        for (const id of RETIRED_CHOICES[event.id] ?? []) {
+          const copy = (field: string) => {
+            const key = `${event.id}.choices.${id}.${field}` as keyof typeof stewardDeckMessages.en;
+            return { raw: stewardDeckMessages.en[key], local: translate(stewardDeckMessages, key) };
+          };
+          const label = copy('label');
+          const result = copy('effect.result');
+          if (label.raw && result.raw)
+            add(
+              `${event.title}: ${label.raw}`,
+              result.raw,
+              `${local.title}: ${label.local}`,
+              result.local
+            );
+        }
         for (const choice of event.choices) {
           const translated = local.choices.find((item) => item.id === choice.id);
           if (!translated) continue;
           const outcomes = [
-            { raw: choice.effect.result, local: translated.effect.result },
+            ...withChangeForms(choice.effect.result, translated.effect.result, choice.effect),
+            // What the answer did in a save from before its effect changed.
+            ...legacyResults(event.id, choice.id),
             ...(choice.variants ?? []).flatMap((variant, index) => {
               const localVariant = translated.variants?.[index];
               return localVariant
-                ? [
-                    {
-                      raw: `${variant.because}. ${variant.effect.result}`,
-                      local: `${localVariant.because}. ${localVariant.effect.result}`,
-                    },
-                  ]
+                ? withChangeForms(
+                    `${variant.because}. ${variant.effect.result}`,
+                    `${localVariant.because}. ${localVariant.effect.result}`,
+                    variant.effect
+                  )
                 : [];
             }),
           ];
@@ -564,25 +724,43 @@ export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
         }
       }
       if (notice.relatedId === null) {
-        const choice = event.choices.find((item) => item.id === event.defaultChoiceId);
-        const translated = local.choices.find((item) => item.id === event.defaultChoiceId);
-        if (choice && translated) {
+        // A hand-over rules by the partner's brief, so any answer can be the
+        // partner's (item 4.7); the default was the only one before.
+        for (const choice of event.choices) {
+          const translated = local.choices.find((item) => item.id === choice.id);
+          if (!translated) continue;
+          if (choice.delegates && choice.id !== event.defaultChoiceId) continue;
           // resolveChain deliberately omits the variant's because clause.
           const outcomes = [
-            { raw: choice.effect.result, local: translated.effect.result },
+            { raw: choice.effect.result, local: translated.effect.result, effect: choice.effect },
+            ...legacyResults(event.id, choice.id).map((legacy) => ({
+              ...legacy,
+              effect: {} as ChronicleEventEffect,
+            })),
             ...(choice.variants ?? []).flatMap((variant, index) =>
               translated.variants?.[index]
-                ? [{ raw: variant.effect.result, local: translated.variants[index].effect.result }]
+                ? [
+                    {
+                      raw: variant.effect.result,
+                      local: translated.variants[index].effect.result,
+                      effect: variant.effect,
+                    },
+                  ]
                 : []
             ),
           ];
           for (const outcome of outcomes)
-            add(
-              `${event.title} (ruled by the AI partner)`,
+            for (const form of withChangeForms(
               choice.delegates ? outcome.raw : `${choice.label}. ${outcome.raw}`,
-              render('ruled', { title: local.title }),
-              choice.delegates ? outcome.local : `${translated.label}. ${outcome.local}`
-            );
+              choice.delegates ? outcome.local : `${translated.label}. ${outcome.local}`,
+              outcome.effect
+            ))
+              add(
+                `${event.title} (ruled by the AI partner)`,
+                form.raw,
+                render('ruled', { title: local.title }),
+                form.local
+              );
         }
       }
     }
@@ -592,6 +770,12 @@ export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
     for (const definition of Object.values(FORECASTS)) {
       const local = localForecasts[definition.kind];
       template('forecastStruck', 'struckBody', { title: definition.title }, { title: local.title });
+      template(
+        'forecastStruck',
+        'struckNowBody',
+        { title: definition.title },
+        { title: local.title }
+      );
       template('forecastPassed', 'passedBody', { title: definition.title }, { title: local.title });
       template(
         'forecastUnderWay',
@@ -614,17 +798,58 @@ export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
         });
     }
   }
-  if (notice.kind === 'trial') {
-    const raw = TRIALS.find((trial) => trial.id === notice.relatedId);
-    const local = getTrials().find((trial) => trial.id === notice.relatedId);
+  // A trial's notice is read against the full and the short chronicle's
+  // definitions: a short trial's briefing and figures are its own (item 4.2).
+  for (const list of notice.kind === 'trial' ? [TRIALS, SHORT_TRIALS] : []) {
+    const raw = list.find((trial) => trial.id === notice.relatedId);
+    const local = getTrials(list).find((trial) => trial.id === notice.relatedId);
     if (raw && local) {
       add(raw.title, raw.pressureBeat, local.title, local.pressureBeat);
       const soon = capture(notice.title, messages.en.trialSoon, { title: raw.title });
+      // Saved before item 4.5, the announcement was the briefing alone.
       if (soon && notice.body === raw.briefing)
         candidates.push({
           title: render('trialSoon', { title: local.title }, soon),
           body: local.briefing,
         });
+      if (soon && notice.body === `${raw.briefing} ${raw.floor}`)
+        candidates.push({
+          title: render('trialSoon', { title: local.title }, soon),
+          body: `${local.briefing} ${local.floor}`,
+        });
+      // Saved before item 4.1 re-tuned the goals: the old briefing, translated.
+      for (const legacy of list === TRIALS ? (LEGACY_BRIEFINGS[raw.id] ?? []) : []) {
+        if (soon && notice.body === `${legacy} ${raw.floor}`)
+          candidates.push({
+            title: render('trialSoon', { title: local.title }, soon),
+            body: `${trialCopy(legacy)} ${local.floor}`,
+          });
+        const begunBefore = capture(notice.body, `${legacy} {n0} shifts.`);
+        if (notice.title === `${raw.title} has begun` && begunBefore)
+          candidates.push({
+            title: render('trialBegun', { title: local.title }),
+            body: render('begunBody', { briefing: trialCopy(legacy) }, begunBefore),
+          });
+      }
+      // A failure that names the conditions that broke it (item 4.5), a sentence each.
+      if (notice.title === `${raw.title}: trial failed`) {
+        const sentences = notice.body.split(/(?<=\.) /);
+        const localized = sentences.map((sentence) => {
+          for (const key of FAILURE_SENTENCES) {
+            const values = capture(sentence, messages.en[key]);
+            if (values) return render(key, {}, values);
+          }
+          return null;
+        });
+        if (
+          localized.every((sentence) => sentence !== null) &&
+          sentences.some((sentence) => / broke it/.test(sentence))
+        )
+          candidates.push({
+            title: render('trialFailed', { title: local.title }),
+            body: localized.join(' '),
+          });
+      }
       const begun = capture(notice.body, `${raw.briefing} {n0} shifts.`);
       if (notice.title === `${raw.title} has begun` && begun)
         candidates.push({
@@ -748,13 +973,17 @@ export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
           label: crop.label.toLowerCase(),
         });
         const body =
-          /^Moisture about (-?\d+(?:\.\d+)?)%, protein about (-?\d+(?:\.\d+)?)%\.(?: Wheat recipes lose (\d+) quality points until the grain is treated\.)?(?: Reinvestment \+(\d+)%\.)?$/.exec(
+          /^Moisture about (-?\d+(?:\.\d+)?)%, protein about (-?\d+(?:\.\d+)?)%\.(?: Wheat recipes lose (\d+) quality points (until the grain is treated|unless the grain is dried first on the Tempering card)\.)?(?: Reinvestment \+(\d+)%\.)?$/.exec(
             notice.body
           );
         if (title && body) {
           const parts = [render('cropBase', {}, { n0: body[1], n1: body[2] })];
-          if (body[3]) parts.push(render('cropPenalty', {}, { n0: body[3] }));
-          if (body[4]) parts.push(render('cropReinvestment', {}, { n0: body[4] }));
+          // Saves keep the wording they were written in (rule 7).
+          if (body[3]) {
+            const key = body[4]?.startsWith('unless') ? 'cropPenaltyDried' : 'cropPenalty';
+            parts.push(render(key, {}, { n0: body[3] }));
+          }
+          if (body[5]) parts.push(render('cropReinvestment', {}, { n0: body[5] }));
           candidates.push({
             title: render('cropYear', { label: localCrops[crop.kind].label.toLowerCase() }, title),
             body: parts.join(' '),
@@ -771,7 +1000,9 @@ export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
         const raw = FRONTS[id];
         const local = localFronts[id];
         template('held', 'heldBody', { label: raw.label }, { label: local.label });
+        template('held', 'heldNowBody', { label: raw.label }, { label: local.label });
         template('fell', 'fellBody', { label: raw.label }, { label: local.label });
+        template('fell', 'fellNowBody', { label: raw.label }, { label: local.label });
       }
     }
   }
@@ -782,7 +1013,10 @@ export function localizedNotice(notice: ChronicleNotice): ChronicleNotice {
   return unique.length === 1 ? { ...notice, ...unique[0] } : notice;
 }
 
-export function localizedInitiative(entry: Initiative): Initiative {
+export function localizedInitiative(saved: Initiative): Initiative {
+  // Saved before D17's rewording: read in the wording the definitions use now.
+  const summary = currentWording(saved.summary);
+  const entry = summary === saved.summary ? saved : { ...saved, summary };
   if (getLocale() === 'en') return entry;
   const translated = (
     summary: Key,

@@ -25,6 +25,7 @@ export const NEUTRAL_EFFECT: Readonly<ChronicleEffect> = Object.freeze({
   energyMultiplier: 1,
   wearMultiplier: 1,
   qualityPenalty: 0,
+  dryingEnergyMultiplier: 1,
 });
 
 export const AUSTERITY_EFFECT = {
@@ -55,6 +56,8 @@ interface Totals {
   reinvestment: number;
   forecastChance: number;
   upkeep: number;
+  /** Multiplier on the temper card's drying energy (plan item 7.7). */
+  dryingEnergy: number;
   /** The lowest production ceiling any standing condition sets. */
   productionCeiling: number;
 }
@@ -68,10 +71,12 @@ function apply(totals: Totals, values: ModifierValues, scale = 1): void {
   const energy = scaled(values.energy, scale);
   const wear = scaled(values.wear, scale);
   const upkeep = scaled(values.upkeep, scale);
+  const drying = scaled(values.dryingEnergy, scale);
   if (production !== undefined) totals.production *= production;
   if (energy !== undefined) totals.energy *= energy;
   if (wear !== undefined) totals.wear *= wear;
   if (upkeep !== undefined) totals.upkeep *= upkeep;
+  if (drying !== undefined) totals.dryingEnergy *= drying;
   totals.qualityPenalty += (values.qualityPenalty ?? 0) * scale;
   totals.reinvestment += (values.reinvestment ?? 0) * scale;
   totals.forecastChance += (values.forecastChance ?? 0) * scale;
@@ -89,6 +94,7 @@ export function chronicleTotals(input: EffectInput): Totals {
     reinvestment: 0,
     forecastChance: 0,
     upkeep: 1,
+    dryingEnergy: 1,
     productionCeiling: Infinity,
   };
   if (!input.charter) return totals;
@@ -142,5 +148,7 @@ export function chronicleEffect(input: EffectInput, wheatRecipe: boolean): Chron
     energyMultiplier: clamp(totals.energy, 0.8, 1.2),
     wearMultiplier: clamp(totals.wear, 0.6, 1.6),
     qualityPenalty: clamp(totals.qualityPenalty + crop, 0, 12),
+    // Nothing the Chronicle does makes drying dearer, and it cannot be paid for.
+    dryingEnergyMultiplier: clamp(totals.dryingEnergy, 0, 1),
   };
 }

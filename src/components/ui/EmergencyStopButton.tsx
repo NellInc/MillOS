@@ -55,9 +55,6 @@ export const EmergencyStopButton: React.FC = () => {
     <button
       onClick={handleEmergencyStop}
       disabled={locked}
-      title={
-        emergencyDrillMode ? t('drillTitle') : emergencyInterlock ? t('interlockTitle') : undefined
-      }
       aria-label={
         emergencyDrillMode
           ? t('drillLabel')

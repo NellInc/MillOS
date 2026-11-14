@@ -21,7 +21,23 @@ import { useUIStore } from '../../../stores/uiStore';
 import { useAnnouncementsStore } from '../../../stores/announcementsStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import { setLocale } from '../../../i18n';
+import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 
+// D4: the default season arrives only after the first delivery is fulfilled,
+// so tests of admission begin with it delivered and order-002 open.
+function fulfilFirstDelivery() {
+  const state = useOperationsCampaignStore.getState();
+  useOperationsCampaignStore.setState({
+    orders: state.orders.map((order) =>
+      order.id === 'order-001'
+        ? { ...order, status: 'fulfilled' as const, shippedKg: order.requiredKg }
+        : order.id === 'order-002'
+          ? { ...order, status: 'active' as const }
+          : order
+    ),
+    activeOrderId: 'order-002',
+  });
+}
 beforeEach(() => {
   useWorkplaceAutoplay.getState().pause();
   useWorkplaceAutoplay.setState({ manual: false, message: null, messageKey: null });
@@ -156,6 +172,7 @@ it.each(['en', 'pt-BR'] as const)(
 it('opens the season from Handoff and navigates to the real campaign decisions', () => {
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  fulfilFirstDelivery();
   render(<WorkplaceLab />);
   fireEvent.click(screen.getByRole('button', { name: 'Handoff' }));
   fireEvent.click(screen.getByText('Play a three-shift cooperative season'));
@@ -254,11 +271,17 @@ it('reuses the existing workshop recovery control beside individual receipts', (
 it('defaults to autonomous play and keeps human takeover across remount', () => {
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  fulfilFirstDelivery();
   vi.useFakeTimers();
   document.documentElement.dataset.millosStartupReady = 'true';
   const view = render(<WorkplaceAutoplayStatus />);
   expect(useWorkplaceAutoplay.getState().running).toBe(true);
+  useCameraStore.setState({ activePreset: null });
   fireEvent.click(screen.getByRole('button', { name: 'Take over cooperative season' }));
+  // 5.11: the player is Packing, and the camera goes to the packing line.
+  expect(useCameraStore.getState().activePreset).toBe(
+    CAMERA_PRESETS.findIndex((preset) => preset.name === 'Packing')
+  );
   view.unmount();
   render(
     <>
@@ -283,6 +306,7 @@ it.each([
   async (tookOver, ordersDone) => {
     useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
     useOperationsCampaignStore.getState().initializeCampaign();
+    fulfilFirstDelivery();
     vi.useFakeTimers();
     document.documentElement.dataset.millosStartupReady = 'true';
     const view = render(<WorkplaceAutoplayStatus />);
@@ -324,6 +348,7 @@ it.each([
 it('waits for actual startup readiness before autonomous admission', () => {
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  fulfilFirstDelivery();
   vi.useFakeTimers();
   delete document.documentElement.dataset.millosStartupReady;
   const view = render(<WorkplaceAutoplayStatus />);
@@ -344,6 +369,7 @@ it('waits for actual startup readiness before autonomous admission', () => {
 it('holds autonomous admission while the onboarding tour is pending or showing', () => {
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  fulfilFirstDelivery();
   useUIStore.setState({ hasSeenIntro: false, journeyVisible: false });
   vi.useFakeTimers();
   document.documentElement.dataset.millosStartupReady = 'true';
@@ -391,6 +417,7 @@ it('keeps the desktop takeover control clear of the guide card column', () => {
   resize(1440, 900);
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  fulfilFirstDelivery();
   useUIStore.setState({ journeyVisible: true });
   document.documentElement.dataset.millosStartupReady = 'true';
   const view = render(<WorkplaceAutoplayStatus />);
@@ -432,6 +459,7 @@ it('yields to an open compact-layout sheet instead of covering it', () => {
   resize(390, 844);
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  fulfilFirstDelivery();
   document.documentElement.dataset.millosStartupReady = 'true';
   const view = render(<WorkplaceAutoplayStatus />);
   try {
@@ -460,6 +488,7 @@ it('yields to an open compact-layout sheet instead of covering it', () => {
 it('keeps fixed benchmark runs outside automatic admission', () => {
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  fulfilFirstDelivery();
   const before = window.location.href;
   window.history.replaceState(null, '', '/?benchmark=overview');
   document.documentElement.dataset.millosStartupReady = 'true';
@@ -500,6 +529,7 @@ it('reserves touch movement space in landscape and portrait while retaining take
   document.documentElement.dataset.millosStartupReady = 'true';
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  fulfilFirstDelivery();
   const view = render(<WorkplaceAutoplayStatus />);
   try {
     const status = screen.getByRole('complementary', { name: 'Fictional demo running' });
@@ -556,9 +586,8 @@ it('explains current mandate checks without granting consent and focuses explici
     );
     expect(document.getElementById(`turn-answer-${q.id}`)).toHaveTextContent(q.clarification);
   }
-  expect(screen.getByRole('status')).toHaveTextContent(
-    'Confirming understanding remains a separate choice'
-  );
+  // D14: the status is the count alone; its trailing caveat is cut.
+  expect(screen.getByRole('status')).toHaveTextContent(/match the current agreement\.$/);
   expect(
     get().workplace.members.every(
       (member) => !member.understood && member.ballot === null && member.coverConsent === null
@@ -627,6 +656,7 @@ it.each([
 ] as const)('names the compact takeover by its visible words in %s', (locale, visible) => {
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  fulfilFirstDelivery();
   useUIStore.setState({ journeyVisible: true });
   vi.useFakeTimers();
   document.documentElement.dataset.millosStartupReady = 'true';

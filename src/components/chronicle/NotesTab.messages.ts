@@ -21,6 +21,8 @@ export const messages = defineMessages({
     p17: ', best {best}',
     p18: 'Question {index} / {total}',
     p19: 'Quiz{best}',
+    m16: '+1 know-how',
+    m17: 'Answered before: earns nothing',
   },
   'pt-BR': {
     m0: 'você',
@@ -43,5 +45,7 @@ export const messages = defineMessages({
     p17: ', melhor {best}',
     p18: 'Pergunta {index} / {total}',
     p19: 'Quiz{best}',
+    m16: '+1 de conhecimento prático',
+    m17: 'Já respondida: não rende nada',
   },
 });

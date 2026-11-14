@@ -112,7 +112,7 @@ export function ChroniclePanel() {
       <div
         role="tablist"
         aria-label={t('m6')}
-        className="grid grid-cols-4 gap-1"
+        className="flex flex-wrap gap-1"
         onKeyDown={(event) => {
           const next = rovingNext(
             event.key,
@@ -134,7 +134,7 @@ export function ChroniclePanel() {
             tabIndex={tab === entry.id ? 0 : -1}
             aria-controls={`chronicle-panel-${entry.id}`}
             onClick={() => setTab(entry.id)}
-            className={`relative min-h-11 rounded-lg px-2 text-xs font-semibold ${
+            className={`relative min-h-11 flex-auto whitespace-nowrap rounded-lg px-3 text-xs font-semibold ${
               tab === entry.id
                 ? 'bg-cyan-400/15 text-white ring-1 ring-cyan-300/60'
                 : 'bg-slate-800/80 text-slate-300 hover:text-white'

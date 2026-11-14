@@ -11,7 +11,10 @@ export const CERTIFIER_NAME = 'County Food Standards';
 export const CERTIFIER_START = 500;
 export const STANDING_MIN = 100;
 export const STANDING_MAX = 999;
-/** Hundredths per passed QC test the Chronicle has not seen before. */
+/**
+ * Hundredths per batch passing QC in tests the Chronicle has not seen before,
+ * at most one pass per batch per shift.
+ */
 export const STANDING_PER_QC_PASS = 8;
 /** Hundredths lost in a shift that recorded a quality failure. */
 export const STANDING_PER_FAILED_SHIFT = -25;

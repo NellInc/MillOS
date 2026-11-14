@@ -95,7 +95,7 @@ export const decisionReplayMessages = defineMessages({
     affectedEquipment: 'Affected equipment',
     decisionResponse: 'Decision response',
     disposition: (p: { value: string }) => p.value,
-    awaitingResponse: 'Awaiting a response. Accept, defer, or reject it from the decision card.',
+    awaitingResponse: 'Awaiting a response.',
     noControlResponse: 'No control response was recorded.',
     measuredOutcome: 'Measured outcome',
     noMeasuredResult: 'No measured result has been recorded for this simulated decision.',
@@ -128,8 +128,7 @@ export const decisionReplayMessages = defineMessages({
     affectedEquipment: 'Equipamentos afetados',
     decisionResponse: 'Resposta à decisão',
     disposition: (p: { value: string }) => upperFirst(PT_DISPOSITIONS[p.value] ?? p.value),
-    awaitingResponse:
-      'Aguardando resposta. Aceite, adie ou rejeite a decisão no cartão de decisão.',
+    awaitingResponse: 'Aguardando resposta.',
     noControlResponse: 'Nenhuma resposta de controle foi registrada.',
     measuredOutcome: 'Resultado medido',
     noMeasuredResult: 'Nenhum resultado medido foi registrado para esta decisão simulada.',

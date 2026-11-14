@@ -72,7 +72,7 @@ it('shows only released finite positive stock from both actual product types', (
   render(<ConveyorStockTooltip />);
   expect(screen.getByText('Released stock')).toBeInTheDocument();
   expect(row('Flour').getByText('1025.3 kg')).toBeInTheDocument();
-  expect(row('Semolina').getByText('123.5 kg')).toBeInTheDocument();
+  expect(row('Cornmeal').getByText('123.5 kg')).toBeInTheDocument();
   expect(useMaterialFlowStore.getState()).toBe(before);
 });
 
@@ -90,7 +90,7 @@ it('updates released totals while mounted as stock is depleted or put on hold', 
     }));
   });
   expect(row('Flour').getByText('37.5 kg')).toBeInTheDocument();
-  expect(row('Semolina').getByText('0.0 kg')).toBeInTheDocument();
+  expect(row('Cornmeal').getByText('0.0 kg')).toBeInTheDocument();
 });
 
 it('follows actual semolina dispatch without attributing it to the hovered sack', () => {
@@ -101,19 +101,19 @@ it('follows actual semolina dispatch without attributing it to the hovered sack'
   const before = released('semolina');
   expect(before).toBeGreaterThan(25);
   render(<ConveyorStockTooltip />);
-  expect(row('Semolina').getByText(`${formatFixed(before, 1)} kg`)).toBeInTheDocument();
+  expect(row('Cornmeal').getByText(`${formatFixed(before, 1)} kg`)).toBeInTheDocument();
   act(() => {
     expect(useMaterialFlowStore.getState().shipFinishedGoods(25, 'semolina')).toBe(25);
   });
   expect(released('semolina')).toBeCloseTo(before - 25, 6);
-  expect(row('Semolina').getByText(`${formatFixed(before - 25, 1)} kg`)).toBeInTheDocument();
+  expect(row('Cornmeal').getByText(`${formatFixed(before - 25, 1)} kg`)).toBeInTheDocument();
   expect(screen.queryByText(/batch|quality|weight/i)).not.toBeInTheDocument();
 });
 
 it.each([
-  ['en', 'Released stock', 'Flour', '1234.5 kg', '6.3 kg'],
-  ['pt-BR', 'Estoque liberado', 'Farinha', '1.234,5 kg', '6,3 kg'],
-] as const)('formats actual stock in %s', (locale, header, flour, flourKg, semolinaKg) => {
+  ['en', 'Released stock', 'Flour', '1234.5 kg', 'Cornmeal', '6.3 kg'],
+  ['pt-BR', 'Estoque liberado', 'Farinha', '1.234,5 kg', 'Fubá', '6,3 kg'],
+] as const)('formats actual stock in %s', (locale, header, flour, flourKg, meal, semolinaKg) => {
   useMaterialFlowStore.setState({
     productionBatches: [
       batch({ availableKg: 1234.5 }),
@@ -124,5 +124,5 @@ it.each([
   act(() => setLocale(locale));
   expect(screen.getByText(header)).toBeInTheDocument();
   expect(row(flour).getByText(flourKg)).toBeInTheDocument();
-  expect(row('Semolina').getByText(semolinaKg)).toBeInTheDocument();
+  expect(row(meal).getByText(semolinaKg)).toBeInTheDocument();
 });

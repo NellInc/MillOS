@@ -31,6 +31,7 @@ import { incidentTitle } from '../../../stores/incidentText';
 import { decisionCardText } from '../../../utils/aiEngine';
 import { translate, useLocale, useT, type Locale } from '../../../i18n';
 import { agentCockpitMessages } from './AgentCockpit.messages';
+import { customerDisplayName } from '../../../stores/customerNames';
 
 type FieldValues = Record<string, string | number>;
 
@@ -763,11 +764,13 @@ function targetName(capabilityId: string, uri: string, locale: Locale): string |
     return null;
   }
   switch (capabilityId) {
-    case 'operations.activate-order':
-      return (
-        useOperationsCampaignStore.getState().orders.find((order) => order.id === localId)
-          ?.customer ?? null
-      );
+    case 'operations.activate-order': {
+      // The name the player reads (D17); the agent's own text keeps the id.
+      const customer = useOperationsCampaignStore
+        .getState()
+        .orders.find((order) => order.id === localId)?.customer;
+      return customer ? customerDisplayName(customer) : null;
+    }
     case 'incident.acknowledge':
     case 'incident.mitigate': {
       const incident = useOperationsCampaignStore

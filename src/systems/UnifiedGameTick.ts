@@ -12,27 +12,43 @@
 
 import { useEffect } from 'react';
 import { centralTick, TICK_PRIORITY } from './CentralTickSystem';
+import { resetUnitWork, stepUnitWork } from './unitService';
+import { lineOverdrive, OVERDRIVE_WEAR_SLOPE } from '../simulation/machineLoad';
+import { grainPurchaseCost, grainValueOnSite } from '../simulation/grainPrice';
 import type { TickContext } from './CentralTickSystem';
 import {
   useGameSimulationStore,
   getShiftForHour,
   getShiftWindowKey,
+  selectRestartPending,
 } from '../stores/gameSimulationStore';
 import {
   useProductionStore,
-  DAILY_TARGET_BAGS,
   calculateEfficiency,
   getWearConfig,
   wearHoldsWarning,
 } from '../stores/productionStore';
-import { getDispatchQualityStatus, useQCLabStore } from '../stores/qcLabStore';
 import {
+  bindLotHeldBatches,
+  getDispatchQualityStatus,
+  stepLabBench,
+  useQCLabStore,
+} from '../stores/qcLabStore';
+import {
+  getNotifiedLotIds,
   useMaterialFlowStore,
   type MaterialFlowState,
   type MaterialType,
 } from '../stores/materialFlowStore';
 import { useTruckScheduleStore } from '../stores/truckScheduleStore';
-import { useBreakdownStore, type BreakdownType } from '../stores/breakdownStore';
+import {
+  partsPrice,
+  useBreakdownStore,
+  wearWarningIgnored,
+  type BreakdownType,
+} from '../stores/breakdownStore';
+import { buildIntakeFacts, type ArrivedLot } from './intakeRuntime';
+import { actOnMetIncidents } from './incidentRuntime';
 import { useUIStore } from '../stores/uiStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useAnnouncementsStore } from '../stores/announcementsStore';
@@ -61,13 +77,36 @@ import { peekSCADAService } from '../scada/SCADAService';
 import { layoutComparisonCondition, useLogisticsLayoutStore } from '../stores/logisticsLayoutStore';
 import { logisticsLoadingRate } from '../simulation/layoutPlanning';
 import { useChronicleStore } from '../stores/chronicleStore';
-import { formatFixed, formatGrouped, getLocale, translate } from '../i18n';
+import { effectInput } from '../chronicle/engine';
+import { chronicleTotals, relievedCropKinds } from '../chronicle/effects';
+import { temperAt } from '../chronicle/temper';
+import { stampPenaltyFor, type LotStampContext } from '../simulation/lotQuality';
+import { formatFixed, getLocale, translate } from '../i18n';
+import { celebrateCampaignResults, openOrderIds } from './campaignResults';
 import { unifiedGameTickMessages as msg } from './UnifiedGameTick.messages';
 import { registerAlertCatalog } from '../i18n/alertCopy';
 import { nothingDueYet } from '../simulation/shiftReview';
 import { readPlantClock } from '../utils/timeFormatting';
 import { incidentAlertCopy } from '../stores/incidentText';
 import { dispatchHoldAlertCopy } from '../stores/dispatchBlockText';
+import { registerTickHooks, stepPartnerProposals } from './partnerProposalRuntime';
+import { usePartnerProposalStore } from '../stores/partnerProposalStore';
+import { dispatchHoldsTruck } from '../simulation/dispatchProposal';
+import { isBenchmarkRuntime } from '../runtime/runtimeMode';
+import { customerDisplayName } from '../stores/customerNames';
+import {
+  allocateStock,
+  compareDispatchOrder,
+  DEFAULT_SHIPMENT_POLICY,
+  gradedStock,
+  meetsMinimum,
+  planShipment,
+  shipmentOrdersFrom,
+  trimLoads,
+  type ShipmentOrder,
+  type ShipmentPlanInput,
+  type ShipmentPolicy,
+} from '../simulation/shipmentPlan';
 
 // The tick's bell notices are keyed (src/i18n/alertCopy.ts), so the bell, which
 // a reload restores, reads them in the language active now.
@@ -101,10 +140,52 @@ const SHIPPING_LOAD_RATE_KG_PER_SECOND = 400;
 // delay is held here and added to the next scheduled arrival instead.
 const DELAYED_TRUCK_MINUTES = 45;
 let _pendingShippingDelayMinutes = 0;
-// Below this many real seconds per game day (above ~1440x) a day passes too
-// quickly for the end-of-day and milestone celebrations to mean anything.
-const MIN_CELEBRATED_DAY_REAL_SECONDS = 60;
+/**
+ * A refused lot's seeded delay to the next grain truck (plan item 3.1), held
+ * until the refused truck has left, as the shipping delay is. Page-local: a
+ * reload in the minutes before that truck leaves forgets it.
+ */
+let _pendingReceivingDelayMinutes = 0;
+const delayNextGrainTruck = (minutes: number) => {
+  if (Number.isFinite(minutes) && minutes > 0) _pendingReceivingDelayMinutes += minutes;
+};
+
+/**
+ * A relief lorry for a delayed truck (plan item 3.5): the delay the incident
+ * added is taken back, from the held delay first, else from the next arrival.
+ * Returns the minutes taken back.
+ */
+function cancelShippingDelay(minutes: number = DELAYED_TRUCK_MINUTES): number {
+  let left = Number.isFinite(minutes) ? Math.max(0, minutes) : 0;
+  const fromHeld = Math.min(left, _pendingShippingDelayMinutes);
+  _pendingShippingDelayMinutes -= fromHeld;
+  left -= fromHeld;
+  if (left > 0) {
+    const trucks = useTruckScheduleStore.getState();
+    const shipping = trucks.truckSchedule.shipping;
+    if (!shipping.truckActive && Number.isFinite(shipping.nextArrivalMinutes)) {
+      const taken = Math.min(left, shipping.nextArrivalMinutes);
+      trucks.updateNextArrival('shipping', shipping.nextArrivalMinutes - taken);
+      left -= taken;
+    }
+  }
+  return (Number.isFinite(minutes) ? Math.max(0, minutes) : 0) - left;
+}
+// The partner's answers reach the two truck delays the tick holds (plan items 3.1, 3.5).
+const TICK_HOOKS = {
+  shippingDelayMinutes: DELAYED_TRUCK_MINUTES,
+  cancelShippingDelay,
+  delayNextGrainTruck,
+};
+registerTickHooks(TICK_HOOKS);
 let _bagProductionCarry = 0;
+/**
+ * This tick's packing for the shift review's OEE (plan item 7.6): kilograms
+ * packed, and what the running packers' rated capacity allows at the line
+ * rate over the same plant seconds. Only seconds with packer flow count, so
+ * a line waiting on the dock is not a speed loss (D22: the dock binds).
+ */
+const _oeeTick = { unitCount: 0, packedKg: 0, ratedKg: 0 };
 
 export const calculateBagsProducedForTick = (
   deltaSeconds: number,
@@ -153,19 +234,309 @@ function sumMaterialInventory(flow: MaterialFlowState, materialType: MaterialTyp
   return total;
 }
 
+/** The shipment plan's input from the campaign and the shipping-load snapshot. */
+function shipmentPlanInput(
+  activePlan: { orderId: string } | null,
+  stock: ShipmentPlanInput['stock'],
+  policy: ShipmentPolicy
+): ShipmentPlanInput {
+  return {
+    orders: shipmentOrdersFrom(useOperationsCampaignStore.getState().orders),
+    activeOrderId: activePlan?.orderId ?? null,
+    truck: _shippingLoad,
+    stock,
+    policy,
+  };
+}
+
+/**
+ * The open orders in the order the line's plan walks them: the active order,
+ * then the dispatch queue (operationsCampaignStore getLineProductionPlan).
+ */
+function lineWalkOrders(): ShipmentOrder[] {
+  const campaign = useOperationsCampaignStore.getState();
+  const open = shipmentOrdersFrom(campaign.orders);
+  const active = open.find((order) => order.id === campaign.activeOrderId);
+  return [
+    ...(active ? [active] : []),
+    ...open.filter((order) => order !== active).sort(compareDispatchOrder),
+  ];
+}
+
+/**
+ * Packed finished stock by grade (plan item 3.4): each order counts only the
+ * flour that meets its own minimum, so 93 flour never reads as the 95 order
+ * packed. `strandedKg` is packed stock no open order can take.
+ */
 function getFinishedGoodsAvailability(
   flow: MaterialFlowState,
-  materialType: Extract<MaterialType, 'flour' | 'semolina'>
-): { availableKg: number; releasedKg: number } {
-  return flow.productionBatches.reduce(
-    (totals, batch) => {
-      if (batch.materialType !== materialType || batch.availableKg <= 0) return totals;
-      totals.availableKg += batch.availableKg;
-      if (batch.disposition === 'released') totals.releasedKg += batch.availableKg;
-      return totals;
-    },
-    { availableKg: 0, releasedKg: 0 }
+  materialType: Extract<MaterialType, 'flour' | 'semolina'>,
+  orders: readonly ShipmentOrder[] = lineWalkOrders()
+): { availableKg: number; releasedKg: number; strandedKg: number } {
+  return gradedStock(orders, flow.productionBatches, materialType);
+}
+
+/**
+ * Packed stock of `product` as the line's plan reads it (plan item 3.4). An
+ * order whose minimum the line cannot make now (`quality` under it) reads as
+ * covered: more flour would be flour it cannot take, and the line moves on to
+ * the commitments it can serve rather than stopping on that one. It is made
+ * again once the line makes flour that meets it (after a service).
+ */
+function lineStock(
+  walk: readonly ShipmentOrder[],
+  flow: MaterialFlowState,
+  product: Extract<MaterialType, 'flour' | 'semolina'>,
+  quality: number
+): number {
+  const ofProduct = walk.filter((order) => order.product === product);
+  const { coveredKg, eligibleKg } = allocateStock(
+    ofProduct,
+    flow.productionBatches,
+    product,
+    (batch) => batch.disposition !== 'recalled' && batch.disposition !== 'shipped'
   );
+  if (ofProduct.length === 0) return eligibleKg;
+  let pool = 0;
+  for (const order of ofProduct) {
+    const owed = Math.max(0, order.remainingKg);
+    const covered = coveredKg.get(order.id) ?? 0;
+    if (quality < order.minimumQuality - 1e-6) {
+      pool += owed;
+      continue;
+    }
+    pool += covered;
+    if (covered + 1e-6 < owed) break;
+  }
+  return pool;
+}
+
+/**
+ * Intake (plan item 3.1): what the stamp's crop term reads from the Chronicle,
+ * or null without an active charter (the crop year then stamps nothing, as
+ * before). Only exported readers of the Chronicle are used.
+ */
+function lotStampContext(): LotStampContext | null {
+  const chronicle = useChronicleStore.getState().chronicle;
+  if (chronicle.status !== 'active' || !chronicle.charter || !chronicle.crop) return null;
+  const input = effectInput(chronicle);
+  const lots = useMaterialFlowStore.getState().sourceLots;
+  return {
+    crop: chronicle.crop,
+    relieved: relievedCropKinds(input.improvements),
+    otherPenalty: chronicleTotals(input).qualityPenalty,
+    cropOf: (lotId) => lots.get(lotId)?.crop,
+  };
+}
+
+const isWheatPath = (type: MaterialType) => type === 'wheat_grain' || type === 'flour';
+
+/** The wheat and wheat flour in process (every buffer but the silos, every conveyor), by lot. */
+export function lineWheatContributions(
+  flow: MaterialFlowState
+): { lotId: string; amount: number }[] {
+  const out: { lotId: string; amount: number }[] = [];
+  const take = (material: {
+    type: MaterialType;
+    sourceContributions?: SourceContributionLike[];
+  }) => {
+    if (!isWheatPath(material.type)) return;
+    for (const source of material.sourceContributions ?? []) out.push(source);
+  };
+  flow.machineBuffers.forEach((buffer) => {
+    if (buffer.machineType === 'silo') return;
+    buffer.inputBuffer.forEach(take);
+    buffer.outputBuffer.forEach(take);
+  });
+  for (const segment of flow.network.segments) segment.inTransit.forEach(take);
+  return out;
+}
+export type SourceContributionLike = { lotId: string; amount: number };
+
+/** Each wheat silo's grain, by lot (silos holding none are left out). */
+export function wheatSiloContributions(flow: MaterialFlowState): SourceContributionLike[][] {
+  const silos: SourceContributionLike[][] = [];
+  flow.machineBuffers.forEach((buffer) => {
+    if (buffer.machineType !== 'silo') return;
+    const wheat = buffer.outputBuffer.filter(
+      (material) => material.type === 'wheat_grain' && material.amount > 1e-6
+    );
+    if (wheat.length > 0)
+      silos.push(wheat.flatMap((material) => material.sourceContributions ?? []));
+  });
+  return silos;
+}
+
+/**
+ * The Chronicle's penalty on the flour the line makes now: the grain in
+ * process, else the grain in the silos, else the year in force. Without a
+ * charter context, the plant-wide figure.
+ */
+function lineFlourPenalty(context: LotStampContext | null): number {
+  if (!context) return useChronicleStore.getState().getEffect(true).qualityPenalty;
+  const flow = useMaterialFlowStore.getState();
+  const line = lineWheatContributions(flow);
+  return stampPenaltyFor(line.length > 0 ? line : wheatSiloContributions(flow).flat(), context);
+}
+
+/**
+ * The stamp each product is packed at this tick: the product path's quality,
+ * less incident penalties and the Chronicle's penalty for that product's grain
+ * (flour is milled from wheat, semolina from corn: MILL_RECIPES). Under a
+ * charter flour's figure is the line's now; each packed portion is stamped by
+ * its own grain (tickMaterialFlow's flourPenalty).
+ */
+function productStamps(
+  machines: readonly MachineData[],
+  context: LotStampContext | null = null
+): Record<'flour' | 'semolina', number> {
+  const base = stampBase(machines);
+  const chronicle = useChronicleStore.getState();
+  return {
+    flour: Math.max(0, base - lineFlourPenalty(context)),
+    semolina: Math.max(0, base - chronicle.getEffect(false).qualityPenalty),
+  };
+}
+
+/** The product path's quality less incident penalties: a stamp before the grain's term. */
+function stampBase(machines: readonly MachineData[]): number {
+  return (
+    productPathQuality(machines) -
+    useOperationsCampaignStore.getState().getIncidentEffect().qualityPenalty
+  );
+}
+
+/** The grain the line milled on the last tick: its plan's order, else the active order's. */
+function lineSourceMaterial(
+  campaign: ReturnType<typeof useOperationsCampaignStore.getState>
+): MaterialType | null {
+  const lineOrderId = campaign.execution.lineOrderId;
+  const lineOrder = lineOrderId
+    ? campaign.orders.find(
+        (order) =>
+          order.id === lineOrderId && order.status !== 'fulfilled' && order.status !== 'cancelled'
+      )
+    : undefined;
+  return (
+    lineOrder?.recipe.sourceMaterial ?? campaign.getActiveProductionPlan()?.sourceMaterial ?? null
+  );
+}
+
+/**
+ * The best stamp the line can make on each grain (operationsCampaignStore
+ * bestReachableQuality): every product-path unit serviced, less the Chronicle
+ * penalty that grain carries. Incident penalties are left out: an incident
+ * is recovered, so it never makes an order impossible.
+ */
+function bestReachableQuality(
+  context: LotStampContext | null = null
+): Record<'wheat_grain' | 'corn_grain', number> {
+  const chronicle = useChronicleStore.getState();
+  const serviced = productPathQuality([]);
+  return {
+    wheat_grain: Math.max(0, serviced - bestWheatPenalty(context)),
+    corn_grain: Math.max(0, serviced - chronicle.getEffect(false).qualityPenalty),
+  };
+}
+
+/**
+ * Under a charter, the best stamp on wheat once a "dry first" answer already
+ * given reaches the rolls, and the minute it does (review 2, finding 3): the
+ * same arithmetic as bestReachableQuality, with that temper in force. Null
+ * when no such answer waits in its rest, or one is already at the rolls (the
+ * figure now reads it). Read only for the forfeit: the line plan and the
+ * active order keep the temper at the rolls now, so the line never mills an
+ * order's wheat before it is dried.
+ */
+export function wheatReachableOnceDried(
+  context: LotStampContext | null,
+  minute: number
+): { figure: number; fromMinute: number } | null {
+  const temper = context?.crop.temper;
+  if (!context || !temper || temper.inForce === 'dry-first') return null;
+  // Not yet passed: one at the rolls from this minute is stepped in force
+  // later in the tick (stepTemper), after this tick's stamp context was read.
+  // And at the rolls when its grain gets there, by the rolls' own rule
+  // (temperAt, the latest answer covering the minute): a later "standard"
+  // answer can supersede it.
+  const entry = temper.schedule.find(
+    (candidate) =>
+      candidate.option === 'dry-first' &&
+      candidate.untilMinute > minute &&
+      temperAt(temper, Math.max(minute, candidate.fromMinute)) === 'dry-first'
+  );
+  if (!entry) return null;
+  const dried: LotStampContext = {
+    ...context,
+    crop: { ...context.crop, temper: { inForce: 'dry-first', schedule: [] } },
+  };
+  return { figure: bestReachableQuality(dried).wheat_grain, fromMinute: entry.fromMinute };
+}
+
+/**
+ * Under a charter (plan item 3.1), the penalty of the wheat the line will be
+ * fed: the silos' grain as the valves draw it, else the grain in process,
+ * else the year in force (what the next delivery brings).
+ */
+function bestWheatPenalty(context: LotStampContext | null): number {
+  if (!context) return useChronicleStore.getState().getEffect(true).qualityPenalty;
+  const flow = useMaterialFlowStore.getState();
+  // What the line will be fed: every wheat silo holding grain at the same
+  // valve rate, so each counts once however full. The best single silo is not
+  // what the mills get, and planning on it packs flour no order can take.
+  // The mean is kept on purpose, where the temper card reads silo by silo
+  // (lotQuality.ts worstBinPenalty): this asks whether an order
+  // can be made at all, and the worst silo would answer no for flour the line
+  // still makes. With one silo wet, one sound and one empty, two of the three
+  // packers pack sound flour (silosMean.test.ts), so the mean's "reachable" is
+  // right; with two wet beside one sound, the mean reads wet and some batches
+  // still make 95, but the temper card is then raised (any wet silo) and the
+  // partner dries, so the order is reachable again once the dried wheat is at
+  // the rolls.
+  const silos = wheatSiloContributions(flow);
+  if (silos.length > 0) return stampPenaltyFor(equalWeight(silos), context);
+  const line = lineWheatContributions(flow);
+  return stampPenaltyFor(line, context);
+}
+
+/** Several bins' grain, each scaled to the same total, as the valves draw it. */
+export function equalWeight(bins: SourceContributionLike[][]): SourceContributionLike[] {
+  return bins.flatMap((grain) => {
+    const mass = grain.reduce((sum, source) => sum + Math.max(0, source.amount), 0);
+    return mass > 0
+      ? grain.map((source) => ({ lotId: source.lotId, amount: source.amount / mass }))
+      : [];
+  });
+}
+
+/**
+ * One bell notice for each order the campaign tick forfeited (plan item 3.7):
+ * open before the tick, closed unfulfilled by it at its lateness bound.
+ */
+function announceForfeits(openBefore: ReadonlySet<string>): void {
+  for (const order of useOperationsCampaignStore.getState().orders) {
+    if (order.status !== 'cancelled' || order.forfeitedAtMinute === undefined) continue;
+    if (!openBefore.has(order.id)) continue;
+    const unreachable =
+      order.forfeitReason === 'unreachable' && order.forfeitBestQuality !== undefined;
+    const params = {
+      customer: customerDisplayName(order.customer),
+      minimum: order.recipe.minimumQuality,
+      best: order.forfeitBestQuality ?? 0,
+    };
+    const key = unreachable ? 'orderForfeitedUnreachableMessage' : 'orderForfeitedMessage';
+    useUIStore.getState().addAlert({
+      id: `order-forfeited-${order.id}`,
+      type: 'warning',
+      title: translate(msg, 'orderForfeitedTitle'),
+      message: unreachable
+        ? translate(msg, 'orderForfeitedUnreachableMessage', params)
+        : translate(msg, 'orderForfeitedMessage', params),
+      timestamp: new Date(),
+      acknowledged: false,
+      copy: { catalog: TICK_ALERT_CATALOG, title: 'orderForfeitedTitle', message: key, params },
+    });
+  }
 }
 
 function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
@@ -177,7 +548,10 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
       const machine = production.machines.find(
         (candidate) => candidate.id === incident.affectedMachineId
       );
-      if (machine) {
+      // Raised by the failure itself (plan item 3.5): the unit is already down.
+      const alreadyDown =
+        !!machine && !!useBreakdownStore.getState().getBreakdownForMachine(machine.id);
+      if (machine && !alreadyDown) {
         production.updateMachineStatus(machine.id, 'critical');
         useBreakdownStore.getState().triggerBreakdown(machine.id, machine.name, 'overheating');
       }
@@ -215,6 +589,9 @@ function applyCampaignIncidentConsequence(incident: OperationalIncident): void {
       useQCLabStore.getState().triggerContaminationAlert({
         type: 'supplier_notification',
         severity: 'high',
+        // The notified grain: every lot in the silos or in process now. Flour
+        // milled from it forms on hold until the alert is released or recalled.
+        sourceLotIds: getNotifiedLotIds(flow),
         batchIds: flow.productionBatches
           .filter((batch) => batch.availableKg > 0 && batch.disposition !== 'shipped')
           .map((batch) => batch.id),
@@ -343,26 +720,43 @@ function getStorageUtilization(): number {
 type MachineStatus = 'running' | 'idle' | 'warning' | 'critical';
 
 /**
- * Product quality from the machines actually making product: running or
- * warning mills, sifters and packers. Silos store grain, and a stopped unit
- * makes nothing, so neither can lower the quality of flour the others make.
- * Each point of average efficiency lost costs 0.2 quality points, so a line
- * whose units sit just short of their warnings (~80% efficiency) still makes
- * Strong White (95) and only a line run well past its warnings drops below it.
- * Working if one breakdown leaves shipped quality unchanged and a fully worn
- * line still fails.
+ * Product quality from the product path: every mill, sifter and packer. Silos
+ * store grain and cannot lower it. Each point of average efficiency lost costs
+ * 0.2 quality points, so a line whose units sit just short of their warnings
+ * (~80% efficiency) still makes Strong White (95) and only a line run well
+ * past its warnings drops below it.
+ * A unit that is down (broken, stopped or offline for service) stays in the
+ * mean at the efficiency it left with: a broken unit's last running figure
+ * (its wear's efficiency just short of its breakdown threshold, or its wear's
+ * own for a fault raised below it), any other its recorded efficiency. When a
+ * stopped unit dropped out, a breakdown lifted the stamp on everything still
+ * packed, so breaking a worn mill beat servicing it (plan item 3.3).
+ * Working if a breakdown leaves the stamp where it was, never higher, and a
+ * fully worn line still fails.
  */
 const PRODUCT_PATH_TYPES: ReadonlySet<string> = new Set(['ROLLER_MILL', 'PLANSIFTER', 'PACKER']);
 const QUALITY_PER_EFFICIENCY_POINT = 0.2;
 const PRISTINE_QUALITY = 99.5;
+/** A broken unit's efficiency as it last ran: its wear's, capped just short of the breakdown. */
+function lastRunningEfficiency(machine: MachineData): number {
+  const wear = Number.isFinite(machine.metrics.wear) ? machine.metrics.wear : 0;
+  return calculateEfficiency(
+    Math.min(wear, getWearConfig(machine.type).breakdownThreshold - 0.01),
+    machine.type
+  );
+}
 export function productPathQuality(machines: readonly MachineData[]): number {
   let sum = 0;
   let count = 0;
   for (const machine of machines) {
     if (!PRODUCT_PATH_TYPES.has(machine.type)) continue;
-    if (machine.status !== 'running' && machine.status !== 'warning') continue;
-    const efficiency = machine.metrics.efficiency;
-    sum += Number.isFinite(efficiency) ? Math.max(0, Math.min(100, efficiency)) : 100;
+    const efficiency =
+      machine.status === 'critical'
+        ? lastRunningEfficiency(machine)
+        : Number.isFinite(machine.metrics.efficiency)
+          ? machine.metrics.efficiency
+          : 100;
+    sum += Math.max(0, Math.min(100, efficiency));
     count += 1;
   }
   if (count === 0) return PRISTINE_QUALITY;
@@ -370,9 +764,9 @@ export function productPathQuality(machines: readonly MachineData[]): number {
   return Math.round(Math.max(0, Math.min(PRISTINE_QUALITY, quality)) * 10) / 10;
 }
 
-// Daily-target milestone tracking (percent thresholds, fired once each per day,
-// reset on day rollover). Bitmask index matches _MILESTONE_THRESHOLDS.
-const _MILESTONE_THRESHOLDS = [25, 50, 75, 100] as const;
+// The retired daily-target milestones' mask (D11). Nothing reads it now; it is
+// kept, carried as saved, because the physical save pins the tick state's fields
+// (captureUnifiedTickState) and rejects a save that lacks or adds one.
 let _milestonesReachedMask = 0;
 
 // ============================================================
@@ -432,6 +826,15 @@ const WEAR_PACE: Readonly<Record<string, number>> = {
 };
 export const machineWearPace = (machineId: string): number => WEAR_PACE[machineId] ?? 1;
 
+/** Lowest load of a unit that is working (machineLoad.ts targets 50 + line rate * 30). */
+const WORKING_LOAD = 50;
+/**
+ * A working unit's wear multiplier at this line rate (machineLoad.ts
+ * lineOverdrive); a unit easing to idle with nothing to work is not overdriven.
+ */
+export const unitOverdrive = (load: number, lineRate: number): number =>
+  Number.isFinite(load) && load >= WORKING_LOAD ? lineOverdrive(lineRate, OVERDRIVE_WEAR_SLOPE) : 1;
+
 /**
  * Game minutes until wear reaches the breakdown threshold at the current load.
  * `wearMultiplier` is the Chronicle's, so the forecast matches the wear the
@@ -442,13 +845,15 @@ function gameMinutesToWearBreakdown(
   machineType: string,
   wear: number,
   load: number,
-  wearMultiplier = 1
+  wearMultiplier = 1,
+  lineRate = 1
 ): number {
   const wearConfig = getWearConfig(machineType);
   const ratePerGameSecond =
     wearConfig.wearRatePerSecond *
     machineWearPace(machineId) *
     (0.5 + (Number.isFinite(load) ? load : 0) / 100) *
+    unitOverdrive(load, lineRate) *
     (wearMultiplier > 0 ? wearMultiplier : 1);
   if (!(ratePerGameSecond > 0)) return Number.POSITIVE_INFINITY;
   return Math.max(0, wearConfig.breakdownThreshold - wear) / ratePerGameSecond / 60;
@@ -489,13 +894,15 @@ function inferBreakdownType(machine: MachineData): BreakdownType {
  * writer only made the value oscillate between models.
  *
  * `gameSeconds` is SIMULATED time (real delta x game speed). Wear is a
- * mechanical-ageing process, so it runs on the production clock: at the
- * default 180x a roller mill reaches its first warning roughly once per game
- * day. Driven by real seconds it took ~25 real hours, so no session saw it.
+ * mechanical-ageing process, so it accrues per game second, at every pace
+ * alike (standard pace is 30 game seconds per real second, `simulation/pace.ts`).
+ * When it was driven by real seconds a first warning took ~25 real hours, so
+ * no session saw one.
  */
 function updateMachineTruth(
   machine: MachineData,
-  gameSeconds: number
+  gameSeconds: number,
+  lineRate = 1
 ): {
   changed: boolean;
   newStatus: MachineStatus;
@@ -529,7 +936,11 @@ function updateMachineTruth(
   if (isRunning) {
     const loadFactor = 0.5 + baseLoad / 100;
     const wearIncrement =
-      wearConfig.wearRatePerSecond * machineWearPace(machine.id) * gameSeconds * loadFactor;
+      wearConfig.wearRatePerSecond *
+      machineWearPace(machine.id) *
+      gameSeconds *
+      loadFactor *
+      unitOverdrive(baseLoad, lineRate);
     const preciseWear = baseWear + (_wearCarry.get(machine.id) ?? 0) + wearIncrement;
     // The epsilon keeps a stored value like 0.29 (28.999... x 100) from
     // flooring below itself; the max keeps wear monotonic while running.
@@ -576,7 +987,47 @@ function updateMachineTruth(
 // UNIFIED TICK - ZERO ALLOCATION PATH
 // ============================================================
 
-function unifiedGameTick(ctx: TickContext): void {
+/**
+ * The 'scada' clock hold is set below when live or hybrid control takes the
+ * plant during a workplace replay or trial (the run stops; the plant may not
+ * advance under a control mode the replay cannot own). Its cause is the mode,
+ * so it ends when the mode is the simulation again (or no service is running),
+ * at the pace it held; "Resume the clock" remains for a player who wants it
+ * sooner. Allocation-free: it runs every tick, paused or not.
+ */
+function releaseScadaHoldWhenLocal(): void {
+  const game = useGameSimulationStore.getState();
+  let held = false;
+  for (let i = 0; i < game.clockHolds.length; i++)
+    if (game.clockHolds[i].holder === 'scada') {
+      held = true;
+      break;
+    }
+  if (!held) return;
+  const mode = peekSCADAService()?.getState().mode;
+  if (mode !== undefined && mode !== 'simulation') return;
+  game.releaseNoticeHold('scada');
+}
+
+/**
+ * `shipmentPolicy` is for measurement only: the central tick passes `ctx`
+ * alone, so the game runs DEFAULT_SHIPMENT_POLICY ('fill'), and a benchmark
+ * the old rule ('default'). It is an argument, not state,
+ * so no save carries it.
+ */
+function unifiedGameTick(
+  ctx: TickContext,
+  // Benchmarks keep the truck rule they were measured with (inert, plan 3.4).
+  shipmentPolicy: ShipmentPolicy = isBenchmarkRuntime() ? 'default' : DEFAULT_SHIPMENT_POLICY,
+  /** Measurement only, as shipmentPolicy: labBench false runs without the bench. */
+  measure: {
+    labBench?: boolean;
+    /** False keeps the plant-wide crop penalty and raises no intake proposal (plan item 3.1). */
+    intake?: boolean;
+    /** False raises no plant incident from an ignored wear warning (plan item 3.5). */
+    plantIncidents?: boolean;
+  } = {}
+): void {
   const { deltaSeconds: rawDeltaSeconds, gameSpeed } = ctx;
 
   // Cap delta to prevent large time jumps (e.g., from tab being hidden)
@@ -586,8 +1037,17 @@ function unifiedGameTick(ctx: TickContext): void {
     ? Math.max(0, Math.min(rawDeltaSeconds, 1.0))
     : 0;
 
+  // Before the paused return: the hold below has stopped the clock.
+  releaseScadaHoldWhenLocal();
   const safeGameSpeed = sanitizeGameSpeed(gameSpeed);
   if (deltaSeconds === 0 || safeGameSpeed === 0) return;
+  // A material session the campaign has not seen: its opening stock at cost,
+  // read before this tick moves any of it (booked by tickCampaign).
+  const openingFlow = useMaterialFlowStore.getState();
+  const openingStockValue =
+    useOperationsCampaignStore.getState().lastMaterialSessionId !== openingFlow.sessionId
+      ? grainValueOnSite(openingFlow)
+      : undefined;
   const replayActive = isWorkplaceReplayActive();
   const workplaceBefore = useWorkplaceStore.getState().workplace;
   const workplacePhaseBefore = workplaceBefore.phase;
@@ -643,7 +1103,6 @@ function unifiedGameTick(ctx: TickContext): void {
   const plantSeconds = plantSecondsForGameSeconds(gameSeconds);
   const workplaceShippedBefore = useMaterialFlowStore.getState().shippedKg;
   const materialTimeBefore = useMaterialFlowStore.getState().simulationTime;
-  const celebrateDay = 86400 / safeGameSpeed >= MIN_CELEBRATED_DAY_REAL_SECONDS;
 
   // Clear reusable arrays (no allocation)
   _breakdowns.length = 0;
@@ -678,6 +1137,10 @@ function unifiedGameTick(ctx: TickContext): void {
     .getState()
     .incidents.filter((incident) => incident.phase !== 'resolved' && !incident.effectApplied)
     .forEach(applyCampaignIncidentConsequence);
+  // A plant incident ends at its stated minute; a Chronicle incident met on
+  // its own route runs the answer it took (plan item 3.5).
+  useOperationsCampaignStore.getState().endPlantIncidents();
+  if (!isBenchmarkRuntime()) actOnMetIncidents(TICK_HOOKS);
   // An incident's warning lasts until it is mitigated, in either SCADA mode;
   // with SCADA on nothing else would lift it short of maintenance. A unit
   // still hot, shaking or worn keeps its warning for those reasons. A live
@@ -703,31 +1166,75 @@ function unifiedGameTick(ctx: TickContext): void {
   // A restart request is the final far-side contract in the maintenance loop.
   // The production store resets machine wear/status first; only then does the
   // work order close and release the lockout.
-  let maintenanceRestarted = false;
+  const repairedUnits: string[] = [];
   for (const workOrder of maintenanceStore.workOrders) {
     // A facility stop, drill or interlocked crisis holds a queued restart; it
     // applies on the first tick after the stop clears, which restores only
-    // what the stop idled. Working if no repaired unit runs during a stop.
-    if (workOrder.phase === 'restart_requested' && !gameStore.emergencyActive) {
+    // what the stop idled. A cleared stop still holds it until RESTART LINE
+    // (D13). Working if no repaired unit runs during a stop or before the restart.
+    if (
+      workOrder.phase === 'restart_requested' &&
+      !gameStore.emergencyActive &&
+      !selectRestartPending(gameStore)
+    ) {
       const result = useProductionStore
         .getState()
         .performMaintenance(workOrder.machineId, workOrder.id);
       if (result.success) {
         useBreakdownStore.getState().confirmMachineRestart(workOrder.breakdownId);
-        maintenanceRestarted = true;
+        repairedUnits.push(workOrder.machineId);
       }
     }
   }
-  if (maintenanceRestarted) {
-    prodStore = useProductionStore.getState();
-  }
+  // Services and Restarts run on these game seconds (systems/unitService.ts):
+  // a serviced unit comes back, a booking for the quiet spell starts, and a
+  // unit offline for service stays offline whatever else started it.
+  stepUnitWork(gameSeconds);
+  prodStore = useProductionStore.getState();
   const machines = prodStore.machines;
   // The Mill Chronicle's bounded answer to recorded history: neutral (all 1s
   // and no penalty) until a charter is signed. The crop-year quality penalty
-  // applies only while the active recipe mills wheat.
+  // applies only while the line mills wheat: the grain of the order the line
+  // made for on the last tick (it may pre-stage another order than the one
+  // shipping), else the active order's. Read from the active order alone, a
+  // corn dispatch stamped pre-staged wheat flour as if the crop were sound.
   const chronicleEffect = useChronicleStore
     .getState()
-    .getEffect(campaign.getActiveProductionPlan()?.sourceMaterial === 'wheat_grain');
+    .getEffect(lineSourceMaterial(campaign) === 'wheat_grain');
+  // Intake (plan item 3.1): under a charter the crop term is read from the
+  // grain itself, so the line's figure is the grain in process.
+  const stampContext = measure.intake === false ? null : lotStampContext();
+  const lineChroniclePenalty =
+    stampContext && lineSourceMaterial(campaign) === 'wheat_grain'
+      ? lineFlourPenalty(stampContext)
+      : chronicleEffect.qualityPenalty;
+  // A repaired unit comes back still worn (repairedWear), past its warning, so
+  // it never crosses the warning on its way up and would get no prediction:
+  // raise its wear prediction here, so its service is proposed and the unit
+  // does not run on to fail again unasked.
+  // Working if every repaired unit past its warning carries a wear prediction.
+  for (const machineId of repairedUnits) {
+    const unit = prodStore.machines.find((m) => m.id === machineId);
+    if (!unit || (unit.metrics.wear ?? 0) < getWearConfig(unit.type).warningThreshold) continue;
+    useBreakdownStore.getState().addPredictiveAlert(
+      unit.id,
+      unit.name,
+      {
+        vibration: unit.metrics.vibration,
+        temperature: unit.metrics.temperature,
+        load: unit.metrics.load,
+      },
+      gameMinutesToWearBreakdown(
+        unit.id,
+        unit.type,
+        unit.metrics.wear ?? 0,
+        unit.metrics.load,
+        chronicleEffect.wearMultiplier,
+        prodStore.productionSpeed
+      ),
+      inferBreakdownType(unit)
+    );
+  }
 
   let anyMachineChanged = false;
   let runningCount = 0;
@@ -749,7 +1256,8 @@ function unifiedGameTick(ctx: TickContext): void {
 
     const result = updateMachineTruth(
       machine,
-      deltaSeconds * safeGameSpeed * chronicleEffect.wearMultiplier
+      deltaSeconds * safeGameSpeed * chronicleEffect.wearMultiplier,
+      prodStore.productionSpeed
     );
 
     if (result.breakdown) {
@@ -791,9 +1299,15 @@ function unifiedGameTick(ctx: TickContext): void {
   // Negotiated line pacing: the autonomous season applies it by default and
   // StatusHUD names it beside the plant rate. It never creates product, releases quality
   // holds, changes machine safety status, or alters decorative pedestrian routes.
+  // One rate (plan item 3.6): the player's production speed. Benchmarks keep
+  // the derived line setpoint they were captured with.
+  const benchmarkSetpoint = isBenchmarkRuntime()
+    ? Math.min(1.08, Math.max(0, campaignStore.execution.lineSetpointPercent / 100))
+    : 1;
   const effectiveProductionSpeed =
     productionSpeed *
     campaignMultiplier *
+    benchmarkSetpoint *
     chronicleEffect.productionMultiplier *
     workplaceTickCapacity(
       useWorkplaceStore.getState().workplace,
@@ -811,7 +1325,7 @@ function unifiedGameTick(ctx: TickContext): void {
     0,
     productPathQuality(machines) -
       useOperationsCampaignStore.getState().getIncidentEffect().qualityPenalty -
-      chronicleEffect.qualityPenalty
+      lineChroniclePenalty
   );
 
   // Update tracking
@@ -870,8 +1384,12 @@ function unifiedGameTick(ctx: TickContext): void {
             oldMachine.type,
             data.newWear,
             oldMachine.metrics.load,
-            chronicleEffect.wearMultiplier
-          )
+            chronicleEffect.wearMultiplier,
+            prodStore.productionSpeed
+          ),
+          // The failure this unit's wear breakdown will take, so the
+          // prediction and the booked service name it.
+          inferBreakdownType(oldMachine)
         );
         // The PA line is spoken once; the bell keeps it, tied to the machine,
         // so its Open repair action can take the player to the maintenance.
@@ -909,28 +1427,10 @@ function unifiedGameTick(ctx: TickContext): void {
     });
   }
 
-  // 3b. Daily-target milestones: celebrate 25/50/75/100% once each per day
-  // (mask resets on day rollover above). 100% counts as target met.
-  if (DAILY_TARGET_BAGS > 0) {
-    const dailyProgressPct = (prodStore.dailyBagsProduced / DAILY_TARGET_BAGS) * 100;
-    for (let t = 0; t < _MILESTONE_THRESHOLDS.length; t++) {
-      const threshold = _MILESTONE_THRESHOLDS[t];
-      const bit = 1 << t;
-      if (dailyProgressPct >= threshold && (_milestonesReachedMask & bit) === 0) {
-        // The bit is set even when the celebration is suppressed, so slowing
-        // back down mid-day does not replay milestones already passed.
-        _milestonesReachedMask |= bit;
-        if (!celebrateDay) continue;
-        gameStore.triggerCelebration(threshold === 100 ? 'target_met' : 'milestone', {
-          value: Math.round(prodStore.dailyBagsProduced),
-          message:
-            threshold === 100
-              ? translate(msg, 'dailyTargetReached', { target: formatGrouped(DAILY_TARGET_BAGS) })
-              : translate(msg, 'dailyTargetMilestone', { threshold: formatFixed(threshold, 0) }),
-        });
-      }
-    }
-  }
+  // 3b. The daily bag target's 25/50/75/100% milestones are gone (D11): the
+  // goal on the HUD is the programme the customers committed to, and its
+  // results (each order delivered, each graded shift) are queued where the
+  // campaign ticks, below (celebrateCampaignResults).
 
   // 4. Update game time only if changed
   const timeChanged =
@@ -969,6 +1469,16 @@ function unifiedGameTick(ctx: TickContext): void {
       _pendingShippingDelayMinutes = 0;
     }
   }
+  if (_pendingReceivingDelayMinutes > 0) {
+    const receiving = useTruckScheduleStore.getState().truckSchedule.receiving;
+    if (!receiving.truckActive) {
+      truckSchedule.updateNextArrival(
+        'receiving',
+        receiving.nextArrivalMinutes + _pendingReceivingDelayMinutes
+      );
+      _pendingReceivingDelayMinutes = 0;
+    }
+  }
   truckSchedule.tickArrivals((deltaSeconds * safeGameSpeed) / 60);
 
   // 4b. Advance the material-flow simulation (grain -> mills -> sifters -> packers).
@@ -987,10 +1497,44 @@ function unifiedGameTick(ctx: TickContext): void {
   // The line works to its own plan: the dispatch order, or once that order's
   // remainder is packed and waiting for a truck, the next commitment. Shipping
   // below still loads the dispatch order's material.
-  const linePlan = campaignStore.getLineProductionPlan({
-    flour: getFinishedGoodsAvailability(flowStore, 'flour').availableKg,
-    semolina: getFinishedGoodsAvailability(flowStore, 'semolina').availableKg,
-  });
+  // An order the line cannot make on its grain (plan item 3.7) is not walked:
+  // flour made for it would be packed under its minimum and strand the packers.
+  const best = bestReachableQuality(stampContext);
+  const walk = lineWalkOrders().filter((order) =>
+    meetsMinimum(
+      best[order.product === 'flour' ? 'wheat_grain' : 'corn_grain'],
+      order.minimumQuality
+    )
+  );
+  const stockByProduct = {
+    flour: getFinishedGoodsAvailability(flowStore, 'flour', walk),
+    semolina: getFinishedGoodsAvailability(flowStore, 'semolina', walk),
+  };
+  // Each product's stamp: a Chronicle crop year marks down flour (wheat) and
+  // never semolina (corn), whatever grain the mills are on now, since the
+  // packers pack what the buffers already hold.
+  const productQuality = productStamps(machines, stampContext);
+  const linePlan = campaignStore.getLineProductionPlan(
+    {
+      flour: lineStock(walk, flowStore, 'flour', productQuality.flour),
+      semolina: lineStock(walk, flowStore, 'semolina', productQuality.semolina),
+    },
+    best
+  );
+  // Packed flour no open order can take sits in the packers and counts
+  // against the feed budget. It is made up again only while the line now
+  // makes flour that meets the planned order's minimum: a worn line would
+  // only pack more of what no one takes (plan item 3.4).
+  const plannedMinimum = linePlan
+    ? walk.find((order) => order.id === linePlan.orderId)?.minimumQuality
+    : undefined;
+  const strandedTopUp =
+    linePlan &&
+    plannedMinimum !== undefined &&
+    productQuality[linePlan.finishedMaterial] >= plannedMinimum
+      ? stockByProduct[linePlan.finishedMaterial].strandedKg
+      : 0;
+  const labBench = measure.labBench ?? !isBenchmarkRuntime();
   flowStore.tickMaterialFlow(
     plantSeconds,
     effectiveProductionSpeed,
@@ -998,19 +1542,65 @@ function unifiedGameTick(ctx: TickContext): void {
       ? {
           sourceMaterial: linePlan.sourceMaterial,
           finishedMaterial: linePlan.finishedMaterial,
-          remainingFinishedKg: linePlan.remainingFinishedKg,
+          remainingFinishedKg: linePlan.remainingFinishedKg + strandedTopUp,
         }
       : undefined,
-    _metricsUpdate.quality
+    // Under a charter each packed portion of flour takes its own grain's term.
+    stampContext ? { ...productQuality, flour: Math.max(0, stampBase(machines)) } : productQuality,
+    // Grain leaves the silos only for the line's plan (PLAN_ONLY_SILO_FEED);
+    // benchmarks keep the open valves they were captured with.
+    {
+      labBench,
+      planFeed: !isBenchmarkRuntime(),
+      ...(stampContext
+        ? { flourPenalty: (sources) => stampPenaltyFor(sources, stampContext) }
+        : {}),
+    }
   );
+  // A supplier alert whose named batches have all settled takes the held
+  // flour packed from its lots since, so the lab can still close it.
+  bindLotHeldBatches();
+  // The lab's bench (plan item 3.2): one batch at a time, on game minutes,
+  // read against the order it would serve. Idle when nothing awaits a test.
+  {
+    const benchFlow = useMaterialFlowStore.getState();
+    stepLabBench(
+      gameSeconds / 60,
+      shipmentOrdersFrom(useOperationsCampaignStore.getState().orders),
+      // A batch is still filling while its packer packs its product now.
+      (packerId, material) => {
+        const buffer = benchFlow.machineBuffers.get(packerId);
+        return (
+          benchFlow.currentPackerFlowRate > 0 &&
+          !!buffer?.isProcessing &&
+          buffer.inputBuffer.some((entry) => entry.type === material && entry.amount > 1)
+        );
+      }
+    );
+  }
 
   // 4c. Convert the exact final-stage mass flow into completed 25 kg bags on
   // the same central cadence. Fractional carry preserves mass across ticks.
   // The HUD, SCADA packer-flow tag, finished inventory and bag counter now all
   // describe the same packer output rather than parallel rate estimates.
+  _oeeTick.packedKg = 0;
+  _oeeTick.ratedKg = 0;
+  _oeeTick.unitCount = 0;
+  for (let i = 0; i < machines.length; i++)
+    if (machines[i].type !== 'CONTROL_ROOM') _oeeTick.unitCount++;
   if (runningPackerCount > 0) {
     const liveFlow = useMaterialFlowStore.getState();
     const flowRate = liveFlow.currentPackerFlowRate;
+    if (flowRate > 0 && plantSeconds > 0) {
+      let ratedKgPerSecond = 0;
+      for (let i = 0; i < machines.length; i++) {
+        const m = machines[i];
+        if (m.type === 'PACKER' && (m.status === 'running' || m.status === 'warning'))
+          ratedKgPerSecond += liveFlow.machineBuffers.get(m.id)?.processingRate ?? 0;
+      }
+      _oeeTick.packedKg = flowRate * plantSeconds;
+      _oeeTick.ratedKg = ratedKgPerSecond * Math.max(0, productionSpeed) * plantSeconds;
+    }
     _bagProductionCarry += calculateBagsProducedForTick(plantSeconds, flowRate);
     const completedBags = Math.floor(_bagProductionCarry);
     if (completedBags > 0) {
@@ -1024,18 +1614,47 @@ function unifiedGameTick(ctx: TickContext): void {
   // simulation and the flow network starves permanently.
   const receivingTransferReady =
     useTruckScheduleStore.getState().truckSchedule.receiving.transferReady;
+  let arrivedLot: ArrivedLot | null = null;
   if (receivingTransferReady && !_lastReceivingTransferReady) {
     // A signed chronicle stamps the lot with this crop year's attributes.
     // Replays and improvement trials are not history; their lots stay unstamped.
+    const deliveryIndex = useChronicleStore.getState().chronicle.deliveries;
     const crop =
       replayActive || improvementActive ? null : useChronicleStore.getState().stampDelivery();
-    flowStore.receiveGrainDelivery(GRAIN_DELIVERY_KG, {
-      ...(crop ? { crop } : {}),
-      gameClock: readPlantClock(),
+    const before = useMaterialFlowStore.getState();
+    const wheatBefore = sumMaterialInventory(before, 'wheat_grain');
+    const cornBefore = sumMaterialInventory(before, 'corn_grain');
+    // Intake (plan item 3.1): under a charter a wheat lot waits at the intake
+    // for the partner's proposal, which takes it in (or refuses it) below.
+    // Without a charter, in a replay, a trial or a benchmark, it goes to the
+    // emptiest silo at once, as before.
+    const intakeFacts =
+      crop && stampContext && !isBenchmarkRuntime()
+        ? buildIntakeFacts(
+            { deliveryIndex, amountKg: GRAIN_DELIVERY_KG, crop },
+            stampContext,
+            stampBase(useProductionStore.getState().machines)
+          )
+        : null;
+    if (intakeFacts) arrivedLot = intakeFacts;
+    else
+      flowStore.receiveGrainDelivery(GRAIN_DELIVERY_KG, {
+        ...(crop ? { crop } : {}),
+        gameClock: readPlantClock(),
+      });
+    // Grain is bought as it is taken in (plan item 3.8): what the silo took,
+    // by grain, at its price (simulation/grainPrice.ts). The same truck brings
+    // the parts the partner's reorder rule has on order, and only those
+    // (breakdownStore PARTS_REORDER_RULE); they are paid for as they arrive.
+    const after = useMaterialFlowStore.getState();
+    const partsArrived = useBreakdownStore.getState().restockDelivery();
+    useOperationsCampaignStore.getState().bookPurchase({
+      grainCost: grainPurchaseCost({
+        wheat_grain: sumMaterialInventory(after, 'wheat_grain') - wheatBefore,
+        corn_grain: sumMaterialInventory(after, 'corn_grain') - cornBefore,
+      }),
+      partsCost: partsPrice(partsArrived),
     });
-    // The same truck also carries a spare-parts resupply, closing the
-    // maintenance loop: consume parts to repair, trucks bring them back.
-    useBreakdownStore.getState().restockDelivery();
   }
   _lastReceivingTransferReady = receivingTransferReady;
 
@@ -1083,11 +1702,39 @@ function unifiedGameTick(ctx: TickContext): void {
     );
     const departureBlockCode = qualityBlockCodeFor(departureQuality);
     const departureBlockReason = departureBlockCode ? translate(msg, departureBlockCode) : null;
-    const actualKg = departureBlockReason
-      ? 0
-      : dockFlow.shipFinishedGoods(_shippingLoad.loadedKg, _shippingLoad.materialType, {
-          gameClock: readPlantClock(),
-        });
+    // The manifest names the order the plan credits first, read now from live
+    // state: the load snapshot is saved and does not carry it.
+    // So does which batch goes to which order (plan item 3.4): only flour
+    // that meets each order's minimum, up to what the truck took aboard.
+    const departurePlan = departureBlockReason
+      ? null
+      : planShipment(
+          shipmentPlanInput(activeProductionPlan, dockFlow.productionBatches, shipmentPolicy)
+        );
+    const departureOrderId = departurePlan?.orderId ?? null;
+    // An order of another product is the line's, and nothing of this load's
+    // product is owed any more (its order was forfeited while the truck was
+    // held at the dock past the forfeit's wait): the load stays in stock
+    // rather than leave with no order to pay for it (review 2, finding 7).
+    // Benchmarks keep the old truck rule.
+    const ownerless =
+      !!departurePlan &&
+      !departurePlan.graded &&
+      departureOrderId === null &&
+      !!activeProductionPlan &&
+      !isBenchmarkRuntime();
+    const actualKg =
+      !departurePlan || ownerless
+        ? 0
+        : dockFlow.shipFinishedGoods(_shippingLoad.loadedKg, _shippingLoad.materialType, {
+            gameClock: readPlantClock(),
+            ...(departureOrderId ? { orderId: departureOrderId } : {}),
+            // With no order of its product owed nothing is read against a
+            // minimum, and the truck takes released stock as it always did.
+            ...(departurePlan.graded
+              ? { loads: trimLoads(departurePlan.loads, _shippingLoad.loadedKg) }
+              : {}),
+          });
     _shippingLoad = {
       ..._shippingLoad,
       status: 'departed',
@@ -1131,13 +1778,6 @@ function unifiedGameTick(ctx: TickContext): void {
   // follows the live recipe, since it opened before there was one.
   // Working if the stock built while waiting is still there to ship.
   const commitmentHoldReason = activeProductionPlan ? null : translate(msg, 'noCommitmentToShip');
-  if (
-    shippingTransferReady &&
-    activeProductionPlan &&
-    _shippingLoad.loadedKg <= 1e-6 &&
-    _shippingLoad.materialType !== activeProductionPlan.finishedMaterial
-  )
-    _shippingLoad = { ..._shippingLoad, materialType: activeProductionPlan.finishedMaterial };
 
   if (shippingTransferReady) {
     const qualityStatus = getDispatchQualityStatus(
@@ -1146,38 +1786,18 @@ function unifiedGameTick(ctx: TickContext): void {
     );
     const qualityBlockCode = qualityBlockCodeFor(qualityStatus);
     const qualityBlockReason = qualityBlockCode ? translate(msg, qualityBlockCode) : null;
-    const releasedKg = getFinishedGoodsAvailability(
-      dockFlow,
-      _shippingLoad.materialType
-    ).releasedKg;
-    const activeOrder = useOperationsCampaignStore
-      .getState()
-      .orders.find((order) => order.id === activeProductionPlan?.orderId);
-    // After a mid-load switch to another product's order the truck still holds
-    // its own product, which departure credits to that product's open orders:
-    // it loads toward what they owe, never the new order's remainder, and
-    // never sheds what it already holds.
-    const orderRemainingKg = !activeOrder
-      ? FINISHED_GOODS_SHIPMENT_KG
-      : activeOrder.recipe.finishedMaterial === _shippingLoad.materialType
-        ? Math.max(0, activeOrder.requiredKg - activeOrder.shippedKg)
-        : useOperationsCampaignStore
-            .getState()
-            .orders.filter(
-              (order) =>
-                order.status !== 'fulfilled' &&
-                order.status !== 'cancelled' &&
-                order.recipe.finishedMaterial === _shippingLoad.materialType
-            )
-            .reduce((sum, order) => sum + Math.max(0, order.requiredKg - order.shippedKg), 0);
-    const loadTargetKg = Math.max(
-      _shippingLoad.loadedKg,
-      Math.min(
-        _shippingLoad.capacityKg,
-        orderRemainingKg,
-        Math.max(_shippingLoad.loadedKg, releasedKg)
-      )
+    // The product, the kilograms and the readiness come from the shipment plan
+    // (src/simulation/shipmentPlan.ts). An empty truck takes the active
+    // order's product; after a mid-load switch to another product's order the
+    // truck keeps its own and loads toward what that product's open orders
+    // owe, never shedding what it holds. The holds stay here: they read the
+    // lab and the incidents.
+    const plan = planShipment(
+      shipmentPlanInput(activeProductionPlan, dockFlow.productionBatches, shipmentPolicy)
     );
+    if (plan.materialType !== _shippingLoad.materialType)
+      _shippingLoad = { ..._shippingLoad, materialType: plan.materialType };
+    const releasedKg = plan.releasedKg;
     const previousStatus = _shippingLoad.status;
     const previousBlockReason = _shippingLoad.blockReason;
     const previousBlockCode = _shippingLoad.blockCode;
@@ -1196,19 +1816,41 @@ function unifiedGameTick(ctx: TickContext): void {
         blockReason: qualityBlockReason,
         blockCode: qualityBlockCode,
       };
+    } else if (
+      releasedKg <= _shippingLoad.loadedKg + 1e-6 &&
+      _shippingLoad.loadedKg < plan.readyAtKg - 1e-6 &&
+      plan.awaitingTestKg > 1e-6
+    ) {
+      // Tested stock is aboard and more the orders take is on the lab's
+      // bench (plan item 3.2): the truck waits for it rather than leaving
+      // short and making the order wait a whole truck.
+      _shippingLoad = { ..._shippingLoad, status: 'loading', blockReason: null, blockCode: null };
+    } else if (
+      releasedKg <= _shippingLoad.loadedKg + 1e-6 &&
+      _shippingLoad.loadedKg < plan.readyAtKg - 1e-6 &&
+      dispatchHoldsTruck(
+        usePartnerProposalStore.getState().proposals,
+        _shippingLoad.cycleId,
+        useOperationsCampaignStore.getState().elapsedMinutes
+      )
+    ) {
+      // A dispatch question is open for this truck, or it was answered
+      // "hold" (plan item 3.4): it waits at the dock for in-spec flour
+      // rather than leaving on the stock-out with what it has aboard.
+      _shippingLoad = { ..._shippingLoad, status: 'loading', blockReason: null, blockCode: null };
     } else if (releasedKg <= _shippingLoad.loadedKg + 1e-6) {
+      // Released stock has run out: ready with anything aboard (plan.ready).
       _shippingLoad = {
         ..._shippingLoad,
-        status: _shippingLoad.loadedKg > 0 ? 'ready' : 'held',
-        blockReason:
-          _shippingLoad.loadedKg > 0
-            ? null
-            : translate(msg, 'waitingForMaterial', { material: _shippingLoad.materialType }),
-        blockCode: _shippingLoad.loadedKg > 0 ? null : 'waitingForMaterial',
+        status: plan.ready ? 'ready' : 'held',
+        blockReason: plan.ready
+          ? null
+          : translate(msg, 'waitingForMaterial', { material: _shippingLoad.materialType }),
+        blockCode: plan.ready ? null : 'waitingForMaterial',
       };
     } else {
       const loadedKg = Math.min(
-        loadTargetKg,
+        plan.targetKg,
         _shippingLoad.loadedKg +
           logisticsLoadingRate(
             useLogisticsLayoutStore.getState().layout,
@@ -1219,10 +1861,8 @@ function unifiedGameTick(ctx: TickContext): void {
       _shippingLoad = {
         ..._shippingLoad,
         loadedKg,
-        status:
-          loadedKg >= _shippingLoad.capacityKg - 1e-6 || loadedKg >= orderRemainingKg - 1e-6
-            ? 'ready'
-            : 'loading',
+        // Readiness after this tick's loading: at capacity or at what is owed.
+        status: loadedKg >= plan.readyAtKg - 1e-6 ? 'ready' : 'loading',
         blockReason: null,
         blockCode: null,
       };
@@ -1309,12 +1949,14 @@ function unifiedGameTick(ctx: TickContext): void {
   const totalEnergyKw = getSiteDemandKw(
     latestProduction.machines,
     latestGame.gameTime,
-    latestGame.emergencyActive
+    latestGame.emergencyActive,
+    latestProduction.productionSpeed
   );
   const executionPlan = useOperationsCampaignStore.getState().getActiveProductionPlan();
   const executionMaterial = executionPlan?.finishedMaterial ?? _shippingLoad.materialType;
   const finishedAvailability = getFinishedGoodsAvailability(latestFlow, executionMaterial);
   const lastReportBefore = useOperationsCampaignStore.getState().reports.at(-1)?.id;
+  const openBefore = openOrderIds();
   useOperationsCampaignStore.getState().tickCampaign(deltaSeconds * safeGameSpeed, {
     // A save taken between 00:00 and 06:00 under the old per-day key closes
     // one short Night report on its first tick after upgrading; the campaign
@@ -1341,11 +1983,18 @@ function unifiedGameTick(ctx: TickContext): void {
     clockMinuteOfDay: latestGame.gameTime * 60,
     lineOrderId: linePlan?.orderId ?? null,
     lineCustomer: linePlan?.prestaged ? linePlan.customer : null,
+    bestReachableQuality: bestReachableQuality(stampContext),
+    oee: _oeeTick,
+    // The opening stock, on a material session's first tick (the ledger).
+    ...(openingStockValue !== undefined ? { openingStockValue } : {}),
   });
+  announceForfeits(openBefore);
   // The chronicle reads the campaign's recorded evidence after it has closed
   // any shift. Replays and improvement trials own the clock and are not history.
   useChronicleStore.getState().observe(replayActive || improvementActive);
   announceClosedShift(lastReportBefore);
+  // A replay re-runs the past: its deliveries are not this session's results.
+  if (!replayActive) celebrateCampaignResults(openBefore, lastReportBefore);
   // Workshops advance only through facilitator inputs. They must not acquire a
   // clock, pay or apparent shipment evidence from unrelated plant activity.
   if (useWorkplaceStore.getState().workplace.mode === 'game') {
@@ -1369,13 +2018,67 @@ function unifiedGameTick(ctx: TickContext): void {
       useGameSimulationStore.getState().holdClock('workplace');
   }
 
+  // 4f. The partner's proposals (systems/partnerProposalRuntime.ts): raised
+  // from the plant, answered elsewhere, expired on the campaign's game minutes
+  // (so P holds them and pace scales them), compared an hour on. It keeps its
+  // state in its own saved store, none here. Benchmarks, replays and trials
+  // are not play: nothing is raised and nothing expires in them.
+  if (!replayActive && !improvementActive && !isBenchmarkRuntime())
+    stepPartnerProposals({
+      qualityOf: productPathQuality,
+      // The service card prices wear as the tick applies it, overdrive included.
+      wearPace: (machineId: string) =>
+        machineWearPace(machineId) *
+        lineOverdrive(useProductionStore.getState().productionSpeed, OVERDRIVE_WEAR_SLOPE),
+      wearMultiplier: chronicleEffect.wearMultiplier,
+      qualityPenalty:
+        useOperationsCampaignStore.getState().getIncidentEffect().qualityPenalty +
+        lineChroniclePenalty,
+      bestReachable: bestReachableQuality(stampContext),
+      wheatOnceDried: wheatReachableOnceDried(
+        stampContext,
+        useOperationsCampaignStore.getState().elapsedMinutes
+      ),
+      ...(arrivedLot ? { arrivedLot } : {}),
+      intakeBase: stampBase(useProductionStore.getState().machines),
+      // The temper card (plan item 7.7): the wheat the line will be fed, which
+      // prices the drying. The card is raised on the silos one by one
+      // (temperRuntime.ts wheatSiloBins), not on this mean.
+      ...(stampContext
+        ? {
+            temperGrain: () => {
+              const flow = useMaterialFlowStore.getState();
+              const silos = wheatSiloContributions(flow);
+              return {
+                grain: silos.length > 0 ? equalWeight(silos) : lineWheatContributions(flow),
+                context: stampContext,
+              };
+            },
+          }
+        : {}),
+    });
+
   // 5. Handle breakdowns (async, outside main path)
   if (_breakdowns.length > 0) {
     // Copy breakdowns before async (since we reuse the array)
     const breakdownsCopy = _breakdowns.map((b) => ({ ...b }));
     breakdownsCopy.forEach(({ id, name, machineType, breakdownType }) => {
+      // A roller mill that fails with its wear warning ignored (no service,
+      // or its service answered "run on") overheats a bearing: a plant
+      // incident with the partner's two answers (plan item 3.5).
+      const overheats =
+        measure.plantIncidents !== false &&
+        !isBenchmarkRuntime() &&
+        !replayActive &&
+        !improvementActive &&
+        machineType === 'ROLLER_MILL' &&
+        wearWarningIgnored(useBreakdownStore.getState().predictiveAlerts, id);
       const breakdown = useBreakdownStore.getState().triggerBreakdown(id, name, breakdownType);
       if (!breakdown) return;
+      if (overheats)
+        useOperationsCampaignStore
+          .getState()
+          .triggerIncident('bearing_overheat', { origin: 'plant', machineId: id });
       const breakdownParams = {
         name,
         machineType,
@@ -1429,6 +2132,8 @@ export function resetUnifiedTickState(): void {
   _milestonesReachedMask = 0;
   _wearCarry.clear();
   _pendingShippingDelayMinutes = 0;
+  _pendingReceivingDelayMinutes = 0;
+  resetUnitWork();
 }
 
 export function captureUnifiedTickState() {

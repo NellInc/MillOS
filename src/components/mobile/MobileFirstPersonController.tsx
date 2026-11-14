@@ -28,10 +28,18 @@ import {
   useForkliftDriveStore,
 } from '../../stores/forkliftDriveStore';
 import { forkliftInReach, forkliftStepDownPoint } from '../../utils/forkliftBoarding';
+import {
+  activateAimedInteractable,
+  clearAimedInteractable,
+  updateAimedInteractable,
+} from '../../utils/worldInteractables';
+import { LADDER_CLIMB_SPEED, walkingPace } from '../../utils/walkingPace';
+import { LADDER_TOP_TOLERANCE, siloLadderAt } from '../../utils/siloLadders';
+import { clearFirstPersonPose, writeFirstPersonPose } from '../../utils/firstPersonPose';
+import { linkSceneInteractables, unlinkSceneInteractables } from '../../utils/sceneInteractables';
+import { updateSiloCard } from '../worldCard/worldCardStore';
 
-// Movement configuration (same as desktop FPS)
-const MOVE_SPEED = 12;
-const SPRINT_SPEED = 24;
+// Movement configuration: paces come from utils/walkingPace.ts (D16), as on desktop.
 const PLAYER_HEIGHT = FIRST_PERSON_EYE_HEIGHT;
 const PLAYER_RADIUS = 0.4;
 const FPS_FOV = 75; // Reduced FOV for mobile to reduce fish-eye effect
@@ -42,6 +50,24 @@ const LOOK_SMOOTHING = 0.15; // Lerp factor per 60 Hz frame for smooth camera mo
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
 const _cameraYaw = new THREE.Euler(0, 0, 0, 'YXZ');
+const _aimDirection = new THREE.Vector3();
+
+/**
+ * The walking camera, while the controller is mounted, so a tap on the
+ * overlay's context button (DOM, outside the Canvas) can use what the view is
+ * on, as E and a click do on desktop (FirstPersonController's `interact`).
+ */
+let aimCamera: THREE.Camera | null = null;
+
+/**
+ * Activate whatever the view is on (the school bell). Called in the tap itself,
+ * so a sound it starts stays inside the user gesture. True when it acted.
+ */
+export function activateMobileAim(): boolean {
+  if (!aimCamera || useForkliftDriveStore.getState().drivenId) return false;
+  aimCamera.getWorldDirection(_aimDirection);
+  return activateAimedInteractable(aimCamera.position, _aimDirection);
+}
 
 // Share the actual machine anchors with desktop navigation and Rapier.
 const COLLISION_BOXES = [
@@ -107,7 +133,7 @@ const findFreeSpawn = (x: number, z: number): [number, number] => {
  * No pointer lock required - works on touch devices.
  */
 export const MobileFirstPersonController: React.FC = () => {
-  const { camera, gl } = useThree();
+  const { camera, gl, scene } = useThree();
   const velocity = useRef(new THREE.Vector3());
   const direction = useRef(new THREE.Vector3());
   const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
@@ -117,6 +143,10 @@ export const MobileFirstPersonController: React.FC = () => {
   // The yaw this controller last gave the camera, and the forklift being driven.
   const writtenYawRef = useRef<number | null>(null);
   const drivenRef = useRef<string | null>(null);
+  // Eye height while on a silo ladder, held between frames (null on the ground),
+  // and the silo whose ladder top the body is on.
+  const climbHeight = useRef<number | null>(null);
+  const siloAtTop = useRef<string | null>(null);
 
   // Set initial position and FOV for FPS mode
   useEffect(() => {
@@ -150,8 +180,13 @@ export const MobileFirstPersonController: React.FC = () => {
     // look/move choice on leaving: the centre toggle is disabled while walking.
     const prevDpadMode = useMobileControlStore.getState().dpadMode;
     useMobileControlStore.getState().setDpadMode('move');
+    aimCamera = camera;
 
     return () => {
+      if (aimCamera === camera) aimCamera = null;
+      clearAimedInteractable();
+      unlinkSceneInteractables();
+      clearFirstPersonPose();
       // Leaving first-person in a seat hands the forklift back to its autopilot.
       resetManualForkliftInput();
       useForkliftDriveStore.getState().exit();
@@ -272,11 +307,15 @@ export const MobileFirstPersonController: React.FC = () => {
     euler.current.y += (targetEuler.current.y - euler.current.y) * lookBlend;
     camera.quaternion.setFromEuler(euler.current);
     writtenYawRef.current = _cameraYaw.setFromQuaternion(camera.quaternion).y;
+    linkSceneInteractables(scene);
+    writeFirstPersonPose(camera.position.x, camera.position.z, writtenYawRef.current);
 
     // Driving: the D-pad is throttle and steering (forks are their own buttons,
     // MobileControlsOverlay), and the seat owns the camera's position.
     if (drive.drivenId) {
       drivenRef.current = drive.drivenId;
+      // In a seat the buttons are the forklift's; nothing else is aimed at.
+      clearAimedInteractable();
       manualForkliftInput.throttle = dpadDirection
         ? Math.max(-1, Math.min(1, -dpadDirection.y))
         : 0;
@@ -298,11 +337,47 @@ export const MobileFirstPersonController: React.FC = () => {
       camera.position.x = x;
       camera.position.z = z;
     }
-    camera.position.y =
+    const groundEye =
       PLAYER_HEIGHT + sampleWalkingGroundHeight(camera.position.x, camera.position.z, segments);
+    // On a silo ladder the D-pad climbs, as W and S do on desktop: forward up,
+    // back down. The height is held between frames, so lifting the thumb
+    // leaves the body where it is on the rungs (report 04 F8).
+    const ladder = siloLadderAt(camera.position.x, camera.position.z);
+    if (ladder) {
+      const climb = dpadDirection ? -dpadDirection.y : 0;
+      const eye = Math.min(
+        ladder.height,
+        Math.max(groundEye, (climbHeight.current ?? groundEye) + climb * LADDER_CLIMB_SPEED * dt)
+      );
+      climbHeight.current = eye;
+      camera.position.y = eye;
+      updateSiloCard(siloAtTop, eye >= ladder.height - LADDER_TOP_TOLERANCE ? ladder.siloId : null);
+      // Sideways and off the ladder only from its foot, at half pace; above
+      // the ground the body stays on the rungs.
+      if (dpadDirection && eye <= groundEye + LADDER_TOP_TOLERANCE) {
+        const pace = walkingPace(camera.position.x, camera.position.z, false) * 0.5 * dt;
+        _forward.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+        _forward.y = 0;
+        _right.y = 0;
+        _forward.normalize();
+        _right.normalize();
+        const dx = (_forward.x * -dpadDirection.y + _right.x * dpadDirection.x) * pace;
+        const dz = (_forward.z * -dpadDirection.y + _right.z * dpadDirection.x) * pace;
+        if (!checkCollision(camera.position.x + dx, camera.position.z)) camera.position.x += dx;
+        if (!checkCollision(camera.position.x, camera.position.z + dz)) camera.position.z += dz;
+      }
+      return;
+    }
+    climbHeight.current = null;
+    updateSiloCard(siloAtTop, null);
+    camera.position.y = groundEye;
     drive.setInReach(
       forkliftInReach(camera.position.x, camera.position.y, camera.position.z, segments)
     );
+    // What the view ray is on, for the context button (the school bell).
+    camera.getWorldDirection(_aimDirection);
+    updateAimedInteractable(camera.position, _aimDirection);
 
     // --- D-pad movement ---
     direction.current.set(0, 0, 0);
@@ -319,8 +394,8 @@ export const MobileFirstPersonController: React.FC = () => {
     // Normalize diagonal movement
     direction.current.normalize();
 
-    // Calculate speed based on sprint state
-    const speed = isSprinting ? SPRINT_SPEED : MOVE_SPEED;
+    // A person's pace in the hall, a jog and a run outside it (D16).
+    const speed = walkingPace(camera.position.x, camera.position.z, isSprinting);
 
     // Get forward and right vectors from the (already-updated) camera orientation
     _forward.set(0, 0, -1).applyQuaternion(camera.quaternion);

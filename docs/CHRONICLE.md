@@ -38,9 +38,50 @@ everywhere) and takes individual mechanics from Old Kingdom.
 
 * **Turn** = one closed `ShiftCampaignReport` (8 game hours).
 * **Crop year** = 9 shifts (3 game days).
-* **Chronicle length** = 7 crop years (63 shifts, 21 game days, about 2.8 real
-  hours at standard pace). Afterwards the mill continues as an endless sandbox
+* **Chronicle length** = 7 crop years (63 shifts, 21 game days). Standard pace
+  (1x) is 30 game seconds per real second (`simulation/pace.ts`), so a shift is
+  16 real minutes and the Chronicle about 16.8 real hours at 1x, or 4.2 at the
+  fastest pace, 4x. Afterwards the mill continues as an endless sandbox
   (PE: `general_gameover_end` "Inspect the city").
+* **A short chronicle** (D3, item 4.2) is chosen on the charter: 27 shifts,
+  about 7.2 real hours at 1x. `src/chronicle/schedule.ts` places everything
+  scheduled on its clock by `onSchedule`, the full shift times 27/63 rounded
+  down, so each still happens, in order, at the same share of the way through.
+  The trial windows are four shifts (the Great Programme five), and each
+  tonnage is set from the measured pace (item 4.1, "Measured tuning
+  (2026-11-13)" below). Plans cost what they cost in a full chronicle, so a short
+  chronicle buys less of the tree. A save stores
+  `charter.length` only for a short chronicle; absent is the full one.
+
+  | Scheduled | Full | Short |
+  |---|---|---|
+  | Crop-year turns (7 years) | 0, 9, 18, 27, 36, 45, 54 | 0, 3, 7, 11, 15, 19, 23 (years of 3, then 4) |
+  | Standby cover, court short weight | 3, 6 | 1, 2 |
+  | Culvert mason, switchgear survey | 17, 26 | 7, 11 |
+  | Valley meeting, quarry stone | 33, 36 | 14, 15 |
+  | The Wet Harvest | announced 9, 11 to 18, 123,000 kg | announced 2, 4 to 8, 72,000 kg |
+  | The Inspection | announced 18, 20 to 24, 3 clean closes | announced 6, 8 to 11, 2 clean closes |
+  | The Bakers' Rush | announced 27, 29 to 36, 123,000 kg | announced 10, 12 to 16, 72,000 kg |
+  | Grid Winter | announced 32, 38 to 45, 123,000 kg | announced 10, 16 to 20, 72,000 kg |
+  | The Great Programme | announced 48, 50 to 59, 172,000 kg | announced 19, 21 to 26, 96,000 kg |
+  | The long night | announced 52, decided 54 | announced 21, decided 23 |
+  | Epilogue | 63 | 27 |
+
+  The one three-shift crop year comes first, where it sets the quota baseline,
+  so steady dispatch meets every later quota. Event `minShift` and `maxShift`
+  are read on the same clock. Forecast leads, lapses, install times and the
+  standing conditions' runs are not compressed. Grid Winter is announced six
+  shifts ahead in both forms (review 2, finding 8). In 63 shifts that leaves
+  time to install an energy plan; in 27 it buys notice only, since wind and
+  heat recovery are Regional plans, which a short chronicle reaches at shift
+  23 to 27: six shifts to see the goal and its cap and to bring output per
+  hour up before the window. A short chronicle has the same era gates and the same
+  rank ladder. It cannot reach Federated: installs run one at a time, and the
+  twelve shortest installs before it take 31 shifts at a firm's ordinary speed;
+  on the probe every attentive and skilled 27-shift run reached Regional, none
+  Federated. So an era scores as the share of its length's own ladder
+  (`eraPoints` in `scoring.ts`): 3 an era in 63 shifts, 4 an era in 27, and the
+  top of either ladder 12 (review 2, finding 10).
 
 ## Currencies
 
@@ -50,8 +91,8 @@ be a trust score of the workforce.
 
 | Currency | Earned from (each is a ledger source) | Spent on |
 |---|---|---|
-| **Co-op fund** | Reinvestment share (25%) of each closed shift's recorded net contribution; loyalty premium from warm customers; event outcomes | Plant upkeep, forecast mitigations, event choices, improvement installs, contractor retainers |
-| **Know-how** | Shift grade (A 6, B 4, C 3, D 2, F 1); each passed QC test; first read of a history note; first correct quiz answer; trial and challenge medals | Improvement plans (the discovery tree) |
+| **Co-op fund** (kept in the plant's currency) | Reinvestment share (0.70%) of each closed shift's net, the net the shift review prints (`shiftMargin`: grain and parts bought are costs, grain still held is credited back); loyalty premium from warm customers (0.18% of their revenue); every cost an installed plan avoided, in full (item 4.3); event outcomes | Plant upkeep, forecast mitigations, event choices, improvement installs, contractor retainers |
+| **Know-how** | Shift grade (A 6, B 4, C 3, D 2, F 1); each batch that passes a test the player ran (a batch earns once in a chronicle; a test any other hand ran, the lab bench's own or an agent's or the partner's, earns nothing, `chronicleStore` qcTestKeys); first read of a history note; first correct quiz answer; trial and challenge medals | Improvement plans (the discovery tree) |
 
 The fund ledger and the plant economics both render as source breakdowns
 (PE: `source_types.txt` — every resource lists cells, population, events,
@@ -94,6 +135,23 @@ Each plan costs know-how to *plan*, fund to *install*, takes shifts to install
 and charges **upkeep** every shift (Old Kingdom's *Rent*). Effects feed the
 Chronicle effect (production, energy, wear, quality) or the forecast chances.
 
+**Plans as investments (item 4.3, D8).** At each close every installed plan
+whose effect lowers a cost the plant books is credited what it kept off the
+books, in full ("Costs plans avoided" in the ledger, beside each plan's upkeep
+in the Ledger tab's plan table): energy plans the booked energy less what it
+would have been (`energyCost * (1 / m - 1)`), wear plans the parts and work
+orders (`(partsCost + maintenanceCost) * (1 / w - 1)`), split between plans by
+their own effect (`src/chronicle/avoided.ts`). A paired control on the real
+tick confirms the energy path: wind and heat recovery together book exactly
+0.94 x 0.96 of the energy. Production, quality and relief plans lower no booked
+cost (the dock sets the tonnes), so they earn nothing here. Wind (60, upkeep 2),
+heat recovery (45, upkeep 1) and vibration monitoring (20, upkeep 1) are priced
+on what the probe's runs credited them (about 9.9, 6.5 and 4.9 a shift): at
+those prices every install with 11 closes left paid back within them. The wear
+credit is the formula applied to the parts and work orders the plant booked;
+a ten-shift paired control booked none in either arm, so that wear lowers them
+is not yet shown.
+
 ### 4. Contractors with paired traits — OK `architect_features.txt`
 
 Three firms are offered each crop year. Each has one strength and one weakness
@@ -102,7 +160,7 @@ from different groups; magnitudes are rolled inside the Old Kingdom ranges.
 | Group | Strength | Weakness | Applies to |
 |---|---|---|---|
 | Cost | Thrifty: install cost -10..30% | Wasteful: +5..15% | install fee |
-| Effect | Diligent: effect +10..30% | Neglectful: -5..15% | improvement effect |
+| Effect | Diligent: effect +10..30% | Neglectful: -5..15% | improvement effect, forecast relief and the library's know-how; not crop relief, which is whole |
 | Risk | Careful: snag chance -20..60% | Reckless: +10..30% | completion snag |
 | Speed | Expeditious: shifts -10..30% | Passive: +5..15% | install duration |
 
@@ -116,12 +174,76 @@ falling number) drawn from the current crop year. The QC laboratory's
 measurements come from the lots under test instead of fixed constants, and a
 poor year takes quality points off wheat recipes until the grain is treated.
 The numbers are set against the recipe thresholds (strong white 95, community
-flour 92, corn semolina 90; a released grade A reads 100):
+flour 92, corn semolina 90) and the plant's stamp, at most 99.5 on an unworn
+line and about 99.2 serviced (`productPathQuality`):
 
-| Crop year | Wheat penalty | Consequence | Response |
+| Crop year | Wheat penalty | Consequence (unworn line) | Response |
 |---|---|---|---|
-| Wet | 6 | strong white fails (94); community flour and semolina pass | switch recipe, a wet-year event (90-160), condition in place (200), dryer plan, moisture meters (-1) |
-| Sprouted | 9 (2 treated) | every wheat recipe fails (91) | a blending event (120), blend in place (200), blending-bins plan, or mill corn |
+| Wet | 5 | strong white fails (94.5); community flour and semolina pass | the floor's temper card, drying a shift's wheat first (plan item 7.7, below), the dryer plan, or moisture meters (-1), which make strong white on a serviced line (99.2 - 5 + 1 = 95.2). Recipes belong to the customers' orders, so there is no recipe to switch |
+| Sprouted | 9 (2 treated) | every wheat recipe fails (90.5) | a blending event (120), blend in place (200), blending-bins plan (each 97.5), or mill corn |
+| Dry | 0 | none: the plant tempers every lot to its reading | none needed |
+
+**Tempering (plan item 7.7).** A wet year is no longer paid off from the fund.
+Under a charter, once a shift, when any wheat silo's grain reads wet (silo by
+silo, `worstBinPenalty` in `simulation/lotQuality.ts`; until 13 November the
+silos' mean, which refused intake could hold under the trigger while wet lots
+still fed the line), the partner raises a temper card
+(`simulation/temperProposal.ts`, kept on the crop year by `chronicle/temper.ts`):
+**Temper as it comes** (flour carries the year's 5 points) or **Dry first, then
+temper** (none, at the energy the drying books at the tariff, a game price).
+An answer covers one shift's wheat and reaches the rolls after the plant's
+2-hour rest (Kansas State MF-2353 gives 2 to 24 hours and a target of about
+15%; `stores/millingSources.ts`); until then the line mills grain tempered as
+before. The card is priced on the worst silo's grain milled unmixed, on the
+line's stamp projected to the end of the wheat the answer covers
+(`projectedStampBase`), against the open orders' minimums and every wheat
+recipe's on the unrounded stamp, since an answer outlasts the order of the
+moment. Measured
+on the real tick (`plantFloor.playtest.test.ts`, `MILLOS_PLANT_TEMPER_OUT`,
+ten shifts from the start of a wet year): tempered as it comes, 0 of 16
+strong-white orders made, 15 forfeits, net 15,822; dried every shift, 16 of
+19, 2 forfeits, energy +1,022, net 41,105; the partner's choice the same. The
+record never ranked the other answer above the partner's, so by the ask rule
+the partner decides and tells. The silos never ran short in any arm, so the rest
+never withholds grain; it is priced as the hours before the change reaches the
+flour. A dry year carries no penalty (there was never one to pay off): the
+plant tempers every lot to about 15% from its intake reading, and adding water
+costs nothing this plant charges, so a dry-year card would have one answer and
+is not raised.
+
+The wet-intake event points at the card: **Hire a mobile dryer** (77, one shift
+of drying, `REFERENCE_DRYING_COST` in `temper.ts`) makes the
+card's drying free for three shifts; **Blend with stored grain** (free) halves
+it for three shifts at production x0.95; neither treats the year. The
+falling-number event answers a sprouted year only. A save that paid a wet year
+off before keeps it treated, and its notices still read (`legacyWording.ts`).
+The dryer plan still relieves a wet year outright; meters keep their point.
+
+Drying books energy, and a wet year can fall in Grid Winter's window (crop year
+four, in either length; wet for 178, 378 and 570 of 2,000 charter seeds under
+cooperative, open-market and marginal grain, and for none of the probe's seeds
+101 to 108). Grid Winter's cap was set on a plant that dries nothing: on the
+final probe run the buyers' Wet Harvest windows, mostly dried, read 0.0076 to
+0.0098 a kg against 0.0065 to 0.0084 for Grid Winter's. So a trial's energy goal reads the close's
+energy less the drying the temper answers reported since the last close
+(`answerTemper`'s `dryingCost`, kept as `dryingSinceClose` until the close,
+`trialEnergyCost`). `systems/temperRuntime.ts` `runTemper` passes the cost it
+books, and the goal reads "energy at most 0.008 per kg, drying excluded" on the
+trial card while the trial is announced and while it runs.
+
+The wet penalty was 6 until item 4.6, when meters could not save strong white
+(99.5 - 6 + 1 = 94.5). The Overview's crop-year line and a quality trial's card
+print each recipe's stamp now against its minimum ("Strong white 94.5 / 95",
+`margins.ts`): the line's own stamp (its units' efficiency, so a worn line reads
+under the 99.5 ceiling) less the penalty of the grain it is milling, read per
+lot as the plant stamps it (`grainStamp.ts` over `simulation/lotQuality.ts`).
+A recipe is called out of reach only if a serviced line on the silos' grain
+still cannot make it, with what restores it: the treatment, a plan, or
+recovering an open incident. Short now but reachable, the line names servicing
+the line or milling the silos' grain (fix-up b of item 4c). Since the plant loads an order only from
+batches at its minimum, that line is the way out (rule 4); every crop year
+either leaves 95 reachable or names a preparation that does, and lasts a
+bounded run of shifts (`wetYearMargin.gameplay.test.ts`).
 
 Lots without crop attributes (no signed charter) read exactly as before. The
 first crop year is always ordinary. In a historical chronicle the second year is
@@ -135,7 +257,13 @@ due. One button reduces the probability at a fund cost ("Construct dams: -X,
 chance -Y%"). When due, a seeded roll raises the real incident through
 `triggerIncident`, with its real effects. Forecasts wait while a recovery
 challenge is active. Kinds: `severe_rain`, `power_sag`, `dust_filter_pressure`,
-`delayed_truck`.
+`delayed_truck`. Each is priced against the damage its relief avoids at the
+engine's own price of the incident (`incidentFundCost` on the measured shift):
+5, 5, 1 and 1, against 4.75, 4.84, 1.31 and 0.72 avoided at full relief at the
+0.70% share. Dust repays a little more than it costs and the storm, grid strain
+and road works a little less; near the chance's floor none does (fix-up c of
+item 4c; they were 60, 80, 50 and 45 against 16, 15, 5 and 2; then 6, 6, 2 and
+1 until the share cuts of 13 November).
 
 ### 7. Authored events with the price on the button — PE `random_*.txt`, `tribe_*.txt`
 
@@ -171,13 +299,31 @@ game minutes.
 ### 10. Customer relationships — PE `tutorial_tribe_action` (friendly trade +20%)
 
 Each customer has a relationship from 0 to 100 (Cool below 34, Warm from 67).
-On-time fulfilment raises it, late commitments and quality failures lower it.
-Warm customers pay a loyalty premium into the fund (4% of their recorded
-revenue), and relationships weight which events appear.
+On-time fulfilment raises it, by 6 while cool, 3 while neutral and 1 while
+warm, so "Demanding buyers" takes about twelve programmes to warm rather than
+five; late commitments and quality failures lower it. An order the plant
+forfeits (closed unfulfilled 240 game minutes past due, or by the partner at its
+due time when the crop year puts it out of reach) costs what a close with it
+late does, once, and earns nothing, so it is never kinder than delivering late.
+Warm customers pay a loyalty premium into the fund (0.18% of their recorded
+revenue). Relationships do not weight which events appear (an event's draw
+weight is its deck weight times the charter's fortune), but one event, "Two
+buyers, one slot", appears only while some customer is warm.
 
 ### 11. Trials — PE `trial_*.txt`, OK `trial_*_prepare`
 
-Telegraphed two shifts ahead with the conditions they will test. Each runs a
+Telegraphed two shifts ahead (Grid Winter six, as energy plans take three to
+six shifts to install) with the briefing: what the trial asks. Item 4.5 added a
+line after it naming what each tests on the plant floor and how to meet it;
+D14 cut that line from the announcement and the trial card as advice (13
+November). An announcement saved with it still reads and translates (the
+definitions keep it as `floor`). A failure names the condition
+that broke it ("Energy broke it: 0.0083 per kg against 0.008."; the Inspection
+names the close its run broke at and what that close lacked). Saved failures
+written before keep their old text and still translate. Grid Winter's cap is
+0.008 a kg, judged and printed to four decimals: the partner's default plant
+books about 0.0075 to 0.0083 over the window, the same plant taking the early
+programme about 0.0069 to 0.0078 (item 4.1). Each runs a
 fixed number of shifts, reads only recorded evidence, has a mid-trial pressure
 beat at half time, and ends Gold, Silver or Bronze by shifts to spare (PE
 `trial_sanctuary.txt` lines 18-21: gold with 7+ of 10 turns spare, silver with
@@ -186,11 +332,21 @@ with a historical note and closes with what really happened.
 
 | Trial | Goal (recorded evidence) | Shifts | Gold / Silver spare |
 |---|---|---|---|
-| The Wet Harvest | Dispatch 6,000 kg with no quality failure during a wet crop year | 4 | 2 / 1 |
-| The Inspection | Three consecutive shift closes with a passed QC test, no quality failure and no unresolved high-severity incident | 4 | 1 / 0 |
-| The Bakers' Rush | Dispatch 12,000 kg | 6 | 2 / 1 |
-| Grid Winter | Dispatch 8,000 kg at an energy cost of at most 0.08 per kg | 5 | 2 / 1 |
-| The Great Programme | Dispatch 20,000 kg with no quality failure | 9 | 3 / 1 |
+| The Wet Harvest | Dispatch 123,000 kg with no quality failure during a wet crop year | 7 | 2 / 1 |
+| The Inspection | Three consecutive shift closes with a passed QC test a person ran, no quality failure and no unresolved high-severity incident | 4 | 1 / 0 |
+| The Bakers' Rush | Dispatch 123,000 kg | 7 | 2 / 1 |
+| Grid Winter | Dispatch 123,000 kg at an energy cost of at most 0.008 per kg, drying excluded | 7 | 2 / 1 |
+| The Great Programme | Dispatch 172,000 kg with no quality failure | 9 | 2 / 1 |
+
+Each tonnage is `trialKg`: 1.2 times the measured pace (`MEASURED_PLANT.shiftKg`,
+20,500 kg since 14 November, 19,500 before) over the shifts gold allows, to the 500 kg. Silver then sits at the
+measured pace over seven-shift windows (0.86 for bronze), 1.05 for the Great
+Programme, and 0.9 (short windows, no bronze). The dock sets the tonnes (D22),
+so the lever that reaches gold is commitment: the partner's early programme,
+taken (its card is asked by default, with the partner's pick shown on it; a
+skilled player takes it through a tonnage trial's window whatever the pick).
+The briefings are templates filled from the goal, so a
+re-tune changes the figure in both languages at once.
 
 ### 12. Recovery challenge medals
 
@@ -209,6 +365,10 @@ delegates bounded authority to the AI partner in four steps:
 | 0 Advise | recommend only |
 | 1 Routine | answer routine events with their recommended choice |
 | 2 Forecasts | also fund forecast mitigations within 15% of the fund per shift, fund duct-fire suppression, and restore mitigated Chronicle incidents |
+
+A crop treatment the partner answers at level 1 or above may exceed the 15%
+share, as duct-fire suppression may: on a charter-sized fund the share never
+reached the wet-year dryer, and the untreated year failed strong white.
 | 3 Plans | also start the cheapest affordable improvement install |
 
 Every initiative is logged with its reason and can be reversed while it is
@@ -222,8 +382,16 @@ deterministic and local; no language model is consulted.
 Milling-history entries join Datalinks under *World and Process Lineage*,
 locked until a live event triggers them (first wet crop year, first dust
 incident, each era). The notes feed in the Chronicle workspace lists them as
-they arrive. The quiz draws ten questions from unlocked notes and scores in
-sacks; the first correct answer to each question earns know-how.
+they arrive. A quiz round draws up to ten questions and scores in sacks (`dealQuizRound`). Questions not yet attempted come first, and among them
+the round leads with questions built from the player's own record
+(`recordQuizQuestions` in `quiz.ts`): what followed a ruling the player made,
+what an installed plan changed, and why a failed trial failed, read from its
+progress against its goal. Unlocked notes fill the rest. Only the first attempt at a question
+can earn know-how, right or wrong (saved in `quizAttempted`; a question first
+missed earns nothing when later answered right), and record questions carry
+the charter's seed in their id, so a later charter's record starts fresh. Each
+question's options are reordered by the seeded generator (`rng.ts`), the same
+for a seed in every language.
 
 ### 15. Final score and rank — PE `general_scores_rank*`
 
@@ -285,6 +453,13 @@ accounts. Coercive options (hostages, "you will all die") have no analogue.
 | Peasants riot over safety, food or tyranny | The valley meeting: the grievance is computed from the record |
 
 ### 16. The record: decisions that come due — `DAA:` A Day In Court, The Peasant Revolution
+
+A cooperative season finished on the floor (item 5.10) enters the record too:
+the close's evidence carries each archived season's facts (profile, delivery,
+agreement, where the sobras went; no kilograms, credits or people), the engine
+records each once by its id and files `season-kept` or `season-short`, which
+the epilogue's "The cooperative seasons" slides read. A season moves no fund
+or know-how; seasons archived before the charter belong to no chronicle.
 
 A choice can leave a **mark** (`effect.marks`). Marks are kept with the shift,
 the event, the choice and who decided (player, AI partner, or the Chronicle
@@ -353,7 +528,9 @@ preparation for the long night.
 At shift 3 the district's one standby service firm can cover the intake, the
 roller floor or the dispatch yard; spreading it across all three halves each;
 leaving it to the AI partner puts it on the roller floor (Garevel keeps his
-troops in the city). The cover is a mark, so its payoff is deferred and
+troops in the city). That is the only way onto the roller floor: a separate
+"Cover the roller floor" answer did exactly what the free hand-over does and
+was removed (item 4.4). The cover is a mark, so its payoff is deferred and
 permanent: forecast relief on the covered area's hazard for the rest of the
 chronicle, preparation for the long night, and the valley meeting's grievance.
 
@@ -380,13 +557,17 @@ front with its own hands. The front not chosen holds on its preparation alone:
 
 | Front | Preparation that counts (two or more hold it) |
 |---|---|
-| Intake (storm) | intake cover; culvert rebuilt; flood wall built; drainage works or grain dryer installed; village committee warm; growers warm |
-| Roller floor (grid) | roller-floor cover; switchgear surveyed; standby generator or vibration monitoring installed; federation warm; haulier warm (spares arrive) |
+| Intake (storm) | intake cover; culvert rebuilt; flood wall built; drainage works or grain dryer installed; village committee warm; growers warm; co-op reserve at 100 or more |
+| Roller floor (grid) | roller-floor cover; switchgear surveyed; standby generator or vibration monitoring installed; federation warm; haulier warm (spares arrive); co-op reserve at 100 or more |
 
 Spread-thin cover counts as half on both fronts. A front that falls raises its
 real incident (`severe_rain` or `power_sag`), owned and recoverable like any
 Chronicle incident. The default, if the moment lapses, is the AI partner's:
-hold the roller floor. Holding the other front as well scores 3. Each button
+it holds the front with less preparation (the roller floor on a tie), so the
+readier front holds on its own (`weakerFront`, a variant of its answer). Until
+13 November it always held the roller floor, so a mill whose intake was the
+weaker lost it on the recommended answer. Holding the other front as well
+scores 3. Each button
 says whether the other front will hold, from the same function that resolves
 it.
 
@@ -413,7 +594,10 @@ shifts later, and breaking it costs more than refusing would have.
 
 The county food-standards office holds the mill's standing, 1 to 9 (start 5).
 Like Castles II's plot variables it moves in hundredths (`effect.standing`): a
-passed QC test +8, a shift with a quality failure -25, and event choices. 100
+batch that passes a test a person ran +8 (once in the chronicle; the lab bench's own tests of every batch are the plant's routine and count for nothing), a shift with a quality failure -25, and event choices. Like a real
+auditor it reads the lab's record periodically, not test by test: the passes
+since its last review reach standing at each crop year's turn and with the
+closing shift, with a notice. A quality failure is heard at once. 100
 hundredths make a point. Standing gates the last two eras (regional needs 4,
 federated 6) and adds the standing above 5 to the score (up to 4; nothing while
 suspended).
@@ -427,13 +611,18 @@ so an audit can always follow before the close.
 
 ### 24. Desks of attention, the mill's character, and the epilogue — `C2:` administrative, military and political points; `NWN2:` Warden or Dreadlord of the Keep; `DAA:` epilogue slides
 
-**Desks.** Castles II gives each noble separate administrative, military and
-political points, a limited number of concurrent tasks, and points that grow
-with use (`C2:` "Progress toward next Adm point"). The Chronicle has three
-desks: **works**, **trade** and **council**. Each starts with room for 2,
-refills by 1 at every shift close, and gains a point of room for every 4 spent
-(up to 4). Some event choices cost a desk point as well as fund, shown on the
-button. Defaults never cost one.
+**Desks (cut 2026-11-13, D10).** Castles II gives each noble separate
+administrative, military and political points (`C2:` "Progress toward next Adm
+point"). The Chronicle had three desks, works, trade and council, refilled by
+one a close. They never bound: about nine council costs in 63 shifts against a
+refill of one a shift. A seeded probe (40 chronicles, an engaged player) tried
+the alternative, paid part-one answers costing a point and a slower refill. At
+one refill every two closes the works desk reached 0 in 38 of 40 chronicles and
+the council desk in all 40, but what it refused was the fourth arbitration case
+(lapsing to its default every time), the wet-year dryer and forecast
+mitigations: lapses, not trades. The trade desk never bound. So they were cut:
+their state, costs, copy and the overview's numbers. A save that holds them
+loads and drops them.
 
 **Character.** Marks carry a leaning (growers, customers, the ledger,
 standards, the valley). At the end the dominant leaning names the mill: the
@@ -485,7 +674,7 @@ What the series adds is the setting you leave in place and come back to.
 | Doctrines change statistics and thresholds | Policy ladders change bounded modifiers and forecast points through `ChronicleEffect`; nothing creates goods |
 | Ministers, factions and interest groups are scored for loyalty | Refused as scores. The crew are anonymous roles with values, preferences and needs; nothing about them is a number. Organisations keep their part-two relationships |
 | Statistics "not very accurate, so don't bother" (`CiK:` tutorial) and "Forgery in plans" | The return is filed from the recorded tally and cannot be edited. Padding a return was considered and not built: the ratchet carries the dilemma, and the backdated cleaning log already plays falsification |
-| Being deposed ends the game (`CiK:` "KGB PLOT ... you were arrested") | Rule 4: the administrator arrives, locks policies for four shifts and leaves |
+| Being deposed ends the game (`CiK:` "KGB PLOT ... you were arrested") | Rule 4: the federation offers an administrator; accepted, it holds the policies for four shifts and leaves |
 
 ### Refused on principle
 
@@ -511,7 +700,7 @@ conditions.
 | Stock | Lean: upkeep x0.9, road works +8 | Working buffer | Strategic reserve: upkeep x1.12, road works -8, storm -4 |
 | Order book | Spot: reinvestment +3%, customers -4 each crop year | Mixed | Contract: reinvestment -2%, customers +4 each crop year |
 
-A change moves one step, costs 4 know-how and a council point (`CiK:` "15
+A change moves one step, costs 4 know-how (`CiK:` "15
 more points to change a doctrine"), and locks that ladder for 3 shifts. One
 exception: a step off a red line whose warning is counting down (system 28)
 can be proposed at once, since the lock would otherwise hold the policy until
@@ -535,8 +724,21 @@ in this order, with the reason shown:
 3. It moves toward their preferred step: for; away from it: against.
 4. Otherwise by temperament: eager for, cautious against a move to either end, even abstains.
 
-One member, one vote; abstentions do not count and a tie does not carry. A
-change that falls stays open: meet a need (fund, on the button) or withdraw.
+One member, one vote; abstentions do not count and a tie does not carry,
+with one exception: a tie carries a move off a red line (system 28) or off the
+step a standing condition needs the mill to leave (worn rolls, thin stocks).
+Otherwise one member who prefers that step could carry the mill onto it and
+then tie the way back for good (rule 4). Such a notice says why the tie
+carried. A change that falls stays open: meet a need (fund, on the button) or
+withdraw. A concession on an open change is refused before it is paid when
+meeting every need and objection in the assembly would still not carry it.
+
+The crew read the record too (item 4.10): a ruling that cuts against what a
+role values raises that member's standing objection, which votes against every
+change until it is met through their usual concession. The intake grader
+objects to ending the hail-struck farm's contract, the lab technician to
+backdating the cleaning log (`RULING_OBJECTIONS` in `governance.ts`). No
+ladder step lifts it.
 A change carried over a member's need leaves their objection standing until
 the need is met or the ladder moves off that step. Both leave marks
 (`crew-overruled`, `crew-concession`), and the epilogue says what became of
@@ -603,8 +805,11 @@ from the conventional rule on the real forecasts and plans.
 An answer a brief has no view of scores zero, so it still beats an answer
 the brief counts against: a standards-first partner never takes the answer
 that costs standing just because the others were neutral. The conventional
-answer wins ties, so a brief with no view of any answer takes it. Chains handed to the partner
-(`resolveChain`) stay on their defaults, so every default stays free. The
+answer wins ties, so a brief with no view of any answer takes it. A case
+handed to the partner (the hand-over and the `resolveChain` after it) is ruled
+by the brief among the free answers: the conventional brief still gives the
+default ruling, and a "Good neighbour" partner docks the hail-struck farm
+rather than terminating it. Every default stays free. The
 policy is a fixed rule set; no language model is consulted. The epilogue
 names a non-conventional brief.
 
@@ -629,15 +834,33 @@ is the player's. The sandbox mode sets no quota.
 Indivisible, after the third co-operative principle: fund goes in (a 25
 deposit, or autofill: 10% of each shift's reinvestment) and comes out only to
 cover upkeep, before the austerity choice is asked. What it cannot cover is
-still a shortfall. Ledger source `reserve`.
+still a shortfall. Ledger source `reserve`. A reserve of 100 or more counts as
+one preparation for the long night (system 21).
 
 ### 32. The administrator — `CiK:` "KGB PLOT", made recoverable
 
 Two missed quotas in a row, or three of the four organisations cool, bring
-the federation's administrator once per chronicle: for four shifts policies
-are locked, upkeep is x1.1 and the AI partner acts at Forecasts or above
-(the player cannot lower it). Then it leaves, the delegation goes back to
-where it was, and the mark stays for the epilogue.
+the federation's offer of an administrator, once per chronicle (D9, recast
+2026-11-13). The ICA's fourth principle holds that "Cooperatives are
+autonomous, self-help organisations controlled by their members" and enter
+agreements with other organisations "on terms that ensure democratic control
+by their members and maintain their cooperative autonomy" (ica.coop,
+"Cooperative identity, values & principles", read 2026-11-13), and the game's
+own Mondragon note says the federation let each co-operative stay
+self-governing. So the federation offers and the assembly decides. A notice
+names what brought the offer: the missed returns, or the rulings and standing
+effects that cooled each organisation.
+
+* **Accept** (the default, and what a lapse does): for four shifts the
+  policies are held where they stand, upkeep is x1.1 and the AI partner acts at
+  Forecasts or above (the player cannot lower it), and the federation pays the
+  mill's upkeep, the x1.1 included (the ledger's "Federation payments"). The
+  button says so. Then it leaves, the
+  delegation goes back to where it was, and the mark stays for the epilogue.
+* **Refuse**: the federation -10, and a mark the epilogue reads. It is not
+  offered again.
+
+The ratchet is unchanged.
 
 ### History
 
@@ -651,7 +874,9 @@ out.
 ### Not changed, and simplified
 
 The final score and its ranks are unchanged; part three shows in the
-epilogue, not the score. The Chronicle's copy stays English only (rule 7).
+epilogue, not the score. The Chronicle's copy ships in English and Brazilian
+Portuguese; engine records stay canonical English and are translated when
+shown (CLAUDE.md, Chronicle rule 7).
 
 * A chronicle saved before part three starts on the middle of every ladder
   with its seed's crew; its first return covers only the shifts from loading
@@ -679,7 +904,6 @@ src/chronicle/
   record.ts        the mark registry, conditions, the mill's character
   stakeholders.ts  the four organisations and what each does at its tier
   certifier.ts     County Food Standards standing, suspension, reinstatement
-  desks.ts         works, trade and council desks of attention
   longNight.ts     the two fronts and their preparation
   epilogue.ts      epilogue sections and slides, chosen from the record
   governance.ts    part three: policy ladders, crew, conditions, red lines, briefs, ratchet, reserve
@@ -710,6 +934,14 @@ Integration points in existing code (each a small, guarded edit):
 
 ## Measured tuning (2026-10-24)
 
+This section is a dated record of the 2026-10-24 measurement, taken at the
+retired 180x pace it calls standard. Standard pace is now 30 game seconds per
+real second, plant time is a fixed fraction of game time, and the paces run
+from 1/2x to 4x (`simulation/pace.ts`, since commit 0b092b81). The paces named
+below (180x, 60x, 6x) no longer exist. The tuning was re-measured at pace 30
+on 13 November (item 4.1, "Measured tuning (2026-11-13)" below), which
+supersedes this section.
+
 Measured in the running app at standard pace (180x): shifts alternate between
 no truck and one truckload, about 2,500 kg a shift on average, and a shipping
 shift nets about +2,000 to +2,400 with an energy cost near 0.088 per kg. From
@@ -722,21 +954,229 @@ that:
   paid for). A fire can also always be cleaned by hand, free, in 120 minutes.
 * Grid Winter's cap is 0.08 per kg (reachable with energy plans; 0.06 was not).
 * The Great Programme asks for no quality failure rather than an average grade,
-  because a shift with no truck is graded F by the operations campaign.
+  because a shift with no truck was recorded then as graded F. Today a shift with
+  nothing due and nothing shipped gets no grade at all (`gradeShift` returns
+  null, `simulation/shiftReview.ts`); a shift that ships nothing while an order
+  falls due in it is still graded F.
 
 At 6x and above, real-time trucks cannot keep up, so the plant ships little and
 accrues late penalties. That is pre-existing campaign behaviour; the Chronicle
-is tuned for standard pace.
+was tuned at the 180x standard pace of the time.
+
+## Measured tuning (2026-11-13, item 4.1)
+
+Superseding the section above. The Chronicle is tuned on the plant the probe
+measures with the tick in the loop
+(`src/systems/__tests__/chronicleProbe.playtest.test.ts`, through the plant
+harness's driver): it signs a charter and plays whole chronicles, every close's
+evidence written by the real tick, in three styles (idle, attentive, skilled;
+the file's header defines them) over seeds and both lengths. Every figure that
+rests on the plant is in `src/chronicle/measuredPlant.ts`.
+
+**Re-tuning is one sweep and one edit.** On the gate VM:
+
+```bash
+# In a private copy of the tree (the gate wrapper's snapshot is removed when its
+# command returns), detached, so a session timeout cannot stop it:
+T=$HOME/probe/tree; D=$HOME/probe/out; mkdir -p $T $D && cp -al . $T/ && cd $T
+setsid nohup sh -c "for i in 0 1 2 3; do MILLOS_CHRONICLE_PROBE_OUT=$D/runs \
+  MILLOS_CHRONICLE_PROBE_SEEDS=8 MILLOS_CHRONICLE_PROBE_SHARD=\$i/4 npx vitest run \
+  src/systems/__tests__/chronicleProbe.playtest.test.ts --maxWorkers=1 > $D/shard\$i.log 2>&1 & \
+  done; wait; touch $D/done" > $D/nohup.log 2>&1 < /dev/null &
+# When $D/done exists (about 45 minutes; allow an hour):
+MILLOS_CHRONICLE_PROBE_GATES=$D/runs npx vitest run src/systems/__tests__/chronicleProbe.playtest.test.ts
+```
+
+The gates run prints the table, a `measured` line (the attentive style's
+shifts outside every window and graded A: shift kg, net, energy, parts) and
+each plan's payback. Copy the `measured` figures into `MEASURED_PLANT`; trial
+tonnage, the reference shift the engine prices modifiers and incidents
+against, and the briefings follow; `REINVESTMENT_SHARE` re-derives from the
+new net, so the fund a measured shift brings stays put. Measured times: the
+full sweep (48 runs, four shards) took 2,585 s (43 minutes) on the gate VM at a
+load of 7 to 10 from other work; the short form alone (24 runs) 622 s. On a busy
+VM set `MILLOS_CHRONICLE_PROBE_SEEDS=5` to stay under 30 minutes (cut seeds,
+never styles). `MILLOS_CHRONICLE_PROBE_LENGTHS=short` runs the short form only,
+and `MILLOS_CHRONICLE_PROBE_CONTROL=<file>` the paired control for item 4.3.
+
+Constants, before and after:
+
+| Constant | Before | After | Rests on |
+|---|---|---|---|
+| Fund unit | 0.18 a unit of plant currency | the plant's currency (`CURRENCY_TO_FUND` 1) | an avoided cost reaches the fund at exactly what it saved |
+| `REINVESTMENT_SHARE` | 0.25 | 0.0070, derived: `REINVESTED_PER_MEASURED_SHIFT` (30) over the measured net, 4,259 (authored points scale with it) | the fund gates; 4,259 is the plant harness's no-input net (close-out 1 of item 7c). It was 39.41 over 3,864 (1.02%), then 38.8 (0.91%), then 33.5 (0.79%), then 30 on the final plant (below) |
+| `LOYALTY_PREMIUM_SHARE` | 0.04 | 0.0018 | 15,000 of revenue a shift pays about 27 |
+| `REFERENCE_SHIFT_NET`, `_ENERGY_COST` | 2,200, 220 | 4,259, 176 (`MEASURED_PLANT`, arm p of 14 November) | measured |
+| Trial tonnage | 6,000 to 20,000 | 123,000 to 172,000 (short 72,000 to 96,000); 117,000 to 164,000 (short 70,000 to 93,500) until 14 November | 20,500 kg a shift (19,500 before), gold at 1.2 (short 1.17, `SHORT_GOLD_PACE`) |
+| Grid Winter cap | 0.08 | 0.008, four decimals | 0.0069 to 0.0083 a kg over the window |
+| Forecast mitigations | 60, 80, 50, 45 | 5, 5, 1, 1 (6, 6, 2, 1 until the last pass) | relief times `incidentFundCost` |
+| Wind, heat recovery, vibration | 400/6, 280/5, 200/5 | 60/2, 45/1, 20/1 | what the runs credited each (about 9.9, 6.5 and 4.9 a shift); every install with 11 closes left paid back inside them |
+| Rush freight, relief lorry | 65, 35 | 30, 20 | the packaging shortage (17) and the delayed truck (3) |
+
+Short form re-run after tempering and the 0.91% share (item 7c, gate VM, 13
+November, 24 runs): idle ranks 0 to 1 (scores 4 to 10), every skilled run gold
+on all five trials, the idle none; lowest buyer balance 105; buyers' end
+medians 582 (attentive) and 607 (skilled), all under 1,380; vibration
+monitoring paid back in 1 to 6 (wind and heat recovery not installed in these
+runs); attentive minus idle 19 points, still under 25. With the temper card
+drying a wet year, the idle player now takes silver in the Wet Harvest (7 of
+8). The full form is left to the lead's sweep on the frozen tree.
+
+A mid-chronicle save keeps its fund balance as a number, now read in the
+plant's currency: what it holds buys what it bought, and only what flows in
+from its next close is at the new rates (`retuneSave.gameplay.test.ts`).
+
+**The last tuning pass (13 November, on the final plant).** The full probe on
+the final plant (15:45 GMT) failed four gates; this pass changed the following
+and re-ran all 48 runs (gate VM, 17:44 to 18:15 GMT).
+
+* *The Wet Harvest, skilled gold 3 of 8 (full).* In a control with the asked
+  cards left to their windows (skilled, seed 101, at the old 0.91% share), the
+  partner refused 18 wet lots at intake over shifts 12 to 16 and no temper
+  card came until shift 17, while wet lots already taken in reached the line:
+  flour read 94.2 to 94.9 over shifts 14 to 17 (94.0 on seeds 102 and 103),
+  strong-white orders were forfeited and shipping fell to 12,000 kg a shift.
+  [Inference] The card is raised on the silos' mean moisture while the penalty
+  is read per lot, so refused intake can keep the mix under the trigger while
+  wet lots still feed the line. With the intake card answered as it is asked,
+  the cards came from shift 13 to 16 and skilled took gold 7 of 8
+  on the 17:44 run, where flour still fell under 95 in the wet window in 11
+  of 16 buyer runs and the partner kept the standard temper on a margin of
+  0.1 in 7. The plant then fixed the card (Tempering, above: judged silo by
+  silo, priced on the worst silo and the line's projected stamp), and on the
+  final run skilled takes gold 8 of 8 at both lengths with the cards answered
+  and with them left to their windows. The trial's goal was left as it is.
+* *Answering the asked cards.* The attentive and skilled styles now answer
+  every floor card the game asks (the early programme and the intake by
+  default) as it appears, with the pick the card shows
+  (`MILLOS_CHRONICLE_PROBE_CARDS=leave` plays the old form).
+* *A buyer's fund.* Four of sixteen full-length buyers ended over the cap (up to
+  1,561): a Regional mill has bought every plan it can by shift 45 to 58, and
+  its last shifts only bank. The reinvestment share went from 38.8 to 33.5 of
+  the measured net (0.91% to 0.79%); 35 left one attentive run 19 under the cap.
+  At that share the storm's and grid strain's mitigations were priced above
+  the damage they avoid, so they went from 6 to 5.
+* *Grid Winter and drying.* Above, under Tempering: the trial reads energy less
+  the drying `runTemper` reports, and its goal says "drying excluded".
+* *The long night.* The partner's answer, the recommended one and the lapse,
+  holds the weaker front (system 21). Attentive players now hold both fronts.
+* *Grid Winter's energy when answering.* Over whole windows, answering the
+  cards moved energy per kg from 0.00785 to 0.00801 (short) and 0.00738 to
+  0.00743 (full): about 200 kg less a shift for 2 more energy. A shift's energy
+  is set mostly by its tariff (the day shift about 230, the others about 130),
+  so an attentive short window passes or fails on which shift the trucks fall
+  in. Not a counting defect; the cap was left as it is.
+
+**On the final plant (combined tree, 13 November, from 20:09 GMT).** With
+the plant's temper fix in, the probe's attentive player with the cards left to
+their windows ended one full run at 1,450, over the cap. The share went from
+33.5 to 30 of 4,259 (0.70%), and dust's mitigation from 2 to 1, which that
+share left priced at 1.53 times what it avoids. The buyers were re-run at 30
+in both card modes (64 runs); idle plays the same whatever the share and the
+card mode (its 16 runs identical shift by shift in both modes), so its runs
+from the same tree at 33.5 complete each sweep. The buyers' runs carried dust
+at 2; an attentive player mitigates a forecast at most a few times a
+chronicle. The plant fix moved idle: two short seeds rose (4 to 9, 6 to 9), so
+idle's short median went from 6 to 9. The probe's `measured` line: 20,000 kg a
+shift (median), net 4,267, energy 166 (0.0081 a kg), parts 38;
+`MEASURED_PLANT` (19,500 kg, 4,259) was left as it is, since the trial
+tonnages rest on it.
+
+The table that followed here (13 November, 22:35 GMT) is superseded by the one
+below, after review 2.
+
+**Review 2 (13 and 14 November).** A fresh reviewer found eleven defects.
+Stage A fixed seven of them before the plant's last fixes; stage B followed them.
+
+* *Drying and the fund (findings 1, 2).* Plans are credited on the energy
+  without the temper card's drying, as trials judge it. The drying multiplier
+  reaches the plant through `ChronicleEffect` (`dryingEnergyMultiplier`,
+  clamped 0 to 1). What a hired dryer or blending keeps off the books is
+  credited in full at the close ("Drying avoided"), so the dryer costs one
+  shift of drying (73 at the measured plant, was 2). *Correction, 14 November:*
+  77 since the measured plant was re-copied to 20,500 kg a shift; the price is
+  `REFERENCE_DRYING_COST`, computed from that shift, so it follows the plant.
+* *An old save's record (finding 5).* A dryer ruling from before 7.7 shows as
+  what it did then, in both languages, and the quiz grades on the result its
+  save records (or asks nothing when the notice is gone).
+* *The gates (finding 6).* The payback gate needs at least four qualifying
+  installs per plan and length. Wind and heat recovery are Regional plans, and
+  a 27-shift chronicle reaches Regional at shift 23 to 27, so they cannot be
+  measured there: the gate judges a plan only where its era arrives with the
+  window left in four runs or more, prints the rest as out of scope, and fails
+  with no plan in scope. "The fund never locks" reads, from each close, the
+  cheapest purchase the player could make (a plan its era has reached, whose
+  requirements are in and which can still finish, or a forecast's
+  mitigation); the fund locks when it is short of that for a whole crop year
+  (9 closes in 63, 4 in 27) without rising.
+* *Copy (findings 7, 11, and the long night).* The wet-year notice names the
+  Tempering card; a front held on preparation reads "(4 prepared, 2 needed)",
+  as the buttons do; the old wordings still translate.
+* *The short Grid Winter (finding 8)* is announced six shifts ahead, as the
+  full one is: notice of the goal, not time for an energy plan, which a short
+  chronicle cannot reach by then.
+* *The measured plant (finding 9),* re-copied from the no-charter arm p on the
+  final tree: 20,500 kg a shift (median, was 19,500), net 4,259 (unchanged),
+  energy 176 (was 167), revenue 18,000 (was 15,000). The full trials ask
+  123,000 to 172,000 kg.
+* *The short trials (finding 3).* At 1.2 times the new pace (74,000 kg) the
+  skilled player missed gold on the short Bakers' Rush in 6 of 8 seeds with
+  the cards asked, and on the Wet Harvest in 7 of 8 with them left, so the
+  short form's gold is at 1.17 times it (`SHORT_GOLD_PACE`): 72,000 and 96,000
+  kg. No tonnage takes the idle player's medals away while skilled keeps gold:
+  in the short Wet Harvest the idle plant, run on the partner's defaults,
+  ships 64,000 to 67,000 kg in three shifts and 87,000 to 90,000 in four, as
+  the attentive one does, and the skilled one ships 78,000 in the three gold
+  allows. So the gate still forbids idle gold and prints idle's medals: short,
+  Wet Harvest silver in 8 of 8 and Bakers' Rush silver in 4; full, Wet Harvest
+  silver in 3 and bronze in 1.
+
+  A silver bar of its own was tested on the final runs (14 November): a
+  tonnage at silver's shift that idle misses in every seed while attentive
+  still clears it. None exists where idle medals. At the silver shift idle
+  reaches 90,500 kg in the short Wet Harvest, attentive 82,500 to 90,500;
+  84,500 against 79,500 to 85,100 in the short Bakers' Rush; 127,500 against
+  127,000 to 132,500 in the full Wet Harvest. Over those windows idle's best
+  pace is 22,600, 21,100 and 21,200 kg a shift, attentive's median 22,600,
+  19,900 to 21,100 and 21,200. The plant is dock-bound (D-082): answering
+  the cards does not raise tonnage, so a tonnage medal cannot tell an
+  attentive player from the partner's defaults. Where idle fails (the short
+  Grid Winter and Great Programme, the full Bakers' Rush, Grid Winter and
+  Great Programme) it is because its plant stood, not because a bar was
+  tuned. So the trials were left as they are, and the gate stays "the idle
+  player wins no gold", printing idle's medals.
+* *The top era (finding 10).* No 27-shift run reached Federated (the length
+  section at the top): an era scores as the share of its length's ladder.
+
+Gates on the final tree (14 November; beginner charter, 8 seeds a style and
+length, 48 runs a mode; full form 02:03 to 02:59 GMT, short form 01:42 to
+02:05 GMT; "asked" answers every asked floor card, "left" leaves them):
+
+| Gate | Cards asked | Cards left |
+|---|---|---|
+| Idle ranks in the lowest two | met: short 6 to 10, full 2 to 6 | met (the same idle runs) |
+| Gold for the skilled in most seeds, the idle in none | met: skilled short 8, 7, 8, 8 of 8 on the four dispatch trials, full 8 of 8 on each; idle none | met: skilled 8 of 8 on each, both lengths; idle none |
+| The fund never locks | met: longest stretch short of everything buyable 4 closes short (rising), 5 full | met: 2 short, 5 full |
+| A buyer's fund ends at most 1,380 (3 x 460) | met: largest 700 short, 930 full | met: 643 short, 1,163 full |
+| Wind, heat recovery, vibration pay back in time | met: full wind 6, heat 13, vibration 16 qualifying installs, all paid back (wind 5 to 10 shifts, heat 6 to 10, vibration 1 to 5); short vibration 16 (1 to 6), wind and heat out of scope | met: the same counts; wind 5 to 9, heat 5 to 10, vibration 1 to 6 |
+| Answering every decision adds 25 points | not met: 24 short (31 against 7), 22 full (26 against 4) | not met: 22 short (29 against 7), 23 full (27 against 4) |
+
+Skilled minus idle is 29 short (36 against 7) and 36 full (40 against 4) with
+the cards asked; 30 and 36 with them left. What an attentive player cannot
+reach by answering: the Inspection (failed 8 of 8; it needs a test a person
+runs each shift), standing (0 of 4; the certifier reads the same tests) and
+gold (an asked "take" is not every take). No score weight is out of line with
+the others, so none was changed.
 
 ## Known simplifications
 
-* The growers' tier changes the price of treating a crop directly (the
-  Overview button), not the authored prices on event choices such as hiring a
-  mobile dryer. Those stay on their buttons as written.
+* The growers' tier changes the price of blending a sprouted crop directly
+  (the Overview button), not the authored prices on event choices. Those stay
+  on their buttons as written.
 * The long night counts preparation at the moment it is decided. A plan that
   finishes installing on the same shift counts; one still installing does not.
 * A chronicle saved before part two loads with neutral organisations, standing
-  5 and full desks, and passes over scheduled events whose shift has gone.
+  5, and passes over scheduled events whose shift has gone.
 * Letting the grower lot notification lapse mills the lot untested (quality -2
   for 3 shifts, standing -0.10) rather than raising the critical, dispatch-blocking
   supplier-contamination incident; the formal hold is its own choice and says
@@ -761,9 +1201,11 @@ is tuned for standard pace.
   default's incident is not raised), because the chronicle has just released
   everything it owns.
 
-* The crop-year penalty follows the crop year, not the grain in the silos:
-  when the year turns, last year's stamped lots still mill under the new
-  year's penalty. QC readings do use the lots actually tested.
+* Under a charter the crop-year penalty is read per lot from the grain each
+  portion was milled from (`simulation/lotQuality.ts`, plan item 3.1), so last
+  year's lots mill under their own band. A band treated or dried is judged by
+  the year in force: last year's wet lots dried on this year's temper card read
+  as dried.
 * The Chronicle's energy multiplier scales the energy the campaign records,
   so it also scales the fuel-oil draw derived from it. Less energy used means
   less fuel burnt, so this is treated as consistent rather than a leak.
@@ -777,6 +1219,14 @@ is tuned for standard pace.
 * Unit tests for every pure module, including seeded determinism, the two
   selection rules, medals, crop readings, effect composition, ledger sums,
   delegation policy and scoring.
+* No beaten advice (`__tests__/eventValue.test.ts`): every answer of every event
+  is valued with the engine's own rates (`choiceFundValue`: know-how at the
+  forced-maintenance rate, timed modifiers through a reference shift, forecast
+  chance at the price of relief). The test fails when an answer the player can
+  take is at least as good on everything the engine does not price and beats
+  the recommended answer by more than 30 fund, and when an answer only repeats
+  another (the long night's own hold is kept beside the partner's, so the record
+  says who held).
 * Part two (`__tests__/steward.test.ts`): no mark is set without a reader
   beyond its leaning, every follow-up and chain names a real event, every
   default is free and needs nothing, chains rule each case once, echoes and
@@ -784,7 +1234,9 @@ is tuned for standard pace.
   the long night holds or falls by preparation, and whole chronicles run to
   their epilogue with every decision lapsing and with every decision answered.
 * Part three (`__tests__/governance.test.ts`): ballots follow declared values
-  in their stated order, a tie does not carry, a met need abstains, an
+  in their stated order, a tie does not carry (except off a red line or a
+  condition's step, and `governance.noTrap.test.ts` finds a way back off every
+  risky step for every crew), a met need abstains, an
   outvoted need stands as an objection until met or moved off, each condition
   arrives and clears on its stated terms, a ceiling costs nothing below it,
   red lines count down and are withdrawn, briefs pick and fall back, the

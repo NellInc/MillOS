@@ -15,7 +15,9 @@ export const safetyStoreMessages = defineMessages({
     zoneShippingCrewPoint: 'Shipping Crew Point',
     forkliftRouteBlocked: 'Forklift stopped for a blocked route',
     keyboardEmergencyStop: 'Emergency stop activated via keyboard (X)',
+    panelForkliftStop: 'Forklift stop set from the Safety panel',
     facilityStop: 'Facility emergency stop triggered from the Safety panel',
+    driverNearMiss: 'Driven forklift closed on someone on foot at speed',
   },
   'pt-BR': {
     zoneCentralArea: 'Área central',
@@ -31,6 +33,8 @@ export const safetyStoreMessages = defineMessages({
     zoneShippingCrewPoint: 'Ponto da equipe de expedição',
     forkliftRouteBlocked: 'Empilhadeira parada por rota bloqueada',
     keyboardEmergencyStop: 'Parada de emergência acionada pelo teclado (X)',
+    panelForkliftStop: 'Parada das empilhadeiras acionada pelo painel de Segurança',
     facilityStop: 'Parada de emergência da unidade acionada pelo painel de Segurança',
+    driverNearMiss: 'Empilhadeira conduzida se aproximou rápido demais de um pedestre',
   },
 });

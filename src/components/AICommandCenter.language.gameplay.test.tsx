@@ -66,19 +66,21 @@ describe('AI decision cards follow the interface language', () => {
   it('shows a pending card filed in English in Portuguese after the switch', () => {
     const filed = generateContextAwareDecision('maintenance');
     expect(filed).not.toBeNull();
-    expect(filed!.action).toMatch(/^Queue condition-based maintenance/);
+    expect(filed!.action).toMatch(/^Return .* to warning if it is critical$/);
 
     render(<AICommandCenter isOpen onClose={() => {}} embedded />);
-    expect(screen.getByText(/^Queue condition-based maintenance/)).toBeInTheDocument();
+    expect(screen.getByText(/^Return .* to warning if it is critical$/)).toBeInTheDocument();
 
     act(() => setLocale('pt-BR'));
-    expect(screen.queryByText(/^Queue condition-based maintenance/)).toBeNull();
-    expect(screen.getByText(/^Programar manutenção baseada em condição para/)).toBeInTheDocument();
+    expect(screen.queryByText(/^Return .* to warning if it is critical$/)).toBeNull();
+    expect(
+      screen.getByText(/^Voltar .* para alerta se estiver em estado crítico$/)
+    ).toBeInTheDocument();
     // Numbers in the reasoning read in the new language too.
     expect(
       screen.getByText('A telemetria indica 99,5 °C, vibração de 9,25 mm/s e 90% de desgaste.')
     ).toBeInTheDocument();
-    expect(screen.getByText(/^Reduz o risco de pane/)).toBeInTheDocument();
+    expect(screen.getByText(/^Não programa manutenção/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Aceitar' })).toBeInTheDocument();
   });
 
@@ -132,6 +134,8 @@ describe('AI decision cards follow the interface language', () => {
     generateContextAwareDecision('maintenance');
     render(<DecisionHistoryPanel />);
     act(() => setLocale('pt-BR'));
-    expect(screen.getByText(/^Programar manutenção baseada em condição para/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Voltar .* para alerta se estiver em estado crítico$/)
+    ).toBeInTheDocument();
   });
 });

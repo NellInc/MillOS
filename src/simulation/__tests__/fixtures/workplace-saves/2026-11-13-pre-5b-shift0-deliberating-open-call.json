@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "revision": 2,
+  "mode": "game",
+  "phase": "review",
+  "seed": 17,
+  "minute": 0,
+  "durationMinutes": 90,
+  "targetKg": 600,
+  "shippedKg": 0,
+  "planId": "steady",
+  "practices": [
+    "information",
+    "work-choice",
+    "rest",
+    "remedy",
+    "budget",
+    "gainsharing",
+    "cooperative"
+  ],
+  "workerAutonomy": "team",
+  "governance": "member-vote",
+  "aiAuthority": "bounded",
+  "members": [
+    {
+      "id": "packing",
+      "role": "Packing",
+      "publicBoundary": "At least 15 minutes protected rest; qualified packing work only.",
+      "preference": "",
+      "willingToCover": false,
+      "eligibleTasks": [
+        "Packing",
+        "Pallet checks"
+      ],
+      "sharing": false,
+      "shareUntilMinute": null,
+      "understood": false,
+      "ballot": null,
+      "coverConsent": null,
+      "refusalRespected": false,
+      "extraMinutes": 0,
+      "restMinutes": 0,
+      "earnedPay": 0,
+      "compensationPaid": 0,
+      "recoveryMinutes": 0,
+      "recoveryOwedMinutes": 0,
+      "chosenTask": "Packing"
+    },
+    {
+      "id": "quality",
+      "role": "Quality",
+      "publicBoundary": "Quality release stays with qualified quality staff; rest remains protected.",
+      "preference": "",
+      "willingToCover": false,
+      "eligibleTasks": [
+        "Quality release",
+        "Sampling"
+      ],
+      "sharing": false,
+      "shareUntilMinute": null,
+      "understood": false,
+      "ballot": null,
+      "coverConsent": null,
+      "refusalRespected": false,
+      "extraMinutes": 0,
+      "restMinutes": 0,
+      "earnedPay": 0,
+      "compensationPaid": 0,
+      "recoveryMinutes": 0,
+      "recoveryOwedMinutes": 0,
+      "chosenTask": "Quality release"
+    },
+    {
+      "id": "maintenance",
+      "role": "Maintenance",
+      "publicBoundary": "No maintenance on running equipment; rest remains protected.",
+      "preference": "",
+      "willingToCover": false,
+      "eligibleTasks": [
+        "Maintenance planning",
+        "Pallet checks"
+      ],
+      "sharing": false,
+      "shareUntilMinute": null,
+      "understood": false,
+      "ballot": null,
+      "coverConsent": null,
+      "refusalRespected": false,
+      "extraMinutes": 0,
+      "restMinutes": 0,
+      "earnedPay": 0,
+      "compensationPaid": 0,
+      "recoveryMinutes": 0,
+      "recoveryOwedMinutes": 0,
+      "chosenTask": "Maintenance planning"
+    },
+    {
+      "id": "coordinator",
+      "role": "Coordinator",
+      "publicBoundary": "Coordination grants no power to waive another member\u2019s boundary.",
+      "preference": "",
+      "willingToCover": false,
+      "eligibleTasks": [
+        "Coordination",
+        "Packing"
+      ],
+      "sharing": false,
+      "shareUntilMinute": null,
+      "understood": false,
+      "ballot": null,
+      "coverConsent": null,
+      "refusalRespected": false,
+      "extraMinutes": 0,
+      "restMinutes": 0,
+      "earnedPay": 0,
+      "compensationPaid": 0,
+      "recoveryMinutes": 0,
+      "recoveryOwedMinutes": 0,
+      "chosenTask": "Coordination"
+    }
+  ],
+  "objections": [],
+  "events": [
+    {
+      "id": "e-1",
+      "minute": 0,
+      "actorId": "system",
+      "kind": "campaign-started",
+      "detail": "Three fictional shifts. Fairness and closing cash carry forward; every shift needs fresh consent."
+    },
+    {
+      "id": "e-2",
+      "minute": 0,
+      "actorId": "system",
+      "kind": "settled",
+      "detail": "Reload safety: future authority and consent revoked; earned pay retained."
+    }
+  ],
+  "finance": {
+    "cash": 400,
+    "initialCapital": 400,
+    "wageReserve": 0,
+    "compensationReserve": 0,
+    "operatingRevenue": 0,
+    "operatingCost": 0,
+    "wagesPaid": 0,
+    "compensationPaid": 0,
+    "improvementSpend": 0,
+    "distributed": 0,
+    "communityAllocation": 0
+  },
+  "chairBallots": {},
+  "surplusBallots": {},
+  "electedChair": null,
+  "distributionComplete": false,
+  "activeCoverMemberId": null,
+  "coverRemainingMinutes": 0,
+  "refusalsRespected": 0,
+  "promisesKept": 0,
+  "aiActions": 0,
+  "reviewReason": "Reload safety: future authority and consent revoked; earned pay retained.",
+  "campaign": {
+    "version": 1,
+    "profile": "cooperative",
+    "shift": 0,
+    "history": [],
+    "checks": {},
+    "decision": null,
+    "inspectionUntilMinute": null,
+    "inspectionComplete": false,
+    "adviserAcknowledged": false,
+    "repairs": 0,
+    "agreementProved": false,
+    "draw": {
+      "pressures": [
+        "disclosure",
+        "repeat-cover",
+        "blind-override"
+      ],
+      "decliner": "coordinator",
+      "mondayMinute": 26
+    }
+  }
+}

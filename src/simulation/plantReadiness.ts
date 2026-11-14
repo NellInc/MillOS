@@ -1,5 +1,5 @@
 /**
- * The plant readiness index the Management surfaces show: the mean of
+ * The plant readiness index the Autonomy surfaces show: the mean of
  * efficiency, uptime and quality, clamped to 0-100. One formula, so the phone
  * sheet and the desktop Autonomy panel never read different numbers.
  */

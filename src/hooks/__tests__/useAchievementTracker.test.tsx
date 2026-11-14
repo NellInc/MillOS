@@ -57,7 +57,8 @@ describe('useAchievementTracker', () => {
     useProductionStore.setState({
       aiDecisions: [decision('d-1', 'accepted'), decision('d-2', 'rejected')],
     });
-    expect(progress('vote-participant')).toBe(2);
+    // Answers are not deferrals: Decision Review counts only those (report 09 D4).
+    expect(progress('vote-participant')).toBe(0);
     expect(useAchievementsStore.getState().getAchievement('boundary-setter')?.unlocked).toBe(true);
     second.unmount();
   });

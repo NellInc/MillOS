@@ -6,25 +6,126 @@ import { formatFixed, formatGrouped } from '../i18n';
  * bronze) and Old Kingdom's advance warning ("A new trial will commence in N
  * turns"). Each trial reads only recorded shift evidence.
  */
-import type { Medal, TrialDefinition, TrialId, TrialProgress } from './types';
+import type { CleanCloseBreak, Medal, TrialDefinition, TrialId, TrialProgress } from './types';
+import {
+  ENERGY_DIGITS,
+  ENERGY_SCALE,
+  GOLD_PACE,
+  GRID_WINTER_MAX_ENERGY_PER_KG,
+  SHORT_GOLD_PACE,
+  trialKg,
+} from './measuredPlant';
 
 export const TRIAL_TELEGRAPH_SHIFTS = 2;
 
+/**
+ * Briefings name their goal, so they are templates filled from the goal
+ * (`{kg}`, `{cap}`): a re-tune on the measured plant changes the figure in
+ * every language at once. The filled English is the canonical text notices
+ * keep; `getTrials` fills the template in the language shown.
+ */
+const BRIEFINGS = {
+  wet_harvest:
+    'The growers brought the harvest in wet. Dispatch {kg} kg with no quality failure while the damp grain runs through the mill.',
+  bakers_rush:
+    'Every bakery in the valley wants flour at once. Dispatch {kg} kg before the rush passes.',
+  grid_winter:
+    'Power is short across the region this winter. Dispatch {kg} kg at an energy cost of no more than {cap} per kg.',
+  great_programme:
+    'The federation asks the mill to feed the whole valley through the months of works. Dispatch {kg} kg with no quality failure.',
+} as const;
+
+/**
+ * Briefings saved in notices before item 4.1 re-tuned the goals, full and
+ * short, so a saved announcement is still recognised (rule 7; their
+ * translations stay in the catalogue).
+ */
+export const LEGACY_BRIEFINGS: Readonly<Partial<Record<TrialId, readonly string[]>>> = {
+  wet_harvest: [
+    'The growers brought the harvest in wet. Dispatch 6,000 kg with no quality failure while the damp grain runs through the mill.',
+    'The growers brought the harvest in wet. Dispatch 4,500 kg with no quality failure while the damp grain runs through the mill.',
+  ],
+  bakers_rush: [
+    'Every bakery in the valley wants flour at once. Dispatch 12,000 kg before the rush passes.',
+    'Every bakery in the valley wants flour at once. Dispatch 6,000 kg before the rush passes.',
+  ],
+  grid_winter: [
+    'Power is short across the region this winter. Dispatch 8,000 kg at an energy cost of no more than 0.08 per kg.',
+    'Power is short across the region this winter. Dispatch 4,800 kg at an energy cost of no more than 0.08 per kg.',
+  ],
+  great_programme: [
+    'The federation asks the mill to feed the whole valley through the months of works. Dispatch 20,000 kg with no quality failure.',
+    'The federation asks the mill to feed the whole valley through the months of works. Dispatch 8,900 kg with no quality failure.',
+  ],
+};
+
+/** The figures a briefing template is filled with, in a language. */
+export function briefingParams(
+  goal: TrialDefinition['goal'],
+  locale?: 'en'
+): Record<string, string> {
+  if (goal.kind !== 'dispatch') return {};
+  return {
+    kg: formatGrouped(goal.kg, undefined, locale),
+    ...(goal.maxEnergyPerKg !== undefined
+      ? { cap: formatFixed(goal.maxEnergyPerKg, ENERGY_DIGITS, locale) }
+      : {}),
+  };
+}
+
+function fill(template: string, params: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (match, key: string) => params[key] ?? match);
+}
+
+/** A dispatch trial's goal, window and briefing, the tonnage set from the measured pace. */
+function dispatchTrial(
+  base: Omit<
+    TrialDefinition,
+    'goal' | 'briefing' | 'goldSpare' | 'silverSpare' | 'durationShifts' | 'briefingTemplate'
+  >,
+  window: { durationShifts: number; goldSpare: number; silverSpare: number },
+  goal: { noQualityFailure?: boolean; maxEnergyPerKg?: number },
+  template: string,
+  goldPace = GOLD_PACE
+): TrialDefinition {
+  const full: TrialDefinition['goal'] = {
+    kind: 'dispatch',
+    kg: trialKg(window.durationShifts - window.goldSpare, undefined, goldPace),
+    ...goal,
+  };
+  return {
+    ...base,
+    ...window,
+    goal: full,
+    briefingTemplate: template,
+    briefing: fill(template, briefingParams(full, 'en')),
+  };
+}
+
+/**
+ * Windows (plan item 4.1, D3): gold at 1.2 times the measured pace over the
+ * shifts gold allows (`trialKg`). Seven-shift windows with two spare for gold
+ * and one for silver put silver at exactly the measured pace and bronze at
+ * 0.86 of it; the Great Programme's nine put gold at 1.2 over seven shifts and
+ * silver at 1.05 over eight. The dock sets the tonnes (D22), so the lever that
+ * reaches gold is commitment: the partner's early programme, taken.
+ */
 export const TRIALS: readonly TrialDefinition[] = [
-  {
-    id: 'wet_harvest',
-    title: 'The Wet Harvest',
-    startShift: 11,
-    durationShifts: 4,
-    goldSpare: 2,
-    silverSpare: 1,
-    goal: { kind: 'dispatch', kg: 6000, noQualityFailure: true },
-    introNoteId: 'history-wet-harvest-1879',
-    outroNoteId: 'history-grain-drying',
-    briefing:
-      'The growers brought the harvest in wet. Dispatch 6,000 kg with no quality failure while the damp grain runs through the mill.',
-    pressureBeat: 'Half the window has gone. The bakers are asking whether the flour will hold.',
-  },
+  dispatchTrial(
+    {
+      id: 'wet_harvest',
+      title: 'The Wet Harvest',
+      startShift: 11,
+      introNoteId: 'history-wet-harvest-1879',
+      outroNoteId: 'history-grain-drying',
+      floor:
+        'On the floor it tests the programmes you accept and strong white kept at 95 while the grain is wet: dry the grain, or install moisture meters and keep the line serviced.',
+      pressureBeat: 'Half the window has gone. The bakers are asking whether the flour will hold.',
+    },
+    { durationShifts: 7, goldSpare: 2, silverSpare: 1 },
+    { noQualityFailure: true },
+    BRIEFINGS.wet_harvest
+  ),
   {
     id: 'inspection',
     title: 'The Inspection',
@@ -37,51 +138,124 @@ export const TRIALS: readonly TrialDefinition[] = [
     outroNoteId: 'history-sale-of-food-act',
     briefing:
       'The county food-standards office will audit three consecutive shift closes: a passed QC test in each, no quality failure and no unresolved high-severity incident.',
+    floor:
+      'On the floor it tests a batch put through Test batch on Overview every shift, flour over each order’s minimum, and high-severity incidents recovered before the close.',
     pressureBeat: 'The auditors are halfway through their file. Every shift close is being read.',
   },
-  {
-    id: 'bakers_rush',
-    title: 'The Bakers’ Rush',
-    startShift: 29,
-    durationShifts: 6,
-    goldSpare: 2,
-    silverSpare: 1,
-    goal: { kind: 'dispatch', kg: 12000 },
-    introNoteId: 'history-chorleywood',
-    outroNoteId: 'history-bread-rationing',
-    briefing:
-      'Every bakery in the valley wants flour at once. Dispatch 12,000 kg before the rush passes.',
-    pressureBeat: 'Halfway through the rush. The bakeries are counting the sacks.',
-  },
-  {
-    id: 'grid_winter',
-    title: 'Grid Winter',
-    startShift: 38,
-    durationShifts: 5,
-    goldSpare: 2,
-    silverSpare: 1,
-    goal: { kind: 'dispatch', kg: 8000, maxEnergyPerKg: 0.08 },
-    introNoteId: 'history-three-day-week',
-    outroNoteId: 'history-tide-mills',
-    briefing:
-      'Power is short across the region this winter. Dispatch 8,000 kg at an energy cost of no more than 0.08 per kg.',
-    pressureBeat: 'Half the winter window has gone. The network operator is watching peak demand.',
-  },
-  {
-    id: 'great_programme',
-    title: 'The Great Programme',
-    startShift: 50,
-    durationShifts: 9,
-    goldSpare: 3,
-    silverSpare: 1,
-    goal: { kind: 'dispatch', kg: 20000, noQualityFailure: true },
-    introNoteId: 'history-old-kingdom-bakeries',
-    outroNoteId: 'history-grinding-statues',
-    briefing:
-      'The federation asks the mill to feed the whole valley through the months of works. Dispatch 20,000 kg with no quality failure.',
-    pressureBeat: 'The programme is half done. The federation asks for a progress report.',
-  },
+  dispatchTrial(
+    {
+      id: 'bakers_rush',
+      title: 'The Bakers’ Rush',
+      startShift: 29,
+      introNoteId: 'history-chorleywood',
+      outroNoteId: 'history-bread-rationing',
+      floor:
+        'On the floor it tests the programmes you accept: every one taken while the rush lasts, and loaded onto the trucks.',
+      pressureBeat: 'Halfway through the rush. The bakeries are counting the sacks.',
+    },
+    { durationShifts: 7, goldSpare: 2, silverSpare: 1 },
+    {},
+    BRIEFINGS.bakers_rush
+  ),
+  dispatchTrial(
+    {
+      id: 'grid_winter',
+      title: 'Grid Winter',
+      startShift: 38,
+      // Energy plans take three to six shifts to install (report 07, D7).
+      telegraphShifts: 6,
+      introNoteId: 'history-three-day-week',
+      outroNoteId: 'history-tide-mills',
+      floor:
+        'On the floor it tests two levers: the flour the line makes an hour, since power is charged by the hour, and running at night, when power costs 0.08 rather than 0.15.',
+      pressureBeat:
+        'Half the winter window has gone. The network operator is watching peak demand.',
+    },
+    { durationShifts: 7, goldSpare: 2, silverSpare: 1 },
+    { maxEnergyPerKg: GRID_WINTER_MAX_ENERGY_PER_KG },
+    BRIEFINGS.grid_winter
+  ),
+  dispatchTrial(
+    {
+      id: 'great_programme',
+      title: 'The Great Programme',
+      startShift: 50,
+      introNoteId: 'history-old-kingdom-bakeries',
+      outroNoteId: 'history-grinding-statues',
+      floor:
+        'On the floor it tests the programmes you accept and every order’s minimum met throughout: service the line when the partner proposes it.',
+      pressureBeat: 'The programme is half done. The federation asks for a progress report.',
+    },
+    { durationShifts: 9, goldSpare: 2, silverSpare: 1 },
+    { noQualityFailure: true },
+    BRIEFINGS.great_programme
+  ),
 ];
+
+/**
+ * The trials of a 27-shift chronicle (plan item 4.2, D3). Each starts where the
+ * full one does on the shorter clock (`onSchedule`: the full start times 27/63,
+ * rounded down), so they keep their order and spacing. Four shifts lie between
+ * starts, so a dispatch window is four shifts with one spare for gold and none
+ * for silver: gold at SHORT_GOLD_PACE (1.17) times the measured pace over three
+ * shifts, silver at 0.88 of it over four (no bronze). The Great Programme has
+ * five shifts before the last close: gold at 1.17 over four, silver at 0.94
+ * over five.
+ * The Inspection keeps its one spare shift (two clean closes in three). Pinned
+ * by `chronicleLength.short.gameplay.test.ts`.
+ */
+const SHORT_WINDOW = { durationShifts: 4, goldSpare: 1, silverSpare: 0 };
+
+function shortDispatch(
+  trial: TrialDefinition,
+  startShift: number,
+  window = SHORT_WINDOW,
+  telegraphShifts?: number
+): TrialDefinition {
+  const goal = trial.goal;
+  if (goal.kind !== 'dispatch' || !trial.briefingTemplate) return trial;
+  const base = { ...trial, startShift, ...(telegraphShifts ? { telegraphShifts } : {}) };
+  return dispatchTrial(
+    base,
+    window,
+    {
+      ...(goal.noQualityFailure ? { noQualityFailure: true } : {}),
+      ...(goal.maxEnergyPerKg !== undefined ? { maxEnergyPerKg: goal.maxEnergyPerKg } : {}),
+    },
+    trial.briefingTemplate,
+    SHORT_GOLD_PACE
+  );
+}
+
+export const SHORT_TRIALS: readonly TrialDefinition[] = TRIALS.map((trial) => {
+  switch (trial.id) {
+    case 'wet_harvest':
+      return shortDispatch(trial, 4);
+    case 'inspection':
+      return {
+        ...trial,
+        startShift: 8,
+        durationShifts: 3,
+        goldSpare: 1,
+        silverSpare: 0,
+        goal: { kind: 'clean_closes', closes: 2 },
+        briefing:
+          'The county food-standards office will audit two consecutive shift closes: a passed QC test in each, no quality failure and no unresolved high-severity incident.',
+      };
+    case 'bakers_rush':
+      return shortDispatch(trial, 12);
+    case 'grid_winter':
+      // Announced as far ahead as the full form (review 2, finding 8), at shift
+      // 10. In 27 shifts this buys notice, not an install: the energy plans
+      // (wind, heat recovery) are Regional, which a short chronicle reaches
+      // at shift 23 to 27, and no plan it can have by shift 16 lowers energy.
+      // The six shifts are time to see the goal and its cap and to bring
+      // output per hour up before the window.
+      return shortDispatch(trial, 16, SHORT_WINDOW, trial.telegraphShifts);
+    case 'great_programme':
+      return shortDispatch(trial, 21, { durationShifts: 5, goldSpare: 1, silverSpare: 0 });
+  }
+});
 
 export function trialById(id: TrialId): TrialDefinition {
   return TRIALS.find((trial) => trial.id === id) ?? TRIALS[0];
@@ -165,11 +339,14 @@ export function advanceTrial(
   const goal = definition.goal;
   let complete = false;
   if (goal.kind === 'clean_closes') {
-    const clean =
-      evidence.qcPassedThisShift &&
-      evidence.qualityFailureKg <= 0 &&
-      !evidence.unresolvedHighIncident;
-    next.cleanCloses = clean ? progress.cleanCloses + 1 : 0;
+    const causes: CleanCloseBreak[] = [];
+    if (!evidence.qcPassedThisShift) causes.push('qc');
+    if (evidence.qualityFailureKg > 0) causes.push('quality');
+    if (evidence.unresolvedHighIncident) causes.push('incident');
+    next.cleanCloses = causes.length === 0 ? progress.cleanCloses + 1 : 0;
+    // The close the run broke at: the trial's start plus the shifts it has used.
+    if (causes.length)
+      next.brokenAt = { shift: (progress.startedShift ?? 0) + next.shiftsUsed, causes };
     complete = next.cleanCloses >= goal.closes;
   } else {
     if (goal.noQualityFailure && next.qualityFailureKg > 0) {
@@ -177,19 +354,20 @@ export function advanceTrial(
         ...next,
         phase: 'failed',
         // An order's last residual can be under a kilogram; it must not read as 0 kg.
-        failureReason: `${
+        failureReason: `Quality broke it: ${
           next.qualityFailureKg >= 1
             ? formatFixed(next.qualityFailureKg, 0, 'en')
             : formatFixed(Math.max(0.1, Math.ceil(next.qualityFailureKg * 10) / 10), 1, 'en')
         } kg failed its recipe quality threshold.`,
       };
     }
-    // To the three decimals the failure notice prints, so it never reads
-    // "Energy 0.080 per kg against 0.08" for a trial it failed on energy.
+    // To the four decimals the failure notice prints, so it never reads
+    // "Energy 0.0080 per kg against 0.008" for a trial it failed on energy.
     const energyOk =
       goal.maxEnergyPerKg === undefined ||
       (next.dispatchedKg > 0 &&
-        Math.round((next.energyCost / next.dispatchedKg) * 1000) / 1000 <= goal.maxEnergyPerKg);
+        Math.round((next.energyCost / next.dispatchedKg) * ENERGY_SCALE) / ENERGY_SCALE <=
+          goal.maxEnergyPerKg);
     const graded = gradedShiftsOf(next);
     const gradeOk =
       goal.minAverageGrade === undefined ||
@@ -201,9 +379,67 @@ export function advanceTrial(
   }
   if (complete) return { ...next, phase: 'passed', medal: medalFor(definition, next.shiftsUsed) };
   if (next.shiftsUsed >= definition.durationShifts) {
-    return { ...next, phase: 'failed', failureReason: trialShortfall(definition, next) };
+    return { ...next, phase: 'failed', failureReason: trialFailure(definition, next) };
   }
   return next;
+}
+
+const CLEAN_BREAK_TEXT: Record<CleanCloseBreak, string> = {
+  qc: 'QC broke it at the shift {shift} close: no batch passed QC.',
+  quality:
+    'Quality broke it at the shift {shift} close: flour failed its recipe quality threshold.',
+  incident:
+    'An incident broke it at the shift {shift} close: a high-severity incident was still open.',
+};
+
+/**
+ * Why a trial's window closed without it, naming the condition that broke it
+ * (item 4.5): one sentence per condition that failed, in the canonical English
+ * the notice keeps (presentation.ts translates it). A dispatch trial names the
+ * tonnage, the energy or the grade, only those that failed; the Inspection names
+ * the close its last run broke at and what that close lacked.
+ */
+export function trialFailure(definition: TrialDefinition, progress: TrialProgress): string {
+  const goal = definition.goal;
+  if (goal.kind === 'clean_closes') {
+    // A save's record of the break is read only when it has its shape.
+    const broken = progress.brokenAt;
+    const causes =
+      broken && Number.isFinite(broken.shift) && Array.isArray(broken.causes) ? broken.causes : [];
+    return [
+      ...causes.map((cause) =>
+        CLEAN_BREAK_TEXT[cause]?.replace('{shift}', formatFixed(broken!.shift, 0, 'en'))
+      ),
+      trialShortfall(definition, progress),
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+  const parts: string[] = [];
+  if (Math.round(progress.dispatchedKg) < goal.kg)
+    parts.push(
+      `Dispatch broke it: ${formatGrouped(Math.round(progress.dispatchedKg), undefined, 'en')} of ${formatGrouped(goal.kg, undefined, 'en')} kg dispatched.`
+    );
+  if (
+    goal.maxEnergyPerKg !== undefined &&
+    progress.dispatchedKg > 0 &&
+    Math.round((progress.energyCost / progress.dispatchedKg) * ENERGY_SCALE) / ENERGY_SCALE >
+      goal.maxEnergyPerKg
+  )
+    parts.push(
+      `Energy broke it: ${formatFixed(progress.energyCost / progress.dispatchedKg, ENERGY_DIGITS, 'en')} per kg against ${goal.maxEnergyPerKg}.`
+    );
+  const graded = gradedShiftsOf(progress);
+  if (
+    goal.minAverageGrade !== undefined &&
+    graded > 0 &&
+    progress.gradePoints / graded < GRADE_POINTS[goal.minAverageGrade]
+  )
+    parts.push(
+      `The grade broke it: average grade points ${formatFixed(progress.gradePoints / graded, 1, 'en')} against ${GRADE_POINTS[goal.minAverageGrade]}.`
+    );
+  // Every condition held to the figure printed yet the window closed: say what it reached.
+  return parts.length ? parts.join(' ') : trialShortfall(definition, progress);
 }
 
 export function trialShortfall(definition: TrialDefinition, progress: TrialProgress): string {
@@ -215,7 +451,7 @@ export function trialShortfall(definition: TrialDefinition, progress: TrialProgr
   ];
   if (goal.maxEnergyPerKg !== undefined && progress.dispatchedKg > 0)
     parts.push(
-      `Energy ${formatFixed(progress.energyCost / progress.dispatchedKg, 3, 'en')} per kg against ${goal.maxEnergyPerKg}.`
+      `Energy ${formatFixed(progress.energyCost / progress.dispatchedKg, ENERGY_DIGITS, 'en')} per kg against ${goal.maxEnergyPerKg}.`
     );
   const graded = gradedShiftsOf(progress);
   if (goal.minAverageGrade !== undefined && graded > 0)
@@ -231,7 +467,9 @@ export function trialGoalConditions(definition: TrialDefinition): string {
   if (goal.kind !== 'dispatch') return '';
   const parts: string[] = [];
   if (goal.noQualityFailure) parts.push('no quality failure');
-  if (goal.maxEnergyPerKg !== undefined) parts.push(`energy at most ${goal.maxEnergyPerKg} per kg`);
+  // The temper card's drying is left out of the measure (engine trialEnergyCost).
+  if (goal.maxEnergyPerKg !== undefined)
+    parts.push(`energy at most ${goal.maxEnergyPerKg} per kg, drying excluded`);
   if (goal.minAverageGrade) parts.push(`average grade ${goal.minAverageGrade} or better`);
   return parts.join(', ');
 }
@@ -274,8 +512,13 @@ export function challengeMedal(run: {
 export const MEDAL_POINTS: Record<Medal, number> = { gold: 3, silver: 2, bronze: 1 };
 export const MEDAL_KNOW_HOW: Record<Medal, number> = { gold: 12, silver: 8, bronze: 4 };
 
-export function localizedTrialById(id: TrialId): TrialDefinition {
-  return getTrials().find((trial) => trial.id === id) ?? getTrials()[0];
+/** A trial in the language shown now; `trials` is the chronicle's own list (`trialsFor`). */
+export function localizedTrialById(
+  id: TrialId,
+  trials: readonly TrialDefinition[] = TRIALS
+): TrialDefinition {
+  const local = getTrials(trials);
+  return local.find((trial) => trial.id === id) ?? local[0];
 }
 
 export function localizedTrialShortfall(
@@ -297,7 +540,7 @@ export function localizedTrialShortfall(
   if (goal.maxEnergyPerKg !== undefined && progress.dispatchedKg > 0)
     parts.push(
       copy('Energy {actual} per kg against {target}.', {
-        actual: formatFixed(progress.energyCost / progress.dispatchedKg, 3),
+        actual: formatFixed(progress.energyCost / progress.dispatchedKg, ENERGY_DIGITS),
         target: formatGrouped(goal.maxEnergyPerKg),
       })
     );
@@ -319,7 +562,9 @@ export function localizedTrialGoalConditions(definition: TrialDefinition): strin
   if (goal.noQualityFailure) parts.push(copy('no quality failure'));
   if (goal.maxEnergyPerKg !== undefined)
     parts.push(
-      copy('energy at most {target} per kg', { target: formatGrouped(goal.maxEnergyPerKg) })
+      copy('energy at most {target} per kg, drying excluded', {
+        target: formatGrouped(goal.maxEnergyPerKg),
+      })
     );
   if (goal.minAverageGrade)
     parts.push(copy('average grade {grade} or better', { grade: goal.minAverageGrade }));
@@ -341,11 +586,15 @@ export function localizedTrialGoalText(definition: TrialDefinition): string {
   });
 }
 
-export function getTrials(): TrialDefinition[] {
-  return TRIALS.map((trial) => ({
+export function getTrials(trials: readonly TrialDefinition[] = TRIALS): TrialDefinition[] {
+  return trials.map((trial) => ({
     ...trial,
     title: copy(trial.title),
-    briefing: copy(trial.briefing),
+    // A templated briefing is filled in the language shown (item 4.1).
+    briefing: trial.briefingTemplate
+      ? copy(trial.briefingTemplate, briefingParams(trial.goal))
+      : copy(trial.briefing),
+    floor: copy(trial.floor),
     pressureBeat: copy(trial.pressureBeat),
   }));
 }

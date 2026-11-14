@@ -36,7 +36,7 @@ import {
   nextMedalTarget,
   trialById,
 } from '../trials';
-import type { Charter, ImprovementProgress, TrialProgress } from '../types';
+import type { Charter, EraId, ImprovementProgress, TrialProgress } from '../types';
 import { MILL_RECIPES } from '../../stores/operationsCampaignStore';
 
 const charter = (overrides: Partial<Charter> = {}): Charter => ({
@@ -67,7 +67,8 @@ describe('charter', () => {
   it('defaults to the beginner choices with no score bonus', () => {
     expect(charterScore(DEFAULT_CHARTER)).toBe(0);
     for (const column of CHARTER_COLUMNS) {
-      const chosen = column.options.find((o) => o.id === DEFAULT_CHARTER[column.key]);
+      // A charter without a length is the full chronicle (item 4.2).
+      const chosen = column.options.find((o) => o.id === (DEFAULT_CHARTER[column.key] ?? 'full'));
       expect(chosen?.score).toBe(0);
     }
   });
@@ -91,9 +92,10 @@ describe('crop years and the recipe thresholds', () => {
     expect(cropKindForYear(charter({ mode: 'sandbox' }), 0)).toBe('typical');
   });
   it('fails strong white but not community flour in a wet year, and every wheat recipe when sprouted', () => {
+    // Read against the plant's ceiling, 99.5 (`productPathQuality`), not 100 (item 4.6).
     const wet = cropWheatPenalty({ index: 1, kind: 'wet', treated: false }, []);
-    expect(100 - wet).toBeLessThan(MILL_RECIPES.strong_white.minimumQuality);
-    expect(100 - wet).toBeGreaterThanOrEqual(MILL_RECIPES.community_flour.minimumQuality);
+    expect(99.5 - wet).toBeLessThan(MILL_RECIPES.strong_white.minimumQuality);
+    expect(99.5 - wet).toBeGreaterThanOrEqual(MILL_RECIPES.community_flour.minimumQuality);
     const sprouted = cropWheatPenalty({ index: 2, kind: 'sprouted', treated: false }, []);
     expect(100 - sprouted).toBeLessThan(MILL_RECIPES.community_flour.minimumQuality);
     // Treatment, or the plan that relieves it, makes every recipe viable again.
@@ -188,7 +190,24 @@ describe('effects', () => {
       energyMultiplier: 1,
       wearMultiplier: 1,
       qualityPenalty: 0,
+      dryingEnergyMultiplier: 1,
     });
+  });
+  it('carries the drying multiplier through the effect, clamped to 0..1 (review 2, finding 2)', () => {
+    const withModifier = (dryingEnergy: number) =>
+      chronicleEffect(
+        {
+          ...base,
+          modifiers: [
+            { id: 'm', sourceId: 's', label: 'Mobile dryer', dryingEnergy, remainingShifts: 3 },
+          ],
+        },
+        true
+      ).dryingEnergyMultiplier;
+    expect(withModifier(0)).toBe(0);
+    expect(withModifier(0.5)).toBe(0.5);
+    expect(withModifier(1.4)).toBe(1);
+    expect(withModifier(-2)).toBe(0);
   });
   it('combines charter, plans, austerity and the crop year only for wheat', () => {
     const effect = chronicleEffect(
@@ -203,7 +222,8 @@ describe('effects', () => {
     );
     expect(effect.wearMultiplier).toBeCloseTo(1.25 * 0.92 * 1.2, 5);
     expect(effect.productionMultiplier).toBeCloseTo(0.92, 5);
-    expect(effect.qualityPenalty).toBe(5);
+    // Wet 5 (item 4.6) less the meters' 1.
+    expect(effect.qualityPenalty).toBe(4);
     const corn = chronicleEffect(
       { ...base, crop: { index: 1, kind: 'wet', treated: false } },
       false
@@ -273,29 +293,36 @@ describe('trials', () => {
     qcPassedThisShift: true,
     unresolvedHighIncident: false,
   };
+  // Windows and tonnage from the measured plant (item 4.1): seven shifts, gold
+  // with two to spare, silver with one; half the goal a shift passes in two.
+  const half = wet.goal.kind === 'dispatch' ? wet.goal.kg / 2 : 0;
   it('grades by shifts to spare in the Predynastic manner', () => {
+    expect(wet.durationShifts).toBe(7);
     expect(medalFor(wet, 1)).toBe('gold');
-    expect(medalFor(wet, 2)).toBe('gold');
-    expect(medalFor(wet, 3)).toBe('silver');
-    expect(medalFor(wet, 4)).toBe('bronze');
-    expect(nextMedalTarget(wet, 'bronze')).toEqual({ medal: 'silver', shiftsUsed: 3 });
+    expect(medalFor(wet, 5)).toBe('gold');
+    expect(medalFor(wet, 6)).toBe('silver');
+    expect(medalFor(wet, 7)).toBe('bronze');
+    expect(nextMedalTarget(wet, 'bronze')).toEqual({ medal: 'silver', shiftsUsed: 6 });
   });
   it('passes, fails on a quality failure, and fails at the window', () => {
     let progress: TrialProgress = { ...emptyTrialProgress('wet_harvest'), phase: 'active' };
-    progress = advanceTrial(wet, progress, { ...evidence, dispatchedKg: 3000 });
+    progress = advanceTrial(wet, progress, { ...evidence, dispatchedKg: half });
     expect(progress.phase).toBe('active');
-    const passed = advanceTrial(wet, progress, { ...evidence, dispatchedKg: 3000 });
+    const passed = advanceTrial(wet, progress, { ...evidence, dispatchedKg: half });
     expect(passed).toMatchObject({ phase: 'passed', medal: 'gold' });
     const failed = advanceTrial(wet, progress, {
       ...evidence,
-      dispatchedKg: 3000,
+      dispatchedKg: half,
       qualityFailureKg: 10,
     });
     expect(failed.phase).toBe('failed');
     let slow: TrialProgress = { ...emptyTrialProgress('wet_harvest'), phase: 'active' };
-    for (let i = 0; i < 4; i++) slow = advanceTrial(wet, slow, { ...evidence, dispatchedKg: 100 });
+    for (let i = 0; i < wet.durationShifts; i++)
+      slow = advanceTrial(wet, slow, { ...evidence, dispatchedKg: 100 });
     expect(slow.phase).toBe('failed');
-    expect(slow.failureReason).toContain('400 of 6,000 kg');
+    expect(slow.failureReason).toContain(
+      `700 of ${half === 0 ? 0 : (half * 2).toLocaleString('en-GB')} kg`
+    );
   });
   it('reads an idle window (no grade) as no evidence about the grade', () => {
     const graded = {
@@ -303,10 +330,10 @@ describe('trials', () => {
       goal: { ...wet.goal, minAverageGrade: 'B' as const },
     } as typeof wet;
     let progress: TrialProgress = { ...emptyTrialProgress('wet_harvest'), phase: 'active' };
-    progress = advanceTrial(graded, progress, { ...evidence, dispatchedKg: 3000 });
+    progress = advanceTrial(graded, progress, { ...evidence, dispatchedKg: half });
     progress = advanceTrial(graded, progress, { ...evidence, grade: null });
     expect(progress).toMatchObject({ gradePoints: 4, gradedShifts: 1, shiftsUsed: 2 });
-    const passed = advanceTrial(graded, progress, { ...evidence, dispatchedKg: 3000 });
+    const passed = advanceTrial(graded, progress, { ...evidence, dispatchedKg: half });
     expect(passed.phase).toBe('passed');
     // A save from before gradedShifts reads every shift used as graded.
     const legacy = advanceTrial(
@@ -389,5 +416,26 @@ describe('scoring', () => {
     });
     expect(bare.total).toBe(0);
     expect(bare.rank).toBe('a sack-carrier');
+  });
+
+  // Review 2, finding 10: a 27-shift chronicle tops out at Regional, so the
+  // top of its ladder is worth what Federated is in 63 shifts.
+  it('scores an era as the share of its length’s own ladder', () => {
+    const score = (id: EraId, charter: typeof DEFAULT_CHARTER) =>
+      scoreChronicle({
+        charter,
+        trialMedals: [],
+        challengeMedals: [],
+        era: id,
+        gradePoints: [],
+        trainingMode: false,
+      }).era;
+    const short = { ...DEFAULT_CHARTER, length: 'short' as const };
+    const era = (id: EraId) => [score(id, DEFAULT_CHARTER), score(id, short)];
+    expect(era('village')).toEqual([0, 0]);
+    expect(era('cooperative')).toEqual([3, 4]);
+    expect(era('district')).toEqual([6, 8]);
+    expect(era('regional')).toEqual([9, 12]);
+    expect(era('federated')).toEqual([12, 12]);
   });
 });

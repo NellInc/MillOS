@@ -17,7 +17,6 @@ import {
   FileText,
   ArrowRight,
   Sparkles,
-  Brain,
   AlertTriangle,
 } from 'lucide-react';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
@@ -120,7 +119,6 @@ export const VCLDebugPanel: React.FC = () => {
                 {t('savedBadge', { percent: formatFixed(savingsPercent, 0) })}
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 mt-0.5">{t('subtitle')}</p>
           </div>
         </div>
         <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
@@ -157,20 +155,8 @@ export const VCLDebugPanel: React.FC = () => {
           >
             {/* Hero Section */}
             <div className="px-4 py-3 bg-gradient-to-r from-cyan-950/50 to-purple-950/50 border-t border-b border-cyan-500/20">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Brain className="w-4 h-4 text-purple-400" />
-                    {t('howItWorks')}
-                  </h3>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    {t('howItWorksBefore')}{' '}
-                    <span className="text-emerald-400 font-bold">
-                      {formatFixed(savingsPercent, 0)}%
-                    </span>{' '}
-                    {t('howItWorksAfter')}
-                  </p>
-                </div>
+              {/* The saved badge carries the reduction; no explainer (D14). */}
+              <div className="flex items-start justify-end gap-4">
                 <button
                   onClick={() => setShowComparison(!showComparison)}
                   className={`flex-shrink-0 px-4 py-2 text-[10px] font-medium rounded-lg transition-all whitespace-nowrap ${

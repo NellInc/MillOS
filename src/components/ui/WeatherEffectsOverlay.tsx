@@ -12,12 +12,15 @@ import { CloudRain, CloudLightning, Wind, Snowflake } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useUIStore } from '../../stores';
+import { useMobileControlStore } from '../../stores/mobileControlStore';
+import { useChronicleStore } from '../../stores/chronicleStore';
 import {
   selectInAppReducedMotion,
   useMotionPreferenceStore,
 } from '../../stores/motionPreferenceStore';
 import { useT } from '../../i18n';
 import { weatherEffectsOverlayMessages } from './WeatherEffectsOverlay.messages';
+import { useModalDialogOpen } from './useModalDialogOpen';
 
 type WeatherType = 'storm' | 'rain' | 'wind' | 'snow' | 'clear';
 
@@ -74,8 +77,14 @@ export const WeatherEffectsOverlay: React.FC = () => {
   const inAppReducedMotion = useMotionPreferenceStore(selectInAppReducedMotion);
   const reduceMotion = useReducedMotion() || inAppReducedMotion;
   const t = useT(weatherEffectsOverlayMessages);
+  // The badge drew over an open phone sheet: its layer and the sheet's sit in
+  // different stacking contexts, so, as the crosshair does, it steps aside.
+  const sheetOpen = useMobileControlStore((state) => state.mobilePanelVisible);
+  // A dialog too: a modal or a Chronicle decision on screen is what is read.
+  const chronicleDialog = useChronicleStore((state) => state.dialogOpen);
+  const modalOpen = useModalDialogOpen(Boolean(weatherAlert));
 
-  if (!weatherAlert) return null;
+  if (!weatherAlert || sheetOpen || chronicleDialog || modalOpen) return null;
 
   const getWeatherIcon = () => {
     switch (weatherAlert.type) {

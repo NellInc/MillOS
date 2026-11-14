@@ -7,6 +7,7 @@ import { turnChecks, type RoleCommand } from '../../../simulation/workplaceParti
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { cloneMaterialFlowData, useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useQCLabStore } from '../../../stores/qcLabStore';
@@ -47,6 +48,20 @@ const mount = (participation = false) =>
     </>
   );
 
+/** The retired "smaller delivery" answer, as a save from before 5b holds it. */
+function legacySmallerDelivery() {
+  const w = useWorkplaceStore.getState().workplace;
+  useWorkplaceStore.setState({
+    workplace: {
+      ...w,
+      improvement: {
+        ...w.improvement!,
+        episode: { ...w.improvement!.episode!, actorId: 'packing', choice: 'smaller-delivery' },
+      },
+    },
+  });
+}
+
 describe('choice-first handoff interface', () => {
   it('places keyboard focus on the decision region when a shift opens', async () => {
     mount();
@@ -65,7 +80,7 @@ describe('choice-first handoff interface', () => {
     expect(useWorkplaceStore.getState().workplace.improvement!.mission).toBeDefined();
     useOperationsCampaignStore.setState({ orders: [], activeOrderId: null });
     store.setImprovementEpisode('late-truck');
-    store.respondImprovementEpisode('packing', 'smaller-delivery');
+    legacySmallerDelivery();
     store.proposeImprovement('buffer', 'maintenance');
     store.acknowledgeImprovement();
     const state = useWorkplaceStore.getState().workplace;
@@ -151,7 +166,7 @@ describe('choice-first handoff interface', () => {
       const store = useWorkplaceStore.getState();
       expect(store.beginImprovement('cooperative', store.workplace.revision).changed).toBe(true);
       store.setImprovementEpisode('late-truck');
-      store.respondImprovementEpisode('packing', 'smaller-delivery');
+      legacySmallerDelivery();
       store.proposeImprovement('buffer', 'maintenance');
       store.acknowledgeImprovement();
       const state = useWorkplaceStore.getState().workplace;
@@ -238,8 +253,10 @@ describe('choice-first handoff interface', () => {
     const before = cloneMaterialFlowData(useMaterialFlowStore.getState());
     for (const id of ['late-truck', 'quality-hold', 'tight-cash']) {
       fireEvent.change(screen.getByLabelText('Pressure episode'), { target: { value: id } });
-      click('Decline extra duty');
-      expect(screen.getByRole('status')).toHaveTextContent('Extra duty is declined');
+      // 5.9: only answers with an effect are offered.
+      expect(screen.queryByRole('button', { name: 'Decline extra duty' })).toBeNull();
+      click('Defer this trial');
+      expect(screen.getByRole('status')).toHaveTextContent('trial is deferred');
       expect(
         useWorkplaceStore.getState().workplace.members.every((m) => m.ballot === null && !m.sharing)
       ).toBe(true);
@@ -302,12 +319,15 @@ describe('choice-first handoff interface', () => {
     store.tick(90, 500, false);
     mount();
     click('Hear the adviser review its forecast');
-    for (const role of ['Packing', 'Quality', 'Maintenance', 'Coordinator'])
-      fireEvent.change(screen.getByLabelText(`${role} review decision`), {
-        target: { value: 'amend' },
-      });
+    // 5b: the player is Packing; the others review the trial from their values
+    // (it ran its shift and shipped, so they adopt) and their selects are theirs.
+    for (const role of ['Quality', 'Maintenance', 'Coordinator'])
+      expect(screen.getByLabelText(`${role} review decision`)).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Packing review decision'), {
+      target: { value: 'adopt' },
+    });
     click('Finalise handoff review');
-    expect(screen.getByText(/Review recorded: amend/)).toBeInTheDocument();
+    expect(screen.getByText(/Review recorded: adopt/)).toBeInTheDocument();
     // A finalised review releases the plant: the panel says so and offers the pace control.
     expect(screen.getByText(/This handoff experiment is complete/)).toBeInTheDocument();
     fireEvent.change(screen.getByRole('combobox', { name: 'Shift pace' }), {
@@ -336,26 +356,24 @@ describe('choice-first handoff interface', () => {
     store.activate(useWorkplaceStore.getState().workplace.revision);
     store.tick(90, 500, false);
     mount();
-    const decide = () => {
+    // 5b: the player casts Packing's verdict; the others answer from their values.
+    const decide = (verdict: 'adopt' | 'stop') => {
       click('Hear the adviser review its forecast');
-      for (const role of ['Packing', 'Quality', 'Maintenance', 'Coordinator'])
-        fireEvent.change(screen.getByLabelText(`${role} review decision`), {
-          target: { value: 'stop' },
-        });
+      fireEvent.change(screen.getByLabelText('Packing review decision'), {
+        target: { value: verdict },
+      });
       click('Finalise handoff review');
     };
-    decide();
+    decide('adopt');
     click('Open next handoff shift');
     expect(screen.getByText('The handoff experiment, shift 2')).toBeInTheDocument();
     // The second shift is ended unworked and decided: it carries the first's pay.
     act(() => {
       useWorkplaceStore.getState().stop();
     });
-    decide();
+    decide('stop');
     expect(screen.getByText(/Review recorded: stop/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Closing ends the experiment without opening another shift/)
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Closing ends the experiment/)).not.toBeInTheDocument();
     click('Close the handoff experiment');
     const after = useWorkplaceStore.getState().workplace;
     expect(after.phase).toBe('idle');
@@ -368,7 +386,8 @@ describe('the handoff clock hold', () => {
   it('names the hold while a handoff is decided, keeps a chosen pace and cancels before funding', () => {
     useGameSimulationStore.getState().setGameSpeed(30);
     mount();
-    expect(screen.getByText(/Opening it holds the plant clock/)).toBeInTheDocument();
+    // D14: the hold is named by its own heading once the experiment opens.
+    expect(screen.queryByText(/Opening it holds the plant clock/)).not.toBeInTheDocument();
     click('Open the handoff experiment');
     const hold = screen.getByRole('region', { name: 'Plant clock held for this decision' });
     expect(
@@ -443,6 +462,8 @@ describe('the handoff clock hold', () => {
   it('starts a season from the panel at standard pace, as the play card does', () => {
     useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
     useOperationsCampaignStore.getState().initializeCampaign();
+    // D4: a season is offered once the first delivery is in.
+    fulfilFirstDelivery();
     render(
       <WorkplaceImprovementPanel
         profile="toe-dip"
@@ -477,9 +498,10 @@ describe('predict then rehearse together', () => {
     ).toBeInTheDocument();
     expect(within(review).getByText(/insufficient matching evidence/)).toBeInTheDocument();
     expect(within(review).queryByText(/support our prediction/)).not.toBeInTheDocument();
+    // D14 cut the closing caveat; the question stays.
     expect(
-      within(review).getByText(/More packed stock does not establish a truck departure/)
-    ).toBeInTheDocument();
+      within(review).queryByText(/More packed stock does not establish a truck departure/)
+    ).not.toBeInTheDocument();
     click('Prepare another prediction');
     expect(
       screen.queryByRole('region', { name: 'Packing prediction review' })
@@ -641,7 +663,7 @@ it('offers a review discussion and isolated next-test prediction without recordi
   const review = screen.getByRole('region', { name: 'Handoff learning review' });
   expect(within(review).getByText('What did this handoff teach us?')).toBeInTheDocument();
   expect(within(review).getByText(/Ended after 12.0 of 90 minutes/)).toBeInTheDocument();
-  expect(within(review).getByText(/current paused plant inputs/)).toBeInTheDocument();
+  expect(within(review).queryByText(/current paused plant inputs/)).not.toBeInTheDocument();
   click('Run matched packing rehearsal');
   const reflection = await screen.findByRole('region', { name: 'Packing prediction review' });
   expect(within(reflection).getByText(/insufficient matching evidence/)).toBeInTheDocument();
@@ -771,7 +793,8 @@ it('freezes and resets the quality hypothesis, preserves original results and su
   const timing = screen.getByRole('group', { name: 'Packing time observations' });
   expect(within(timing).getAllByText(/0.5-second steps:/)).toHaveLength(3);
   expect(within(timing).getAllByText(/0.25-second steps:/)).toHaveLength(3);
-  expect(timing).toHaveTextContent('five paid minutes of pacing hold');
+  // D14 cut the briefing caveat; the question to investigate stays.
+  expect(timing).not.toHaveTextContent('five paid minutes of pacing hold');
   expect(timing).toHaveTextContent('which timing difference would you investigate');
   const prediction = screen.getByRole('combobox', { name: 'Our quality prediction (optional)' });
   fireEvent.change(prediction, { target: { value: 'override' } });

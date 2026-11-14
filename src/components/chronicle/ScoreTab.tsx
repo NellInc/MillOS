@@ -1,6 +1,7 @@
 import { localizedMillCharacter } from '../../chronicle/record';
 import { localizedEpilogue } from '../../chronicle/epilogue';
 import { getTrials } from '../../chronicle/trials';
+import { trialsFor } from '../../chronicle/schedule';
 import { useT } from '../../i18n';
 import { messages } from './ScoreTab.messages';
 import { useEffect, useRef, useState } from 'react';
@@ -101,7 +102,7 @@ export function ScoreTab({ state }: { state: ChronicleState }) {
       {state.trials.length > 0 && (
         <Section title={t('m0')}>
           <ul className="space-y-1 text-xs">
-            {getTrials().map((trial) => {
+            {getTrials(trialsFor(state.charter)).map((trial) => {
               const progress = state.trials.find((t) => t.id === trial.id);
               return (
                 <li key={trial.id} className="flex items-center justify-between gap-2">

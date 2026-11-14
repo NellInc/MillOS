@@ -31,7 +31,7 @@ afterEach(() => {
   useOperationsCampaignStore.setState({ incidents: [] });
 });
 
-// The Management dock button opens the Autonomy panel on a desktop and this
+// The Autonomy dock button opens the Autonomy panel on a desktop and this
 // sheet on a phone. The desktop scores readiness as the mean of efficiency,
 // uptime and quality; the phone kept its own uptime-minus-incidents formula,
 // so the same plant read 95% at the desk and 87% on the phone.
@@ -46,15 +46,14 @@ it('scores readiness on the phone exactly as the desktop Autonomy panel does', (
   expect(screen.queryByText('87%')).not.toBeInTheDocument();
 });
 
-// The desktop Overview groups the daily target and throughput (1,200 bags),
-// and the guide groups the truck's load (5,000 kg); the phone sheet printed
-// the same numbers ungrouped in English, 1200 and 5000.
+// The desktop Overview groups throughput, and the guide groups the truck's
+// load (5,000 kg); the phone sheet printed the same numbers ungrouped in
+// English, 1234 and 5000.
 it('groups thousands on the phone as the desktop Overview and the guide do', () => {
   const production = useProductionStore.getState();
   const campaign = useOperationsCampaignStore.getState();
   useProductionStore.setState({
     metrics: { ...production.metrics, throughput: 1234 },
-    productionTarget: { ...production.productionTarget!, producedBags: 345, targetBags: 1200 },
   });
   useOperationsCampaignStore.setState({
     execution: {
@@ -64,11 +63,10 @@ it('groups thousands on the phone as the desktop Overview and the guide do', () 
   });
   try {
     render(<MobilePanel isVisible content="overview" onClose={vi.fn()} />);
-    expect(screen.getByText(/345\/\s*1,200/)).toBeInTheDocument();
     expect(screen.getByText(/2,500\s*\/\s*5,000 kg/)).toBeInTheDocument();
     expect(screen.getByText('1,234')).toBeInTheDocument();
   } finally {
-    useProductionStore.setState({ productionTarget: production.productionTarget });
+    useProductionStore.setState({ metrics: production.metrics });
     useOperationsCampaignStore.setState({ execution: campaign.execution });
   }
 });

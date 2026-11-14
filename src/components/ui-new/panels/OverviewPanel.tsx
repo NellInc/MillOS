@@ -26,7 +26,6 @@ import {
   Link2,
   ShieldCheck,
   FlaskConical,
-  Route,
 } from 'lucide-react';
 import { useProductionStore } from '../../../stores/productionStore';
 import {
@@ -35,7 +34,13 @@ import {
   useGameSimulationStore,
 } from '../../../stores/gameSimulationStore';
 import { useAchievementsStore } from '../../../stores/achievementsStore';
-import { recordOperatorAction } from '../../../stores/operationsCampaignStore';
+import {
+  MILL_RECIPES,
+  recordOperatorAction,
+  useOperationsCampaignStore,
+  type CustomerOrder,
+} from '../../../stores/operationsCampaignStore';
+import { openProgramme } from '../../../stores/programmeCommitment';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
 import { saveScenePng } from '../../../utils/sceneCapture';
 import { useUIStore } from '../../../stores/uiStore';
@@ -44,10 +49,19 @@ import {
   useMaterialFlowStore,
   type DispositionReasonKey,
   type MaterialManifest,
+  type ProductionBatch,
   type SourceLot,
 } from '../../../stores/materialFlowStore';
 import { materialFlowStoreMessages } from '../../../stores/materialFlowStore.messages';
-import { useQCLabStore, type QCGrade, type QCTestType } from '../../../stores/qcLabStore';
+import {
+  BENCH_TEST_MINUTES,
+  OPERATOR_CONTROL_SOURCE,
+  prioritiseBenchTest,
+  readAgainstOrder,
+  useQCLabStore,
+  type QCTestType,
+  type QualityTestResult,
+} from '../../../stores/qcLabStore';
 import { qcLabStoreMessages } from '../../../stores/qcLabStore.messages';
 import { useShallow } from 'zustand/react/shallow';
 import { AchievementsPanel } from '../../GameFeatures';
@@ -63,6 +77,7 @@ import {
   useT,
 } from '../../../i18n';
 import { overviewPanelMessages } from './OverviewPanel.messages';
+import { useCrewAway } from '../widgets/useCrewAway';
 import { screenshotButtonMessages } from '../../game/ScreenshotButton.messages';
 import { registerAlertCatalog } from '../../../i18n/alertCopy';
 
@@ -71,6 +86,7 @@ registerAlertCatalog(SCREENSHOT_ALERT_CATALOG, screenshotButtonMessages);
 
 import { OperationsPlayCard, PaceHoldNote, ShiftDebrief } from '../onboarding/PlayableShift';
 import { qcReadingsForLots } from '../../../chronicle/cropYears';
+import { firstOrderOwed, meetsMinimum } from '../../../simulation/shipmentPlan';
 
 // Re-homed from ui/ (orphaned after the UIOverlay removal): live breakdown
 // mechanics — active breakdowns, predictive alerts, parts inventory, schedule.
@@ -115,7 +131,8 @@ const PACE_BUTTON_LABELS: Record<number, string> = { 15: '1/2x', 30: '1x', 60: '
 export const GameSpeedControls: React.FC = React.memo(() => {
   // The same chosen pace and hold note as Shift pace (TeachingPace).
   const gameSpeed = useGameSimulationStore(selectChosenPace);
-  const setGameSpeed = useGameSimulationStore((state) => state.setGameSpeed);
+  const choosePace = useGameSimulationStore((state) => state.choosePace);
+  const [refusal, setRefusal] = React.useState(0);
   const pace = useT(paceMessages);
 
   return (
@@ -127,7 +144,11 @@ export const GameSpeedControls: React.FC = React.memo(() => {
             onClick={() => {
               // A new running pace is the player's decision; a pause to inspect is not.
               const before = selectPaceUnderPause(useGameSimulationStore.getState());
-              setGameSpeed(value);
+              // A feature's hold refuses the choice and is named (D21).
+              if (choosePace(value) !== null) {
+                setRefusal((count) => count + 1);
+                return;
+              }
               if (value > 0 && value !== before)
                 recordOperatorAction({ kind: 'pace', gameSpeed: value });
             }}
@@ -151,7 +172,7 @@ export const GameSpeedControls: React.FC = React.memo(() => {
           </button>
         ))}
       </div>
-      <PaceHoldNote />
+      <PaceHoldNote refusal={refusal} />
     </>
   );
 });
@@ -269,13 +290,118 @@ const readGenealogyErrorKg = () =>
 const formatKgTenths = (kg: number) =>
   formatGrouped(kg, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-/** Lab grade bands over the 0-100 product quality score stamped on a batch. */
-function labGradeForQuality(score: number | undefined): QCGrade {
-  if (score === undefined || !Number.isFinite(score) || score >= 95) return 'A';
-  if (score >= 85) return 'B';
-  if (score >= 70) return 'C';
-  return 'FAIL';
+/**
+ * The order a batch of `material` would serve: the one dispatch credits next
+ * for that product, as the default shipment plan names it
+ * (src/simulation/shipmentPlan.ts): open orders of the same finished
+ * material, by priority, then due time. An order's `batchIds` are not read:
+ * batch ids repeat across material sessions.
+ */
+function nextOrderFor(
+  orders: readonly CustomerOrder[],
+  material: ProductionBatch['materialType']
+): CustomerOrder | null {
+  return firstOrderOwed(orders, material);
 }
+
+/** A recipe's name in the current language, from the live entry when there is one. */
+function recipeLabel(order: CustomerOrder): string {
+  return Object.prototype.hasOwnProperty.call(MILL_RECIPES, order.recipe.id)
+    ? MILL_RECIPES[order.recipe.id].label
+    : order.recipe.label;
+}
+
+/** Moisture, protein and falling number, each with its unit. */
+const LabReadings: React.FC<{
+  moisture: number;
+  protein: number;
+  fallingNumber: number | null | undefined;
+}> = ({ moisture, protein, fallingNumber }) => {
+  const t = useT(overviewPanelMessages);
+  return (
+    <span className="flex flex-wrap gap-x-3">
+      <span>{t('readingMoisture', { value: formatFixed(moisture, 1) })}</span>
+      <span>{t('readingProtein', { value: formatFixed(protein, 1) })}</span>
+      {/* A falling number is read only from a lot's stamped crop year (a
+          signed Chronicle charter); with none there is no reading to show. */}
+      {typeof fallingNumber === 'number' && Number.isFinite(fallingNumber) && (
+        <span>{t('readingFallingNumber', { value: formatFixed(fallingNumber, 0) })}</span>
+      )}
+    </span>
+  );
+};
+
+/**
+ * One lot's readings: its stamped crop attributes, or for an unstamped lot (no
+ * signed Chronicle charter) the long-standing readings the lab reports for it.
+ */
+const LotReadings: React.FC<{ lot: SourceLot }> = ({ lot }) => {
+  const readings = qcReadingsForLots([{ crop: lot.crop, amountKg: 1 }]);
+  return (
+    <LabReadings
+      moisture={readings.moistureContent}
+      protein={readings.proteinLevel}
+      fallingNumber={readings.fallingNumber}
+    />
+  );
+};
+
+/** Which order a batch under its serving order's minimum is kept from, and which takes it. */
+const OrderFit: React.FC<{ order: CustomerOrder; offeredTo: CustomerOrder | null }> = ({
+  order,
+  offeredTo,
+}) => {
+  const t = useT(overviewPanelMessages);
+  return (
+    <div className="flex flex-wrap gap-x-3 font-mono text-[10px] text-amber-300">
+      <span>{t('labNotLoadedFor', { recipe: recipeLabel(order) })}</span>
+      {offeredTo && <span>{t('labOfferedTo', { recipe: recipeLabel(offeredTo) })}</span>}
+    </div>
+  );
+};
+
+/**
+ * A batch's latest lab result: grade, its quality and the minimum of the order
+ * it would serve as two readouts, whether it is held from that order and
+ * which open order it goes to instead (plan items 3.2, 3.4), and readings.
+ */
+const LabResult: React.FC<{
+  test: QualityTestResult;
+  batch: ProductionBatch;
+  order: CustomerOrder | null;
+  offeredTo: CustomerOrder | null;
+}> = ({ test, batch, order, offeredTo }) => {
+  const t = useT(overviewPanelMessages);
+  const quality = batch.qualityScore;
+  const hasQuality = typeof quality === 'number' && Number.isFinite(quality);
+  const below = !!order && !meetsMinimum(quality, order.recipe.minimumQuality);
+  return (
+    <div
+      role="group"
+      aria-label={t('labResult', { id: test.id })}
+      className="mt-1 space-y-0.5 font-mono text-[10px] text-slate-300"
+    >
+      <div className="flex flex-wrap gap-x-3">
+        <span>{t('labGrade', { grade: test.grade })}</span>
+        {hasQuality && <span>{t('labQuality', { quality: formatFixed(quality, 1) })}</span>}
+        {order && (
+          <span>
+            {t('labOrderMinimum', {
+              recipe: recipeLabel(order),
+              minimum: formatFixed(order.recipe.minimumQuality, 0),
+            })}
+          </span>
+        )}
+      </div>
+      {below && <OrderFit order={order} offeredTo={offeredTo} />}
+      <LabReadings
+        moisture={test.moistureContent}
+        protein={test.proteinLevel}
+        fallingNumber={test.fallingNumber}
+      />
+    </div>
+  );
+};
 
 const REASON_CATALOGS = {
   materialFlow: materialFlowStoreMessages,
@@ -341,7 +467,43 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
   const completeQCTest = useQCLabStore((state) => state.completeQCTest);
   const triggerContaminationAlert = useQCLabStore((state) => state.triggerContaminationAlert);
   const resolveContaminationAlert = useQCLabStore((state) => state.resolveContaminationAlert);
+  // The campaign rewrites `orders` every tick; only the serving order ids re-render.
+  const [flourOrderId, semolinaOrderId] = useOperationsCampaignStore(
+    useShallow((state) => [
+      nextOrderFor(state.orders, 'flour')?.id ?? null,
+      nextOrderFor(state.orders, 'semolina')?.id ?? null,
+    ])
+  );
+  const orderServedBy = (batch: ProductionBatch): CustomerOrder | null => {
+    const id = batch.materialType === 'flour' ? flourOrderId : semolinaOrderId;
+    return id
+      ? (useOperationsCampaignStore.getState().orders.find((order) => order.id === id) ?? null)
+      : null;
+  };
+  // The open order a batch under its serving order's minimum goes to instead.
+  const offeredTo = (batch: ProductionBatch, served: CustomerOrder | null) =>
+    served && !meetsMinimum(batch.qualityScore, served.recipe.minimumQuality)
+      ? (firstOrderOwed(
+          useOperationsCampaignStore
+            .getState()
+            .orders.filter(
+              (order) =>
+                order.id !== served.id &&
+                meetsMinimum(batch.qualityScore, order.recipe.minimumQuality)
+            ),
+          batch.materialType
+        ) ?? null)
+      : null;
+  const bench = qcLab.bench ?? null;
+  // 5.4: no new test starts while the season's Quality is away uncovered.
+  const qualityBack = useCrewAway('quality');
   const t = useT(overviewPanelMessages);
+  // Each batch's latest result, in record order (restored timestamps are strings).
+  const latestTestByBatch = useMemo(() => {
+    const latest = new globalThis.Map<string, QualityTestResult>();
+    for (const test of qcLab.testHistory) if (test.batchId) latest.set(test.batchId, test);
+    return latest;
+  }, [qcLab.testHistory]);
   const displayedBatches = useMemo(() => {
     const investigationBatchIds = new Set(
       qcLab.contaminationAlerts
@@ -415,9 +577,14 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       .productionBatches.find((candidate) => candidate.id === batchId);
     if (!batch) return;
     const sourceLotIds = [...new Set(batch.sourceContributions.map((source) => source.lotId))];
-    // The lab reports the quality the batch was made at; a batch saved before
-    // that was recorded reads as conforming, as every test did before.
-    const grade = labGradeForQuality(batch.qualityScore);
+    // The lab reports the quality the batch was made at, read against the
+    // minimum of the order it would serve (plan item 3.2); a batch saved
+    // before stamps were recorded reads as conforming, as every test did.
+    const order = orderServedBy(batch);
+    const { grade, passed } = readAgainstOrder(
+      batch.qualityScore,
+      order?.recipe.minimumQuality ?? null
+    );
     // The physical readings come from the stamped crop attributes of the lots
     // under test; unstamped lots (no signed chronicle) give the long-standing
     // readings.
@@ -432,14 +599,14 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       batchId,
       sourceLotIds,
       testType,
-      controlSource: 'Autonomous QC controller',
+      controlSource: OPERATOR_CONTROL_SOURCE,
     });
     completeQCTest({
       machineId: batch.packerId,
       batchId,
       sourceLotIds,
       testType,
-      controlSource: 'Autonomous QC controller',
+      controlSource: OPERATOR_CONTROL_SOURCE,
       // A failed retest takes the lab's own held note rather than "conforming".
       controlNote:
         testType !== 'retest'
@@ -452,7 +619,12 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       proteinLevel: readings.proteinLevel,
       ashContent: readings.ashContent,
       particleSize: readings.particleSize,
-      passed: grade !== 'FAIL',
+      ...(readings.fallingNumber !== null ? { fallingNumber: readings.fallingNumber } : {}),
+      ...(order ? { orderId: order.id, minimumQuality: order.recipe.minimumQuality } : {}),
+      ...(typeof batch.qualityScore === 'number' && Number.isFinite(batch.qualityScore)
+        ? { qualityScore: batch.qualityScore }
+        : {}),
+      passed,
     });
     // A failed retest leaves the batch on hold and its investigation open, so
     // the player can recall it; only a conforming retest releases the scope.
@@ -466,7 +638,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
           resolveContaminationAlert(
             alert.id,
             'released',
-            'Autonomous QC controller',
+            OPERATOR_CONTROL_SOURCE,
             translate(overviewPanelMessages, 'noteRetestReleased'),
             undefined,
             overviewNoteKey('noteRetestReleased')
@@ -491,7 +663,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
           triggerContaminationAlert({
             batchIds: [batchId],
             severity: 'high',
-            controlSource: 'Autonomous QC controller',
+            controlSource: OPERATOR_CONTROL_SOURCE,
             controlNote: translate(overviewPanelMessages, 'noteRecallInvestigation'),
             controlNoteKey: overviewNoteKey('noteRecallInvestigation'),
           }),
@@ -500,7 +672,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
       resolveContaminationAlert(
         alertId,
         'recalled',
-        'Autonomous QC controller',
+        OPERATOR_CONTROL_SOURCE,
         translate(overviewPanelMessages, 'noteRecalled'),
         [batchId],
         overviewNoteKey('noteRecalled')
@@ -551,6 +723,7 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
             const unresolvedAlert = qcLab.contaminationAlerts.some(
               (alert) => !alert.resolved && alert.batchIds.includes(batch.id)
             );
+            const latestTest = latestTestByBatch.get(batch.id);
             return (
               <li
                 key={batch.id}
@@ -585,6 +758,40 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                     {dispositionReasonText(batch.dispositionReason, batch.dispositionReasonKey)}
                   </p>
                 )}
+                {batch.awaitingTest && batch.disposition === 'released' && (
+                  <p role="status" className="mt-1 font-mono text-[10px] text-cyan-200">
+                    {bench?.batchId === batch.id
+                      ? t('benchRunning', {
+                          minutes: formatFixed(
+                            Math.max(1, Math.ceil((1 - bench.progress) * BENCH_TEST_MINUTES)),
+                            0
+                          ),
+                        })
+                      : qualityBack
+                        ? t('benchAwaitingCrew', { time: qualityBack })
+                        : t('benchAwaiting')}
+                  </p>
+                )}
+                {latestTest && (
+                  <LabResult
+                    test={latestTest}
+                    batch={batch}
+                    order={orderServedBy(batch)}
+                    offeredTo={offeredTo(batch, orderServedBy(batch))}
+                  />
+                )}
+                {/* The lab keeps its latest tests only; a tested batch whose
+                    result has left the record still says where it goes. */}
+                {!latestTest &&
+                  batch.disposition === 'released' &&
+                  !batch.awaitingTest &&
+                  (() => {
+                    const served = orderServedBy(batch);
+                    return served &&
+                      !meetsMinimum(batch.qualityScore, served.recipe.minimumQuality) ? (
+                      <OrderFit order={served} offeredTo={offeredTo(batch, served)} />
+                    ) : null;
+                  })()}
                 {batch.disposition === 'recalled' && (batch.writtenOffKg ?? 0) > 0 && (
                   <p className="mt-1 text-[10px] text-red-300">
                     {t('writtenOff', { kg: formatKgTenths(batch.writtenOffKg ?? 0) })}
@@ -640,27 +847,46 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                   >
                     {selectedBatchId === batch.id ? t('hideTrace') : t('traceBatch')}
                   </button>
-                  {batch.disposition === 'released' && (
-                    <>
+                  {batch.disposition === 'released' &&
+                    batch.awaitingTest &&
+                    bench?.batchId !== batch.id &&
+                    qcLab.benchFirst !== batch.id && (
                       <button
                         type="button"
                         onClick={() => {
-                          runConformingTest(batch.id, 'initial');
+                          prioritiseBenchTest(batch.id);
                           recordOperatorAction({ kind: 'batchTest', batch: batch.id });
                           setFocusRequest({ batchId: batch.id, control: 'trace' });
                         }}
                         className="inline-flex min-h-11 items-center gap-1.5 rounded bg-cyan-700 px-3 text-xs font-semibold text-white hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                       >
                         <FlaskConical size={14} aria-hidden="true" />
-                        {t('testBatch')}
+                        {t('testFirst')}
                       </button>
+                    )}
+                  {batch.disposition === 'released' && (
+                    <>
+                      {!batch.awaitingTest && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            runConformingTest(batch.id, 'initial');
+                            recordOperatorAction({ kind: 'batchTest', batch: batch.id });
+                            setFocusRequest({ batchId: batch.id, control: 'trace' });
+                          }}
+                          className="inline-flex min-h-11 items-center gap-1.5 rounded bg-cyan-700 px-3 text-xs font-semibold text-white hover:bg-cyan-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                        >
+                          <FlaskConical size={14} aria-hidden="true" />
+                          {t('testBatch')}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
                           triggerContaminationAlert({
                             batchIds: [batch.id],
                             severity: 'medium',
-                            controlSource: 'Autonomous QC controller',
+                            controlSource: OPERATOR_CONTROL_SOURCE,
                             controlNote: translate(overviewPanelMessages, 'noteHold'),
                             controlNoteKey: overviewNoteKey('noteHold'),
                           });
@@ -735,6 +961,9 @@ export const BatchGenealogySection: React.FC = React.memo(() => {
                   {lotSupplierText(lot)}, {t('disposition', { value: lot.disposition })}.{' '}
                   {paths.map((path) => path.join(t('pathJoiner'))).join('; ')}
                 </div>
+                <div className="mt-0.5 font-mono text-slate-300">
+                  <LotReadings lot={lot} />
+                </div>
               </li>
             ))}
           </ul>
@@ -759,8 +988,11 @@ export const MaintenanceSection: React.FC = () => {
     const frame = requestAnimationFrame(() => {
       if (!useUIStore.getState().maintenanceFocusRequested) return;
       useUIStore.getState().clearMaintenanceFocus();
-      if (useUIStore.getState().fpsMode) return;
+      // A phone walks in first person by default, and its Open repair landed
+      // at the top of the sheet: scroll there in first person too, and skip
+      // only the focus move, which would take a desktop out of pointer lock.
       sectionRef.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' });
+      if (useUIStore.getState().fpsMode) return;
       sectionRef.current?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
@@ -792,7 +1024,10 @@ export const MaintenanceSection: React.FC = () => {
 export const OverviewPanel: React.FC = React.memo(() => {
   const metrics = useProductionStore((state) => state.metrics);
   const totalBagsProduced = useProductionStore((state) => state.totalBagsProduced);
-  const productionTarget = useProductionStore((state) => state.productionTarget);
+  // The goal is the running programme's committed tonnes (D11), as the HUD
+  // shows it; with no programme open there is no target to show.
+  // Flat, so a campaign tick that rewrites the orders re-renders nothing here.
+  const programme = useOperationsCampaignStore(useShallow((state) => openProgramme(state.orders)));
   const machines = useProductionStore((state) => state.machines);
   const dockStatus = useProductionStore((state) => state.dockStatus);
 
@@ -816,14 +1051,6 @@ export const OverviewPanel: React.FC = React.memo(() => {
 
   // 0 while the clock is held: a paused plant packs nothing.
   const shownThroughput = useRunningThroughput();
-
-  // Progress to target
-  const targetProgress = productionTarget
-    ? Math.min(
-        100,
-        (productionTarget.producedBags / Math.max(1, productionTarget.targetBags)) * 100
-      )
-    : 0;
 
   return (
     <div className="p-4 space-y-4 h-full overflow-y-auto custom-scrollbar">
@@ -869,26 +1096,26 @@ export const OverviewPanel: React.FC = React.memo(() => {
         </div>
       </section>
 
-      {/* Daily Target */}
-      {productionTarget && (
+      {/* Programme commitment */}
+      {programme && (
         <section className="bg-slate-800/50 border border-white/5 rounded-xl p-3">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs text-slate-400">{t('dailyTarget')}</span>
+            <span className="text-xs text-slate-400">{t('programme')}</span>
             <span className="text-xs font-mono text-cyan-400">
-              {formatGrouped(productionTarget.producedBags)} /{' '}
-              {formatGrouped(productionTarget.targetBags)}
+              {t('programmeTonnes', {
+                shipped: formatFixed(programme.shippedT, 1),
+                committed: formatFixed(programme.committedT, 1),
+              })}
             </span>
           </div>
           <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-500 ${
-                targetProgress >= 100 ? 'bg-green-500' : 'bg-cyan-500'
-              }`}
-              style={{ width: `${targetProgress}%` }}
+              className="h-full bg-cyan-500 transition-all duration-500"
+              style={{ width: `${programme.percent}%` }}
             />
           </div>
           <div className="text-right text-[10px] text-slate-400 mt-1">
-            {t('percentComplete', { value: formatFixed(targetProgress, 1) })}
+            {t('percentComplete', { value: formatFixed(programme.percent, 1) })}
           </div>
         </section>
       )}
@@ -996,13 +1223,7 @@ export const OverviewPanel: React.FC = React.memo(() => {
       </section>
 
       <MaterialTraceabilitySection />
-      <button
-        onClick={() => window.dispatchEvent(new Event('millos:open-layout-planner'))}
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-cyan-700 bg-cyan-950 px-3 py-2 text-sm text-cyan-100 hover:bg-cyan-900"
-      >
-        <Route size={18} aria-hidden="true" />
-        {t('planLogistics')}
-      </button>
+      {/* The layout planner opens from the dock's More menu (plan 7.8). */}
       <BatchGenealogySection />
 
       <MaintenanceSection />
@@ -1158,18 +1379,15 @@ export const QuickActionsSection: React.FC = () => {
 
   const handleExport = useCallback(() => {
     const store = useProductionStore.getState();
-    // Nothing writes the target's throughput fields (1500 and 0 from load);
-    // the measured rate is metrics.throughput, so the report leaves them out.
-    let productionTarget: Partial<NonNullable<typeof store.productionTarget>> | null = null;
-    if (store.productionTarget) {
-      productionTarget = { ...store.productionTarget };
-      delete productionTarget.targetThroughput;
-      delete productionTarget.actualThroughput;
-    }
+    // The goal is the running programme's committed kilograms (D11), not the
+    // retired daily bag target; null with no programme open.
+    const running = openProgramme(useOperationsCampaignStore.getState().orders);
     const report = {
       timestamp: new Date().toISOString(),
       metrics: store.metrics,
-      productionTarget,
+      programme: running
+        ? { key: running.key, committedKg: running.committedKg, shippedKg: running.shippedKg }
+        : null,
       totalBagsProduced: store.totalBagsProduced,
       achievements: useAchievementsStore
         .getState()
@@ -1210,7 +1428,7 @@ export const QuickActionsSection: React.FC = () => {
           <button
             onClick={() => setShowAchievements(!showAchievements)}
             aria-expanded={showAchievements}
-            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors relative ${
+            className={`min-h-11 py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors relative ${
               showAchievements
                 ? 'bg-yellow-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
@@ -1230,7 +1448,7 @@ export const QuickActionsSection: React.FC = () => {
           <button
             onClick={handleToggleReplay}
             aria-pressed={isReplaying}
-            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${
+            className={`min-h-11 py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${
               isReplaying
                 ? 'bg-red-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'
@@ -1245,7 +1463,7 @@ export const QuickActionsSection: React.FC = () => {
           <button
             onClick={() => setShowMiniMap(!showMiniMap)}
             aria-pressed={showMiniMap}
-            className={`py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${
+            className={`min-h-11 py-2.5 px-3 rounded-lg flex items-center gap-2 transition-colors ${
               showMiniMap
                 ? 'bg-green-600 text-white'
                 : 'bg-slate-700/80 text-slate-300 hover:bg-slate-600'

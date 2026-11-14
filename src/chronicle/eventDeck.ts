@@ -14,6 +14,7 @@
 import { defineMessages, translate } from '../i18n';
 import { eventDeckMessages } from './eventDeck.messages';
 import { STEWARD_DECK } from './stewardDeck';
+import { REFERENCE_DRYING_COST } from './temper';
 import { stewardDeckMessages } from './stewardDeck.messages';
 import type { ChronicleEventDefinition, ChronicleEventEffect } from './types';
 
@@ -106,9 +107,10 @@ const BASE_DECK: ChronicleEventDefinition[] = [
           modifier: { label: 'Off-peak running', energy: 0.94, shifts: 6 },
           result: 'The timer moves cleaning and conditioning loads into the cheap overnight band.',
         },
-        aiRecommended: true,
       },
       {
+        // The advice (4.4): 6% off energy for 6 shifts is worth about 4 fund, so
+        // the timer pays only where energy binds, as in Grid Winter.
         id: 'join',
         label: 'Join the trial as we are',
         effect: {
@@ -116,6 +118,7 @@ const BASE_DECK: ChronicleEventDefinition[] = [
           result:
             'The mill joins the trial and picks up whatever overnight load already falls in the band.',
         },
+        aiRecommended: true,
       },
     ],
     defaultChoiceId: 'join',
@@ -261,24 +264,33 @@ const BASE_DECK: ChronicleEventDefinition[] = [
     routine: true,
     requires: { cropKinds: ['wet'] },
     choices: [
+      // Plan item 7.7: the wet year is dried on the temper card a shift at a
+      // time (chronicle/temper.ts), so neither answer treats the year. Each
+      // lowers what the card's "dry first" books instead, and what it keeps
+      // off the books is credited to the fund in full ('drying'), as a plan's
+      // avoided cost is. Priced by the plans' margin (review 2, finding 2): a
+      // plan pays back in about a third of its window (wind 6 to 10 of 25), so
+      // the three-shift hire costs one shift of drying, REFERENCE_DRYING_COST
+      // rounded: the water taken out of a measured shift's wheat
+      // (MEASURED_PLANT.shiftKg over 0.72 x 0.95) at the wet year's mean
+      // moisture, times DRYING_KWH_PER_KG_WATER, at the mean of the peak and
+      // off-peak tariffs (chronicle/temper.ts). It was 2, the share's worth of three.
       {
         id: 'dryer',
         label: 'Hire a mobile dryer',
-        cost: { fund: 160 },
+        cost: { fund: Math.round(REFERENCE_DRYING_COST) },
         effect: {
-          treatCrop: true,
+          modifier: { label: 'Mobile dryer', dryingEnergy: 0, shifts: 3 },
           result:
-            'The dryer brings the intake down to storage moisture and the wet-year penalty lifts.',
+            'A mobile dryer is hired for three shifts: drying the wheat before it is tempered books no energy while it stands.',
         },
         aiRecommended: true,
       },
       {
         id: 'blend',
         label: 'Blend with stored grain',
-        cost: { fund: 90 },
         effect: {
-          treatCrop: true,
-          modifier: { label: 'Blending runs', production: 0.95, shifts: 3 },
+          modifier: { label: 'Blending runs', production: 0.95, dryingEnergy: 0.5, shifts: 3 },
           result:
             'The wet lots are blended down with drier stored grain; the extra handling slows the line.',
         },
@@ -302,7 +314,9 @@ const BASE_DECK: ChronicleEventDefinition[] = [
     polarity: 'negative',
     weight: 3,
     routine: true,
-    requires: { cropKinds: ['sprouted', 'wet'] },
+    // Sprouted grain only: a wet year's falling numbers (230-290) read sound,
+    // and its grain is dried on the temper card (plan item 7.7).
+    requires: { cropKinds: ['sprouted'] },
     choices: [
       {
         id: 'blend',
@@ -358,7 +372,9 @@ const BASE_DECK: ChronicleEventDefinition[] = [
       {
         id: 'rush',
         label: 'Pay the rush freight',
-        cost: { fund: 70 },
+        // Priced against the packaging shortage it avoids: about 17 on the
+        // measured plant (item 4.1; was 65 against 38 on the old reference shift).
+        cost: { fund: 30 },
         effect: {
           result:
             'The scheduled delivery arrives on time by rush freight and the packers do not stop.',
@@ -438,7 +454,10 @@ const BASE_DECK: ChronicleEventDefinition[] = [
       {
         id: 'relief',
         label: 'Hire a relief lorry',
-        cost: { fund: 80 },
+        // Priced against the delayed truck it avoids, about 3 on the measured
+        // plant (4.1), and the haulier's goodwill for waiting (item 4.4); it was
+        // 80, beaten by 72, then 35.
+        cost: { fund: 20 },
         effect: {
           result: 'The relief lorry makes the collection on time.',
         },
@@ -550,7 +569,8 @@ const BASE_DECK: ChronicleEventDefinition[] = [
       {
         id: 'firm',
         label: 'Call in the pest firm',
-        cost: { fund: 70 },
+        // Within 30 of sealing in-house, two shifts at 97% (4.4).
+        cost: { fund: 50 },
         effect: {
           knowHow: 1,
           result: 'The firm proofs the store and the gaps under the doors are sealed.',
@@ -633,7 +653,7 @@ const BASE_DECK: ChronicleEventDefinition[] = [
   {
     id: 'evt-two-buyers-one-slot',
     title: 'Two buyers, one slot',
-    text: 'Riverside Bakers’ Cooperative and Community Pasta Works both want the early collection slot at the loading bay for the coming week. The bakers want strong white for a festival weekend; the pasta works wants semolina before a menu change. Each asks the mill to put them first.',
+    text: 'Riverside Bakers’ Cooperative and Community Polenta Kitchen both want the early collection slot at the loading bay for the coming week. The bakers want strong white for a festival weekend; the polenta kitchen wants cornmeal before a menu change. Each asks the mill to put them first.',
     polarity: 'neutral',
     weight: 2,
     routine: false,
@@ -651,11 +671,12 @@ const BASE_DECK: ChronicleEventDefinition[] = [
       },
       {
         id: 'pasta',
-        label: 'Put the pasta works first',
+        label: 'Put the polenta kitchen first',
         effect: {
           relationship: { customer: 'pasta', delta: 10 },
-          modifier: { label: 'Durum on the rolls', wear: 1.06, shifts: 3 },
-          result: 'The pasta works gets the early slot; the hard durum is heavier on the rolls.',
+          modifier: { label: 'Changeover to maize', wear: 1.06, shifts: 3 },
+          result:
+            'The polenta kitchen gets the early slot; the maize run means a changeover on the rolls.',
         },
       },
       {
@@ -698,6 +719,9 @@ const BASE_DECK: ChronicleEventDefinition[] = [
           result:
             'The hill farms go first and share their trial data; the bigger valley loads wait.',
         },
+        // The advice (4.4): four know-how is worth 100 at the forced-maintenance
+        // rate, against the valley's 60 fund; first come, first served gains neither.
+        aiRecommended: true,
       },
       {
         id: 'first-come',
@@ -706,7 +730,6 @@ const BASE_DECK: ChronicleEventDefinition[] = [
           result:
             'The weighbridge stays first come, first served, and both groups grumble equally.',
         },
-        aiRecommended: true,
       },
     ],
     defaultChoiceId: 'first-come',
@@ -725,7 +748,11 @@ const BASE_DECK: ChronicleEventDefinition[] = [
         id: 'reinvest',
         label: 'Raise the reinvestment share',
         effect: {
-          relationship: { customer: 'federation', delta: 4 },
+          // A larger share held back reaches the customers as prices (4.4).
+          relationship: [
+            { customer: 'federation', delta: 4 },
+            { customer: 'all', delta: -4 },
+          ],
           modifier: { label: 'Members’ reinvestment motion', reinvestment: 0.05, shifts: 6 },
           result: 'The motion carries and more of each shift’s contribution goes to the fund.',
         },

@@ -8,6 +8,9 @@ export const miniMapMessages = defineMessages({
     zoneSifters: 'Sifters',
     zoneMills: 'Mills',
     forklifts: 'Forklifts',
+    trucks: 'Trucks',
+    exits: 'Exits',
+    you: 'You',
   },
   'pt-BR': {
     title: 'Mapa da frota',
@@ -16,5 +19,8 @@ export const miniMapMessages = defineMessages({
     zoneSifters: 'Plansifters',
     zoneMills: 'Moinhos',
     forklifts: 'Empilhadeiras',
+    trucks: 'Caminhões',
+    exits: 'Saídas',
+    you: 'Você',
   },
 });

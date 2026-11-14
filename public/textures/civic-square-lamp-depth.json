@@ -257,13 +257,13 @@
       "id": "hall-verge",
       "kind": "rail",
       "position": [
-        -182.78,
-        1.1814,
-        15.2236
+        -182.45,
+        1.1945,
+        15.0927
       ],
       "mount": [
-        7.29,
-        15.2236
+        7.62,
+        15.0927
       ],
       "intensity": 12,
       "distance": 9,
@@ -309,13 +309,13 @@
       "id": "hall-side-near",
       "kind": "rail",
       "position": [
-        -182.78,
+        -182.45,
         0.8,
-        20.1909
+        22.1807
       ],
       "mount": [
-        7.29,
-        20.1909
+        7.62,
+        22.1807
       ],
       "intensity": 12,
       "distance": 9,
@@ -329,13 +329,13 @@
       "id": "hall-side-far",
       "kind": "rail",
       "position": [
-        -182.78,
-        0.582,
-        23.9164
+        -182.45,
+        0.5213,
+        28.0873
       ],
       "mount": [
-        7.29,
-        23.9164
+        7.62,
+        28.0873
       ],
       "intensity": 12,
       "distance": 9,
@@ -613,7 +613,7 @@
     },
     {
       "name": "town-hall-privet-gardens",
-      "vertices": 40692,
+      "vertices": 38388,
       "instances": 1
     },
     {
@@ -767,8 +767,18 @@
       "instances": 1
     },
     {
+      "name": "town-hall-ramp-flights",
+      "vertices": 60,
+      "instances": 1
+    },
+    {
+      "name": "town-hall-ramp-kerbs",
+      "vertices": 252,
+      "instances": 1
+    },
+    {
       "name": "town-hall-ramp-rails",
-      "vertices": 6360,
+      "vertices": 8400,
       "instances": 1
     }
   ],
@@ -776,21 +786,21 @@
     "alphaOrMoving": 60
   },
   "dynamicLocalShadows": false,
-  "inputSha256": "67e33a4aada7a77af43fd2e865590fd2c39bbc6e2f9459e13dbcea961c59c499",
-  "atlasSha256": "b57a4463697a4aea43fd477e07a267e9468ea86e3e975c532c21af281f59edbc",
+  "inputSha256": "44fcd54ac1912dbc299bb46eeabb7377bc665d892a5e42b5befbb88564967aa1",
+  "atlasSha256": "075b5a94fa441b57ce7ab4682c76c0565cce2b0c10bb13ede381544d94d8a0b2",
   "bakerSha256": "e4a1187f642e15650def16479000b54b52c562a1e7af3e1894d40db3aabe7973",
-  "vertices": 458947,
-  "triangles": 203598,
-  "elapsedSeconds": 8.15,
+  "vertices": 458995,
+  "triangles": 203614,
+  "elapsedSeconds": 11.23,
   "sourceReceipts": [
     {
       "id": "hall-west",
-      "blockedRays": 79088,
+      "blockedRays": 79270,
       "rays": 98304
     },
     {
       "id": "hall-east",
-      "blockedRays": 79400,
+      "blockedRays": 79641,
       "rays": 98304
     },
     {
@@ -800,12 +810,12 @@
     },
     {
       "id": "post-left",
-      "blockedRays": 62342,
+      "blockedRays": 62391,
       "rays": 98304
     },
     {
       "id": "post-fountain",
-      "blockedRays": 75033,
+      "blockedRays": 75122,
       "rays": 98304
     },
     {
@@ -825,32 +835,32 @@
     },
     {
       "id": "hall-verge",
-      "blockedRays": 88834,
+      "blockedRays": 88627,
       "rays": 98304
     },
     {
       "id": "hall-front-west",
-      "blockedRays": 82956,
+      "blockedRays": 84026,
       "rays": 98304
     },
     {
       "id": "hall-front-east",
-      "blockedRays": 67399,
+      "blockedRays": 67453,
       "rays": 98304
     },
     {
       "id": "hall-side-near",
-      "blockedRays": 96285,
+      "blockedRays": 95338,
       "rays": 98304
     },
     {
       "id": "hall-side-far",
-      "blockedRays": 92660,
+      "blockedRays": 84244,
       "rays": 98304
     },
     {
       "id": "fountain-border",
-      "blockedRays": 45328,
+      "blockedRays": 45358,
       "rays": 98304
     },
     {
@@ -895,27 +905,27 @@
     },
     {
       "id": "hall-front-window--4.3",
-      "blockedRays": 48514,
+      "blockedRays": 48581,
       "rays": 98304
     },
     {
       "id": "hall-front-window-4.3",
-      "blockedRays": 54107,
+      "blockedRays": 54950,
       "rays": 98304
     },
     {
       "id": "hall-side-window-16.8",
-      "blockedRays": 50124,
+      "blockedRays": 51570,
       "rays": 98304
     },
     {
       "id": "hall-side-window-20",
-      "blockedRays": 52734,
+      "blockedRays": 54328,
       "rays": 98304
     },
     {
       "id": "hall-side-window-23.2",
-      "blockedRays": 49015,
+      "blockedRays": 51032,
       "rays": 98304
     }
   ],
@@ -947,7 +957,7 @@
       "b9fa42f2a8140de5880fcb9b75def343402d72202a75857bd0da3ae738268612",
       "e4e6adc351b460e2bb37f89e0b52cace9dbff25e3afcc1cf7fe019d74e409904"
     ],
-    "townHallHedgePositions": "2ffd894b9cca542118f871dd706a846c96820db18db5c541dcba1412873ccb6c",
-    "townHallRamp": "69ab4d1fcc3105f3724647ce28e226825bd83d32183df01e0eec220b403a6886"
+    "townHallHedgePositions": "0f55a0e257b1841f6046a3484bbf2fdd340611c8b931bfcc29422b8d22f4641b",
+    "townHallRamp": "ca76c12e45a2462cfe1b068f57e982d772d9626e271994706fcf12bc16f63226"
   }
 }

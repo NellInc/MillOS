@@ -2,9 +2,12 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PredictiveMaintenancePanel } from '../PredictiveMaintenancePanel';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
-import { useProductionStore } from '../../../stores/productionStore';
+import { getWearConfig, useProductionStore } from '../../../stores/productionStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { MachineType, type MachineData } from '../../../types';
+import { stepUnitWork } from '../../../systems/unitService';
+
+const SERVICE_MINUTES = getWearConfig(MachineType.ROLLER_MILL).serviceMinutes;
 
 const mill = (id: string, wear: number): MachineData => ({
   id,
@@ -86,7 +89,7 @@ describe('PredictiveMaintenancePanel scheduled maintenance', () => {
     const inventoryBefore = { ...useBreakdownStore.getState().partsInventory };
     render(<PredictiveMaintenancePanel />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Complete maintenance on Retired mill' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start maintenance on Retired mill' }));
 
     const after = useBreakdownStore.getState();
     expect(after.partsInventory).toEqual(inventoryBefore);
@@ -96,16 +99,37 @@ describe('PredictiveMaintenancePanel scheduled maintenance', () => {
     expect(alert?.message).toBe('Retired mill: Machine not found');
   });
 
-  it('consumes the parts only when the service is performed', () => {
+  // Start takes the unit offline for its service minutes and its one part at
+  // the start (D7); the booking closes, and wear falls, when the minutes run.
+  it('takes the one part when the service starts and performs it when its minutes run', () => {
     useProductionStore.setState({ machines: [mill('worn-mill', 45)] });
     const task = schedule('worn-mill', 'Worn mill');
-    const bearingsBefore = useBreakdownStore.getState().partsInventory.bearings;
+    const before = { ...useBreakdownStore.getState().partsInventory };
     render(<PredictiveMaintenancePanel />);
+    // The card names the one part Complete takes, as Maintain does, and no
+    // booked hour: nothing acts on it.
+    expect(screen.getByText('Parts: filters')).toBeVisible();
+    expect(screen.getByText('Preventive')).toBeVisible();
+    expect(screen.queryByText(/10:00/)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Complete maintenance on Worn mill' }));
+    const start = screen.getByRole('button', { name: 'Start maintenance on Worn mill' });
+    expect(start).toHaveTextContent(`Start · ${SERVICE_MINUTES} min offline`);
+    fireEvent.click(start);
 
+    expect(useBreakdownStore.getState().partsInventory).toEqual({
+      ...before,
+      filters: before.filters - 1,
+    });
+    expect(screen.getByText(`Offline for service · ${SERVICE_MINUTES} min left`)).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Start maintenance on Worn mill' })
+    ).not.toBeInTheDocument();
+    expect(useProductionStore.getState().machines[0].status).toBe('idle');
+    expect(useProductionStore.getState().machines[0].metrics.wear).toBe(45);
+
+    act(() => stepUnitWork(SERVICE_MINUTES * 60));
     const after = useBreakdownStore.getState();
-    expect(after.partsInventory.bearings).toBe(bearingsBefore - 1);
+    expect(after.partsInventory).toEqual({ ...before, filters: before.filters - 1 });
     expect(after.maintenanceSchedule.find((t) => t.id === task.id)?.completed).toBe(true);
     expect(useProductionStore.getState().machines[0].metrics.wear).toBe(0);
   });
@@ -115,7 +139,7 @@ describe('PredictiveMaintenancePanel scheduled maintenance', () => {
     schedule('new-mill', 'New mill');
     render(<PredictiveMaintenancePanel />);
 
-    expect(screen.getByRole('button', { name: 'Complete maintenance on New mill' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Start maintenance on New mill' })).toBeDisabled();
     expect(
       screen.getByText('Not needed yet: wear is below the 30.0% service minimum')
     ).toBeVisible();

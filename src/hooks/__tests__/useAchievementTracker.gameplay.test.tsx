@@ -6,7 +6,6 @@ import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useUIStore } from '../../stores/uiStore';
 import { AchievementsPanel } from '../../components/game/AchievementsPanel';
-import { storeOwnedLoad } from '../../simulation/machineLoad';
 import type { MachineData } from '../../types';
 
 const achievement = (id: string) => useAchievementsStore.getState().getAchievement(id);
@@ -55,25 +54,13 @@ describe('Reset all achievements counts bags from the reset', () => {
   });
 });
 
-// F6: full-capacity reads the live load model. The line reaches 90% load at
-// 135% rated pace and above, and stays below it at the 80% boot pace.
-describe('full-capacity is reachable through the live load model', () => {
-  const machine = (id: string, load: number): MachineData =>
-    ({ id, name: id, status: 'running', lastMaintenance: 'x', metrics: { load } }) as never;
-
-  const settle = (speed: number) => {
-    let machines = ['silo-a', 'rm-101', 'sifter-a', 'packer-1'].map((id, i) =>
-      machine(id, 60 + i * 10)
-    );
-    // The offline controller's own step: storeOwnedLoad, stored at 0.1 resolution.
-    for (let step = 0; step < 200; step++) {
-      machines = machines.map((m) => ({
-        ...m,
-        metrics: { ...m.metrics, load: Math.round(storeOwnedLoad(m, speed) * 10) / 10 },
-      }));
-    }
-    return machines;
-  };
+// full-capacity reads the line rate while every machine runs clear (plan 1.14;
+// the load it read once never reached its mark in a default session, see
+// achievementsStore.session.gameplay.test.ts). The boot rate shows 80 of 100.
+describe('full-capacity reads the line rate with every machine running clear', () => {
+  const machine = (id: string, status: MachineData['status'] = 'running'): MachineData =>
+    ({ id, name: id, status, lastMaintenance: 'x', metrics: { load: 74 } }) as never;
+  const line = ['silo-a', 'rm-101', 'sifter-a', 'packer-1'].map((id) => machine(id));
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -86,29 +73,36 @@ describe('full-capacity is reachable through the live load model', () => {
     useGameSimulationStore.getState().resetGameState();
   });
 
-  it('unlocks at 135% line speed and not at the 80% boot pace', () => {
-    useProductionStore.setState({ aiDecisions: [], machines: settle(0.8) });
+  it('unlocks at 100% with every machine running, not at the 80% boot rate or with a warning', () => {
+    useProductionStore.setState({ aiDecisions: [], machines: line, productionSpeed: 0.8 });
     const hook = renderHook(() => useAchievementTracker());
     vi.advanceTimersByTime(5000);
     expect(achievement('full-capacity')?.unlocked).toBe(false);
-    expect(achievement('full-capacity')?.progress).toBeLessThan(90);
+    expect(achievement('full-capacity')?.progress).toBe(80);
 
-    useProductionStore.setState({ machines: settle(1.35) });
+    useProductionStore.setState({
+      machines: [...line.slice(1), machine('silo-a', 'warning')],
+      productionSpeed: 1,
+    });
+    vi.advanceTimersByTime(5000);
+    expect(achievement('full-capacity')?.unlocked).toBe(false);
+
+    useProductionStore.setState({ machines: line });
     vi.advanceTimersByTime(5000);
     expect(achievement('full-capacity')?.unlocked).toBe(true);
     hook.unmount();
   });
 
-  // The panel draws progress as a bar toward 90; it fell from 85 to 60 when
-  // the line eased off. Working if the bar keeps the best reading reached.
-  it('keeps the best load reached rather than moving the bar backwards', () => {
-    useProductionStore.setState({ aiDecisions: [], machines: [machine('rm-101', 85)] });
+  // The panel draws progress as a bar toward its mark. Working if the bar
+  // keeps the best rate reached when the line is slowed again.
+  it('keeps the best rate reached rather than moving the bar backwards', () => {
+    useProductionStore.setState({ aiDecisions: [], machines: line, productionSpeed: 0.9 });
     const hook = renderHook(() => useAchievementTracker());
     vi.advanceTimersByTime(5000);
-    expect(achievement('full-capacity')?.progress).toBe(85);
-    useProductionStore.setState({ machines: [machine('rm-101', 60)] });
+    expect(achievement('full-capacity')?.progress).toBe(90);
+    useProductionStore.setState({ productionSpeed: 0.6 });
     vi.advanceTimersByTime(5000);
-    expect(achievement('full-capacity')?.progress).toBe(85);
+    expect(achievement('full-capacity')?.progress).toBe(90);
     hook.unmount();
   });
 });

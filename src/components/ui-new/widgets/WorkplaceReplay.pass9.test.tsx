@@ -14,6 +14,7 @@ import {
   endReplayClock,
   registerReplayParticipant,
 } from '../../../simulation/workplaceReplayRuntime';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
 
@@ -25,6 +26,8 @@ beforeEach(() => {
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
   useGameSimulationStore.getState().setGameSpeed(0);
   useWorkplaceStore.setState({
     workplace: createWorkplace('game', 17),
@@ -57,7 +60,12 @@ function press(button: HTMLElement) {
 const focusKept = () =>
   waitFor(() => {
     expect(document.activeElement).not.toBe(document.body);
-    expect(document.activeElement?.tagName).toBe('BUTTON');
+    // 5.1: a solo season's tabs sit behind a closed disclosure; the step's
+    // heading takes focus there.
+    expect(
+      document.activeElement?.tagName === 'BUTTON' ||
+        document.activeElement?.hasAttribute('data-step-focus')
+    ).toBe(true);
   });
 
 function openExperiment() {
@@ -73,7 +81,10 @@ describe('Workplace lane, ninth pass: replay controls that unmount keep focus', 
     press(screen.getByRole('button', { name: 'Replay Coordinator-led charter' }));
     expect(useWorkplaceReplayStore.getState().activeRunId).not.toBeNull();
     await focusKept();
-    expect(document.activeElement).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      document.activeElement?.getAttribute('aria-pressed') === 'true' ||
+        document.activeElement?.hasAttribute('data-step-focus')
+    ).toBe(true);
   });
 
   it('forgetting the checkpoint keeps focus in the replay', async () => {

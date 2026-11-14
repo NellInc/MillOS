@@ -8,6 +8,16 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import { translate, useLocaleStore } from '../i18n';
 import { achievementsStoreMessages } from './achievementsStore.messages';
 
+/**
+ * Full Capacity's mark: the line rate, in percent, of the line at its rated
+ * pace. It read the least-loaded unit once, against 90 and then 80; a session
+ * boots at 80 % (App.tsx), where no unit can pass 74, and the whole line
+ * measured 72 at best there and 77 at the rated pace
+ * (achievementsStore.fullCapacity.session test). Its progress is now the line
+ * rate held while every machine runs.
+ */
+export const FULL_CAPACITY_LINE_RATE_PERCENT = 100;
+
 export interface Achievement {
   id: string;
   name: string;
@@ -31,7 +41,16 @@ export interface Achievement {
    * a store-level field it lacks is added.
    */
   countedFromBags?: number;
+  /**
+   * What `progress` counts, for an achievement whose rule changed: a locked
+   * one saved under another basis restarts from 0 (see localizeAchievement).
+   * Absent means the original rule.
+   */
+  basis?: AchievementBasis;
 }
+
+/** The rules that replaced an achievement's original count (plan 1.14). */
+export type AchievementBasis = 'line-rate' | 'deferrals';
 
 /** Achievements whose progress is the number of bags produced. */
 export const BAG_ACHIEVEMENT_IDS: readonly string[] = ['first-bag', 'century', 'thousand'];
@@ -87,6 +106,19 @@ const ACHIEVEMENT_COPY: Record<string, AchievementCopyKeys> = {
     description: 'emergentCooperationDescription',
   },
   'vote-participant': { name: 'voteParticipantName', description: 'voteParticipantDescription' },
+  'first-on-time-delivery': {
+    name: 'firstOnTimeDeliveryName',
+    description: 'firstOnTimeDeliveryDescription',
+  },
+  'first-a-shift': { name: 'firstAShiftName', description: 'firstAShiftDescription' },
+  'first-programme': { name: 'firstProgrammeName', description: 'firstProgrammeDescription' },
+  'first-challenge': { name: 'firstChallengeName', description: 'firstChallengeDescription' },
+  'first-hold-resolved': {
+    name: 'firstHoldResolvedName',
+    description: 'firstHoldResolvedDescription',
+  },
+  'first-season': { name: 'firstSeasonName', description: 'firstSeasonDescription' },
+  'charter-signed': { name: 'charterSignedName', description: 'charterSignedDescription' },
 };
 
 const achievementCopy = (id: string): { name: string; description: string } | null => {
@@ -106,13 +138,38 @@ const achievementCopy = (id: string): { name: string; description: string } | nu
 export const achievementCopyNow = (id: string): { name: string; description: string } | null =>
   achievementCopy(id);
 
-/** Re-resolve copy in the active language; returns the same object when unchanged. */
+/**
+ * Re-resolve copy in the active language, and give a locked achievement its
+ * current mark: a save keeps the target it was written with (Full Capacity's
+ * old 90). A locked achievement saved under another rule (`basis`) restarts
+ * from 0, since its bar counted something else; an earned one stays earned.
+ * A bar already at the new mark is earned. Returns the same object when
+ * nothing changed.
+ */
 const localizeAchievement = (achievement: Achievement): Achievement => {
   const copy = achievementCopy(achievement.id);
-  if (!copy) return achievement;
-  return copy.name === achievement.name && copy.description === achievement.description
-    ? achievement
-    : { ...achievement, ...copy };
+  const definition = achievementDefinitions.find((entry) => entry.id === achievement.id);
+  const target = achievement.unlocked
+    ? achievement.target
+    : (definition?.target ?? achievement.target);
+  const rebased = !achievement.unlocked && !!definition && definition.basis !== achievement.basis;
+  const sameCopy =
+    !copy || (copy.name === achievement.name && copy.description === achievement.description);
+  if (sameCopy && target === achievement.target && !rebased) return achievement;
+  const progress = rebased ? 0 : Math.min(achievement.progress, target);
+  const earned = !achievement.unlocked && progress >= target;
+  const next: Achievement = {
+    ...achievement,
+    ...copy,
+    target,
+    progress,
+    ...(earned ? { unlocked: true, unlockedAt: new Date() } : {}),
+  };
+  if (rebased) {
+    if (definition.basis) next.basis = definition.basis;
+    else delete next.basis;
+  }
+  return next;
 };
 
 const createDefaultAchievements = (): Achievement[] =>
@@ -175,7 +232,8 @@ const achievementDefinitions: AchievementDefinition[] = [
     icon: 'Gauge',
     unlocked: false,
     progress: 0,
-    target: 90,
+    target: FULL_CAPACITY_LINE_RATE_PERCENT,
+    basis: 'line-rate',
   },
   {
     id: 'maintenance-master',
@@ -274,6 +332,67 @@ const achievementDefinitions: AchievementDefinition[] = [
     unlocked: false,
     progress: 0,
     target: 5,
+    basis: 'deferrals',
+  },
+
+  // The game's own milestones (plan 2.3): each is earned by the event in its
+  // store, in useAchievementTracker. A saved list from before them gains them
+  // locked (appendMissingAchievements).
+  {
+    id: 'first-on-time-delivery',
+    category: 'production',
+    icon: 'Truck',
+    unlocked: false,
+    progress: 0,
+    target: 1,
+  },
+  {
+    id: 'first-a-shift',
+    category: 'efficiency',
+    icon: 'Award',
+    unlocked: false,
+    progress: 0,
+    target: 1,
+  },
+  {
+    id: 'first-programme',
+    category: 'production',
+    icon: 'ClipboardList',
+    unlocked: false,
+    progress: 0,
+    target: 1,
+  },
+  {
+    id: 'first-challenge',
+    category: 'efficiency',
+    icon: 'Flag',
+    unlocked: false,
+    progress: 0,
+    target: 1,
+  },
+  {
+    id: 'first-hold-resolved',
+    category: 'safety',
+    icon: 'FlaskConical',
+    unlocked: false,
+    progress: 0,
+    target: 1,
+  },
+  {
+    id: 'first-season',
+    category: 'social',
+    icon: 'CalendarRange',
+    unlocked: false,
+    progress: 0,
+    target: 1,
+  },
+  {
+    id: 'charter-signed',
+    category: 'social',
+    icon: 'ScrollText',
+    unlocked: false,
+    progress: 0,
+    target: 1,
   },
 ];
 
@@ -335,6 +454,8 @@ export const useAchievementsStore = create<AchievementsStore>()(
 
 // Achievements are stored with resolved copy so every reader of `a.name` works
 // unchanged; a language switch re-resolves it in place, keeping progress.
+// A list saved before an achievement existed gains it, locked, at the end;
+// every saved entry keeps its place and state.
 const relocalizeAchievements = (): void =>
   useAchievementsStore.setState((current) => {
     let changed = false;
@@ -343,6 +464,14 @@ const relocalizeAchievements = (): void =>
       if (localized !== achievement) changed = true;
       return localized;
     });
+    const present = new Set(achievements.map((achievement) => achievement.id));
+    const missing = createDefaultAchievements().filter(
+      (achievement) => !present.has(achievement.id)
+    );
+    if (missing.length > 0) {
+      achievements.push(...missing);
+      changed = true;
+    }
     return changed ? { achievements } : current;
   });
 
@@ -352,6 +481,6 @@ useLocaleStore.subscribe((state, previous) => {
 });
 
 // A physical save or a replay checkpoint restores the whole list with the copy
-// it was captured in. Re-resolve it on arrival; an already-current list is
+// and the marks it was captured with. Re-resolve both on arrival; an already-current list is
 // returned unchanged, so this settles after one pass.
 useAchievementsStore.subscribe((state) => state.achievements, relocalizeAchievements);

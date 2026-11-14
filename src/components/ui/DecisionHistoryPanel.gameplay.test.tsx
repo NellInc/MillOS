@@ -11,9 +11,10 @@ describe('decision history confidence', () => {
     useProductionStore.setState({ aiDecisions: previous });
   });
 
-  it('shows a learned confidence as a whole percent', () => {
-    // Two accepted cards and one rejected leave a (2/3 - 0.65) * 20 adjustment
-    // (aiEngine recordDecisionOutcome), so the next coordination card reads 78.33...
+  it('shows a fractional confidence as a whole percent', () => {
+    // The engine now files fixed, whole confidences. Builds that adjusted them
+    // by accept/reject outcomes saved fractions such as 78.33..., and a card
+    // kept from one of those must still read as a whole percent.
     const confidence = 78 + (2 / 3 - 0.65) * 20;
     expect(Number.isInteger(confidence)).toBe(false);
     const decision: AIDecision = {

@@ -98,7 +98,6 @@ async function waitForCoreExperience(page: Page) {
       'millos-ui',
       JSON.stringify({ state: { hasSeenIntro: true }, version: 1 })
     );
-    localStorage.setItem('millos-has-played', 'true');
     sessionStorage.clear();
 
     const testWindow = window as typeof window & {
@@ -263,22 +262,9 @@ test.describe('MillOS master refinement runtime', () => {
     await expect(overviewSidebar).toBeHidden();
     await expect(overviewDockButton).toBeFocused();
 
-    const productionButton = page.getByRole('button', { name: 'Production', exact: true });
-    await productionButton.click();
-    await expect
-      .poll(() =>
-        page.evaluate(() => {
-          const runtime = (
-            window as typeof window & {
-              __MILLOS_RUNTIME__?: { snapshot(): { camera: { position: number[]; fov: number } } };
-            }
-          ).__MILLOS_RUNTIME__;
-          const camera = runtime?.snapshot().camera;
-          return camera ? Math.abs(camera.position[1] - 4.5) + Math.abs(camera.fov - 50) : Infinity;
-        })
-      )
-      .toBeLessThan(0.1);
-    await page.getByRole('button', { name: 'Close sidebar panel', exact: true }).click();
+    // The dock's Production entry opened this same Overview panel and is gone
+    // (12 November 2026, plan item 2.10): Overview is the one entry.
+    await expect(page.getByRole('button', { name: 'Production', exact: true })).toHaveCount(0);
 
     const aiDockButton = page.getByRole('button', { name: 'More workspaces and view controls' });
     await aiDockButton.click();
@@ -286,8 +272,9 @@ test.describe('MillOS master refinement runtime', () => {
     const aiSidebar = page.getByRole('complementary', { name: 'AI Partner sidebar panel' });
     await expect(aiSidebar).toBeVisible();
     await expect(aiSidebar.getByTestId('ai-command-center')).toBeVisible();
-    await expect(aiSidebar.getByTestId('ai-cpu-value')).toHaveText(/^\d+%$/);
-    await expect(aiSidebar.getByTestId('ai-memory-value')).toHaveText(/^\d+%$/);
+    // No CPU or MEM tile: the rules layer has no such reading (review 10, F3).
+    await expect(aiSidebar.getByTestId('ai-cpu-value')).toHaveCount(0);
+    await expect(aiSidebar.getByTestId('ai-memory-value')).toHaveCount(0);
     await expect(aiSidebar.getByTestId('ai-decisions-count')).toHaveText(/^\d+$/);
     await aiSidebar.getByRole('button', { name: 'Close sidebar panel' }).click();
     await expect(aiSidebar).toBeHidden();
@@ -387,7 +374,8 @@ test.describe('MillOS master refinement runtime', () => {
       await expect(safetySidebar.getByRole('button', { name: 'START DRILL' })).toBeVisible();
       await expect(safetySidebar.getByRole('button', { name: 'END DRILL' })).toHaveCount(0);
       await expect(page.getByRole('alert', { name: 'Egress verification drill' })).toHaveCount(0);
-      await expect(page.getByLabel('AI reflection', { exact: true })).toHaveCount(0);
+      // The 'AI reflection' absence check is gone: D14 removed the card, so it
+      // passed whatever this screen drew (AINarration.tsx is listed dead).
       await expectNoWcagViolations(page, testInfo, 'safety-uncrewed');
       await page.screenshot({
         path: testInfo.outputPath('safety-uncrewed.png'),
@@ -432,6 +420,11 @@ test.describe('MillOS master refinement runtime', () => {
         safetySidebar.getByRole('button', { name: 'TRIGGER EMERGENCY STOP' })
       ).toBeVisible();
       await expect(emergencyBanner).toBeHidden();
+      // D13: clearing left the line idle; the restart is its own act.
+      const restartLine = safetySidebar.getByRole('button', { name: 'RESTART LINE' });
+      await expect(restartLine).toBeFocused();
+      await restartLine.click();
+      await expect(restartLine).toHaveCount(0);
       await expect(gameInterface).toHaveAttribute('data-active-mode', 'safety');
       await safetySidebar.getByRole('button', { name: 'Close sidebar panel' }).click();
       await expect(safetyDockButton).toBeFocused();
@@ -444,7 +437,6 @@ test.describe('MillOS master refinement runtime', () => {
     });
     await expect(settingsSidebar).toBeVisible();
     await expect(gameInterface).toHaveAttribute('data-active-mode', 'settings');
-    await expect(page.getByLabel('AI reflection', { exact: true })).toHaveCount(0);
 
     const muteButton = settingsSidebar.getByRole('button', { name: /Mute audio|Unmute audio/ });
     const muteWasPressed = await muteButton.getAttribute('aria-pressed');
@@ -464,12 +456,13 @@ test.describe('MillOS master refinement runtime', () => {
     );
     await captionsButton.click();
 
-    await settingsSidebar.getByRole('radio', { name: 'Off', exact: true }).click();
-    await expect(settingsSidebar.getByRole('radio', { name: 'Off', exact: true })).toBeChecked();
-    await settingsSidebar.getByRole('radio', { name: 'Focused', exact: true }).click();
-    await expect(
-      settingsSidebar.getByRole('radio', { name: 'Focused', exact: true })
-    ).toBeChecked();
+    // PA mode is On or Off (SettingsPanel.messages.ts paFocused, paOff); Reduce
+    // motion also has an 'On' radio, so the lookup is scoped to the PA group.
+    const paMode = settingsSidebar.getByRole('radiogroup', { name: 'PA mode', exact: true });
+    await paMode.getByRole('radio', { name: 'Off', exact: true }).click();
+    await expect(paMode.getByRole('radio', { name: 'Off', exact: true })).toBeChecked();
+    await paMode.getByRole('radio', { name: 'On', exact: true }).click();
+    await expect(paMode.getByRole('radio', { name: 'On', exact: true })).toBeChecked();
 
     // Switching render presets remounts expensive scene resources. Dispatch the
     // activation directly, then prove the resulting accessible state and canvas
@@ -536,17 +529,13 @@ test.describe('MillOS master refinement runtime', () => {
     });
     await moreDockButton.click();
     await expect(page.getByRole('menuitem', { name: 'Workforce', exact: true })).toHaveCount(0);
-    await expect(
-      page.getByRole('menuitem', { name: 'Bilateral Autonomy System', exact: true })
-    ).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Autonomy', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(moreDockButton).toBeFocused();
 
     await moreDockButton.click();
-    await page.getByRole('menuitem', { name: 'Bilateral Autonomy System', exact: true }).click();
-    const mobileAutonomy = page.getByRole('dialog', {
-      name: 'Bilateral Autonomy mobile panel',
-    });
+    await page.getByRole('menuitem', { name: 'Autonomy', exact: true }).click();
+    const mobileAutonomy = page.getByRole('dialog', { name: 'Autonomy mobile panel' });
     await expect(mobileAutonomy).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(mobileAutonomy).toBeHidden();

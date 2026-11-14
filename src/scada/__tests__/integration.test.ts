@@ -83,7 +83,9 @@ describe('SCADA integration', () => {
     const alarm = service.getActiveAlarms().find((item) => item.tagId === 'RM101.TT001.PV');
     expect(alarm).toMatchObject({
       state: 'UNACK',
-      priority: 'CRITICAL',
+      // A mill bearing at its trip limit stops the mill: HIGH by consequence
+      // (plan item 7.4). CRITICAL is kept for what endangers people.
+      priority: 'HIGH',
       type: 'HIHI',
       disposition: 'IN_SERVICE',
     });

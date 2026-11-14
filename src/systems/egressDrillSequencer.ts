@@ -13,7 +13,8 @@
 import { SERVICE_EGRESS_POINTS, useGameSimulationStore } from '../stores/gameSimulationStore';
 import { MAX_GAME_SPEED, STANDARD_GAME_SPEED } from '../simulation/pace';
 import { centralTick, TICK_PRIORITY, type TickContext } from './CentralTickSystem';
-import { checkStepFreeEgress, readStoppedVehicles } from './accessibleEgress';
+import { checkStepFreeEgress, egressBlockers, readStoppedVehicles } from './accessibleEgress';
+import type { StepFreeEgressResult } from './accessibleEgress';
 import { fileEgressAccessCheck } from '../utils/aiAccommodation';
 
 /** Game seconds between verified zones: 4 real seconds at standard pace. */
@@ -73,19 +74,35 @@ export function createEgressDrillSequencer(): (ctx: TickContext) => void {
     // A zone is verified only with a clear step-free way out (accessibleEgress.ts):
     // the first pending zone that has one is verified this interval, and a
     // zone whose route and alternative are both blocked waits, saying why.
+    // Every check goes into the drill's record on the plant clock: a blocked
+    // zone with the forklifts that hold it, a verified one with its route.
     const vehicles = readStoppedVehicles();
+    const clock = { day: state.gameDay, hour: state.gameTime };
+    const recordOf = (access: StepFreeEgressResult) => {
+      const blockedBy = egressBlockers(access, vehicles);
+      return {
+        zoneId: access.zoneId,
+        result: access.status,
+        ...(access.status === 'alternative' ? { alternative: access.alternative } : {}),
+        ...(blockedBy.length ? { blockedBy } : {}),
+        clock,
+      };
+    };
     let zone: (typeof SERVICE_EGRESS_POINTS)[number] | undefined;
+    let verified: StepFreeEgressResult | undefined;
     for (const point of SERVICE_EGRESS_POINTS.slice(0, drillMetrics.totalZones)) {
       if (drillMetrics.verifiedZoneIds.includes(point.id)) continue;
       const access = checkStepFreeEgress(point.id, vehicles);
       fileEgressAccessCheck(drillMetrics.startTime, access);
       if (access.status !== 'blocked') {
         zone = point;
+        verified = access;
         break;
       }
+      state.recordDrillZoneCheck(recordOf(access));
     }
-    if (!zone) return;
-    state.markZoneVerified(zone.id);
+    if (!zone || !verified) return;
+    state.markZoneVerified(zone.id, recordOf(verified));
     // The completion hold starts from the last verification, not mid-interval.
     if (useGameSimulationStore.getState().drillMetrics.verificationComplete) {
       elapsedGameSeconds = 0;

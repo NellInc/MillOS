@@ -82,7 +82,18 @@ export interface PredictiveAlert {
    * it. closeIncidentPredictions closes only the latter.
    */
   windowFromWear?: boolean;
+  /**
+   * A service was asked for on this prediction and refused for a cause that
+   * clears (a stop or drill, no free part), `count` times. The partner offers
+   * it again when the cause has cleared, and a failure meanwhile is not a
+   * warning ignored (wearWarningIgnored). Absent: never refused, or answered
+   * "run on" since.
+   */
+  serviceRefused?: { reason: ServiceHold; count: number };
 }
+
+/** Why an asked-for service could not run, for a cause that clears. */
+export type ServiceHold = 'stopped' | 'no-part';
 
 export interface PartsInventory {
   bearings: number;
@@ -96,12 +107,37 @@ export interface MaintenanceScheduleItem {
   id: string;
   machineId: string;
   machineName: string;
+  /** Hour of day the booking was made for. Kept for saves and the agent projection; nothing acts on it. */
   scheduledTime: number;
   type: 'preventive' | 'predictive';
   priority: 'low' | 'medium' | 'high';
+  /**
+   * Parts listed when booked. Not what the service charges: a booked service
+   * costs one spare part, as Maintain does (`servicePart`). Saves from before
+   * that list the predicted failure's parts; they load and are not charged.
+   */
   partsNeeded: (keyof PartsInventory)[];
   completed: boolean;
+  /**
+   * A service under way (D7): game minutes left with the unit offline. The
+   * tick counts it down on the game clock and services the unit at 0. Absent
+   * on a booking nothing has started, and on every save from before it.
+   */
+  serviceMinutesLeft?: number;
+  /** Game minutes the service takes the unit offline, once started. */
+  serviceMinutes?: number;
+  /** The part the started service took (servicePart). */
+  servicePartUsed?: keyof PartsInventory;
+  /** 'quiet': the tick starts it at the next quiet spell (line idle, all owed packed). */
+  startWhen?: 'quiet';
+  /** 'idle' when the unit was standing idle (outside a stop) as its service began: it stays idle after. */
+  serviceResume?: 'idle';
 }
+
+/** True while a booking is a service under way, its unit offline. */
+export const serviceUnderWay = (
+  task: Pick<MaintenanceScheduleItem, 'completed' | 'serviceMinutesLeft'>
+) => !task.completed && Number.isFinite(task.serviceMinutesLeft);
 
 type BreakdownMessageKey = keyof typeof breakdownStoreMessages.en;
 
@@ -166,8 +202,63 @@ const DEFAULT_PARTS_INVENTORY: PartsInventory = {
   sensors: 12,
 };
 
+/**
+ * What one spare part costs to buy, booked as the "Parts" ledger line when an
+ * order arrives (the stock it replaces was used by a service or a repair).
+ * Game values in the campaign's currency, set against a shift's revenue of
+ * about 15,000: a routine service's filter is a small cost, a mechanical
+ * repair's bearing and belt about six times it, a motor a large one. Not
+ * sourced prices; nothing in copy quotes them.
+ */
+export const PART_PRICE: Readonly<PartsInventory> = {
+  bearings: 140,
+  belts: 60,
+  filters: 35,
+  motors: 650,
+  sensors: 90,
+};
+
+/**
+ * The partner's reorder rule (plan item 3.3): parts are ordered, not handed
+ * out by every truck. When a part's stock is at or below its reorder point,
+ * the partner orders it back up to its order-up-to level, and the order
+ * arrives with the next grain delivery. With no input the rule keeps every
+ * part in stock. Working if a run with no input never runs out of a part, and
+ * a delivery brings parts only for what was used.
+ */
+export const PARTS_REORDER_RULE: Readonly<
+  Record<keyof PartsInventory, { reorderPoint: number; orderUpTo: number }>
+> = {
+  bearings: { reorderPoint: 4, orderUpTo: DEFAULT_PARTS_INVENTORY.bearings },
+  belts: { reorderPoint: 3, orderUpTo: DEFAULT_PARTS_INVENTORY.belts },
+  filters: { reorderPoint: 6, orderUpTo: DEFAULT_PARTS_INVENTORY.filters },
+  motors: { reorderPoint: 1, orderUpTo: DEFAULT_PARTS_INVENTORY.motors },
+  sensors: { reorderPoint: 4, orderUpTo: DEFAULT_PARTS_INVENTORY.sensors },
+};
+
+/** The parts the reorder rule has on order for this stock (what the next delivery brings). */
+export const partsOnOrder = (inventory: PartsInventory): Partial<PartsInventory> => {
+  const order: Partial<PartsInventory> = {};
+  for (const part of Object.keys(PARTS_REORDER_RULE) as (keyof PartsInventory)[]) {
+    const rule = PARTS_REORDER_RULE[part];
+    const stock = Number.isFinite(inventory[part]) ? inventory[part] : 0;
+    if (stock <= rule.reorderPoint && rule.orderUpTo > stock) order[part] = rule.orderUpTo - stock;
+  }
+  return order;
+};
+
+/** What a set of parts costs at PART_PRICE. */
+export const partsPrice = (parts: Partial<Record<keyof PartsInventory, number>>): number =>
+  (Object.entries(parts) as [keyof PartsInventory, number | undefined][]).reduce(
+    (sum, [part, count]) => sum + (PART_PRICE[part] ?? 0) * Math.max(0, count ?? 0),
+    0
+  );
+
 /** Predictions retained; open ones (one per machine at most) are never dropped for it. */
 const MAX_PREDICTIVE_ALERTS = 10;
+
+/** Closed bookings (services done) kept in the schedule. */
+const MAX_CLOSED_BOOKINGS = 20;
 
 /** Closed (returned_to_service) work orders retained for audit. */
 const MAX_CLOSED_WORK_ORDERS = 30;
@@ -238,6 +329,29 @@ export const freePartsInventory = (
   return free;
 };
 
+/** Order in which a routine service takes its one spare part. */
+export const MAINTENANCE_PART_PRIORITY: readonly (keyof PartsInventory)[] = [
+  'filters',
+  'bearings',
+  'belts',
+  'sensors',
+  'motors',
+];
+
+/**
+ * The one part a routine service takes: the first in priority order that
+ * stock not held for a diagnosed repair still has; undefined when none is
+ * free. Maintain and a booked service's Complete both charge it, so a booking
+ * costs what Maintain costs. Working if both take the same single part.
+ */
+export const servicePart = (
+  workOrders: readonly ReservingOrder[],
+  inventory: PartsInventory
+): keyof PartsInventory | undefined => {
+  const free = freePartsInventory(workOrders, inventory);
+  return MAINTENANCE_PART_PRIORITY.find((part) => (free[part] ?? 0) > 0);
+};
+
 /**
  * Parts a work order cannot take without using stock reserved for another
  * order. startRepair refuses on these; Dispatch must agree with it.
@@ -269,6 +383,29 @@ let lastTickClock: PlantClock | undefined;
  * Working if the panel's window runs down with the plant clock, and a reset
  * neither freezes it nor gives back the time already used.
  */
+/**
+ * Whether a unit's wear warning was ignored up to now: a wear prediction is
+ * still open on it (nothing serviced it, or its service was answered "run
+ * on"). Read when the unit fails, before the failure closes the prediction;
+ * a roller mill that fails so raises `bearing_overheat` (plan item 3.5). A
+ * service asked for and refused by a stop, a drill or no free part
+ * (`serviceRefused`) was not ignored: the plant could not run it.
+ */
+export const wearWarningIgnored = (
+  alerts: readonly Pick<
+    PredictiveAlert,
+    'machineId' | 'acknowledged' | 'windowFromWear' | 'serviceRefused'
+  >[],
+  machineId: string
+): boolean =>
+  alerts.some(
+    (alert) =>
+      alert.machineId === machineId &&
+      !alert.acknowledged &&
+      !!alert.windowFromWear &&
+      !alert.serviceRefused
+  );
+
 export const predictionMinutesLeft = (
   alert: Pick<PredictiveAlert, 'predictedTimeToFailure' | 'createdAtClock'>,
   now: PlantClock | undefined
@@ -338,9 +475,12 @@ const closeMachineSchedule = (
   schedule: MaintenanceScheduleItem[],
   machineId: string
 ): MaintenanceScheduleItem[] =>
-  schedule.some((task) => task.machineId === machineId && !task.completed)
+  // A service under way is the unit's own downtime: only the tick ends it.
+  schedule.some((task) => task.machineId === machineId && !task.completed && !serviceUnderWay(task))
     ? schedule.map((task) =>
-        task.machineId === machineId && !task.completed ? { ...task, completed: true } : task
+        task.machineId === machineId && !task.completed && !serviceUnderWay(task)
+          ? { ...task, completed: true }
+          : task
       )
     : schedule;
 
@@ -438,6 +578,12 @@ export interface BreakdownStore {
   predictiveAlerts: PredictiveAlert[];
   partsInventory: PartsInventory;
   maintenanceSchedule: MaintenanceScheduleItem[];
+  /**
+   * 5.4: units whose service was asked for while the season's Maintenance is
+   * away, uncovered (unitService). Nothing is taken; each starts, checked
+   * afresh, when Maintenance is back. Saved, so a reload keeps the wait.
+   */
+  servicesAwaitingCrew: string[];
   idSequence: number;
 
   // Faults come from wear crossing its breakdown threshold (UnifiedGameTick)
@@ -460,7 +606,13 @@ export interface BreakdownStore {
     machineName: string,
     metrics: { vibration: number; temperature: number; load: number },
     /** Game minutes until breakdown, when the caller can derive it (e.g. from wear). */
-    predictedMinutes?: number
+    predictedMinutes?: number,
+    /**
+     * The failure the unit will have, when the caller knows it: the tick's wear
+     * crossing passes the type its breakdown will take. Absent, it is read
+     * from the metrics, as for a campaign incident.
+     */
+    predictedType?: BreakdownType
   ) => void;
   acknowledgePredictiveAlert: (alertId: string) => void;
   /**
@@ -468,6 +620,13 @@ export interface BreakdownStore {
    * been serviced or repaired. Call only after a service that succeeded.
    */
   acknowledgeMachinePredictiveAlerts: (machineId: string) => void;
+  /**
+   * A service asked for on the unit's open wear prediction was refused for a
+   * cause that clears (`reason`): the prediction says so, so the partner asks
+   * again once the cause clears and a failure first is not blamed on an
+   * ignored warning. `null` clears it (the service was answered "run on").
+   */
+  holdPredictedService: (machineId: string, reason: ServiceHold | null) => void;
   /**
    * Close a unit's open predictions that an incident raised (those without a
    * wear window) once the incident is mitigated or resolved. Its bookings and
@@ -478,12 +637,40 @@ export interface BreakdownStore {
 
   consumePart: (partType: keyof PartsInventory) => boolean;
   restockPart: (partType: keyof PartsInventory, quantity: number) => void;
-  restockDelivery: () => void;
+  /**
+   * A grain delivery has docked: the parts the reorder rule has on order
+   * (partsOnOrder) arrive with it. Returns what arrived, for the ledger.
+   */
+  restockDelivery: () => Partial<PartsInventory>;
+  /**
+   * Start a routine service on a unit (D7): takes servicePart and marks the
+   * unit's booking (an open one, or a new one) under way for `minutes`. Returns
+   * the part taken, or undefined when no part is free or a service is already
+   * under way. The caller takes the unit offline and has checked the rest.
+   */
+  beginService: (
+    machineId: string,
+    machineName: string,
+    minutes: number,
+    /** 'idle' for a unit that was idle and stays idle once serviced. */
+    resume?: 'idle'
+  ) => keyof PartsInventory | undefined;
+  /** Book a service the tick starts at the next quiet spell; false when one is booked. */
+  bookQuietService: (machineId: string, machineName: string) => boolean;
+  /** Count every service under way down by `gameMinutes`; never below 0. */
+  advanceServices: (gameMinutes: number) => void;
+  /**
+   * Close the unit's service under way. A service that ran its minutes keeps
+   * its part spent. One ended early ('faulted': a fault, or the unit gone)
+   * never serviced the unit, so the part it took goes back to stock; returns
+   * that part, or undefined.
+   */
+  endService: (machineId: string, ended?: 'faulted') => keyof PartsInventory | undefined;
   getPartsForBreakdown: (type: BreakdownType) => (keyof PartsInventory)[];
 
   scheduleMaintenanceTask: (task: Omit<MaintenanceScheduleItem, 'id' | 'completed'>) => void;
-  /** Consumes the task's parts and closes it; false when it cannot. Call only
-   * after the service itself has been performed. */
+  /** Consumes one service part (`servicePart`) and closes the task; false when
+   * it cannot. Call only after the service itself has been performed. */
   completeMaintenanceTask: (taskId: string) => boolean;
 
   getBreakdownForMachine: (machineId: string) => BreakdownEvent | undefined;
@@ -500,6 +687,7 @@ const initialState = () => ({
   predictiveAlerts: [] as PredictiveAlert[],
   partsInventory: { ...DEFAULT_PARTS_INVENTORY },
   maintenanceSchedule: [] as MaintenanceScheduleItem[],
+  servicesAwaitingCrew: [] as string[],
   idSequence: 0,
 });
 
@@ -872,7 +1060,7 @@ export const useBreakdownStore = create<BreakdownStore>()(
       }
     },
 
-    addPredictiveAlert: (machineId, machineName, metrics, predictedMinutes) => {
+    addPredictiveAlert: (machineId, machineName, metrics, predictedMinutes, predictedType) => {
       const state = get();
       const fromWear = predictedMinutes !== undefined && Number.isFinite(predictedMinutes);
       // One open prediction per unit. A wear prediction takes over from one an
@@ -902,6 +1090,9 @@ export const useBreakdownStore = create<BreakdownStore>()(
         predictedFailureType = 'electrical';
         confidence = 55;
       }
+      // A caller that knows the failure names it; the readings still set the
+      // confidence shown, as before.
+      if (predictedType) predictedFailureType = predictedType;
       const nextSequence = state.idSequence + 1;
       const alert: PredictiveAlert = {
         id: makeId('alert', nextSequence),
@@ -959,6 +1150,26 @@ export const useBreakdownStore = create<BreakdownStore>()(
           : { predictiveAlerts, maintenanceSchedule };
       }),
 
+    holdPredictedService: (machineId, reason) =>
+      set((state) => {
+        const open = (alert: PredictiveAlert) =>
+          alert.machineId === machineId && !alert.acknowledged && !!alert.windowFromWear;
+        if (!state.predictiveAlerts.some(open)) return {};
+        return {
+          predictiveAlerts: state.predictiveAlerts.map((alert) => {
+            if (!open(alert)) return alert;
+            if (reason === null) {
+              const { serviceRefused: _cleared, ...rest } = alert;
+              return rest;
+            }
+            return {
+              ...alert,
+              serviceRefused: { reason, count: (alert.serviceRefused?.count ?? 0) + 1 },
+            };
+          }),
+        };
+      }),
+
     closeIncidentPredictions: (machineId) =>
       set((state) => {
         const raisedByIncident = (alert: PredictiveAlert) =>
@@ -1005,17 +1216,156 @@ export const useBreakdownStore = create<BreakdownStore>()(
         };
       }),
 
-    restockDelivery: () =>
+    restockDelivery: () => {
+      const arrived = partsOnOrder(get().partsInventory);
+      if (Object.keys(arrived).length === 0) return arrived;
       set((state) => {
         const partsInventory = { ...state.partsInventory };
-        (Object.keys(DEFAULT_PARTS_INVENTORY) as (keyof PartsInventory)[]).forEach((part) => {
-          partsInventory[part] = Math.min(DEFAULT_PARTS_INVENTORY[part], partsInventory[part] + 2);
+        (Object.entries(arrived) as [keyof PartsInventory, number][]).forEach(([part, count]) => {
+          partsInventory[part] = (partsInventory[part] ?? 0) + count;
         });
         return {
           partsInventory,
           workOrders: promoteCoveredOrders(state.workOrders, partsInventory),
         };
-      }),
+      });
+      return arrived;
+    },
+
+    beginService: (machineId, machineName, minutes, resume) => {
+      let taken: keyof PartsInventory | undefined;
+      set((state) => {
+        if (
+          state.maintenanceSchedule.some(
+            (task) => task.machineId === machineId && serviceUnderWay(task)
+          )
+        )
+          return {};
+        const part = servicePart(state.workOrders, state.partsInventory);
+        if (!part) return {};
+        taken = part;
+        const span = Number.isFinite(minutes) ? Math.max(0, minutes) : 0;
+        const started = {
+          serviceMinutes: span,
+          serviceMinutesLeft: span,
+          servicePartUsed: part,
+          ...(resume === 'idle' ? { serviceResume: 'idle' as const } : {}),
+        };
+        const open = state.maintenanceSchedule.find(
+          (task) => task.machineId === machineId && !task.completed
+        );
+        const nextSequence = open ? state.idSequence : state.idSequence + 1;
+        const maintenanceSchedule = open
+          ? state.maintenanceSchedule.map((task) => {
+              if (task.id !== open.id) return task;
+              const { startWhen: _quiet, ...rest } = task;
+              return { ...rest, ...started };
+            })
+          : [
+              ...state.maintenanceSchedule,
+              {
+                id: makeId('maint', nextSequence),
+                machineId,
+                machineName,
+                scheduledTime: lastTickClock?.hour ?? 0,
+                type: 'preventive' as const,
+                priority: 'medium' as const,
+                partsNeeded: [part],
+                completed: false,
+                ...started,
+              },
+            ];
+        return {
+          idSequence: nextSequence,
+          partsInventory: { ...state.partsInventory, [part]: state.partsInventory[part] - 1 },
+          maintenanceSchedule,
+        };
+      });
+      return taken;
+    },
+
+    bookQuietService: (machineId, machineName) => {
+      let booked = false;
+      set((state) => {
+        if (
+          state.maintenanceSchedule.some((task) => task.machineId === machineId && !task.completed)
+        )
+          return {};
+        booked = true;
+        const nextSequence = state.idSequence + 1;
+        return {
+          idSequence: nextSequence,
+          maintenanceSchedule: [
+            ...state.maintenanceSchedule,
+            {
+              id: makeId('maint', nextSequence),
+              machineId,
+              machineName,
+              scheduledTime: lastTickClock?.hour ?? 0,
+              type: 'predictive' as const,
+              priority: 'medium' as const,
+              partsNeeded: [],
+              completed: false,
+              startWhen: 'quiet' as const,
+            },
+          ],
+        };
+      });
+      return booked;
+    },
+
+    advanceServices: (gameMinutes) => {
+      if (!Number.isFinite(gameMinutes) || gameMinutes <= 0) return;
+      if (!get().maintenanceSchedule.some(serviceUnderWay)) return;
+      set((state) => ({
+        maintenanceSchedule: state.maintenanceSchedule.map((task) =>
+          serviceUnderWay(task)
+            ? {
+                ...task,
+                serviceMinutesLeft: Math.max(0, (task.serviceMinutesLeft as number) - gameMinutes),
+              }
+            : task
+        ),
+      }));
+    },
+
+    endService: (machineId, endedEarly) => {
+      let returned: keyof PartsInventory | undefined;
+      set((state) => {
+        const running = state.maintenanceSchedule.find(
+          (task) => task.machineId === machineId && serviceUnderWay(task)
+        );
+        if (!running) return {};
+        const part =
+          endedEarly === 'faulted' &&
+          running.servicePartUsed &&
+          running.servicePartUsed in state.partsInventory
+            ? running.servicePartUsed
+            : undefined;
+        returned = part;
+        const ended = state.maintenanceSchedule.map((task) => {
+          if (task.id !== running.id) return task;
+          if (!part) return { ...task, completed: true, serviceMinutesLeft: 0 };
+          // The part went back: the closed booking no longer says it took one.
+          const { servicePartUsed: _returned, ...rest } = task;
+          return { ...rest, completed: true, serviceMinutesLeft: 0 };
+        });
+        // Every service now leaves a booking; keep the open ones and only the
+        // latest closed ones, so the saved schedule stays bounded.
+        const closed = ended.filter((task) => task.completed);
+        const keep = new Set(closed.slice(-MAX_CLOSED_BOOKINGS).map((task) => task.id));
+        const maintenanceSchedule = ended.filter((task) => !task.completed || keep.has(task.id));
+        if (!part) return { maintenanceSchedule };
+        // A returned part may cover the repair that ended the service.
+        const partsInventory = { ...state.partsInventory, [part]: state.partsInventory[part] + 1 };
+        return {
+          maintenanceSchedule,
+          partsInventory,
+          workOrders: promoteCoveredOrders(state.workOrders, partsInventory),
+        };
+      });
+      return returned;
+    },
 
     getPartsForBreakdown: (type) => PARTS_FOR_BREAKDOWN[type],
 
@@ -1042,23 +1392,15 @@ export const useBreakdownStore = create<BreakdownStore>()(
       let completed = false;
       set((state) => {
         const task = state.maintenanceSchedule.find((candidate) => candidate.id === taskId);
-        if (
-          !task ||
-          task.completed ||
-          // A booked service never takes the parts held for a repair.
-          missingParts(freePartsInventory(state.workOrders, state.partsInventory), task.partsNeeded)
-            .length > 0
-        ) {
+        // One part, as Maintain takes, never one held for a repair. The
+        // booking's listed parts are not charged, saved ones included.
+        const part = servicePart(state.workOrders, state.partsInventory);
+        if (!task || task.completed || !part) {
           return {};
         }
         completed = true;
-        const counts = countParts(task.partsNeeded);
-        const partsInventory = { ...state.partsInventory };
-        (Object.entries(counts) as [keyof PartsInventory, number][]).forEach(([part, count]) => {
-          partsInventory[part] -= count;
-        });
         return {
-          partsInventory,
+          partsInventory: { ...state.partsInventory, [part]: state.partsInventory[part] - 1 },
           maintenanceSchedule: state.maintenanceSchedule.map((candidate) =>
             candidate.id === taskId ? { ...candidate, completed: true } : candidate
           ),

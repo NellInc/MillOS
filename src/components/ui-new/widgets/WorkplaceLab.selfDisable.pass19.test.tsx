@@ -8,6 +8,7 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { setLocale } from '../../../i18n';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
 
@@ -60,18 +61,27 @@ async function pressSelfDisabling(name: string) {
 // Monday inspection (pressed while the shift runs) and "Execute agreed
 // allocation". Working if focus lands on an enabled Lab control instead.
 describe('Lab controls that disable themselves (pass nineteen)', () => {
-  it("Quality's inspection keeps focus on an enabled control", async () => {
+  it("Quality's inspection is Quality's, so no control the player holds disables itself", () => {
+    fulfilFirstDelivery();
     expect(get().startCampaign('toe-dip', 17).changed).toBe(true);
     const workplace = structuredClone(get().workplace);
     workplace.phase = 'active';
-    workplace.minute = 30;
+    // Past any drawn Monday minute (20 to 40).
+    workplace.minute = 40;
     workplace.campaign!.shift = 1;
+    workplace.campaign!.decision = null;
     useWorkplaceStore.setState({ workplace });
     render(<WorkplaceLab />);
-    const active = await pressSelfDisabling('Quality initiates five-minute inspection');
-    expect(get().workplace.campaign?.inspectionUntilMinute).toBe(35);
-    expect(active).not.toBe(document.body);
-    expect(active?.disabled).toBe(false);
+    // 5b: in a solo season the inspection is Quality's own call: its control
+    // is never the player's to press (so it never takes focus), and Quality
+    // starts the inspection itself on the plant's next tick.
+    expect(
+      screen.getByRole('button', { name: 'Quality puts the sample first on the bench' })
+    ).toBeDisabled();
+    act(() => {
+      get().tick(0.5, 0, false);
+    });
+    expect(get().workplace.campaign?.inspectionUntilMinute).toBe(45.5);
   });
 
   it('Execute agreed allocation keeps focus on an enabled control', async () => {

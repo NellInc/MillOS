@@ -38,6 +38,16 @@ import { captureSavedLogisticsLayout, useLogisticsLayoutStore } from './logistic
 import type { WorkplaceProfile, WorkplaceTransitionResult } from '../types/workplace';
 import type { WorkplaceCheckpointInfo, WorkplaceReplayRun } from '../types/workplaceReplay';
 import { formatFixed, translate } from '../i18n';
+import type { CampaignEconomics, CampaignPurchaseLedger } from './operationsCampaignStore';
+import { shiftMargin } from '../simulation/shiftReview';
+
+/**
+ * The plant's costs: revenue less the net the shift review states. Grain held
+ * as stock is grain carried at cost, a credit to the net until it ships, so it
+ * is not a cost (summing every line but revenue counted it as one).
+ */
+export const plantCostsOf = (economics: CampaignEconomics & CampaignPurchaseLedger): number =>
+  economics.revenue - shiftMargin(economics);
 import { workplaceReplayStoreMessages as msg } from './workplaceReplayStore.messages';
 
 type Data<S> = {
@@ -182,8 +192,7 @@ export const useWorkplaceReplayStore = create<WorkplaceReplayStore>((set, get) =
     const accounts = [...(state.campaign?.history.map((h) => h.finance) ?? []), state.finance];
     const sum = (key: 'wagesPaid' | 'compensationPaid' | 'improvementSpend') =>
       accounts.reduce((n, f) => n + f[key], 0);
-    const plantCosts = (economics: typeof operations.economics) =>
-      Object.entries(economics).reduce((n, [key, value]) => n + (key === 'revenue' ? 0 : value), 0);
+    const plantCosts = plantCostsOf;
     const run: WorkplaceReplayRun = {
       id,
       checkpointId: checkpoint.id,
@@ -346,7 +355,12 @@ export const useWorkplaceReplayStore = create<WorkplaceReplayStore>((set, get) =
         const fresh = createWorkplace('game', checkpoint.seed);
         fresh.revision = state.revision + 1;
         useWorkplaceStore.setState({ workplace: fresh });
-        const started = useWorkplaceStore.getState().startMission(profile, checkpoint.seed);
+        // Review 2: a run replaces the season it starts over (a first
+        // deliberation, or the run before it) and keeps that season's number
+        // and Reserve Fund, so no replay brings the reserve twice.
+        const started = useWorkplaceStore
+          .getState()
+          .startMission(profile, checkpoint.seed, state.campaign ? state : undefined);
         if (!started.changed) throw new Error(started.reason ?? 'Agreement could not start.');
         useGameSimulationStore.getState().holdClock('workplace');
         set({ activeRunId: `run-${++sequence}` });

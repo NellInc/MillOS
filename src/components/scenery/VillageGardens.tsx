@@ -1390,6 +1390,24 @@ export function addCivicPrivet(
   }
 }
 
+/**
+ * The privet runs in the town hall's frame, `[x, z, length, alongZ]`: a side
+ * run along each side wall and a return at each end of it, toward the
+ * porticos. The east side (-x) holds the ramp (accessibilityLayout
+ * TOWN_HALL_RAMP): since 2026-11-13 its side run stands at x -8.3, 12 cm of
+ * leaf clear of the ramp's kerb, and its back return stops 0.4 m short of the
+ * ramp's inner kerb (x -5.5 to -3.84) where the second flight now runs.
+ * walkingObstacles TOWN_HALL_PRIVET holds the same runs.
+ */
+export const TOWN_HALL_PRIVET_RUNS: readonly (readonly [number, number, number, boolean])[] = [
+  [-8.3, 0, 12, true],
+  [-4.67, -8.2, 0.94, false],
+  [-5.9, 8.2, 3.4, false],
+  [8, 0, 12, true],
+  [5.9, -8.2, 3.4, false],
+  [5.9, 8.2, 3.4, false],
+];
+
 export const TOWN_HALL_HEDGE_GEOMETRY = (() => {
   const b = new PlotGeometry();
   const run = (x: number, z: number, length: number, side: boolean) => {
@@ -1408,10 +1426,7 @@ export const TOWN_HALL_HEDGE_GEOMETRY = (() => {
     }
     addCivicPrivet(b, x, z, length, side);
   };
-  for (const side of [-1, 1]) {
-    run(side * 8, 0, 12, true);
-    for (const end of [-1, 1]) run(side * 5.9, end * 8.2, 3.4, false);
-  }
+  for (const [x, z, length, alongZ] of TOWN_HALL_PRIVET_RUNS) run(x, z, length, alongZ);
   return b.finish();
 })();
 

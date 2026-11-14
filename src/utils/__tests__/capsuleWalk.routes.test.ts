@@ -799,20 +799,40 @@ const hallWorld = (x: number, z: number): XZ => {
   return [wx, wz];
 };
 /**
- * The town hall ramp (D-058), walked in first person: from the street through
- * the privet gap, up both flights, along the landing and the apron in front of
- * the east column, to the front door. The ramp, its landings and the portico
- * are walking surfaces and the handrails are solid (accessibilityLayout.ts).
+ * The town hall ramp (D-058), walked in first person: from the street across
+ * the foot landing behind the hall, up both flights, along the landing and the
+ * apron in front of the east column, to the front door. The ramp, its landings
+ * and the portico are walking surfaces and the handrails are solid
+ * (accessibilityLayout.ts).
  */
 const TOWN_HALL_RAMP_ROUTE: Route = {
   name: 'town hall, street up the ramp to the front door',
   points: [
-    hallWorld(-10.5, -7),
+    hallWorld(-10.5, TOWN_HALL_STEP_FREE_ROUTE[TOWN_HALL_STEP_FREE_ROUTE.length - 1][2]),
     ...[...TOWN_HALL_STEP_FREE_ROUTE].reverse().map(([x, , z]) => hallWorld(x, z)),
   ],
   endFloor: TOWN_HALL_RAMP.landingY,
   peakFloor: TOWN_HALL_RAMP.landingY,
 };
+/**
+ * The ramp did not replace the stairs (Approved Document M 1.26 n wants
+ * steps beside a ramp that rises more than 300 mm): the square up the front
+ * steps beside the apron to the door, and the back lawn up the back steps.
+ */
+const TOWN_HALL_STAIR_ROUTES: Route[] = [
+  {
+    name: 'town hall, square up the front steps to the door',
+    points: [hallWorld(1.5, 9.5), hallWorld(1.5, 5.5), hallWorld(0, 5.5)],
+    endFloor: TOWN_HALL_RAMP.landingY,
+    peakFloor: TOWN_HALL_RAMP.landingY,
+  },
+  {
+    name: 'town hall, back lawn up the back steps to the landing',
+    points: [hallWorld(1.5, -9.5), hallWorld(1.5, -5.5), hallWorld(0, -5.5)],
+    endFloor: TOWN_HALL_RAMP.landingY,
+    peakFloor: TOWN_HALL_RAMP.landingY,
+  },
+];
 /**
  * Out of the hall by the step-free personnel doors beside the docks (2026-11-07):
  * each zone's egress route (accessibleEgress STEP_FREE_EGRESS), on along the
@@ -834,6 +854,61 @@ describe('capsule walk: step-free personnel doors', () => {
   });
 });
 
+/**
+ * Out through the west and east service doors (SITE_LAYOUT.portals): each
+ * zone's step-free route, hall floor to the marker outside. With the hall
+ * walls solid (report 04 P6), these and the personnel doors are the ways out.
+ */
+const SERVICE_DOOR_ROUTES: Route[] = STEP_FREE_EGRESS.filter(
+  (e) => e.zoneId === 'west' || e.zoneId === 'east'
+).map((e) => ({ name: `${e.zoneId} service door, hall floor to the marker`, points: e.route }));
+describe('capsule walk: service doors', () => walkCases(SERVICE_DOOR_ROUTES));
+
+describe('capsule walk: the hall walls', () => {
+  it('stops a capsule at the gable wall beside the shipping dock', () => {
+    // Inside the hall east of the shipping portal, west of the personnel door.
+    stops(
+      [
+        [25, 46],
+        [25, 56],
+      ],
+      'hall-wall-shipping-'
+    );
+  });
+  it('stops a capsule at the back gable wall and at a side wall', () => {
+    stops(
+      [
+        [-25, -46],
+        [-25, -56],
+      ],
+      'hall-wall-receiving-'
+    );
+    stops(
+      [
+        [-36, 10],
+        [-46, 10],
+      ],
+      'hall-wall-westService-'
+    );
+  });
+  it('passes the front personnel door at the end of the east walkway', () => {
+    const door = PERSONNEL_DOORS.find((d) => d.id === 'front')!;
+    expectWalkable(
+      {
+        name: 'through the front personnel door',
+        points: [
+          [door.x, door.wallZ - 4],
+          [door.x, door.wallZ + 4],
+        ],
+      },
+      128,
+      0.2
+    );
+  });
+});
+
+describe('capsule walk: town hall stairs', () => walkCases(TOWN_HALL_STAIR_ROUTES));
+
 describe('capsule walk: town hall ramp', () => {
   walkCases([TOWN_HALL_RAMP_ROUTE]);
   it('climbs the ramp along its pitch, never more than a 1:12 rise per substep', () => {
@@ -845,8 +920,8 @@ describe('capsule walk: town hall ramp', () => {
   it('stops a walker stepping sideways off a flight or the apron at the handrail', () => {
     // Mid flight 1, toward the privet, and off the apron toward the steps.
     for (const [from, to, floor] of [
-      [hallWorld(-6.7, 2.6), hallWorld(-9.5, 2.6), 0.6],
-      [hallWorld(-1.55, 6.5), hallWorld(1, 6.5), TOWN_HALL_RAMP.landingY],
+      [hallWorld(-6.8, 1.6), hallWorld(-9.5, 1.6), 0.6],
+      [hallWorld(-1.55, 6.75), hallWorld(1, 6.75), TOWN_HALL_RAMP.landingY],
     ] as const) {
       const r = walkRoute([from, to], 128, 0.2);
       expect(r.arrival).toBeGreaterThan(1);
@@ -855,12 +930,14 @@ describe('capsule walk: town hall ramp', () => {
     }
   });
   it('does not let a walker step up onto the ramp from beside its foot', () => {
-    // On the ground behind the rails' foot, walking into the flight's side.
-    const r = walkRoute([hallWorld(-6.7, -7), hallWorld(-6.7, -4)], 128, 0.2);
+    // From the foot landing up the flight, then on the ground behind the hall
+    // walking into the second flight's open inner side, where its rail stands.
+    const r = walkRoute([hallWorld(-6.8, -11), hallWorld(-6.8, -7)], 128, 0.2);
     expect(r.blockers).toEqual([]);
     expect(r.endFloor).toBeGreaterThan(0.1);
-    const side = walkRoute([hallWorld(-5.5, -6.7), hallWorld(-5.5, -3)], 128, 0.2);
+    const side = walkRoute([hallWorld(-5.2, -7), hallWorld(-7.2, -7)], 128, 0.2);
     expect(side.arrival).toBeGreaterThan(1);
+    expect(side.blockers[0]).toContain('townHallBlocks');
   });
 });
 

@@ -16,17 +16,14 @@ import {
   Zap,
   Sun,
   Moon,
-  Wind,
   ThermometerSun,
   Lightbulb,
   Factory,
-  Leaf,
   AlertTriangle,
   Wrench,
   Gauge,
   Server,
   Shield,
-  GripVertical,
   X,
 } from 'lucide-react';
 import {
@@ -47,7 +44,9 @@ import {
   getMachineEnergy,
   getMachineEnergyDetailed,
   getSiteDemandKw,
-  SIMULATED_GRID_INTENSITY_KG_PER_KWH,
+  energyTariffPerKwh,
+  isPeakTariffMinute,
+  lineEnergyFactor,
 } from '../../utils/energyCalculations';
 import { MachineType } from '../../types';
 import { formatFixed, formatGrouped, useT } from '../../i18n';
@@ -56,6 +55,8 @@ import { energyDashboardMessages } from './EnergyDashboard.messages';
 const EnergyDashboardBody: React.FC = () => {
   const t = useT(energyDashboardMessages);
   const machines = useProductionStore((state) => state.machines);
+  // The bill's above-100% penalty is keyed on the line rate (machineLoad lineOverdrive).
+  const lineRate = useProductionStore((state) => state.productionSpeed);
   const gameTime = useGameSimulationStore((state) => state.gameTime);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
   // The multipliers UnifiedGameTick and tickCampaign apply before billing.
@@ -91,7 +92,7 @@ const EnergyDashboardBody: React.FC = () => {
 
   // Calculate comprehensive energy metrics
   const metrics = useMemo(() => {
-    const machineStats = getMachineEnergyByType(machines);
+    const machineStats = getMachineEnergyByType(machines, lineRate);
     const facilityLoad = getFacilityBaseLoad(gameTime);
     const emergencyLoad = getEmergencyLoad(facilityLoad);
     // The facility rows list what the headline bills: in an emergency, the
@@ -105,7 +106,7 @@ const EnergyDashboardBody: React.FC = () => {
       : facilityLoad;
 
     // Calculate totals
-    const totalMachineEnergy = machines.reduce((sum, m) => sum + getMachineEnergy(m), 0);
+    const totalMachineEnergy = machines.reduce((sum, m) => sum + getMachineEnergy(m, lineRate), 0);
 
     // Count machines with modifiers
     const warningCount = machines.filter((m) => m.status === 'warning').length;
@@ -130,24 +131,22 @@ const EnergyDashboardBody: React.FC = () => {
     // unit with no feed falls below the working 70-100% curve toward standby.
     const avgDemandFactor =
       runningMachines.length > 0
-        ? runningMachines.reduce((sum, m) => sum + getMachineEnergyDetailed(m).loadFactor, 0) /
-          runningMachines.length
+        ? runningMachines.reduce(
+            (sum, m) => sum + getMachineEnergyDetailed(m, lineRate).loadFactor,
+            0
+          ) / runningMachines.length
         : 0;
 
     // Total instantaneous demand: the same figure the campaign bills, with the
     // incident and Chronicle multipliers it is billed at, and unrounded.
-    const totalEnergy = getSiteDemandKw(machines, gameTime, emergencyActive) * energyMultiplier;
+    const totalEnergy =
+      getSiteDemandKw(machines, gameTime, emergencyActive, lineRate) * energyMultiplier;
 
-    // Peak hours: 9 AM - 9 PM
+    // The tariff tickCampaign bills at this minute of the day (energyCalculations).
     const hour = ((gameTime % 24) + 24) % 24;
-    const isPeakHours = hour >= 9 && hour <= 21;
-
-    // Cost: Peak = $0.15/kWh, Off-peak = $0.08/kWh
-    const rate = isPeakHours ? 0.15 : 0.08;
+    const isPeakHours = isPeakTariffMinute(hour * 60);
+    const rate = energyTariffPerKwh(hour * 60);
     const estimatedCostPerHour = totalEnergy * rate;
-
-    // Scenario estimate. This is an explicit simulation factor, not live grid data.
-    const carbonKg = totalEnergy * SIMULATED_GRID_INTENSITY_KG_PER_KWH;
 
     return {
       machineStats,
@@ -162,19 +161,12 @@ const EnergyDashboardBody: React.FC = () => {
       onLoadCurveCount: runningMachines.length,
       isPeakHours,
       estimatedCostPerHour,
-      carbonKg,
+      rate,
       hour,
     };
-  }, [machines, gameTime, emergencyActive, energyMultiplier]);
+  }, [machines, gameTime, emergencyActive, energyMultiplier, lineRate]);
 
   const formatNumber = (n: number, decimals = 1) => formatFixed(n, decimals);
-  const formatTime = (hour: number) => {
-    // Whole minutes, floored: rounding the fraction showed 'HH:60' near the hour.
-    const total = Math.floor(hour * 60);
-    const h = Math.floor(total / 60) % 24;
-    const m = total % 60;
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-  };
 
   return (
     <motion.div
@@ -191,7 +183,11 @@ const EnergyDashboardBody: React.FC = () => {
       aria-label={t('regionLabel')}
       // Escape closes this before the tour or delivery guide behind it.
       data-escape-layer=""
-      className="fixed left-4 bottom-20 w-80 millos-glass millos-glass-thick millos-glass-scroll rounded-xl border-emerald-500/30 z-40 max-h-[80vh] overflow-y-auto"
+      // At 1280 x 720 it covered the soundtrack bar and its last tiles went
+      // under the dock. On a desktop it sits right of the left column, below
+      // the HUD and any banner, and ends above the dock, scrolling in itself.
+      // Working if it overlaps none of them at 1280 x 720 in either language.
+      className="fixed left-4 bottom-20 z-40 max-h-[80vh] w-[21rem] overflow-y-auto rounded-xl border-emerald-500/30 millos-glass millos-glass-thick millos-glass-scroll lg:bottom-auto lg:left-[22rem] lg:top-28 lg:max-h-[calc(100dvh-14.5rem)]"
     >
       {/* Header - Drag Handle */}
       <div
@@ -203,11 +199,11 @@ const EnergyDashboardBody: React.FC = () => {
           <div className="p-1.5 rounded-lg bg-emerald-500/20">
             <Zap className="w-4 h-4 text-emerald-400" />
           </div>
-          <span className="text-sm font-medium text-white">{t('title')}</span>
-          <GripVertical className="w-3 h-3 text-slate-500" aria-hidden="true" />
+          {/* One line: the clock the HUD already shows and a grip glyph
+              made Portuguese wrap it. The whole header is the handle. */}
+          <span className="whitespace-nowrap text-sm font-medium text-white">{t('title')}</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-400 font-mono">{formatTime(metrics.hour)}</span>
           <div
             className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] ${
               metrics.isPeakHours
@@ -276,7 +272,9 @@ const EnergyDashboardBody: React.FC = () => {
             {formatNumber(metrics.totalEnergy)}
             <span className="text-sm font-normal text-slate-400 ml-1">kW</span>
           </div>
-          <div className="text-[10px] text-slate-400 mt-0.5">
+          {/* The figure's name, for screen readers: on screen the title and
+              the emergency banner already say what it is. */}
+          <div className="sr-only">
             {emergencyActive ? t('emergencyDemand') : t('currentDemand')}
           </div>
         </div>
@@ -362,7 +360,6 @@ const EnergyDashboardBody: React.FC = () => {
                   style={{ width: `${Math.round(metrics.avgDemandFactor * 100)}%` }}
                 />
               </div>
-              <div className="text-[9px] text-slate-400 mt-1">{t('loadFactorRange')}</div>
             </div>
 
             {/* Warning Status */}
@@ -388,7 +385,6 @@ const EnergyDashboardBody: React.FC = () => {
                   ? t('warningPenalty', { count: formatFixed(metrics.warningCount, 0) })
                   : t('none')}
               </div>
-              <div className="text-[9px] text-slate-400">{t('inefficient')}</div>
             </div>
 
             {/* Maintenance Due */}
@@ -415,7 +411,6 @@ const EnergyDashboardBody: React.FC = () => {
                   ? formatFixed(metrics.maintenanceDueCount, 0)
                   : t('none')}
               </div>
-              <div className="text-[9px] text-slate-400">{t('pastServicePoint')}</div>
             </div>
 
             {/* Overdue Maintenance */}
@@ -439,7 +434,34 @@ const EnergyDashboardBody: React.FC = () => {
               >
                 {metrics.overdueCount > 0 ? formatFixed(metrics.overdueCount, 0) : t('none')}
               </div>
-              <div className="text-[9px] text-slate-400">{t('pastWarningWear')}</div>
+            </div>
+
+            {/* The line rate is the lever on this bill: above 100% a working unit
+                draws more than its rating (the same factor the bill applies). */}
+            <div
+              className={`bg-slate-800/50 rounded-lg p-2 ${
+                lineEnergyFactor(lineRate) > 1 ? 'border border-amber-500/30' : ''
+              }`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <Gauge
+                  className={`w-3 h-3 ${
+                    lineEnergyFactor(lineRate) > 1 ? 'text-amber-400' : 'text-slate-500'
+                  }`}
+                  aria-hidden="true"
+                />
+                <span className="text-[10px] text-slate-400">{t('lineRate')}</span>
+              </div>
+              <div
+                className={`text-sm font-mono ${
+                  lineEnergyFactor(lineRate) > 1 ? 'text-amber-400' : 'text-slate-300'
+                }`}
+              >
+                {t('lineRateValue', {
+                  rate: formatFixed(lineRate * 100, 0),
+                  factor: formatFixed(lineEnergyFactor(lineRate), 2),
+                })}
+              </div>
             </div>
 
             {/* The incident and Chronicle factor the headline is billed at; without
@@ -466,10 +488,7 @@ const EnergyDashboardBody: React.FC = () => {
             <div className="flex items-center justify-between text-xs bg-slate-800/30 rounded-lg p-2">
               <div className="flex items-center gap-2">
                 <Lightbulb className="w-3.5 h-3.5 text-yellow-400" />
-                <div>
-                  <span className="text-slate-300">{t('lighting')}</span>
-                  <div className="text-[9px] text-slate-400">{t('lightingRange')}</div>
-                </div>
+                <span className="text-slate-300">{t('lighting')}</span>
               </div>
               <span className="text-yellow-400 font-mono">
                 {formatNumber(metrics.facilityRows.lighting)} kW
@@ -480,10 +499,7 @@ const EnergyDashboardBody: React.FC = () => {
             <div className="flex items-center justify-between text-xs bg-slate-800/30 rounded-lg p-2">
               <div className="flex items-center gap-2">
                 <ThermometerSun className="w-3.5 h-3.5 text-orange-400" />
-                <div>
-                  <span className="text-slate-300">{t('hvac')}</span>
-                  <div className="text-[9px] text-slate-400">{t('hvacCurve')}</div>
-                </div>
+                <span className="text-slate-300">{t('hvac')}</span>
               </div>
               <span className="text-orange-400 font-mono">
                 {formatNumber(metrics.facilityRows.hvac)} kW
@@ -494,10 +510,7 @@ const EnergyDashboardBody: React.FC = () => {
             <div className="flex items-center justify-between text-xs bg-slate-800/30 rounded-lg p-2">
               <div className="flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5 text-slate-400" />
-                <div>
-                  <span className="text-slate-300">{t('other')}</span>
-                  <div className="text-[9px] text-slate-400">{t('otherDetail')}</div>
-                </div>
+                <span className="text-slate-300">{t('other')}</span>
               </div>
               <span className="text-slate-400 font-mono">
                 {formatNumber(metrics.facilityRows.other)} kW
@@ -515,35 +528,9 @@ const EnergyDashboardBody: React.FC = () => {
             >
               {t('costPerHour', { value: formatNumber(metrics.estimatedCostPerHour, 2) })}
               <span className="text-[9px] text-slate-400 ml-1">
-                {t('tariff', { rate: formatFixed(metrics.isPeakHours ? 0.15 : 0.08, 2) })}
+                {t('tariff', { rate: formatFixed(metrics.rate, 2) })}
               </span>
             </span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1.5">
-              <Leaf className="w-3 h-3 text-green-400" />
-              <span className="text-slate-400">{t('scenarioCarbon')}</span>
-            </div>
-            <span className="text-green-400 font-mono">
-              {formatNumber(metrics.carbonKg)} kg CO₂
-            </span>
-          </div>
-          <div className="text-[9px] text-slate-500 text-right">
-            {t('simulationFactor', { value: formatFixed(SIMULATED_GRID_INTENSITY_KG_PER_KWH, 2) })}
-          </div>
-        </div>
-
-        {/* Sustainability Tip */}
-        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-          <div className="flex items-start gap-2">
-            <Wind className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
-            <p className="text-[10px] text-emerald-300">
-              {emergencyActive
-                ? t('tipEmergency')
-                : metrics.isPeakHours
-                  ? t('tipPeak')
-                  : t('tipOffPeak')}
-            </p>
           </div>
         </div>
       </div>

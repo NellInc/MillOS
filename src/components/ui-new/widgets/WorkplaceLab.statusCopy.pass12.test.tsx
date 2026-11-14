@@ -4,6 +4,7 @@ import { WorkplaceLab } from './WorkplaceLab';
 import { MatchedPackingRehearsal } from './WorkplacePackingEvidence';
 import { useWorkplaceStore, workplaceReasonText } from '../../../stores/workplaceStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
@@ -19,6 +20,8 @@ beforeEach(() => {
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season is offered once the first delivery is in.
+  fulfilFirstDelivery();
   useGameSimulationStore.getState().setGameSpeed(0);
   useWorkplaceStore.setState({
     participationMode: 'solo',

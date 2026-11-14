@@ -215,7 +215,11 @@ describe('PAAnnouncementSystem caption lifecycle', () => {
 
     const container = document.querySelector('[data-safety-offset="true"]');
     expect(container).toBeInTheDocument();
-    expect(container).toHaveClass('top-20');
+    // The stop's banner sits at top-16 and is about 38 px tall (to ~102 px):
+    // top-20 (80 px) put the caption over the banner's title, seen in a
+    // headless capture of the X-key stop. top-28 (112 px) clears it.
+    expect(container).toHaveClass('top-28');
+    expect(container).not.toHaveClass('top-20');
   });
 
   it('keeps the desktop PA below the 48px status bar and caps its width on the container', async () => {

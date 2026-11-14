@@ -56,7 +56,6 @@ const ENGINE_WORDING = [
   'locked the policies',
   'one step at a time',
   'already before the assembly',
-  'council point',
   'Routine event',
   'threshold',
   'brief',

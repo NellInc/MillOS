@@ -89,3 +89,26 @@ export function storeOwnedLoad(
   // A paused sample (ease 0) moves nothing, so it never snaps.
   return clamp(ease > 0 && Math.abs(target - next) < 0.5 ? target : next);
 }
+
+/**
+ * The mill setting (plan item 3.6). Up to 100% the line runs as rated. Above
+ * it the rolls and motors run past their rating: hotter, wearing and drawing
+ * power faster than the throughput they add, so wear and energy per tonne rise
+ * with the rate and the best setting is inside the slider's range, not at its
+ * top. Keyed on the line rate, not on load, because load is capped at 100 at a
+ * rate of 1.67 and the slider goes to 2.0: a load-keyed curve would flatten
+ * there and the top of the range would win again.
+ * - Wear: x(1 + 2 (rate - 1)). Wear per tonne goes as (1 + 0.3 rate) x that
+ *   / rate, which falls to 1.3 at a rate of 1.0, then rises: 1.59 at 1.2,
+ *   2.25 at 2.0 (1.55 at 0.8, 2.17 at 0.6).
+ * - Energy: x(1 + 1.5 (rate - 1)) on a working unit's demand.
+ * Working if a rate sweep's best net per tonne is at neither end of the range.
+ */
+export const OVERDRIVE_WEAR_SLOPE = 2;
+export const OVERDRIVE_ENERGY_SLOPE = 1.5;
+
+/** The multiplier a line rate above 100% puts on a working unit's wear or energy; 1 at or below. */
+export function lineOverdrive(lineRate: number, slope: number): number {
+  if (!Number.isFinite(lineRate) || lineRate <= 1) return 1;
+  return 1 + Math.max(0, slope) * (lineRate - 1);
+}

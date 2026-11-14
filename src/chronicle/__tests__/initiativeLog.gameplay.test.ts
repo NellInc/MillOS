@@ -15,6 +15,7 @@ import {
 } from '../engine';
 import { EVENT_DECK } from '../eventDeck';
 import { SHIFTS_PER_CROP_YEAR } from '../cropYears';
+import { REFERENCE_DRYING_COST } from '../temper';
 
 const baseline = { reportId: null, qcTestIds: [], challengeIds: [], orders: [] };
 const eventById = (id: string) => EVENT_DECK.find((event) => event.id === id)!;
@@ -49,7 +50,9 @@ function evidence(index: number): ShiftCloseEvidence {
 }
 
 describe('the AI partner logs only what it did', () => {
-  it('logs one answer, and spends for one, when its first answer retires the other crop event', () => {
+  // Plan item 7.7: the falling-number event answers a sprouted year only, so a
+  // copy left pending in a wet year is retired, and the dryer treats nothing.
+  it('logs one answer, and spends for one, when the other crop event no longer applies', () => {
     const signed = signCharter(
       createInitialState(),
       { ...DEFAULT_CHARTER, mode: 'no_trials' },
@@ -74,11 +77,11 @@ describe('the AI partner logs only what it did', () => {
       eventById('evt-wet-intake'),
       eventById('evt-low-falling-number'),
     ]).state;
-    expect(after.crop?.treated).toBe(true);
+    expect(after.crop?.treated).toBe(false);
     const answered = after.initiatives.filter((entry) => entry.kind === 'event');
     expect(answered.map((entry) => entry.targetId)).toEqual(['pending-evt-wet-intake']);
     expect(after.eventHistory.map((entry) => entry.eventId)).toEqual(['evt-wet-intake']);
-    // The dryer's price, and nothing for the blend it made moot.
-    expect(after.aiSpentThisShift).toBe(160);
+    // The dryer's price, and nothing for a blend the year does not need.
+    expect(after.aiSpentThisShift).toBe(Math.round(REFERENCE_DRYING_COST));
   });
 });

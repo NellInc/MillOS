@@ -15,7 +15,6 @@ const ptDockStatus = (status: string): string => PT_DOCK_STATUS[status] ?? statu
 export const autonomyPanelMessages = defineMessages({
   en: {
     plantStateTitle: 'Autonomous plant state',
-    plantStateSubtitle: 'Process, logistics, safety, and diagnostics in one picture.',
     readinessIndex: 'readiness index',
     metricsLabel: 'Autonomy metrics',
     activeAssets: 'Active assets',
@@ -23,8 +22,8 @@ export const autonomyPanelMessages = defineMessages({
       `${p.count} ${p.count === 1 ? 'needs' : 'need'} diagnostic attention`,
     throughput: 'Throughput',
     throughputDetail: 'bags per simulated hour',
-    target: 'Target',
-    targetDetail: "of today's production target",
+    programme: 'Programme',
+    programmeDetail: '{shipped} of {committed} t shipped',
     safetyStops: 'Safety stops',
     safetyStopsDetail: (p: CountParams) =>
       `${p.count} blocked-route ${p.count === 1 ? 'stop' : 'stops'} recorded`,
@@ -40,12 +39,9 @@ export const autonomyPanelMessages = defineMessages({
     receivingDockState: (p: DockStateParams) => `Receiving dock state: ${p.status}.`,
     shippingSequence: 'Shipping sequence',
     shippingDockState: (p: DockStateParams) => `Shipping dock state: ${p.status}.`,
-    scadaHint:
-      'Open Simulated SCADA for the full alarm trail, tag quality, trends, and control history.',
   },
   'pt-BR': {
     plantStateTitle: 'Estado da planta autônoma',
-    plantStateSubtitle: 'Processo, logística, segurança e diagnóstico em uma só visão.',
     readinessIndex: 'índice de prontidão',
     metricsLabel: 'Métricas de autonomia',
     activeAssets: 'Ativos em operação',
@@ -53,8 +49,8 @@ export const autonomyPanelMessages = defineMessages({
       `${formatFixed(p.count, 0, 'pt-BR')} ${p.count === 1 ? 'precisa' : 'precisam'} de atenção de diagnóstico`,
     throughput: 'Vazão',
     throughputDetail: 'sacos por hora simulada',
-    target: 'Meta',
-    targetDetail: 'da meta de produção de hoje',
+    programme: 'Programa',
+    programmeDetail: '{shipped} de {committed} t expedidas',
     safetyStops: 'Paradas de segurança',
     safetyStopsDetail: (p: CountParams) =>
       p.count === 1
@@ -76,7 +72,5 @@ export const autonomyPanelMessages = defineMessages({
     shippingSequence: 'Sequência de expedição',
     shippingDockState: (p: DockStateParams) =>
       `Estado da doca de expedição: ${ptDockStatus(p.status)}.`,
-    scadaHint:
-      'Abra o SCADA simulado para ver o histórico completo de alarmes, a qualidade das tags, as tendências e o histórico de controle.',
   },
 });

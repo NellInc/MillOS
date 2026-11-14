@@ -5,7 +5,7 @@ type Point = [number, number, number];
 // Version both requests together so stale-cache recovery cannot mix revisions.
 export const CIVIC_SHADOW_BAKE_READY = true;
 export const CIVIC_SHADOW_ASSET_VERSION =
-  '490dfa1b82e35c91c42ff8d879339811c7f8534494bd67cfcbc2231ed8151f07';
+  '14ffdb8f63085448f4d2166f1face014628945c528c012798591ca1892c1d03e';
 // One spelling for the loader hook and the startup preload, so both share a cache entry.
 export const CIVIC_SHADOW_DEPTH_URL = `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.png?v=${CIVIC_SHADOW_ASSET_VERSION}`;
 export const CIVIC_SHADOW_METADATA_URL = `${import.meta.env.BASE_URL}textures/civic-square-lamp-depth.json?v=${CIVIC_SHADOW_ASSET_VERSION}`;
@@ -24,17 +24,19 @@ export type CivicLamp = {
  * The town hall ramp's three post lights (D-058, 2026-11-07). They were ground
  * uplighters on the hall's east verge, which the ramp now covers (one stood
  * inside the ramp, one under its mid landing, one on its walking surface), and
- * there is 14 cm between its rail and the privet. They are low lights on the
+ * there is 12 cm between its kerb and the privet. They are low lights on the
  * outer rail's posts instead, 0.4 m above the ramp surface, lit toward it:
  * TOWN_HALL_RAMP_LAMPS in accessibilityLayout.ts, carried into the village
  * frame ((x, z) -> (-x, 20 - z)) as literals, because the shadow bake and the
  * tests that evaluate this file read it alone. `civicLampShadows.test.ts`
- * holds the two equal.
+ * holds the two equal. 2026-11-13: the ramp was rebuilt to Approved Document
+ * M (two 6.8 m flights, the outer rail over its kerb), and the three now
+ * stand at the first flight's head, the mid landing and the second flight.
  */
 const RAMP_LAMP_MOUNTS: readonly { position: Point; mount: [number, number] }[] = [
-  { position: [7.22, 1.1814, 15.2236], mount: [7.29, 15.2236] },
-  { position: [7.22, 0.8, 20.1909], mount: [7.29, 20.1909] },
-  { position: [7.22, 0.582, 23.9164], mount: [7.29, 23.9164] },
+  { position: [7.55, 1.1945, 15.0927], mount: [7.62, 15.0927] },
+  { position: [7.55, 0.8, 22.1807], mount: [7.62, 22.1807] },
+  { position: [7.55, 0.5213, 28.0873], mount: [7.62, 28.0873] },
 ];
 function rampLamp(id: string, index: number, reference: [number, number]): CivicLamp {
   const { position, mount } = RAMP_LAMP_MOUNTS[index];

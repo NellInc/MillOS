@@ -7,6 +7,7 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 beforeEach(() => {
@@ -25,10 +26,11 @@ afterEach(cleanup);
 // Firefox). It stays focusable and inert until the review is done.
 // Working if Tab carries on from the button after the last delivery.
 it('keeps the next-action button usable under focus when the programme completes during a linked season', () => {
+  fulfilFirstDelivery();
   expect(useWorkplaceStore.getState().startMission('team').changed).toBe(true);
   render(<OperationsPlayCard />);
-  // The next-action button follows its 'Next:' line and the consequence below it.
-  const next = screen.getByText(/^Next: /).nextElementSibling!.nextElementSibling as HTMLElement;
+  // The next-action button follows its 'Next:' line; what it does is said after the buttons.
+  const next = screen.getByText(/^Next: /).nextElementSibling as HTMLElement;
   expect(next.tagName).toBe('BUTTON');
   next.focus();
   expect(next).toHaveFocus();
@@ -43,7 +45,7 @@ it('keeps the next-action button usable under focus when the programme completes
       activeOrderId: null,
     });
   });
-  const accept = screen.getByRole('button', { name: 'Accept next production programme' });
+  const accept = screen.getByRole('button', { name: 'Accept next delivery programme' });
   expect(accept).toBe(next);
   expect(accept).toHaveFocus();
   expect(accept).not.toBeDisabled();

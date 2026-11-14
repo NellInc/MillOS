@@ -3,6 +3,7 @@ import { useWorkplaceStore } from './workplaceStore';
 import { safeJSONStorage } from './storage';
 import { createWorkplace } from '../simulation/bilateralWorkplace';
 import { beginReplayClock, endReplayClock } from '../simulation/workplaceReplayRuntime';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 beforeEach(async () => {
   endReplayClock();
@@ -29,6 +30,7 @@ describe('a settled standalone exercise returns to setup (pass thirteen)', () =>
       const review = useWorkplaceStore.getState().workplace;
       expect(review.phase).toBe('review');
       // Nothing else reaches idle from here.
+      fulfilFirstDelivery();
       expect(useWorkplaceStore.getState().startCampaign('toe-dip', 7).changed).toBe(false);
       expect(useWorkplaceStore.getState().leaveCampaign(review.revision).changed).toBe(false);
 
@@ -43,12 +45,14 @@ describe('a settled standalone exercise returns to setup (pass thirteen)', () =>
       // Nothing is kept as a season: there was none.
       expect(useWorkplaceStore.getState().leftCampaigns).toHaveLength(0);
       expect(useWorkplaceStore.getState().setParticipationMode('solo').changed).toBe(true);
+      fulfilFirstDelivery();
       expect(useWorkplaceStore.getState().startCampaign('toe-dip', 7).changed).toBe(true);
     }
   );
 
   it('refuses a season, a running or deliberating exercise, owed recovery and a live replay', () => {
     const store = useWorkplaceStore.getState();
+    fulfilFirstDelivery();
     expect(store.startCampaign('toe-dip', 3).changed).toBe(true);
     let s = useWorkplaceStore.getState().workplace;
     expect(useWorkplaceStore.getState().endExercise(s.revision).changed).toBe(false);

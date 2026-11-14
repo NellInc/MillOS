@@ -46,6 +46,28 @@ import {
 import { deriveDeliveryJourney } from '../../components/ui-new/onboarding/deliveryJourney';
 import { useUIStore } from '../../stores/uiStore';
 import { setLocale } from '../../i18n';
+import { usePartnerProposalStore } from '../../stores/partnerProposalStore';
+import { PROPOSAL_KIND_IDS } from '../../simulation/partnerProposals';
+import { answerPartnerProposal } from '../../systems/partnerProposalRuntime';
+
+// Written with every proposal kind asking (the player accepts each programme
+// here, before its card's window closes); a kind's default now follows the
+// delegation rule, so "ask me" is set here, as the card's toggle sets it.
+beforeEach(() => {
+  usePartnerProposalStore.getState().reset();
+  for (const kind of PROPOSAL_KIND_IDS)
+    usePartnerProposalStore.getState().setDelegation(kind, 'ask');
+});
+
+// The one-programme case, as a player keeps it: every offer to take the next
+// programme early is answered "Wait" on its card the tick it is raised, so only
+// acceptNextProgramme opens a programme. Left unanswered, the partner takes it
+// when no open order is at risk (plan wave 3d).
+function waitOnEarlyProgrammes() {
+  for (const proposal of usePartnerProposalStore.getState().proposals)
+    if (proposal.kind === 'commitment' && proposal.status === 'open')
+      answerPartnerProposal(proposal.id, 'wait');
+}
 
 // Execute the actual current scene's roster factory, rather than duplicating a
 // machine table. The final lane also couples the real truck controller and dock
@@ -202,9 +224,12 @@ it.each([
     expect(notice?.title).toMatch(title);
     render(createElement(ShiftDebrief));
     expect(screen.getByRole('heading', { name: heading })).toBeVisible();
-    expect(screen.getByText(new RegExp(`^Riverside Bakers' Cooperative: .*`))).toHaveTextContent(
-      onTime
-    );
+    // Re-pinned for plan item 3.0: unanswered, the partner accepts the next
+    // programme inside the Morning, so its open Riverside order is listed too.
+    // The first line is order-001's.
+    expect(
+      screen.getAllByText(new RegExp(`^Riverside Bakers' Cooperative: .*`))[0]
+    ).toHaveTextContent(onTime);
   } finally {
     cleanup();
     setLocale('en');
@@ -450,14 +475,20 @@ it.each([STANDARD_GAME_SPEED, 120])(
     expect(useMaterialFlowStore.getState().shippedKg).toBeCloseTo(18000, 6);
     const physicalBefore = useMaterialFlowStore.getState().shippedKg;
     const sessionBefore = useMaterialFlowStore.getState().sessionId;
+    const firstProgrammeOrders = useOperationsCampaignStore.getState().orders.length;
     expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
-    const programmeKg = useOperationsCampaignStore
-      .getState()
-      .orders.slice(-3)
-      .reduce((sum, order) => sum + order.requiredKg, 0);
     expect(useMaterialFlowStore.getState().sessionId).toBe(sessionBefore);
     expect(useMaterialFlowStore.getState().shippedKg).toBe(physicalBefore);
     completeProgramme();
+    // Re-pinned for plan wave 3d (13 November 2026): unanswered, the partner
+    // takes the next programme early while no open order is at risk, so more
+    // than the accepted programme ships here (11,500 kg was the accepted one
+    // alone; 23,000 with the programme taken early). Every kilogram shipped
+    // since is still exactly what the programmes taken since required, on the
+    // same physical session.
+    const laterOrders = useOperationsCampaignStore.getState().orders.slice(firstProgrammeOrders);
+    expect(laterOrders.length).toBeGreaterThanOrEqual(3);
+    const programmeKg = laterOrders.reduce((sum, order) => sum + order.requiredKg, 0);
     expect(useMaterialFlowStore.getState().shippedKg - physicalBefore).toBeCloseTo(programmeKg, 6);
     expect(useMaterialFlowStore.getState().sessionId).toBe(sessionBefore);
     expect(useOperationsCampaignStore.getState().reports.length).toBeGreaterThan(0);
@@ -701,7 +732,7 @@ it('pre-stages the next commitment while the first order waits for its second tr
   });
   expect(semolinaAtFirstFulfilment).toBeGreaterThan(1000);
   // Only the start and each recipe changeover fill the line before packing:
-  // 63 ticks here, against 425 (about 212 game minutes) without pre-staging.
+  // 63 ticks here, against 425 (about 106 game minutes) without pre-staging.
   expect(idleTicksWithOpenWork).toBeLessThan(80);
   const manifests = useMaterialFlowStore.getState().manifests.filter((m) => m.kind === 'shipping');
   const firstOrder = useOperationsCampaignStore.getState().orders[0];
@@ -712,9 +743,14 @@ it('pre-stages the next commitment while the first order waits for its second tr
 // Later programmes (src/simulation/programmes.ts) through the same yard the
 // guided programme used, so each meets the trucks where the last one left
 // them. Working if programmes 2 to 4 and a night programme each ship every
-// order on time with at least 20 game minutes to spare at standard pace.
+// order on time with at least 10 game minutes to spare at standard pace (20
+// before the lab's bench, plan item 3.2). One programme at a time: the player
+// answers "Wait" to every early offer (waitOnEarlyProgrammes), so each accepted
+// programme is the one measured; the partner's early takes are measured below.
 it('delivers programmes 2 to 4 and a night programme on time through real truck travel', () => {
-  const run = realTruckYard(STANDARD_GAME_SPEED);
+  const realRun = realTruckYard(STANDARD_GAME_SPEED);
+  const run = (gameMinutes: number, done: () => boolean) =>
+    realRun(gameMinutes, done, waitOnEarlyProgrammes);
   const programmeDone = () =>
     useOperationsCampaignStore
       .getState()
@@ -746,8 +782,12 @@ it('delivers programmes 2 to 4 and a night programme on time through real truck 
   }
   const night = delivered.find((p) => p.shift === 'night');
   expect(night?.kg).toEqual([2500, 3000, 8000]);
+  // Re-pinned for plan items 3.2 and 3.4 (13 November 2026): every batch now
+  // waits for the lab's bench (BENCH_TEST_MINUTES a test, one at a time)
+  // before a truck may load it, and the truck runs 'fill'. The tightest order
+  // measured then had 12.5 game minutes to spare (was at least 20).
   for (const programme of delivered)
-    for (const slack of programme.slack) expect(slack).toBeGreaterThanOrEqual(20);
+    for (const slack of programme.slack) expect(slack).toBeGreaterThanOrEqual(10);
 });
 
 // The rush's one choice, through the same real yard at standard pace. Shipped
@@ -755,7 +795,10 @@ it('delivers programmes 2 to 4 and a night programme on time through real truck 
 // product can hold it back; that one makes it wait for a later truck. Working
 // if the rush run first leaves on the first truck with 20 game minutes to
 // spare, and deferring it behind another product makes it at least 20 game
-// minutes late - a risk the card can state, not a rounding error.
+// minutes late - a risk the card can state, not a rounding error. The choice is
+// within one programme, so the player answers "Wait" to every early offer
+// (waitOnEarlyProgrammes): a programme taken early beside it would add its own
+// orders to the same trucks and is a different question.
 it.each([
   // Programme 2: semolina rush; the 3,000 kg flour order first.
   { programme: 2, deferTo: 1, deferred: true },
@@ -772,13 +815,13 @@ it.each([
         .getState()
         .orders.slice(-3)
         .every((o) => o.status === 'fulfilled');
-    run(600, programmeDone);
+    run(600, programmeDone, waitOnEarlyProgrammes);
     const rushOutcome = (deferToIndex: number | null) => {
       expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
       const accepted = useOperationsCampaignStore.getState().orders.slice(-3);
       if (deferToIndex !== null)
         useOperationsCampaignStore.getState().activateOrder(accepted[deferToIndex].id, 'operator');
-      run(600, programmeDone);
+      run(600, programmeDone, waitOnEarlyProgrammes);
       const rush = useOperationsCampaignStore.getState().orders.slice(-3)[0];
       expect(rush.rushPremiumPercent).toBeGreaterThan(0);
       return rush.dueAtMinute - rush.completedAtMinute!;
@@ -791,6 +834,7 @@ it.each([
   }
 );
 
+// One programme at a time, as the rush timing above.
 it('ships the rush on time when it runs first, in every programme 2 to 4', () => {
   const run = realTruckYard(STANDARD_GAME_SPEED);
   const programmeDone = () =>
@@ -798,11 +842,42 @@ it('ships the rush on time when it runs first, in every programme 2 to 4', () =>
       .getState()
       .orders.slice(-3)
       .every((o) => o.status === 'fulfilled');
-  run(600, programmeDone);
+  run(600, programmeDone, waitOnEarlyProgrammes);
   for (let n = 2; n <= 4; n++) {
     expect(useOperationsCampaignStore.getState().acceptNextProgramme()).toBe(true);
-    run(600, programmeDone);
+    run(600, programmeDone, waitOnEarlyProgrammes);
     const rush = useOperationsCampaignStore.getState().orders.slice(-3)[0];
-    expect(rush.dueAtMinute - rush.completedAtMinute!).toBeGreaterThanOrEqual(20);
+    // Re-pinned for plan items 3.2 and 3.4: the bench; was 20 (see above).
+    expect(rush.dueAtMinute - rush.completedAtMinute!).toBeGreaterThanOrEqual(10);
   }
+});
+
+// The default since plan wave 3d: unanswered, the partner takes the next
+// programme early while no open order is at risk, so two programmes share the
+// trucks. Working if, through the real yard over a day and a half at standard
+// pace, the partner does take programmes early and every order delivered is on
+// time and in spec. Measured on 13 November 2026: four accepted and four taken
+// early, the tightest order 37.5 game minutes to spare.
+it('delivers on time while the partner takes programmes early, through real truck travel', () => {
+  const run = realTruckYard(STANDARD_GAME_SPEED);
+  let accepted = 0;
+  run(
+    36 * 60,
+    () => false,
+    () => {
+      const campaign = useOperationsCampaignStore.getState();
+      if (campaign.orders.every((o) => o.status === 'fulfilled') && campaign.acceptNextProgramme())
+        accepted++;
+    }
+  );
+  const orders = useOperationsCampaignStore.getState().orders;
+  // The guided programme, the accepted ones, and at least two more taken early.
+  expect(orders.length).toBeGreaterThanOrEqual(3 * (1 + accepted + 2));
+  const delivered = orders.filter((o) => o.status === 'fulfilled');
+  expect(delivered.length).toBeGreaterThan(orders.length - 6);
+  for (const order of delivered) {
+    expect(order.qualityFailureKg, order.id).toBe(0);
+    expect(order.dueAtMinute - order.completedAtMinute!, order.id).toBeGreaterThanOrEqual(20);
+  }
+  expect(orders.some((o) => o.status === 'late')).toBe(false);
 });

@@ -29,6 +29,22 @@ describe('safety event copy follows the interface language', () => {
     expect(safetyEventCopy(event, 'cause')).not.toBe(event.cause);
   });
 
+  // The drill checks each zone's step-free route for a stopped forklift
+  // (accessibleEgress.ts); no sensor runs. Working if neither language says one does.
+  it.each([
+    ['en', /step-free route/],
+    ['pt-BR', /rota sem degraus/],
+  ] as const)('describes the drill as the route check it is (%s)', (locale, route) => {
+    setLocale(locale);
+    useGameSimulationStore.getState().startEmergencyDrill();
+    const state = useGameSimulationStore.getState();
+    const event = state.safetyEvents.find((e) => e.id === state.activeSafetyEventId)!;
+    const response = safetyEventCopy(event, 'response');
+    expect(response).toMatch(route);
+    expect(response).not.toMatch(/sensor/i);
+    useGameSimulationStore.getState().endEmergencyDrill();
+  });
+
   it('keeps the stored text for a record saved before copy keys', () => {
     const legacy = { cause: 'Old cause', response: 'Old response', recovery: 'Old recovery' };
     expect(safetyEventCopy(legacy, 'cause')).toBe('Old cause');

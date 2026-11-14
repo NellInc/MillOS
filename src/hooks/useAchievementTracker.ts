@@ -7,11 +7,19 @@
  *
  * - first-bag / century / thousand  (productionStore.totalBagsProduced, since the last Reset)
  * - zero-incidents                  (24 game hours without a blocked-route stop or near miss)
- * - full-capacity                   (all machines running at 90%+ load)
+ * - full-capacity                   (the line rate held while every machine runs clear)
  * - safety-first                    (an egress verification drill completes)
  * - maintenance-master              (service on a machine with no active breakdown)
- * - first-preference / boundary-setter / collaborative-spirit / vote-participant
- *                                   (responses recorded against AI decisions)
+ * - first-preference / boundary-setter / collaborative-spirit
+ *                                   (answers recorded against AI decisions)
+ * - vote-participant                (decisions deferred for another look)
+ * - first-on-time-delivery / first-a-shift / first-programme / first-challenge
+ *                                   (operationsCampaignStore: an order fulfilled by its
+ *                                   due time, an A report, a programme accepted, a
+ *                                   recovery challenge completed)
+ * - first-hold-resolved             (qcLabStore: a contamination alert settled)
+ * - first-season                    (workplaceStore: a season reaches its final review)
+ * - charter-signed                  (chronicleStore: a charter signed)
  *
  * Achievements with no live signal carry `tracked: false` and are hidden by
  * the panel rather than shown as unreachable goals.
@@ -31,13 +39,50 @@ import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useBreakdownStore } from '../stores/breakdownStore';
 import { useUIStore } from '../stores/uiStore';
+import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { useQCLabStore } from '../stores/qcLabStore';
+import { useWorkplaceStore } from '../stores/workplaceStore';
+import { useChronicleStore } from '../stores/chronicleStore';
 import type { AIDecision } from '../types';
+import type { WorkplaceState } from '../types/workplace';
 import { translate } from '../i18n';
 import { achievementTrackerMessages } from './useAchievementTracker.messages';
 import { registerAlertCatalog } from '../i18n/alertCopy';
 
 const ACHIEVEMENT_ALERT_CATALOG = 'achievementTracker';
 registerAlertCatalog(ACHIEVEMENT_ALERT_CATALOG, achievementTrackerMessages);
+
+/**
+ * Campaign state that moved backwards, or jumped further than a tick ever
+ * moves the plant clock, was replaced (a reset, a checkpoint restore or its
+ * rollback), and is not an event.
+ */
+const MAX_EVENT_STEP_MINUTES = 60;
+/** The shift review's on-time rule (describeOrderOutcome). */
+const ON_TIME_EPSILON_MINUTES = 1e-6;
+
+/**
+ * The entries `next` appended after the newest entry of `previous`, by id.
+ * A list that no longer holds that entry was replaced rather than appended to,
+ * and yields nothing. Read by id, never by length: these lists are capped.
+ */
+const appendedSince = <T extends { id: string }>(
+  previous: readonly T[],
+  next: readonly T[]
+): readonly T[] => {
+  if (next === previous) return [];
+  const last = previous.at(-1);
+  if (!last) return next;
+  const at = next.findIndex((entry) => entry.id === last.id);
+  return at < 0 ? [] : next.slice(at + 1);
+};
+
+/** A season's final review: its third shift has ended (the archive's own test). */
+const atFinalReview = (workplace: WorkplaceState): boolean =>
+  workplace.mode === 'game' &&
+  workplace.phase === 'review' &&
+  workplace.campaign?.shift === 2 &&
+  workplace.campaign.history.length === 2;
 
 /** Polling cadence for aggregate checks (full-capacity and safety streaks). */
 const POLL_INTERVAL_MS = 5000;
@@ -182,28 +227,49 @@ const startTracking = (): (() => void) => {
   );
 
   // --- Decision responses (bilateral achievements) ---------------------------
-  // Count each decision id once. Ids persist here after the decision is evicted
-  // from the bounded aiDecisions list, so eviction cannot recount it.
-  const respondedDecisionIds = new Set(
-    useProductionStore
-      .getState()
-      .aiDecisions.filter((decision) => humanDisposition(decision) !== null)
-      .map((decision) => decision.id)
-  );
+  // An answer (accept, modify, reject) counts toward first-preference,
+  // boundary-setter and collaborative-spirit; a deferral, a decision held back
+  // for another look, toward vote-participant (Decision Review). They counted
+  // the same response once (report 09 D4). Each decision counts once per kind,
+  // so a deferred card answered on its return counts both. Ids persist here
+  // after the decision is evicted from the bounded aiDecisions list, so
+  // eviction cannot recount it.
+  const countedResponses = new Map<string, Set<'deferred' | 'answered'>>();
+  for (const decision of useProductionStore.getState().aiDecisions) {
+    const disposition = humanDisposition(decision);
+    if (!disposition) continue;
+    countedResponses.set(
+      decision.id,
+      new Set(disposition === 'deferred' ? ['deferred'] : ['deferred', 'answered'])
+    );
+  }
   cleanups.push(
     useProductionStore.subscribe(
       (state) => state.aiDecisions,
       (decisions) => {
         for (const decision of decisions) {
-          const disposition = humanDisposition(decision);
-          // Only a replay checkpoint restore takes a person's answer away (a
+          // Only a replay checkpoint restore takes a person's response away (a
           // lapsed deferral keeps its 'deferred'): the restored achievements no
-          // longer hold it, so the next answer counts again.
-          if (!disposition && !decision.response) respondedDecisionIds.delete(decision.id);
-          if (!disposition || respondedDecisionIds.has(decision.id)) continue;
-          respondedDecisionIds.add(decision.id);
+          // longer hold it, so the next response counts again.
+          if (!decision.response) {
+            countedResponses.delete(decision.id);
+            continue;
+          }
+          const disposition = humanDisposition(decision);
+          if (!disposition) continue;
+          const counted = countedResponses.get(decision.id) ?? new Set();
+          countedResponses.set(decision.id, counted);
+          if (disposition === 'deferred') {
+            // Restored back to its deferral: the answer it had is gone with it.
+            counted.delete('answered');
+            if (counted.has('deferred')) continue;
+            counted.add('deferred');
+            addProgress('vote-participant', 1);
+            continue;
+          }
+          if (counted.has('answered')) continue;
+          counted.add('answered');
           addProgress('first-preference', 1);
-          addProgress('vote-participant', 1);
           if (disposition === 'rejected') addProgress('boundary-setter', 1);
           if (disposition === 'accepted' || disposition === 'modified') {
             addProgress('collaborative-spirit', 1);
@@ -211,6 +277,80 @@ const startTracking = (): (() => void) => {
         }
       }
     )
+  );
+
+  // --- The game's own milestones (plan 2.3) ----------------------------------
+  // Each unlocks on its event as its store records it, never on a count that
+  // something else also moves. A state that was already true when tracking
+  // began, or that arrives by a wholesale replace, earns nothing.
+  const unlock = (id: string) => useAchievementsStore.getState().unlockAchievement(id);
+  cleanups.push(
+    useOperationsCampaignStore.subscribe((state, previous) => {
+      const advanced = state.elapsedMinutes - previous.elapsedMinutes;
+      if (!(advanced >= 0 && advanced <= MAX_EVENT_STEP_MINUTES)) return;
+      if (state.orders !== previous.orders) {
+        const before = new Map(previous.orders.map((order) => [order.id, order.status]));
+        const onTime = state.orders.some(
+          (order) =>
+            order.status === 'fulfilled' &&
+            before.has(order.id) &&
+            before.get(order.id) !== 'fulfilled' &&
+            order.completedAtMinute !== null &&
+            order.completedAtMinute <= order.dueAtMinute + ON_TIME_EPSILON_MINUTES
+        );
+        if (onTime) unlock('first-on-time-delivery');
+      }
+      if (appendedSince(previous.reports, state.reports).some((report) => report.grade === 'A'))
+        unlock('first-a-shift');
+      if (
+        appendedSince(previous.challengeHistory, state.challengeHistory).some(
+          (run) => run.status === 'completed'
+        )
+      )
+        unlock('first-challenge');
+      // The player's own acceptance only: the partner (logged as the
+      // controller) and an agent also take programmes since wave 3d.
+      if (
+        appendedSince(previous.logbook, state.logbook).some(
+          (entry) => entry.wording?.key === 'logProgrammeAccepted' && entry.actor === 'operator'
+        )
+      )
+        unlock('first-programme');
+    })
+  );
+  // A hold is settled when its investigation closes (release or recall).
+  cleanups.push(
+    useQCLabStore.subscribe((state, previous) => {
+      const alerts = state.qcLab.contaminationAlerts;
+      const before = previous.qcLab.contaminationAlerts;
+      if (alerts === before) return;
+      const open = new Set(before.filter((alert) => !alert.resolved).map((alert) => alert.id));
+      if (alerts.some((alert) => alert.resolved && open.has(alert.id)))
+        unlock('first-hold-resolved');
+    })
+  );
+  // Run or taken over, a season is through when its third shift ends; archiving
+  // the review afterwards is bookkeeping. The same season (seed) must have been
+  // in that shift, so a replaced workplace earns nothing.
+  cleanups.push(
+    useWorkplaceStore.subscribe((state, previous) => {
+      const next = state.workplace;
+      const before = previous.workplace;
+      if (
+        next !== before &&
+        next.seed === before.seed &&
+        before.campaign?.shift === 2 &&
+        !atFinalReview(before) &&
+        atFinalReview(next)
+      )
+        unlock('first-season');
+    })
+  );
+  cleanups.push(
+    useChronicleStore.subscribe((state, previous) => {
+      if (state.chronicle.status === 'active' && previous.chronicle.status !== 'active')
+        unlock('charter-signed');
+    })
   );
 
   // --- Polled aggregates: zero-incidents and full-capacity -------------------
@@ -276,17 +416,16 @@ const startTracking = (): (() => void) => {
     }
     lastGameHours = Number.isFinite(gameHours) ? gameHours : null;
 
-    // full-capacity: all machines running at 90%+ load
-    const machines = useProductionStore.getState().machines;
+    // full-capacity: the line rate (percent) held while every machine runs
+    // clear, none in warning. It read the least-loaded unit once, which a
+    // session at its 80 % boot rate never brought past 72.
+    const { machines, productionSpeed } = useProductionStore.getState();
     if (machines.length > 0 && machines.every((m) => m.status === 'running')) {
-      const minLoad = machines.reduce(
-        (min, m) => Math.min(min, m.metrics?.load ?? 0),
-        Number.POSITIVE_INFINITY
-      );
-      // Drawn as a bar toward 90: keep the best reading, so it never runs back.
+      const ratePercent = Math.round(productionSpeed * 100);
+      // Drawn as a bar toward its mark: keep the best reading, so it never runs back.
       const best = achievements.getAchievement('full-capacity')?.progress ?? 0;
-      if (Number.isFinite(minLoad) && Math.floor(minLoad) > best) {
-        achievements.updateAchievementProgress('full-capacity', Math.floor(minLoad));
+      if (Number.isFinite(ratePercent) && ratePercent > best) {
+        achievements.updateAchievementProgress('full-capacity', ratePercent);
       }
     }
   }, POLL_INTERVAL_MS);

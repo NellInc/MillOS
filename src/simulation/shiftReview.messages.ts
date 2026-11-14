@@ -76,6 +76,9 @@ export const shiftReviewMessages = defineMessages({
       `Still open at close, ${EN_OPEN_PHASE[p.phase] ?? EN_OPEN_PHASE.raised}: ${p.title}. ${p.detail}`,
     openIncidentTitleReason: 'Still open at close: {title}.',
     dispatchReason: '{kg} kg dispatched; net contribution {margin} after recorded costs.',
+    oeeLine:
+      'OEE {oee}%: availability {availability}% × performance {performance}% × conforming {conforming}%. Margin £{marginPerKg} per kg shipped.',
+    purchasesLine: 'Grain bought £{grain}; parts bought £{parts}; grain held as stock {stock}.',
     riskReason: (p: { count: number; countText: string }) =>
       p.count === 1
         ? `${p.countText} material or deadline risk carried into the next shift.`
@@ -117,7 +120,7 @@ export const shiftReviewMessages = defineMessages({
     tryNoCommitment:
       'Try next: accept the next delivery programme in Overview, so the shift has a customer to serve.',
     tryQuality:
-      'Try next: hold loading until QC releases the batch, and check the recipe quality target in Overview before a truck leaves.',
+      'Try next: hold loading until QC releases the batch, and check the order’s recipe quality target under Replay guided delivery before a truck leaves.',
     tryUnsafe: (p: { titles: string; count: number }) =>
       p.count > 1
         ? `Try next: acknowledge and mitigate ${p.titles} in Overview as soon as each is raised, then resolve them before the shift closes.`
@@ -132,6 +135,9 @@ export const shiftReviewMessages = defineMessages({
     outcomeOnTime: '{customer}: {shipped} of {required} kg, delivered on time.',
     outcomeLate: '{customer}: {shipped} of {required} kg, delivered {duration} late.',
     outcomeOverdue: '{customer}: {shipped} of {required} kg so far, {duration} overdue.',
+    outcomeForfeited: '{customer}: {shipped} of {required} kg, forfeited {duration} late.',
+    outcomeForfeitedUnreachable:
+      '{customer}: {shipped} of {required} kg, forfeited {duration} late; the best the line could make was {best}, under {minimum}.',
     outcomeOpen: '{customer}: {shipped} of {required} kg so far, due in {duration}.',
     outcomeQualityFailure: '{kg} kg failed quality.',
   },
@@ -153,6 +159,10 @@ export const shiftReviewMessages = defineMessages({
     openIncidentTitleReason: 'Ainda aberta no fechamento: {title}.',
     dispatchReason:
       '{kg} kg expedidos; contribuição líquida de {margin} após os custos registrados.',
+    oeeLine:
+      'OEE {oee}%: disponibilidade {availability}% × desempenho {performance}% × conformidade {conforming}%. Margem de £{marginPerKg} por kg expedido.',
+    purchasesLine:
+      'Grão comprado £{grain}; peças compradas £{parts}; grão mantido em estoque {stock}.',
     riskReason: (p: { count: number; countText: string }) =>
       p.count === 1
         ? `${p.countText} risco de material ou de prazo transferido para o próximo turno.`
@@ -197,7 +207,7 @@ export const shiftReviewMessages = defineMessages({
     tryNoCommitment:
       'Tente a seguir: aceite o próximo programa de entregas na Visão geral, para que o turno tenha um cliente a atender.',
     tryQuality:
-      'Tente a seguir: segure o carregamento até o CQ liberar o lote e confira a meta de qualidade da receita na Visão geral antes de o caminhão sair.',
+      'Tente a seguir: segure o carregamento até o CQ liberar o lote e confira a meta de qualidade da receita do pedido em Repetir a entrega guiada antes de o caminhão sair.',
     tryUnsafe: (p: { titles: string; count: number }) =>
       p.count > 1
         ? `Tente a seguir: reconheça e mitigue ${p.titles} na Visão geral assim que cada uma surgir, e resolva todas antes de o turno fechar.`
@@ -212,6 +222,9 @@ export const shiftReviewMessages = defineMessages({
     outcomeOnTime: '{customer}: {shipped} de {required} kg, entregue no prazo.',
     outcomeLate: '{customer}: {shipped} de {required} kg, entregue com {duration} de atraso.',
     outcomeOverdue: '{customer}: {shipped} de {required} kg até agora, atrasado em {duration}.',
+    outcomeForfeited: '{customer}: {shipped} de {required} kg, perdido com {duration} de atraso.',
+    outcomeForfeitedUnreachable:
+      '{customer}: {shipped} de {required} kg, perdido com {duration} de atraso; o melhor que a linha produzia era {best}, abaixo de {minimum}.',
     outcomeOpen: '{customer}: {shipped} de {required} kg até agora, prazo em {duration}.',
     outcomeQualityFailure: '{kg} kg reprovados na qualidade.',
   },

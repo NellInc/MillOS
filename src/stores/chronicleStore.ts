@@ -12,8 +12,13 @@ import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { useOperationsCampaignStore, type ShiftCampaignReport } from './operationsCampaignStore';
 import { useGameSimulationStore } from './gameSimulationStore';
-import { useQCLabStore } from './qcLabStore';
+import { OPERATOR_CONTROL_SOURCE, useQCLabStore } from './qcLabStore';
+import { useMaterialFlowStore } from './materialFlowStore';
+import { energyTariffPerKwh } from '../utils/energyCalculations';
 import { useKnowledgeStore } from './knowledgeStore';
+import { useWorkplaceStore } from './workplaceStore';
+import { campaignOutcomes } from '../simulation/workplaceCampaign';
+import type { WorkplaceState } from '../types/workplace';
 import { EVENT_DECK } from '../chronicle/eventDeck';
 import { chronicleEffect, NEUTRAL_EFFECT } from '../chronicle/effects';
 import { newCharterSeed } from '../chronicle/rng';
@@ -23,9 +28,11 @@ import { knowHowEarned } from '../chronicle/ledger';
 import {
   acceptTraining,
   answerQuizQuestion,
+  quizQuestionAttempted,
   cancelInstall,
   chooseEventOption,
   closeShift,
+  cooperativeSeasonFact,
   createInitialState,
   effectInput,
   fireDidNotStart,
@@ -63,17 +70,21 @@ import {
   type ChronicleState,
   type Step,
 } from '../chronicle/engine';
+import { sanitizeTemper, stepTemperState, withTemperAnswer } from '../chronicle/temper';
 import type {
   BriefId,
   Charter,
   ChronicleCommand,
   ChronicleEffect,
+  CooperativeSeasonFact,
   CrewRoleId,
   CropAttributes,
   DelegationLevel,
   GovernanceState,
+  PartyChangeRecord,
   PolicyLadder,
   PolicyRung,
+  TemperOptionId,
 } from '../chronicle/types';
 
 export interface QuizRound {
@@ -82,7 +93,22 @@ export interface QuizRound {
   score: number;
   picked: number | null;
   finished: boolean;
+  /** The pick earned know-how; null before a pick. */
+  earned?: boolean | null;
+  /** The question had its first attempt before this pick, so it could not earn. */
+  repeat?: boolean;
 }
+
+/** A temper answer the Chronicle booked, keyed by its card. */
+export interface TemperAnswerRecord {
+  key: string;
+  option: TemperOptionId;
+  /** What it booked for drying; 0 for the standard temper. */
+  drying: number;
+}
+
+/** Temper answers kept: one a shift, so a chronicle's last two days of cards. */
+export const TEMPER_ANSWERS_KEPT = 8;
 
 interface ChronicleStore {
   chronicle: ChronicleState;
@@ -99,6 +125,17 @@ interface ChronicleStore {
    */
   deferredPrompts: string[];
   setDeferredPrompts: (ids: string[]) => void;
+  /**
+   * The temper answers booked, by their card (`<charter seed>:<subject>`),
+   * with what each booked for drying; saved with the Chronicle, which saves
+   * at once while the plant saves every 5 s. A reload between the two saves
+   * restores the plant from before an answer the Chronicle already holds, and
+   * the card is answered again: `answerTemper` then books nothing twice
+   * (review 2). The latest TEMPER_ANSWERS_KEPT are kept.
+   */
+  temperAnswers: TemperAnswerRecord[];
+  /** The answer already booked for a temper card, or undefined. */
+  temperAnswerFor: (key: string) => TemperAnswerRecord | undefined;
   startQuiz: (questionIds: string[]) => void;
   pickQuizAnswer: (optionIndex: number, correct: boolean) => void;
   nextQuizQuestion: () => void;
@@ -118,6 +155,24 @@ interface ChronicleStore {
   answerShortfall: (choice: 'conserve' | 'forced') => void;
   setAusterity: (active: boolean) => void;
   treatCrop: () => void;
+  /**
+   * The temper card's answer (plan item 7.7): one shift's wheat tempered this
+   * way, at the rolls after its rest. False without an active crop year.
+   * `dryingCost` is the energy the answer books for drying; a trial's energy
+   * goal reads the close's energy without it (`trialEnergyCost`). `dryingKwh`
+   * is the drying's energy before the Chronicle's multiplier, so what a hired
+   * dryer kept off the books is credited to the fund at the close.
+   */
+  answerTemper: (
+    option: TemperOptionId,
+    minute: number,
+    dryingCost?: number,
+    dryingKwh?: number,
+    /** The card it answers (the proposal's subject): a second answer to it books nothing. */
+    cardKey?: string
+  ) => boolean;
+  /** The temper at the rolls brought up to this campaign minute (the runtime, each tick). */
+  stepTemper: (minute: number) => void;
   suppress: (method?: 'suppress' | 'by_hand') => void;
   setDelegation: (level: DelegationLevel) => void;
   acceptTraining: () => void;
@@ -182,6 +237,10 @@ function execute(commands: readonly ChronicleCommand[]): void {
       }
       case 'unlock_note':
         useKnowledgeStore.getState().unlockEntry(command.noteId);
+        // One read record: a note already read in Datalinks (a farm lesson can
+        // open one there first) is read here too, and counts once.
+        if (useKnowledgeStore.getState().readEntries.has(command.noteId))
+          useChronicleStore.getState().readNote(command.noteId);
         break;
     }
   }
@@ -199,13 +258,67 @@ function nowMinute(): number {
 
 /**
  * QC tests keyed by id and time: a replay rewind reuses ids, and a reused id
- * must not hide a new pass or credit an old one.
+ * must not hide a new pass or credit an old one. The batch lets the chronicle
+ * credit a batch once however often it was retested. Batch ids restart with
+ * the plant's counters, so a batch is keyed by the plant run (the material
+ * session id, which a saved session keeps) as the campaign's batch credit is.
  */
-function qcTestKeys(): Array<{ id: string; passed: boolean }> {
+function qcTestKeys(): ShiftCloseEvidence['qcTests'] {
+  const run = useMaterialFlowStore.getState().sessionId;
   return useQCLabStore.getState().qcLab.testHistory.map((test) => ({
     id: `${test.id}@${new Date(test.timestamp).getTime()}`,
     passed: test.passed,
+    batchId: test.batchId ? `${run}:${test.batchId}` : test.batchId,
+    // Only the player's own test earns in the Chronicle (close-out 3 of plan
+    // item 7c): the bench's routine (fix-up d), and a test an agent or the
+    // partner ran for the player, are the plant's work and earn nothing. A
+    // test that names no source records the bench's.
+    ...(test.controlSource === OPERATOR_CONTROL_SOURCE ? {} : { bench: true }),
   }));
+}
+
+/**
+ * A finished season's id. The workplace keeps none of its own, and a seed alone
+ * repeats (a season started from the shift card takes seed 1), so the id pairs
+ * it with the revision the season was archived at, which only rises.
+ */
+const seasonId = (season: WorkplaceState) => `season-${season.seed}-${season.revision}`;
+
+/**
+ * Cooperative seasons the workplace has archived (item 5.10), as facts: the
+ * engine records each once by its id. Read-only use of the workplace store.
+ */
+function cooperativeSeasons(): CooperativeSeasonFact[] {
+  return useWorkplaceStore.getState().completedCampaigns.flatMap((season) => {
+    if (!season.campaign) return [];
+    const outcome = campaignOutcomes(season);
+    return [
+      {
+        seasonId: seasonId(season),
+        profile: season.campaign.profile,
+        delivery: outcome.delivery.status as CooperativeSeasonFact['delivery'],
+        agreement: outcome.agreement.status as CooperativeSeasonFact['agreement'],
+        sobrasDestination: season.sobras?.destination ?? null,
+      },
+    ];
+  });
+}
+
+/**
+ * What a dry-first answer's drying would have booked without the Chronicle's
+ * drying multiplier, less what it booked (review 2, finding 2): the plans' own
+ * formula, `booked * (1 / m - 1)`, `m` the multiplier in force. At `m = 0` (a
+ * hired dryer) nothing was booked, so the drying is priced from its energy at
+ * the tariff of the answer's hour; an answer given across a tariff change is
+ * priced at the later tariff.
+ */
+function dryingAvoided(chronicle: ChronicleState, booked: number, kwh: number | undefined): number {
+  const m = chronicleEffect(effectInput(chronicle), true).dryingEnergyMultiplier;
+  if (!(m < 1)) return 0;
+  if (m > 0) return booked * (1 / m - 1);
+  const energy = typeof kwh === 'number' && Number.isFinite(kwh) ? Math.max(0, kwh) : 0;
+  const minuteOfDay = (useGameSimulationStore.getState().gameTime ?? 0) * 60;
+  return energy * energyTariffPerKwh(minuteOfDay);
 }
 
 function evidenceFor(report: ShiftCampaignReport): ShiftCloseEvidence {
@@ -217,6 +330,7 @@ function evidenceFor(report: ShiftCampaignReport): ShiftCloseEvidence {
     challengeActive: campaign.activeChallenge !== null,
     challengeHistory: campaign.challengeHistory,
     qcTests: qcTestKeys(),
+    cooperativeSeasons: cooperativeSeasons(),
   };
 }
 
@@ -234,6 +348,21 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 let _effectState: ChronicleState | null = null;
 let _effectWheat = false;
 let _effect: ChronicleEffect = NEUTRAL_EFFECT;
+
+const PARTY_IDS = new Set<string>(initialStakeholders().map((party) => party.id));
+
+function isPartyChangeRecord(value: unknown): value is PartyChangeRecord {
+  if (!isRecord(value) || !isRecord(value.cause)) return false;
+  if (!PARTY_IDS.has(String(value.party))) return false;
+  if (!Number.isFinite(value.shift) || !Number.isFinite(value.delta)) return false;
+  const cause = value.cause;
+  if (cause.kind === 'quota') return typeof cause.met === 'boolean' && Number.isFinite(cause.year);
+  return (
+    (cause.kind === 'policy' || cause.kind === 'red-line') &&
+    POLICY_LADDER_IDS.includes(cause.ladder as PolicyLadder) &&
+    (cause.rung === 0 || cause.rung === 1 || cause.rung === 2)
+  );
+}
 
 /** A saved governance object with its shape checked, or a fresh one for the save's charter. */
 function restoreGovernance(chronicle: ChronicleState): GovernanceState {
@@ -278,6 +407,11 @@ function restoreGovernance(chronicle: ChronicleState): GovernanceState {
   if (!Number.isFinite(merged.tally.knowHowStart))
     merged.tally.knowHowStart = knowHowEarned(chronicle.ledger);
   if (merged.crew.length === 0) merged.crew = fresh.crew;
+  // Changes outside rulings, for the Partners tab: absent before they were kept,
+  // and an entry it could not render is dropped.
+  if (Array.isArray(saved.partyChanges))
+    merged.partyChanges = saved.partyChanges.filter(isPartyChangeRecord);
+  else delete merged.partyChanges;
   if (!isRecord(merged.proposal)) merged.proposal = null;
   if (!isRecord(merged.administration)) merged.administration = null;
   if (!['conventional', 'standards', 'thrift', 'neighbour'].includes(String(merged.brief)))
@@ -294,6 +428,11 @@ export const useChronicleStore = create<ChronicleStore>()(
       dialogOpen: false,
       deferredPrompts: [],
       setDeferredPrompts: (ids) => set({ deferredPrompts: ids }),
+      temperAnswers: [],
+      temperAnswerFor: (cardKey) => {
+        const key = `${get().chronicle.charter?.seed ?? 0}:${cardKey}`;
+        return get().temperAnswers.find((answer) => answer.key === key);
+      },
       setDialogOpen: (open) => {
         if (get().dialogOpen !== open) set({ dialogOpen: open });
       },
@@ -309,9 +448,18 @@ export const useChronicleStore = create<ChronicleStore>()(
         const quiz = get().quiz;
         const questionId = quiz?.questionIds[quiz.index];
         if (!quiz || quiz.finished || quiz.picked !== null || !questionId) return;
+        const before = get().chronicle;
+        const repeat = quizQuestionAttempted(before, questionId);
+        const after = answerQuizQuestion(before, questionId, correct);
         set({
-          quiz: { ...quiz, picked: optionIndex, score: quiz.score + (correct ? 1 : 0) },
-          chronicle: answerQuizQuestion(get().chronicle, questionId, correct),
+          quiz: {
+            ...quiz,
+            picked: optionIndex,
+            score: quiz.score + (correct ? 1 : 0),
+            earned: after.ledger !== before.ledger,
+            repeat,
+          },
+          chronicle: after,
         });
       },
       nextQuizQuestion: () => {
@@ -324,7 +472,9 @@ export const useChronicleStore = create<ChronicleStore>()(
           });
           return;
         }
-        set({ quiz: { ...quiz, index: quiz.index + 1, picked: null } });
+        set({
+          quiz: { ...quiz, index: quiz.index + 1, picked: null, earned: null, repeat: false },
+        });
       },
 
       sign: (choice, seed) => {
@@ -337,13 +487,15 @@ export const useChronicleStore = create<ChronicleStore>()(
           challengeIds: campaign.challengeHistory.map((run) => run.id),
           orders: campaign.orders,
           incidentIds: campaign.incidents.map((incident) => incident.id),
+          seasonIds: cooperativeSeasons().map((season) => season.seasonId),
         });
         apply(step);
         const latest = campaign.reports.at(-1);
         if (latest)
           set({ chronicle: { ...get().chronicle, lastReportEndedAt: latest.endedAtMinute } });
         // Instance ids restart with each charter: no deferral carries over.
-        set({ deferredPrompts: [] });
+        // Nor does a temper answer of an earlier charter (review 2).
+        set({ deferredPrompts: [], temperAnswers: [] });
         _wasPaused = false;
       },
 
@@ -354,12 +506,14 @@ export const useChronicleStore = create<ChronicleStore>()(
         set({
           quiz: null,
           deferredPrompts: [],
+          temperAnswers: [],
           chronicle: {
             ...createInitialState(),
             unlockedNotes: current.unlockedNotes,
             readNotes: current.readNotes,
             seenNotes: current.seenNotes,
             quizAnswered: current.quizAnswered,
+            quizAttempted: current.quizAttempted ?? [],
             quizBest: current.quizBest,
           },
         });
@@ -450,6 +604,46 @@ export const useChronicleStore = create<ChronicleStore>()(
       answerShortfall: (choice) => apply(resolveShortfall(get().chronicle, choice)),
       setAusterity: (active) => set({ chronicle: setAusterity(get().chronicle, active) }),
       treatCrop: () => apply(treatCropDirectly(get().chronicle, EVENT_DECK)),
+      answerTemper: (option, minute, dryingCost, dryingKwh, cardKey) => {
+        const chronicle = get().chronicle;
+        if (chronicle.status !== 'active' || !chronicle.crop || !Number.isFinite(minute))
+          return false;
+        // Answered already (a reload restored the plant from before it): the
+        // first answer stands and nothing is booked twice.
+        const key = cardKey ? `${chronicle.charter?.seed ?? 0}:${cardKey}` : null;
+        if (key && get().temperAnswers.some((answer) => answer.key === key)) return true;
+        const temper = withTemperAnswer(chronicle.crop.temper, option, minute);
+        const finite = (value: number | undefined) =>
+          typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
+        const dried = option === 'dry-first' ? finite(dryingCost) : 0;
+        const avoided = option === 'dry-first' ? dryingAvoided(chronicle, dried, dryingKwh) : 0;
+        set({
+          ...(key
+            ? {
+                temperAnswers: [...get().temperAnswers, { key, option, drying: dried }].slice(
+                  -TEMPER_ANSWERS_KEPT
+                ),
+              }
+            : {}),
+          chronicle: {
+            ...chronicle,
+            crop: { ...chronicle.crop, temper },
+            ...(dried > 0 ? { dryingSinceClose: (chronicle.dryingSinceClose ?? 0) + dried } : {}),
+            ...(avoided > 0
+              ? { dryingAvoidedSinceClose: (chronicle.dryingAvoidedSinceClose ?? 0) + avoided }
+              : {}),
+          },
+        });
+        return true;
+      },
+      stepTemper: (minute) => {
+        const chronicle = get().chronicle;
+        const temper = chronicle.crop?.temper;
+        if (!temper || !chronicle.crop || !Number.isFinite(minute)) return;
+        const next = stepTemperState(temper, minute);
+        if (next !== temper)
+          set({ chronicle: { ...chronicle, crop: { ...chronicle.crop, temper: next } } });
+      },
       suppress: (method = 'suppress') =>
         apply(suppressFire(get().chronicle, nowMinute(), 'player', method)),
       setDelegation: (level) => apply(setDelegation(get().chronicle, level)),
@@ -477,6 +671,7 @@ export const useChronicleStore = create<ChronicleStore>()(
       partialize: (state) => ({
         chronicle: state.chronicle,
         deferredPrompts: state.deferredPrompts,
+        temperAnswers: state.temperAnswers,
       }),
       merge: (persisted, current) => {
         const restored = (persisted as { chronicle?: Partial<ChronicleState> } | null)?.chronicle;
@@ -496,6 +691,64 @@ export const useChronicleStore = create<ChronicleStore>()(
           if (Array.isArray(base[key]) && !Array.isArray(chronicle[key]))
             (chronicle as unknown as Record<string, unknown>)[key] = base[key];
         }
+        // Batches whose pass has earned: a save from before they were kept has
+        // none, and its first close rebuilds them from the tests it has seen.
+        if (Array.isArray(restored.creditedQcBatchIds))
+          chronicle.creditedQcBatchIds = restored.creditedQcBatchIds.filter(
+            (id): id is string => typeof id === 'string'
+          );
+        else delete chronicle.creditedQcBatchIds;
+        // Quiz first attempts (D19): absent before they were kept, when the
+        // answered list stands for them; anything but an id is dropped.
+        chronicle.quizAttempted = Array.isArray(restored.quizAttempted)
+          ? restored.quizAttempted.filter((id): id is string => typeof id === 'string')
+          : [];
+        // Cooperative seasons in the record (item 5.10): absent before they were
+        // kept, which is none; an entry without a season's shape is dropped.
+        if (Array.isArray(restored.cooperativeSeasons))
+          chronicle.cooperativeSeasons = restored.cooperativeSeasons.flatMap((value) => {
+            const fact = cooperativeSeasonFact(value);
+            const shift = (value as { shift?: unknown } | null)?.shift;
+            return fact && typeof shift === 'number' && Number.isFinite(shift)
+              ? [{ ...fact, shift }]
+              : [];
+          });
+        else delete chronicle.cooperativeSeasons;
+        if (Array.isArray(restored.seasonsBeforeCharter))
+          chronicle.seasonsBeforeCharter = restored.seasonsBeforeCharter.filter(
+            (id): id is string => typeof id === 'string'
+          );
+        else delete chronicle.seasonsBeforeCharter;
+        // Forfeits the relationships have counted: absent before forfeits, which is none.
+        if (Array.isArray(restored.orderForfeited))
+          chronicle.orderForfeited = restored.orderForfeited.filter(
+            (id): id is string => typeof id === 'string'
+          );
+        else delete chronicle.orderForfeited;
+        // What each plan's avoided cost brought (item 4.3): absent before it was
+        // kept, which is none; an entry without finite figures is dropped.
+        if (isRecord(restored.planSavings)) {
+          const savings: Record<string, { last: number; total: number }> = {};
+          for (const [id, value] of Object.entries(restored.planSavings))
+            if (isRecord(value) && Number.isFinite(value.last) && Number.isFinite(value.total))
+              savings[id] = { last: Number(value.last), total: Number(value.total) };
+          chronicle.planSavings = savings;
+        } else delete chronicle.planSavings;
+        // Drying booked since the last close (plan item 7.7): absent is none.
+        if (
+          typeof restored.dryingSinceClose === 'number' &&
+          Number.isFinite(restored.dryingSinceClose) &&
+          restored.dryingSinceClose > 0
+        )
+          chronicle.dryingSinceClose = restored.dryingSinceClose;
+        else delete chronicle.dryingSinceClose;
+        if (
+          typeof restored.dryingAvoidedSinceClose === 'number' &&
+          Number.isFinite(restored.dryingAvoidedSinceClose) &&
+          restored.dryingAvoidedSinceClose > 0
+        )
+          chronicle.dryingAvoidedSinceClose = restored.dryingAvoidedSinceClose;
+        else delete chronicle.dryingAvoidedSinceClose;
         const ledger: Record<string, unknown> = isRecord(restored.ledger) ? restored.ledger : {};
         chronicle.ledger = {
           ...base.ledger,
@@ -526,15 +779,44 @@ export const useChronicleStore = create<ChronicleStore>()(
           (!isRecord(chronicle.crop) || !CROP_KINDS.has(String(chronicle.crop.kind)))
         )
           chronicle.crop = null;
+        // The temper card's answers (plan item 7.7): absent before tempering,
+        // which is the standard temper; dropped if this build cannot read them.
+        if (chronicle.crop && 'temper' in chronicle.crop) {
+          const { temper, ...crop } = chronicle.crop;
+          const read = sanitizeTemper(temper);
+          chronicle.crop = read ? { ...crop, temper: read } : crop;
+        }
         if (
           chronicle.status !== 'unsigned' &&
           (!isRecord(chronicle.charter) || typeof chronicle.charter.seed !== 'number')
         )
           return current;
+        // A short chronicle saves its length (item 4.2); absent, or anything else,
+        // is the full 63-shift one, as every save from before lengths is.
+        if (isRecord(chronicle.charter) && 'length' in chronicle.charter) {
+          const { length, ...charter } = chronicle.charter;
+          chronicle.charter = length === 'short' ? { ...charter, length } : charter;
+        }
+        // Where an Inspection run broke (item 4.5): absent before it, and dropped
+        // if it has not the shape the failure notice reads.
+        chronicle.trials = chronicle.trials.map((progress) => {
+          const broken = (progress as { brokenAt?: unknown }).brokenAt;
+          if (broken === undefined) return progress;
+          const causes = isRecord(broken) && Array.isArray(broken.causes) ? broken.causes : null;
+          if (
+            isRecord(broken) &&
+            Number.isFinite(broken.shift) &&
+            causes?.every((cause) => cause === 'qc' || cause === 'quality' || cause === 'incident')
+          )
+            return progress;
+          const rest = { ...progress };
+          delete rest.brokenAt;
+          return rest;
+        });
         // Part two (docs/CHRONICLE.md, systems 16-24). A chronicle saved before
-        // it has none of these: give it the organisations, a certifier and desks,
-        // and pass over scheduled events whose shift has gone, so they do not
-        // all arrive at the next close.
+        // it has none of these: give it the organisations and a certifier, and
+        // pass over scheduled events whose shift has gone, so they do not all
+        // arrive at the next close.
         if (!isRecord(chronicle.marks)) chronicle.marks = {};
         if (
           !isRecord(chronicle.certifier) ||
@@ -542,17 +824,24 @@ export const useChronicleStore = create<ChronicleStore>()(
           typeof chronicle.certifier.suspended !== 'boolean'
         )
           chronicle.certifier = base.certifier;
+        // Passes awaiting the certifier's review at the year's turn: absent before
+        // it read the record periodically (item 4.9), and dropped if malformed.
+        const review = (chronicle.certifier as { review?: unknown }).review;
         if (
-          !isRecord(chronicle.desks) ||
-          !(['works', 'trade', 'council'] as const).every(
-            (desk) =>
-              isRecord(chronicle.desks[desk]) &&
-              (['points', 'room', 'spent'] as const).every((key) =>
-                Number.isFinite(chronicle.desks[desk][key])
-              )
+          review !== undefined &&
+          !(
+            isRecord(review) &&
+            Number.isFinite(review.batches) &&
+            Number.isFinite(review.hundredths)
           )
         )
-          chronicle.desks = base.desks;
+          chronicle.certifier = {
+            score: chronicle.certifier.score,
+            suspended: chronicle.certifier.suspended,
+          };
+        // The desks of attention were cut (D10); a save from before keeps its
+        // `desks`, which nothing reads, so it is dropped rather than carried.
+        delete (chronicle as { desks?: unknown }).desks;
         if (typeof chronicle.longNightTelegraphed !== 'boolean')
           chronicle.longNightTelegraphed = base.longNightTelegraphed;
         if (chronicle.status !== 'unsigned' && chronicle.stakeholders.length === 0)
@@ -579,10 +868,26 @@ export const useChronicleStore = create<ChronicleStore>()(
         for (const noteId of chronicle.unlockedNotes)
           useKnowledgeStore.getState().unlockEntry(noteId);
         // Nor leaves an install a closing-shift snag stranded "installing".
+        // The temper answers booked (absent before they were kept): an entry
+        // without a key, an option and a drying figure is dropped.
+        const savedAnswers = (persisted as { temperAnswers?: unknown } | null)?.temperAnswers;
+        const temperAnswers = Array.isArray(savedAnswers)
+          ? savedAnswers
+              .filter(
+                (answer): answer is TemperAnswerRecord =>
+                  !!answer &&
+                  typeof answer.key === 'string' &&
+                  (answer.option === 'standard' || answer.option === 'dry-first') &&
+                  typeof answer.drying === 'number' &&
+                  Number.isFinite(answer.drying)
+              )
+              .slice(-TEMPER_ANSWERS_KEPT)
+          : [];
         return {
           ...current,
           chronicle: chronicle.status === 'ended' ? settleUnfinishedInstalls(chronicle) : chronicle,
           deferredPrompts,
+          temperAnswers,
         };
       },
     }

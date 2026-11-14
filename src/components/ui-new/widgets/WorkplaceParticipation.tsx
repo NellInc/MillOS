@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
-import { useWorkplaceStore, workplaceReasonText } from '../../../stores/workplaceStore';
+import {
+  defaultSeasonMayArrive,
+  firstDeliveryFulfilled,
+  useWorkplaceStore,
+  workplaceReasonText,
+} from '../../../stores/workplaceStore';
 import { isBenchmarkRuntime } from '../../../runtime/runtimeMode';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useUIStore } from '../../../stores/uiStore';
@@ -14,13 +20,19 @@ import {
   participationReceipt,
 } from '../../../simulation/workplaceFairness';
 import {
+  campaignOutcomes,
+  formatKg,
   MANAGEMENT_APPROACHES,
   pressureObjectionText,
+  seasonSobrasPool,
+  shiftResumable,
 } from '../../../simulation/workplaceCampaign';
 import type { WorkplaceProfile, WorkplaceTransitionResult } from '../../../types/workplace';
 import { formatFixed, useT } from '../../../i18n';
 import { workplaceParticipationMessages } from './WorkplaceParticipation.messages';
 import { workplaceAutoplayMessages } from '../../../simulation/workplaceAutoplay.messages';
+import { customerDisplayName } from '../../../stores/customerNames';
+import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
 
 const button =
   'min-h-11 rounded-md border border-cyan-300/25 px-3 py-2 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
@@ -71,7 +83,6 @@ export function WorkplaceParticipation({
                 })
               : t('facilitatorHandover')}
         </summary>
-        <p className="mb-3 text-slate-300">{t('rehearsalNotice')}</p>
         <label className="block">
           {t('interactionMode')}
           <select
@@ -201,7 +212,6 @@ export function WorkplaceParticipation({
                 >
                   {t('beginTurn')}
                 </button>
-                <p className="text-slate-300">{t('handOverNote')}</p>
               </>
             )}
           </div>
@@ -223,13 +233,14 @@ export function WorkplaceSeasonEntry({
 }) {
   const t = useT(workplaceParticipationMessages);
   const store = useWorkplaceStore();
-  if (store.workplace.phase !== 'idle') return null;
+  // D4: a season is offered once the first delivery is in.
+  const firstDone = useOperationsCampaignStore((s) => firstDeliveryFulfilled(s.orders));
+  if (store.workplace.phase !== 'idle' || !firstDone) return null;
   return (
     <details className="space-y-3 border-t border-slate-700 pt-3">
       <summary className="min-h-11 cursor-pointer py-2 font-semibold text-white">
         {t('seasonSummary')}
       </summary>
-      <p>{t('seasonIntro')}</p>
       <label className="block">
         {t('seasonRoute')}
         <select
@@ -245,9 +256,7 @@ export function WorkplaceSeasonEntry({
           ))}
         </select>
       </label>
-      <p>
-        {MANAGEMENT_APPROACHES.find((a) => a.id === profile)?.detail} {t('adoptionNote')}
-      </p>
+      <p>{MANAGEMENT_APPROACHES.find((a) => a.id === profile)?.detail}</p>
       <button
         className={button}
         onClick={() => {
@@ -258,7 +267,6 @@ export function WorkplaceSeasonEntry({
       >
         {t('startSeason')}
       </button>
-      <p className="text-slate-300">{t('seasonRequires')}</p>
     </details>
   );
 }
@@ -271,7 +279,6 @@ export function WorkplaceFairness() {
       <summary className="min-h-11 cursor-pointer py-2 font-semibold text-white">
         {t('fairnessSummary')}
       </summary>
-      <p className="mb-3">{t('fairnessIntro')}</p>
       {fairnessReceipt(s).map((r) => (
         <section
           key={r.id}
@@ -348,7 +355,6 @@ export function WorkplaceDemonstration({
       </button>
       {enabled && (
         <div className="space-y-3">
-          <p>{t('guideIntro')}</p>
           {beats.map((b) => (
             <div key={b.title} className="space-y-1 border-t border-slate-800 pt-3">
               <h5 className="font-semibold text-white">{b.title}</h5>
@@ -407,6 +413,16 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
   const automatic = useWorkplaceAutoplay();
   const running = automatic.running;
   const pauseRef = useRef<HTMLButtonElement>(null);
+  const startRef = useRef<HTMLButtonElement>(null);
+  // Stopped and already manual, with no season waiting to resume, keeping
+  // decisions manual changes nothing, so the control is disabled.
+  const keepManualInert = !running && automatic.manual && !automatic.resumeProfile;
+  // The runner can stop by itself (season finished, a refusal, Take over),
+  // disabling the focused Pause; move focus on before it drops to <body>.
+  // Working if focus stays on the demo controls when the season stops itself.
+  useLayoutEffect(() => {
+    if (keepManualInert && document.activeElement === pauseRef.current) startRef.current?.focus();
+  }, [keepManualInert]);
   // The runner's own status is a key, so a language change reaches it.
   const message = automatic.messageKey
     ? tAuto(automatic.messageKey)
@@ -421,13 +437,6 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
   if (!eligible) return null;
   return (
     <section aria-label={t('autoLabel')} className="space-y-2 border-b border-slate-700 pb-3">
-      <p className="text-slate-300">
-        {running
-          ? t('autoRunning')
-          : store.workplace.phase === 'idle' && !automatic.manual
-            ? t('autoIdle')
-            : t('autoManual')}
-      </p>
       {message && (
         <p className="text-cyan-100" role="status">
           {message}
@@ -435,10 +444,12 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
       )}
       <div className="flex flex-wrap gap-2">
         <button
+          ref={startRef}
           className={button}
           disabled={running}
           onClick={() => {
-            automatic.start(profile);
+            // Rendered at once, so Pause is enabled before it takes focus.
+            flushSync(() => automatic.start(profile));
             // Starting disables this button, and a browser then drops focus to
             // <body> (Space = forklift emergency stop). Pause is the next step.
             // Working if Tab and Space continue from the demo controls.
@@ -450,8 +461,12 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
         <button
           ref={pauseRef}
           className={button}
+          disabled={keepManualInert}
           onClick={() => {
-            automatic.pause();
+            flushSync(() => automatic.pause());
+            // Pausing disables this control (it is then inert), so focus moves
+            // back to the hand-back control rather than dropping to <body>.
+            startRef.current?.focus();
           }}
         >
           {' '}
@@ -508,6 +523,9 @@ export function WorkplaceAutoplayStatus() {
       // closes, skips or finishes, and the guided first delivery keeps it.
       if (useAnnouncementsStore.getState().context.onboarding) return;
       if (!useUIStore.getState().hasSeenIntro && !tourSeen.current) return;
+      // A new season arrives only after the first delivery (D4), and only on
+      // an order it can bind; a resumed one carries on whatever it is bound to.
+      if (!resumeProfile && !defaultSeasonMayArrive()) return;
       if (document.documentElement.dataset.millosStartupReady === 'true')
         automatic.start(resumeProfile ?? 'toe-dip');
     };
@@ -524,12 +542,98 @@ export function WorkplaceAutoplayStatus() {
     store.workplace.mode,
     store.workplace.phase,
   ]);
-  if (!automatic.running || mobileSheetOpen) return null;
+  // The season's end is a debrief that stays in the same place until the
+  // season is archived, read from the workplace itself, so a reload, a
+  // take-over or a manual finish shows it as the runner's own stop does.
+  // Working if the debrief is on screen after a season ends, and after a reload.
+  const s = store.workplace;
+  const seasonEnded =
+    s.mode === 'game' && s.phase === 'review' && s.campaign?.shift === 2 && !shiftResumable(s);
+  if ((!automatic.running && !seasonEnded) || mobileSheetOpen) return null;
   // The tour and first-delivery cards sit from bottom-[11.5rem] in the same
   // bottom-left column. Beside them the notice collapses to its one 44px
   // takeover control, which ends below the card instead of under it.
   // Working if the takeover control stays fully visible while either card shows.
   const compact = isMobile || guideCardShowing;
+  const frame = isMobile
+    ? 'pointer-events-auto fixed top-4 left-3 z-40 max-w-[calc(100vw-6rem)] text-xs text-cyan-100'
+    : compact
+      ? 'pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] text-xs text-cyan-100'
+      : 'pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] rounded-lg border border-cyan-300/25 bg-slate-950 p-3 text-xs text-cyan-100';
+  const openAutonomy = () =>
+    window.dispatchEvent(
+      new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
+    );
+  if (!automatic.running) {
+    const outcome = campaignOutcomes(s);
+    const { deliveredKg, targetKg, status } = outcome.delivery;
+    const customer = customerDisplayName(outcome.delivery.customer);
+    return (
+      <aside
+        aria-label={t('debriefLabel')}
+        data-season-notice={isMobile ? 'top' : undefined}
+        className={frame}
+      >
+        {!compact && (
+          <>
+            <p className="font-semibold text-white">{t('debriefLabel')}</p>
+            <p className="mt-1 max-w-xs text-slate-300">
+              {status === 'met'
+                ? t('debriefDeliveryMet', { customer, kg: formatKg(deliveredKg) })
+                : status === 'blocked'
+                  ? t('debriefDeliveryBlocked', { customer })
+                  : t('debriefDeliveryShort', {
+                      customer,
+                      delivered: formatKg(deliveredKg),
+                      target: formatKg(targetKg),
+                    })}
+            </p>
+            <p className="max-w-xs text-slate-300">
+              {outcome.agreement.status === 'honoured'
+                ? t('debriefAgreementHonoured')
+                : t('debriefAgreementIncomplete')}
+            </p>
+            {/* 5.5: the season's sobras and where they went; the community's
+                share is shown here until the village can show it. */}
+            {s.sobras ? (
+              <>
+                <p className="max-w-xs tabular-nums text-slate-300">
+                  {t('debriefSobras', {
+                    pool: formatFixed(s.sobras.pool, 2),
+                    reserve: formatFixed(s.sobras.reserve, 2),
+                    fates: formatFixed(s.sobras.fates, 2),
+                  })}
+                </p>
+                {/* Split by destination, never an amount per member (D-058). */}
+                <p className="max-w-xs tabular-nums text-slate-300">
+                  {t(
+                    s.sobras.destination === 'members'
+                      ? 'debriefSobrasMembers'
+                      : s.sobras.destination === 'community'
+                        ? 'debriefSobrasCommunity'
+                        : 'debriefSobrasReserve',
+                    { amount: formatFixed(s.sobras.remainder, 2) }
+                  )}
+                </p>
+              </>
+            ) : (
+              seasonSobrasPool(s) > 1e-8 && (
+                <p className="max-w-xs tabular-nums text-slate-300">
+                  {t('debriefSobrasOpen', { pool: formatFixed(seasonSobrasPool(s), 2) })}
+                </p>
+              )
+            )}
+          </>
+        )}
+        <button
+          className={`${button} ${compact ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
+          onClick={openAutonomy}
+        >
+          {t('debriefOpen')}
+        </button>
+      </aside>
+    );
+  }
   return (
     <aside
       aria-label={t('demoRunningLabel')}
@@ -538,32 +642,26 @@ export function WorkplaceAutoplayStatus() {
       data-season-notice={isMobile ? 'top' : undefined}
       // The bottom-left touch pad owns movement, including the return route.
       // Working if the season notice leaves every D-pad button hit-testable.
-      className={
-        isMobile
-          ? 'pointer-events-auto fixed top-4 left-3 z-40 max-w-[calc(100vw-6rem)] text-xs text-cyan-100'
-          : compact
-            ? 'pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] text-xs text-cyan-100'
-            : 'pointer-events-auto fixed bottom-[8rem] left-3 z-40 max-w-[calc(100vw-1.5rem)] rounded-lg border border-cyan-300/25 bg-slate-950 p-3 text-xs text-cyan-100'
-      }
+      className={frame}
     >
       <p className={compact ? 'sr-only' : undefined}>{t('autonomousSeason')}</p>
-      <p className={compact ? 'sr-only' : 'mt-1 max-w-xs text-slate-300'}>
-        {t('autonomousSeasonDetail')}
-      </p>
       {/* Taking over hands the decisions to the player where they can make
           them, and never freezes the plant: the shift keeps its pace. Running
           the demo again from that panel reverses it. Working if Take over opens
-          the BAS season with the clock still running. */}
+          the season in Autonomy with the clock still running. */}
       {/* No aria-label: the visible words are the name in both wordings, so a
           voice-control user can say what they see (WCAG 2.5.3). */}
       <button
-        title={t('autonomousSeasonDetail')}
         className={`${button} ${compact ? 'max-w-full bg-slate-950 shadow-lg' : 'mt-2'}`}
         onClick={() => {
           automatic.pause();
-          window.dispatchEvent(
-            new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
-          );
+          openAutonomy();
+          // 5.11: the player is Packing; the camera goes to the packing line
+          // (walk mode has no camera controller, so it is left first).
+          if (useUIStore.getState().fpsMode) useUIStore.getState().setFpsMode(false);
+          useCameraStore
+            .getState()
+            .setPreset(CAMERA_PRESETS.findIndex((preset) => preset.name === 'Packing'));
         }}
       >
         {compact ? t('takeOverCompact') : t('takeOver')}

@@ -15,7 +15,7 @@ import * as THREE from 'three';
 import { create } from 'zustand';
 
 /** Prompt copy keys; the text lives in `FirstPersonController.messages.ts`. */
-export type WorldInteractPrompt = 'ringBell';
+export type WorldInteractPrompt = 'ringBell' | 'greet' | 'windmillLesson' | 'henhouseInspection';
 
 export interface WorldInteractable {
   id: string;
@@ -28,6 +28,13 @@ export interface WorldInteractable {
   reach: number;
   /** Do the thing. True when it acted. */
   activate: () => boolean;
+  /**
+   * A moving target (a resident): the centre is read from this object's
+   * position, `followHeight` up, at each aim, and a hidden object is skipped.
+   * Its parent must carry no transform (the resident roots' group does not).
+   */
+  follow?: THREE.Object3D;
+  followHeight?: number;
 }
 
 const registry = new Map<string, WorldInteractable>();
@@ -91,6 +98,12 @@ export function findAimedInteractable(
   let best: WorldInteractable | null = null;
   let bestDistance = Infinity;
   for (const target of registry.values()) {
+    const follow = target.follow;
+    if (follow) {
+      if (!follow.visible || follow.parent?.visible === false) continue;
+      target.centre.copy(follow.position);
+      target.centre.y += target.followHeight ?? 0;
+    }
     const distance = aimDistance(origin, direction, target.centre, target.radius, target.reach);
     if (distance !== null && distance < bestDistance) {
       best = target;

@@ -36,7 +36,7 @@ export function traitLabel(trait: ContractorTrait): string {
     case 'cost':
       return `${name}: install cost ${trait.positive ? '-' : '+'}${trait.magnitude}%`;
     case 'effect':
-      return `${name}: plan effect ${trait.positive ? '+' : '-'}${trait.magnitude}%`;
+      return `${name}: plan effect ${trait.positive ? '+' : '-'}${trait.magnitude}%, not crop relief`;
     case 'risk':
       return `${name}: snag chance ${trait.positive ? '-' : '+'}${trait.magnitude}%`;
     case 'speed':
@@ -146,7 +146,7 @@ export function localizedTraitLabel(trait: ContractorTrait): string {
         magnitude: formatGrouped(trait.magnitude, { maximumFractionDigits: 20 }),
       });
     case 'effect':
-      return copy('{name}: plan effect {sign}{magnitude}%', {
+      return copy('{name}: plan effect {sign}{magnitude}%, not crop relief', {
         name,
         sign: trait.positive ? '+' : '-',
         magnitude: formatGrouped(trait.magnitude, { maximumFractionDigits: 20 }),

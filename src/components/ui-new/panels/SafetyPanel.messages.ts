@@ -10,10 +10,6 @@ const PT_STAGE: Record<string, string> = {
 export const safetyPanelMessages = defineMessages({
   en: {
     loading: 'Loading...',
-    weatherClear: 'Clear',
-    weatherCloudy: 'Cloudy',
-    weatherRain: 'Rain',
-    weatherStorm: 'Storm',
     tabControls: 'Controls',
     tabAnalytics: 'Analytics',
     tabConfig: 'Config',
@@ -37,13 +33,12 @@ export const safetyPanelMessages = defineMessages({
     drillTitle: 'Egress verification drill',
     allZonesVerified: 'All zones verified',
     zonesVerified: '{verified}/{total} zones verified',
-    drillDescription:
-      'Halts production and grounds every forklift while the egress sensors verify themselves. Nothing moves until they agree.',
     endDrill: 'END DRILL',
     startDrill: 'START DRILL',
     clearEmergencyBeforeDrill: 'Clear the active emergency before starting a drill',
     drillJustEnded: 'The drill has just ended',
     releaseForkliftStop: 'RELEASE FORKLIFT STOP',
+    stopForklifts: 'STOP FORKLIFTS',
 
     resolveCrisisFirst: 'Resolve the active crisis before clearing its interlock',
     chronicleFireInterlock:
@@ -53,11 +48,22 @@ export const safetyPanelMessages = defineMessages({
     drillInterlockActive: 'DRILL INTERLOCK ACTIVE',
     clearEmergency: 'CLEAR EMERGENCY',
     triggerEmergencyStop: 'TRIGGER EMERGENCY STOP',
+    restartLine: 'RESTART LINE',
 
-    environment: 'Environment',
-    weatherConditionsLabel: 'Weather conditions',
-    weatherConditions: 'Weather Conditions',
-    setWeatherTo: 'Set weather to {label}',
+    drillRecordLabel: 'Drill record',
+    drillRecordClear: (p: { zone: string; time: string }) =>
+      p.time ? `${p.zone}: own route clear, ${p.time}` : `${p.zone}: own route clear`,
+    drillRecordAlternative: (p: {
+      zone: string;
+      alternative: string;
+      forklifts: string;
+      time: string;
+    }) =>
+      `${p.zone}: verified by the ${p.alternative} route, ${p.forklifts || 'a forklift'} on its own` +
+      (p.time ? `, ${p.time}` : ''),
+    drillRecordBlocked: (p: { zone: string; forklifts: string }) =>
+      `${p.zone}: not verified, ${p.forklifts || 'a forklift'} on both routes`,
+    drillRecordUnverified: '{zone}: not verified',
 
     confirmTitle: 'Trigger facility emergency stop?',
     confirmMessage:
@@ -67,10 +73,6 @@ export const safetyPanelMessages = defineMessages({
   },
   'pt-BR': {
     loading: 'Carregando...',
-    weatherClear: 'Limpo',
-    weatherCloudy: 'Nublado',
-    weatherRain: 'Chuva',
-    weatherStorm: 'Tempestade',
     tabControls: 'Controles',
     tabAnalytics: 'Análises',
     tabConfig: 'Configuração',
@@ -94,13 +96,12 @@ export const safetyPanelMessages = defineMessages({
     drillTitle: 'Simulado de verificação das rotas de saída',
     allZonesVerified: 'Todas as zonas verificadas',
     zonesVerified: '{verified}/{total} zonas verificadas',
-    drillDescription:
-      'Interrompe a produção e imobiliza todas as empilhadeiras enquanto os sensores das rotas de saída fazem a autoverificação. Nada se move até que todos confirmem.',
     endDrill: 'ENCERRAR SIMULADO',
     startDrill: 'INICIAR SIMULADO',
     clearEmergencyBeforeDrill: 'Encerre a emergência ativa antes de iniciar um simulado',
     drillJustEnded: 'O simulado acabou de terminar',
     releaseForkliftStop: 'LIBERAR PARADA DAS EMPILHADEIRAS',
+    stopForklifts: 'PARAR EMPILHADEIRAS',
 
     resolveCrisisFirst: 'Resolva a crise ativa antes de liberar o intertravamento',
     chronicleFireInterlock:
@@ -111,11 +112,22 @@ export const safetyPanelMessages = defineMessages({
     drillInterlockActive: 'INTERTRAVAMENTO DO SIMULADO ATIVO',
     clearEmergency: 'ENCERRAR EMERGÊNCIA',
     triggerEmergencyStop: 'ACIONAR PARADA DE EMERGÊNCIA',
+    restartLine: 'REINICIAR LINHA',
 
-    environment: 'Ambiente',
-    weatherConditionsLabel: 'Condições climáticas',
-    weatherConditions: 'Condições climáticas',
-    setWeatherTo: 'Definir o clima como {label}',
+    drillRecordLabel: 'Registro do simulado',
+    drillRecordClear: (p: { zone: string; time: string }) =>
+      p.time ? `${p.zone}: rota própria livre, ${p.time}` : `${p.zone}: rota própria livre`,
+    drillRecordAlternative: (p: {
+      zone: string;
+      alternative: string;
+      forklifts: string;
+      time: string;
+    }) =>
+      `${p.zone}: verificada pela ${p.alternative}, ${p.forklifts || 'uma empilhadeira'} na rota própria` +
+      (p.time ? `, ${p.time}` : ''),
+    drillRecordBlocked: (p: { zone: string; forklifts: string }) =>
+      `${p.zone}: não verificada, ${p.forklifts || 'uma empilhadeira'} nas duas rotas`,
+    drillRecordUnverified: '{zone}: não verificada',
 
     confirmTitle: 'Acionar a parada de emergência da unidade?',
     confirmMessage:

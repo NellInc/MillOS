@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { MachineType, type MachineData } from '../../types';
 import { getMachineAssemblyScale, type Vec3Tuple } from '../../constants/siteLayout';
 import type { ProcessInspectionKind } from '../../stores/processInspectionStore';
+import { BREAK_ROLL_DIFFERENTIAL } from '../../stores/millingSources';
 
 export function machineInspectionKind(
   type: MachineType
@@ -84,7 +85,10 @@ export function createMachineInspectionGeometry(machine: MachineData) {
     cyl(brass, [0, 2.28, 0.49], 0.14, 4.15, true);
     for (let i = 0; i < 24; i++) {
       const a = (i * Math.PI) / 12;
-      const g = new THREE.BoxGeometry(3.16, 0.025, 0.025);
+      // One heavier flute marks each roll, so its turn reads by eye: 24 equal
+      // flutes look the same every 15 degrees and alias at speed.
+      const flute = i === 0 ? 0.07 : 0.025;
+      const g = new THREE.BoxGeometry(3.16, flute, flute);
       g.rotateX(-a);
       roller.push(g.translate(0, Math.cos(a) * 0.451, Math.sin(a) * 0.451));
     }
@@ -178,6 +182,23 @@ export function createMachineInspectionGeometry(machine: MachineData) {
     gate: merge(gate),
     grain: merge(grain),
   };
+}
+
+/** Radians per unit of machine phase for the cutaway's fast (front) roll. */
+const FAST_ROLL_RATE = 4.5;
+
+/**
+ * The cutaway's fluted rolls are a break pair, so they turn at the break
+ * differential (millingSources.ts): the front roll, nearer the lesson camera,
+ * is the fast one, and the back roll turns the other way at 1/2.5 its speed.
+ * Phase is accumulated seconds and never wraps. Working if the front roll
+ * turns 2.5 times as far as the back one over any span.
+ */
+export function millFrontRollAngle(phase: number): number {
+  return -phase * FAST_ROLL_RATE;
+}
+export function millBackRollAngle(phase: number): number {
+  return (phase * FAST_ROLL_RATE) / BREAK_ROLL_DIFFERENTIAL;
 }
 
 /** Selected manual stage's illustrative route. No material is created/transferred. */

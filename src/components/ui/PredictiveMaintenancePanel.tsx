@@ -22,19 +22,22 @@ import {
 } from 'lucide-react';
 import {
   breakdownDescription,
-  freePartsInventory,
-  missingParts,
+  MAINTENANCE_PART_PRIORITY,
   missingPartsForOrder,
   predictionMinutesLeft,
+  servicePart,
+  serviceUnderWay,
   useBreakdownStore,
   type PredictiveAlert,
 } from '../../stores/breakdownStore';
+import { beginUnitService, unitServiceMinutes } from '../../systems/unitService';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { minimumServiceWear, useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { recordOperatorAction } from '../../stores/operationsCampaignStore';
 import { capitalizeIn, formatFixed, translate, useLocale, useT } from '../../i18n';
 import { predictiveMaintenancePanelMessages } from './PredictiveMaintenancePanel.messages';
+import { productionStoreMessages } from '../../stores/productionStore.messages';
 
 const messages = predictiveMaintenancePanelMessages;
 
@@ -173,7 +176,6 @@ const PredictionsSection: React.FC = () => {
   const acknowledgePredictiveAlert = useBreakdownStore((state) => state.acknowledgePredictiveAlert);
   const maintenanceSchedule = useBreakdownStore((state) => state.maintenanceSchedule);
   const scheduleMaintenanceTask = useBreakdownStore((state) => state.scheduleMaintenanceTask);
-  const getPartsForBreakdown = useBreakdownStore((state) => state.getPartsForBreakdown);
   const t = useT(messages);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const rescue = useFocusRescue(() => headingRef.current);
@@ -196,7 +198,9 @@ const PredictionsSection: React.FC = () => {
       scheduledTime: (gameTime + leadTimeHours) % 24,
       type: 'predictive',
       priority: alert.confidence >= 85 ? 'high' : alert.confidence >= 70 ? 'medium' : 'low',
-      partsNeeded: getPartsForBreakdown(alert.predictedFailureType),
+      // A booked service costs one spare part at Complete, as Maintain does
+      // (servicePart), so it lists none of its own.
+      partsNeeded: [],
     });
     acknowledgePredictiveAlert(alert.id);
     focusHeading();
@@ -489,11 +493,11 @@ const ActiveBreakdownsSection: React.FC<{
 const ScheduleSection: React.FC = () => {
   const maintenanceSchedule = useBreakdownStore((state) => state.maintenanceSchedule);
   const partsInventory = useBreakdownStore((state) => state.partsInventory);
-  const completeMaintenanceTask = useBreakdownStore((state) => state.completeMaintenanceTask);
   const activeBreakdowns = useBreakdownStore((state) => state.activeBreakdowns);
   const workOrders = useBreakdownStore((state) => state.workOrders);
-  // Parts held for a diagnosed repair are not stock a booked service may use.
-  const freeParts = freePartsInventory(workOrders, partsInventory);
+  // A booked service takes the one part Maintain would, never one held for a
+  // diagnosed repair. Working if Complete and Maintain charge the same.
+  const nextServicePart = servicePart(workOrders, partsInventory);
   // performMaintenance returns a critical unit to service whatever the
   // facility state, so Complete is locked for the stop, as Maintain is.
   const facilityStopped = useGameSimulationStore((state) => state.emergencyActive);
@@ -511,38 +515,56 @@ const ScheduleSection: React.FC = () => {
       .filter(Boolean)
       .map((entry) => [entry.split('=')[0], Number(entry.split('=')[1])] as const)
   );
+  // Each booked unit's type, so Start names its own service minutes.
+  const machineTypes = useProductionStore((state) =>
+    state.machines.map((m) => `${m.id}=${m.type}`).join('|')
+  );
+  const machineTypeFor = new Map(
+    machineTypes
+      .split('|')
+      .filter(Boolean)
+      .map((entry) => [entry.split('=')[0], entry.split('=')[1]] as const)
+  );
   const t = useT(messages);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const rescue = useFocusRescue(() => headingRef.current);
   const focusAfter = useFocusAfterAction();
   const pendingTasks = maintenanceSchedule.filter((task) => !task.completed);
-  const formatScheduledTime = (time: number): string => {
-    const normalized = ((time % 24) + 24) % 24;
-    const hours = Math.floor(normalized);
-    const minutes = Math.floor((normalized - hours) * 60);
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  };
 
-  // Completing a task services the machine: wear is reduced, then the parts
-  // are consumed. The service runs first because performMaintenance can refuse
-  // it, and a refused service must leave the stock untouched. A machine with an
-  // active fault must go through its work order (repair, verify, controlled
-  // restart) instead.
+  // Starting a booking takes its unit offline for its service minutes on the
+  // game clock (D7) and one part now, as Maintain does; the tick brings it back
+  // serviced. A machine with an active fault goes through its work order.
   const completeTask = (taskId: string, machineId: string, machineName: string) => {
     if (useGameSimulationStore.getState().emergencyActive) return;
     const maintenance = useBreakdownStore.getState();
     if (maintenance.getBreakdownForMachine(machineId)) return;
     const task = maintenance.maintenanceSchedule.find((candidate) => candidate.id === taskId);
-    if (!task || task.completed) return;
-    const free = freePartsInventory(maintenance.workOrders, maintenance.partsInventory);
-    if (missingParts(free, task.partsNeeded).length > 0) return;
-    const result = useProductionStore.getState().performMaintenance(machineId);
-    if (!result.success) {
+    if (!task || task.completed || serviceUnderWay(task)) return;
+    const result = beginUnitService(machineId);
+    // 5.4: waiting for the season's Maintenance is not a refusal; it starts on its return.
+    if (!result.started && result.reason === 'awaiting-crew') return;
+    if (!result.started) {
+      // A refusal says why, so the stock it left untouched is explained.
+      const machine = useProductionStore.getState().machines.find((m) => m.id === machineId);
+      const why =
+        result.reason === 'unknown'
+          ? translate(productionStoreMessages, 'maintenanceMachineNotFound')
+          : result.reason === 'no-part'
+            ? translate(messages, 'partsUnavailableHint')
+            : result.reason === 'fault'
+              ? translate(messages, 'underRepairHint')
+              : result.reason === 'stopped'
+                ? translate(messages, 'facilityStopHint')
+                : result.reason === 'busy'
+                  ? translate(messages, 'alreadyInService')
+                  : translate(messages, 'belowMinimumHint', {
+                      minimum: formatFixed(minimumServiceWear(machine?.type ?? 'ROLLER_MILL'), 1),
+                    });
       useUIStore.getState().addAlert({
         id: `maintenance-skip-${machineId}-${Date.now()}`,
         type: 'info',
         title: translate(messages, 'maintenanceNotPerformed'),
-        message: `${machineName}: ${result.message}`,
+        message: `${machineName}: ${why}`,
         timestamp: new Date(),
         machineId,
         acknowledged: false,
@@ -551,9 +573,7 @@ const ScheduleSection: React.FC = () => {
     }
     // The service ran, so it is the player's decision whatever the task does.
     recordOperatorAction({ kind: 'maintenance', machine: machineName });
-    if (completeMaintenanceTask(taskId)) focusAfter(() => headingRef.current);
-    // Service took wear below the warning threshold: the prediction is spent.
-    useBreakdownStore.getState().acknowledgeMachinePredictiveAlerts(machineId);
+    focusAfter(() => headingRef.current);
   };
 
   if (pendingTasks.length === 0) {
@@ -588,11 +608,26 @@ const ScheduleSection: React.FC = () => {
       </div>
       <div className="space-y-2 max-h-[150px] overflow-y-auto">
         {pendingTasks.map((task) => {
-          const shortParts = missingParts(freeParts, task.partsNeeded);
-          const partsAvailable = shortParts.length === 0;
+          const partsAvailable = nextServicePart !== undefined;
           const underRepair = activeBreakdowns.some(
             (breakdown) => breakdown.machineId === task.machineId
           );
+          if (serviceUnderWay(task))
+            return (
+              <div
+                key={task.id}
+                className="flex items-center justify-between gap-2 bg-slate-700/50 rounded p-2"
+              >
+                <div className="min-w-0">
+                  <div className="text-sm text-slate-200">{task.machineName}</div>
+                  <div role="status" className="text-xs text-slate-300">
+                    {t('offlineMinutesLeft', {
+                      minutes: formatFixed(Math.ceil(task.serviceMinutesLeft ?? 0), 0),
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
           const minimumWear = minimumWearFor.get(task.machineId);
           const notNeededYet =
             minimumWear !== undefined
@@ -605,17 +640,17 @@ const ScheduleSection: React.FC = () => {
             >
               <div className="min-w-0">
                 <div className="text-sm text-slate-200">{task.machineName}</div>
+                {/* No booked hour: nothing acts on it, so it is not shown. */}
                 <div className="text-xs text-slate-400">
-                  {t('taskType', { type: task.type })} · {formatScheduledTime(task.scheduledTime)}
+                  {task.startWhen === 'quiet'
+                    ? t('atQuietSpell')
+                    : t('taskType', { type: task.type })}
                 </div>
-                <div className="text-[10px] text-slate-500 truncate">
-                  {t('parts', {
-                    parts:
-                      task.partsNeeded.length > 0
-                        ? task.partsNeeded.map((part) => t('part', { part })).join(', ')
-                        : t('inspectionOnly'),
-                  })}
-                </div>
+                {nextServicePart && (
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {t('parts', { parts: t('part', { part: nextServicePart }) })}
+                  </div>
+                )}
                 {/* A title is no reason on a phone: every lock on Complete is
                     named on the card, in the title's order. */}
                 {underRepair ? (
@@ -628,11 +663,14 @@ const ScheduleSection: React.FC = () => {
                 {notNeededYet && !underRepair && !facilityStopped && (
                   <div className="text-[11px] leading-4 text-slate-300">{notNeededYet}</div>
                 )}
-                {/* Short or held parts are named as a work order names them. */}
+                {/* With no free part, any one of them would do; each is named,
+                    as a work order names what it waits on. */}
                 {!partsAvailable && !underRepair && !facilityStopped && !notNeededYet && (
                   <div role="status" className="text-[11px] leading-4 text-red-300">
                     {t('awaitingStock', {
-                      parts: shortParts.map((part) => t('part', { part })).join(', '),
+                      parts: MAINTENANCE_PART_PRIORITY.map((part) => t('part', { part })).join(
+                        ', '
+                      ),
                     })}
                   </div>
                 )}
@@ -655,20 +693,14 @@ const ScheduleSection: React.FC = () => {
                     underRepair || facilityStopped || !partsAvailable || notNeededYet !== null
                   }
                   aria-label={t('completeMaintenanceOn', { machine: task.machineName })}
-                  title={
-                    underRepair
-                      ? t('underRepairHint')
-                      : facilityStopped
-                        ? t('facilityStopHint')
-                        : notNeededYet
-                          ? notNeededYet
-                          : partsAvailable
-                            ? t('completeHint')
-                            : t('partsUnavailableHint')
-                  }
                   className="min-h-11 px-3 rounded bg-purple-800 text-xs font-semibold text-white hover:bg-purple-700 disabled:bg-slate-600 disabled:text-white/90"
                 >
-                  {t('complete')}
+                  {t('startService', {
+                    minutes: formatFixed(
+                      unitServiceMinutes(machineTypeFor.get(task.machineId) ?? 'ROLLER_MILL'),
+                      0
+                    ),
+                  })}
                 </button>
               </div>
             </div>

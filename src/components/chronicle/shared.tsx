@@ -1,13 +1,11 @@
 import { formatFixed, formatGrouped } from '../../i18n';
-import { localizedDeskLabel } from '../../chronicle/desks';
 import { translate, useT } from '../../i18n';
 import { messages } from './shared.messages';
 import type { ReactNode } from 'react';
-import { Coins, Handshake, Hammer, Landmark, Lightbulb, type LucideIcon } from 'lucide-react';
-import { DESKS } from '../../chronicle/desks';
+import { Coins, Lightbulb } from 'lucide-react';
 import type { ChronicleState } from '../../chronicle/engine';
 import { fundOf, knowHowOf, price } from '../../chronicle/engine';
-import type { Cost, Desk } from '../../chronicle/types';
+import type { Cost } from '../../chronicle/types';
 
 export const BUTTON =
   'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:border-slate-700 disabled:opacity-60';
@@ -53,43 +51,9 @@ export function KnowHowAmount({ value }: { value: number }) {
   );
 }
 
-export const DESK_ICON: Record<Desk, LucideIcon> = {
-  works: Hammer,
-  trade: Handshake,
-  council: Landmark,
-};
-
-export function DeskAmount({
-  desk,
-  value,
-  room,
-  short = false,
-}: {
-  desk: Desk;
-  value: number;
-  room?: number;
-  short?: boolean;
-}) {
-  const t = useT(messages);
-  const Icon = DESK_ICON[desk];
-  return (
-    <span
-      className={`inline-flex items-center gap-1 tabular-nums ${short ? 'text-rose-200' : ''}`}
-      title={localizedDeskLabel(desk)}
-    >
-      <Icon className="h-3.5 w-3.5 text-violet-300" aria-hidden="true" />
-      <span className="sr-only">{t('m2', { desk: localizedDeskLabel(desk) })}</span>
-      <span>
-        {formatGrouped(value)}
-        {room !== undefined ? <span className="text-slate-400">/{formatGrouped(room)}</span> : null}
-      </span>
-    </span>
-  );
-}
-
 /**
- * A cost rendered on its button: fund after training mode, know-how, then desk
- * points. Whatever the mill is short of turns rose, so a disabled button says why.
+ * A cost rendered on its button: fund after training mode, then know-how.
+ * Whatever the mill is short of turns rose, so a disabled button says why.
  */
 export function CostTag({
   state,
@@ -101,8 +65,7 @@ export function CostTag({
   /** A transfer (a reserve deposit) moves its face value; training mode prices purchases only. */
   transfer?: boolean;
 }) {
-  const desks = DESKS.filter(({ id }) => (cost?.attention?.[id] ?? 0) > 0);
-  if (!cost || (!cost.fund && !cost.knowHow && desks.length === 0)) return null;
+  if (!cost || (!cost.fund && !cost.knowHow)) return null;
   const fund = cost.fund ? (transfer ? cost.fund : price(state, cost.fund)) : 0;
   return (
     <span className="ml-2 inline-flex items-center gap-2 text-slate-300">
@@ -116,16 +79,26 @@ export function CostTag({
           <KnowHowAmount value={cost.knowHow} />
         </span>
       ) : null}
-      {desks.map(({ id }) => (
-        <DeskAmount
-          key={id}
-          desk={id}
-          value={cost.attention?.[id] ?? 0}
-          short={(state.desks[id]?.points ?? 0) < (cost.attention?.[id] ?? 0)}
-        />
-      ))}
     </span>
   );
+}
+
+/**
+ * Why a control is held, in the refusal's own words, shown where it is held
+ * and named by the control's aria-describedby. Only while it holds: never a
+ * standing caption (D-012).
+ */
+export function HeldReason({ id, children }: { id: string; children: ReactNode }) {
+  return (
+    <p id={id} className="text-xs text-amber-200">
+      {children}
+    </p>
+  );
+}
+
+/** The reason every control holds once the chronicle has stopped. */
+export function useStoppedReason(): string {
+  return useT(messages)('heldStopped');
 }
 
 export function Section({

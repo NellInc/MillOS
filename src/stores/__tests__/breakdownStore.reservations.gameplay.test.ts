@@ -79,8 +79,36 @@ describe('breakdownStore part reservations', () => {
     });
     const task = store().maintenanceSchedule[0];
 
-    expect(store().completeMaintenanceTask(task.id)).toBe(false);
+    // It takes its one part from free stock (a filter), never the held motor.
+    expect(store().completeMaintenanceTask(task.id)).toBe(true);
     expect(store().partsInventory.motors).toBe(1);
+    expect(store().partsInventory.filters).toBe(14);
+    expect(store().startRepair(breakdownFor('mill-a').id).started).toBe(true);
+  });
+
+  it('refuses a scheduled service when every part in stock is held for a repair', () => {
+    useBreakdownStore.setState({
+      partsInventory: { bearings: 0, belts: 0, filters: 0, motors: 1, sensors: 1 },
+    });
+    store().triggerBreakdown('mill-a', 'Mill A', 'electrical');
+    store().scheduleMaintenanceTask({
+      machineId: 'mill-c',
+      machineName: 'Mill C',
+      scheduledTime: 10,
+      type: 'predictive',
+      priority: 'high',
+      partsNeeded: [],
+    });
+    const task = store().maintenanceSchedule[0];
+
+    expect(store().completeMaintenanceTask(task.id)).toBe(false);
+    expect(store().partsInventory).toEqual({
+      bearings: 0,
+      belts: 0,
+      filters: 0,
+      motors: 1,
+      sensors: 1,
+    });
     expect(store().startRepair(breakdownFor('mill-a').id).started).toBe(true);
   });
 });

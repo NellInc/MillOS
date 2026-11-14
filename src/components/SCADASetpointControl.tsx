@@ -4,10 +4,11 @@
  * The write goes through useSCADA().writeSetpoint, so it is logged in the
  * campaign logbook as the operator's decision. Like the agent capability
  * scada.write-setpoint, it is enabled only while SCADA is connected to the
- * local simulation; live and hybrid external writes stay denied. The helper
- * text says what the write really changes: the simulated reading that follows
- * the setpoint (SimulationAdapter), not production throughput, which the
- * campaign's order plan sets.
+ * local simulation; live and hybrid external writes stay denied. There is no
+ * helper line (D-012): the alarm band sits beside the reading it limits, and
+ * the result of a write says what it really changed. A mill's roll speed is
+ * the line rate (lineRateSetpoint.ts, plan item 7.5): the result states the
+ * new rate and its wear and energy per tonne against 100%.
  *
  * Working if a value inside engLow..engHigh applied here appears in "your
  * decisions" with its tag and value, an out-of-range value is refused with a
@@ -18,6 +19,11 @@ import React, { useId, useState } from 'react';
 import { formatGrouped, useLocale, useT } from '../i18n';
 import type { SCADAMode, TagDefinition, TagValue } from '../scada/types';
 import { scadaSetpointMessages } from './SCADASetpointControl.messages';
+import {
+  isRollSpeedSetpoint,
+  lineRateForRollSpeed,
+  lineRatePerTonne,
+} from '../scada/lineRateSetpoint';
 
 export interface SCADASetpointControlProps {
   /** The writable setpoint tag (accessMode READ_WRITE). */
@@ -51,7 +57,6 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
   const locale = useLocale();
   const ids = useId();
   const inputId = `${ids}-input`;
-  const helperId = `${ids}-helper`;
   const errorId = `${ids}-error`;
   const reasonId = `${ids}-reason`;
 
@@ -78,20 +83,19 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
 
   const inputValue = draft ?? (currentSetpoint !== undefined ? String(currentSetpoint) : '');
 
-  const helper = readingTag
-    ? [
-        t('helperFollows', { tag: readingTag.name }),
-        readingTag.alarmLo !== undefined && readingTag.alarmHi !== undefined
-          ? t('helperAlarmBand', {
-              low: format(readingTag.alarmLo),
-              high: format(readingTag.alarmHi),
-              unit: readingTag.engUnit,
-            })
-          : '',
-      ]
-        .filter(Boolean)
-        .join(' ')
-    : t('helperNoFollower');
+  const readingText = (tagName: string, value: number) => {
+    const reading =
+      readingTag?.engUnit !== undefined ? `${format(value)} ${readingTag.engUnit}` : format(value);
+    return readingTag?.alarmLo !== undefined && readingTag.alarmHi !== undefined
+      ? t('currentReadingBand', {
+          tag: tagName,
+          reading,
+          low: format(readingTag.alarmLo),
+          high: format(readingTag.alarmHi),
+          unit: readingTag.engUnit,
+        })
+      : t('currentReading', { tag: tagName, reading });
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -131,16 +135,41 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
       : error === 'invalidNumber'
         ? t('invalidNumber')
         : null;
+  const rateText = (rpm: number) => {
+    const rate = lineRateForRollSpeed(rpm);
+    const perTonne = lineRatePerTonne(rate);
+    return rate > 0
+      ? t('appliedRate', {
+          rate: formatGrouped(rate * 100, { maximumFractionDigits: 0 }, locale),
+          wear: formatGrouped(
+            perTonne.wear,
+            { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+            locale
+          ),
+          energy: formatGrouped(
+            perTonne.energy,
+            { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+            locale
+          ),
+        })
+      : t('appliedStopped');
+  };
+  const appliedText = (value: number) =>
+    readingTag
+      ? t('appliedFollows', { reading: withUnit(value), tag: readingTag.name })
+      : t('applied', { reading: withUnit(value) });
   const feedbackText =
     feedback?.kind === 'applied'
-      ? t('applied', { reading: withUnit(feedback.value) })
+      ? isRollSpeedSetpoint(tag.id)
+        ? `${appliedText(feedback.value)} ${rateText(feedback.value)}`
+        : appliedText(feedback.value)
       : feedback?.kind === 'refused'
         ? t('refused')
         : '';
 
-  const describedBy = [helperId, error ? errorId : null, disabledReason ? reasonId : null]
-    .filter(Boolean)
-    .join(' ');
+  const describedBy =
+    [error ? errorId : null, disabledReason ? reasonId : null].filter(Boolean).join(' ') ||
+    undefined;
 
   return (
     <form
@@ -158,13 +187,7 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
         {readingTag && (
           <span className="text-slate-400">
             {currentReading !== undefined
-              ? t('currentReading', {
-                  tag: readingTag.name,
-                  reading:
-                    readingTag.engUnit !== undefined
-                      ? `${format(currentReading)} ${readingTag.engUnit}`
-                      : format(currentReading),
-                })
+              ? readingText(readingTag.name, currentReading)
               : t('noReading')}
           </span>
         )}
@@ -221,9 +244,6 @@ export const SCADASetpointControl: React.FC<SCADASetpointControlProps> = ({
           {disabledReason}
         </p>
       )}
-      <p id={helperId} className="mt-1 text-slate-400">
-        {helper}
-      </p>
       <p
         role="status"
         aria-live="polite"

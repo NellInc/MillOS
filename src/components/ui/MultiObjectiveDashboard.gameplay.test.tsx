@@ -28,7 +28,8 @@ describe('the multi-objective dashboard', () => {
     });
     render(<MultiObjectiveDashboard />);
     const quality = screen.getByText('Quality').parentElement as HTMLElement;
-    expect(quality).toHaveTextContent('0%');
+    // The stamp reads as a score against the order's minimum (plan 7.9).
+    expect(quality.querySelector('p.font-mono')).toHaveTextContent(/^0$/);
     expect(quality).not.toHaveTextContent('95%');
   });
 });

@@ -20,8 +20,16 @@ import {
 import { useProductionStore } from '../../../stores/productionStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
+import { workplaceStoreMessages } from '../../../stores/workplaceStore.messages';
 import { workplaceReadiness } from '../../../simulation/bilateralWorkplace';
 import { applyDecisionEffects } from '../../../utils/aiEngine';
+import { usePartnerProposalStore } from '../../../stores/partnerProposalStore';
+import { answerPartnerProposal } from '../../../systems/partnerProposalRuntime';
+import {
+  dispositionForOption,
+  proposalOptionForDisposition,
+  type ProposalDisposition,
+} from '../../../simulation/partnerProposalDecision';
 import { aiEngineMessages } from '../../../utils/aiEngine.messages';
 import { translate } from '../../../i18n';
 import type {
@@ -82,6 +90,15 @@ function workplacePlanHandler(): AgentCommandHandler {
             'PRE.WORKPLACE.GAME',
             state.mode === 'game',
             'Workshop and Pilot preparation have no plant control.'
+          ),
+          // D-096: the store refuses while the line awaits RESTART LINE
+          // (restartLineFirst); say so here, not as a commit that throws. The
+          // store's own copy, in the reader's language, as the player's Approve
+          // button showed it when the refusal came from execute.
+          check(
+            'PRE.WORKPLACE.LINE_RESTARTED',
+            state.mode !== 'game' || record(capture.domains.simulation).restartPending !== true,
+            translate(workplaceStoreMessages, 'restartLineFirst')
           ),
         ],
         [
@@ -317,7 +334,13 @@ function incidentHandler(
 function respondToDecisionHandler(): AgentCommandHandler {
   return {
     capabilityId: 'ai.respond-to-decision',
-    allowedDomains: ['production'],
+    // The command writes its own production record only; a partner proposal's
+    // answer then runs the owning store's action, declared as side effects:
+    // a service (maintenance), a programme taken or forfeited (campaign), an
+    // intake lot received or refused (material, campaign, logistics), an
+    // incident met with a relief lorry, a filter or a recall (logistics,
+    // maintenance, quality, material). A card's answer touches production only.
+    allowedDomains: ['production', 'maintenance', 'campaign', 'material', 'quality', 'logistics'],
     inspect: (command, capture) => {
       const id = localId(command.targetUri, 'decision');
       const decision = arrayOfRecords(record(capture.domains.production).aiDecisions).find(
@@ -333,8 +356,29 @@ function respondToDecisionHandler(): AgentCommandHandler {
             decision?.status === 'pending',
             'Decision must still be pending.'
           ),
+          // A partner proposal (plan 3.0) is answered with one of its options;
+          // its window is its deferral, so it cannot be deferred.
+          ...(decision?.type === 'proposal'
+            ? [
+                check(
+                  'PRE.PROPOSAL.OPTION',
+                  Array.isArray(decision.options) &&
+                    proposalOptionForDisposition(
+                      {
+                        options: arrayOfRecords(decision.options).map((option) => ({
+                          id: String(option.id),
+                        })),
+                        defaultOptionId: String(decision.action),
+                      },
+                      command.parameters.disposition as ProposalDisposition,
+                      stringParameter(command, 'modifiedAction')
+                    ) !== null,
+                  "A proposal is answered accepted (the partner's choice), rejected (the other of two) or modified (modifiedAction names an option)."
+                ),
+              ]
+            : []),
           // As in the panel: a card is deferred once, and the engine brings it back.
-          ...(command.parameters.disposition === 'deferred'
+          ...(command.parameters.disposition === 'deferred' && decision?.type !== 'proposal'
             ? [
                 check(
                   'PRE.DECISION.NOT_DEFERRED',
@@ -368,8 +412,29 @@ function respondToDecisionHandler(): AgentCommandHandler {
       const id = localId(command.targetUri, 'decision');
       const store = useProductionStore.getState();
       const decision = store.aiDecisions.find((candidate) => candidate.id === id);
-      if (!decision) return json({ changed: false, reason: 'decision_not_found' });
       const disposition = command.parameters.disposition as AIDecisionDisposition;
+      if (!decision) {
+        const proposal = usePartnerProposalStore
+          .getState()
+          .proposals.find((candidate) => candidate.id === id);
+        if (!proposal) return json({ changed: false, reason: 'decision_not_found' });
+        // 'automatic' is the engine's own disposition, never an answer.
+        const optionId =
+          disposition === 'automatic'
+            ? null
+            : proposalOptionForDisposition(
+                proposal,
+                disposition,
+                stringParameter(command, 'modifiedAction')
+              );
+        if (!optionId) return json({ changed: false, reason: 'proposal_option_required' });
+        const answered = answerPartnerProposal(id, optionId, 'agent');
+        return json(
+          answered
+            ? { changed: true, disposition, optionId }
+            : { changed: false, reason: 'proposal_not_open' }
+        );
+      }
       if (disposition === 'modified') {
         // Without the replacement action there is nothing to apply; running the
         // AI's original recommendation instead would be an unauthorised effect.
@@ -393,12 +458,26 @@ function respondToDecisionHandler(): AgentCommandHandler {
       }
       return json({ changed: true, disposition });
     },
-    verify: (command, _before, after) => {
+    verify: (command, _before, after, result) => {
       const id = localId(command.targetUri, 'decision');
       const decision = arrayOfRecords(record(after.domains.production).aiDecisions).find(
         (item) => item.id === id
       );
-      const disposition = command.parameters.disposition;
+      // A proposal reads its answer back by option: "modified" naming the
+      // other of two answers is recorded as "rejected", the same answer.
+      const optionId = record(result).optionId;
+      const disposition =
+        decision?.type === 'proposal' && typeof optionId === 'string'
+          ? dispositionForOption(
+              {
+                options: arrayOfRecords(decision.options).map((option) => ({
+                  id: String(option.id),
+                })),
+                defaultOptionId: String(decision.action),
+              },
+              optionId
+            )
+          : command.parameters.disposition;
       return [
         verify(
           'VERIFY.DECISION.RESPONSE',
@@ -489,7 +568,12 @@ function requestRestartHandler(): AgentCommandHandler {
       );
       return inspection(
         ['Move the verified work order to restart_requested.'],
-        ['The central tick owns far-side machine status restoration.'],
+        [
+          'The central tick owns far-side machine status restoration.',
+          // D-096: the tick holds the restart during a stop and while the line
+          // awaits RESTART LINE, which only a person presses.
+          'The tick holds the restart during a stop, and while simulation.restartPending is true it waits for a person to press RESTART LINE.',
+        ],
         [
           check(
             'PRE.RESTART.VERIFIED',
@@ -558,9 +642,17 @@ function batchDispositionHandler(
         (item) => item.id === id
       );
       const alerts = arrayOfRecords(record(capture.domains.quality).contaminationAlerts);
+      // An open alert holds a batch it names, and one milled from a lot it
+      // names (plan 1.9): the lot is released only with the alert.
+      const batchLots = new Set(
+        arrayOfRecords(batch?.sourceContributions).map((source) => source.lotId)
+      );
       const contaminationBlocks = alerts.some(
         (alert) =>
-          alert.resolved !== true && Array.isArray(alert.batchIds) && alert.batchIds.includes(id)
+          alert.resolved !== true &&
+          ((Array.isArray(alert.batchIds) && alert.batchIds.includes(id)) ||
+            (Array.isArray(alert.sourceLotIds) &&
+              alert.sourceLotIds.some((lotId) => batchLots.has(lotId))))
       );
       const canChange =
         disposition === 'hold'
@@ -737,6 +829,9 @@ function startFireDrillHandler(): AgentCommandHandler {
         [
           'Activate the simulated fire-drill interlock and egress metrics.',
           'Stop simulated production and mobile equipment.',
+          // D13: the drill's end releases the interlock, not the line. No
+          // agent command restarts it; the operator's RESTART LINE does.
+          'Leave production idle after the drill until an operator restarts the line.',
         ],
         ['Audio and animated movement are presentation consequences verified separately.'],
         [

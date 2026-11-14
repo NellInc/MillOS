@@ -18,6 +18,13 @@ import {
   Vote,
   CalendarCheck,
   Bot,
+  Truck,
+  Award,
+  ClipboardList,
+  Flag,
+  FlaskConical,
+  CalendarRange,
+  ScrollText,
 } from 'lucide-react';
 import { useAchievementsStore } from '../../stores/achievementsStore';
 import { useProductionStore } from '../../stores/productionStore';
@@ -102,6 +109,20 @@ export const AchievementsPanel: React.FC<{ onClose: () => void }> = ({ onClose }
         return CalendarCheck;
       case 'Bot':
         return Bot;
+      case 'Truck':
+        return Truck;
+      case 'Award':
+        return Award;
+      case 'ClipboardList':
+        return ClipboardList;
+      case 'Flag':
+        return Flag;
+      case 'FlaskConical':
+        return FlaskConical;
+      case 'CalendarRange':
+        return CalendarRange;
+      case 'ScrollText':
+        return ScrollText;
       default:
         return Trophy;
     }

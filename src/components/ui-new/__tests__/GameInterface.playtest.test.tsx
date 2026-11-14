@@ -152,7 +152,7 @@ describe('the last tour step', () => {
     openTour();
     fireEvent.click(screen.getByRole('button', { name: next }));
     fireEvent.click(screen.getByRole('button', { name: next }));
-    return screen.getByText(/^Every bag at the packers|^Cada saco nas ensacadeiras/).textContent;
+    return screen.getByText(/^Keep packing on pace|^Mantenha o ensaque no ritmo/).textContent;
   };
 
   it('does not contradict itself about the pace', () => {
@@ -175,15 +175,15 @@ describe('the last tour step', () => {
   });
 });
 
-// Cross-lane (feedback-replay): a reflection queued before "AI reflections"
-// was switched off appeared anyway once the quiet slot opened.
-it('does not show a queued reflection after reflections are switched off', () => {
+// D14: the reflection cards are cut, so a queued one never shows, whether
+// or not the narration store is enabled.
+it('never shows a queued reflection', () => {
   useUIStore.setState({ hasSeenIntro: true });
   renderInterface();
   act(() =>
     runtime.narrate?.({ id: 'queued', trigger: 'first-play', content: 'A quiet reflection.' })
   );
-  expect(screen.getByTestId('reflection-content')).toBeInTheDocument();
+  expect(screen.queryByTestId('reflection-content')).not.toBeInTheDocument();
   act(() => useAINarrationStore.getState().setEnabled(false));
   expect(screen.queryByTestId('reflection-content')).not.toBeInTheDocument();
 });

@@ -52,6 +52,9 @@ describe('performMaintenance during a facility stop', () => {
     expect(statusOf('stop-critical')).toBe('idle');
 
     useGameSimulationStore.getState().resolveEmergency();
+    // Clearing the stop leaves the line idle; the restart starts it (D13).
+    expect(statusOf('stop-critical')).toBe('idle');
+    useGameSimulationStore.getState().restartLine();
     expect(statusOf('stop-critical')).toBe('running');
   });
 
@@ -64,6 +67,7 @@ describe('performMaintenance during a facility stop', () => {
     expect(statusOf('stop-warning')).toBe('idle');
 
     useGameSimulationStore.getState().resolveEmergency();
+    useGameSimulationStore.getState().restartLine();
     // Wear 80 -> 30 is below the 60 warning threshold.
     expect(statusOf('stop-warning')).toBe('running');
   });
@@ -73,6 +77,7 @@ describe('performMaintenance during a facility stop', () => {
     useGameSimulationStore.getState().triggerEmergency('E-STOP');
     expect(useProductionStore.getState().performMaintenance('stop-idle').success).toBe(true);
     useGameSimulationStore.getState().resolveEmergency();
+    useGameSimulationStore.getState().restartLine();
     expect(statusOf('stop-idle')).toBe('idle');
   });
 
@@ -82,6 +87,8 @@ describe('performMaintenance during a facility stop', () => {
     expect(useProductionStore.getState().performMaintenance('drill-critical').success).toBe(true);
     expect(statusOf('drill-critical')).toBe('idle');
     useGameSimulationStore.getState().endEmergencyDrill();
+    expect(statusOf('drill-critical')).toBe('idle');
+    useGameSimulationStore.getState().restartLine();
     expect(statusOf('drill-critical')).toBe('running');
   });
 

@@ -2,6 +2,7 @@
  * Pass 13 of the Chronicle polish: each test reproduces a defect a player met.
  */
 import { describe, expect, it } from 'vitest';
+import { acceptOffer, OFFER_DECK } from './administratorOffer';
 import { DEFAULT_CHARTER } from '../charter';
 import {
   acceptTraining,
@@ -108,15 +109,20 @@ describe('the administrator arriving', () => {
   it('says that the open proposal is set aside', () => {
     const state = signed();
     const ladder = POLICY_LADDER_IDS[0];
+    // The federation offers at the close; the proposal is open when the assembly accepts (4.11).
+    const offered = closeShift(
+      { ...state, governance: { ...state.governance, missedInRow: 2 } },
+      evidence(),
+      OFFER_DECK
+    ).state;
     const before: ChronicleState = {
-      ...state,
+      ...offered,
       governance: {
-        ...state.governance,
-        missedInRow: 2,
+        ...offered.governance,
         proposal: { ladder, from: 1, to: 2, proposedShift: 0, concessions: [] },
       },
     };
-    const after = closeShift(before, evidence(), []).state;
+    const after = acceptOffer(before);
     expect(after.governance.administration).not.toBeNull();
     expect(after.governance.proposal).toBeNull();
     const arrival = after.notices.find((n) => n.title === 'The federation sends an administrator');
@@ -127,7 +133,7 @@ describe('the administrator arriving', () => {
 
 describe('the administrator leaving', () => {
   it('hands back the grant it imposed', () => {
-    const left = closeShift(administered(0), evidence(), []).state;
+    const left = acceptOffer(closeShift(administered(0), evidence(), OFFER_DECK).state);
     expect(left.governance.administration).toBeNull();
     expect(left.delegation).toBe(0);
   });
@@ -136,7 +142,7 @@ describe('the administrator leaving', () => {
     // The player raised the partner to Plans during the administration.
     const raised = setDelegation(administered(0), 3).state;
     expect(raised.delegation).toBe(3);
-    const left = closeShift(raised, evidence(), []).state;
+    const left = acceptOffer(closeShift(raised, evidence(), OFFER_DECK).state);
     expect(left.governance.administration).toBeNull();
     expect(left.delegation).toBe(3);
     const leaving = left.notices.find((n) => n.title === 'The administrator leaves');

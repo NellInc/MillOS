@@ -45,7 +45,6 @@ import {
   ListChecks,
   BookOpenText,
   BriefcaseBusiness,
-  Gauge,
 } from 'lucide-react';
 import {
   LineChart,
@@ -76,18 +75,20 @@ import {
 } from '../stores/motionPreferenceStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { processTrendHistory, TREND_QUALITY_SUFFIX, type TrendRow } from '../scada/trendProcessing';
-import { OPERATION_TAG_IDS, UTILITY_ASSET_TAG_IDS } from '../scada/tagDatabase';
+import { OPERATION_TAG_IDS } from '../scada/tagDatabase';
 import { useMaterialFlowStore } from '../stores/materialFlowStore';
 import { useBreakdownStore } from '../stores/breakdownStore';
 import { useQCLabStore } from '../stores/qcLabStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { useProductionStore } from '../stores/productionStore';
 import { useHistoricalPlaybackStore } from '../stores/historicalPlaybackStore';
 import { capitalizeIn, formatFixed, translate, useLocale, useT } from '../i18n';
-import { incidentDescription, incidentTitle } from '../stores/incidentText';
+import { incidentTitle } from '../stores/incidentText';
 import { dispatchBlockText } from '../stores/dispatchBlockText';
 import { scadaPanelMessages } from './SCADAPanel.messages';
 import { SCADASetpointControl } from './SCADASetpointControl';
+import { customerDisplayName } from '../stores/customerNames';
 
 interface SCADAPanelProps {
   isOpen: boolean;
@@ -186,6 +187,18 @@ const DEFAULT_POLL_INTERVAL_MS = 1000;
 
 const isInService = (alarm: Alarm): boolean => (alarm.disposition ?? 'IN_SERVICE') === 'IN_SERVICE';
 
+/**
+ * A reading's quality is a state of the readout itself: a held or doubtful
+ * value (UNCERTAIN, STALE) reads dimmed amber and dotted underneath, so a
+ * frozen number never looks like a live one.
+ */
+const doubtfulQuality = (quality: Quality | undefined): boolean =>
+  quality === 'UNCERTAIN' || quality === 'STALE';
+const readoutClass = (quality: Quality | undefined, good: string): string =>
+  doubtfulQuality(quality)
+    ? 'text-amber-300/80 underline decoration-dotted decoration-amber-400/70 underline-offset-2'
+    : good;
+
 // Format a tag value for display: integers as counts, booleans as state words.
 const formatValue = (value: TagValue, tag: TagDefinition): string => {
   if (value.quality === 'BAD') return '---';
@@ -243,6 +256,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
   const activeSafetyEvent = useGameSimulationStore((state) =>
     state.safetyEvents.find((event) => event.id === state.activeSafetyEventId)
   );
+  const productionSpeed = useProductionStore((state) => state.productionSpeed);
   const campaign = useOperationsCampaignStore(
     useShallow((state) => ({
       elapsedMinutes: state.elapsedMinutes,
@@ -251,7 +265,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
       incidents: state.incidents,
       constraints: state.constraints,
       execution: state.execution,
-      utilityAssets: state.utilityAssets,
       logbook: state.logbook,
       addLogEntry: state.addLogEntry,
     }))
@@ -459,31 +472,26 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
         {
           id: 'intake',
           labelKey: 'stageIntake',
-          descriptionKey: 'stageIntakeDescription',
           machineIds: Array.from(tagsByMachine.keys()).filter((id) => id.startsWith('silo-')),
         },
         {
           id: 'milling',
           labelKey: 'stageMilling',
-          descriptionKey: 'stageMillingDescription',
           machineIds: Array.from(tagsByMachine.keys()).filter((id) => id.startsWith('rm-')),
         },
         {
           id: 'sifting',
           labelKey: 'stageSifting',
-          descriptionKey: 'stageSiftingDescription',
           machineIds: Array.from(tagsByMachine.keys()).filter((id) => id.startsWith('sifter-')),
         },
         {
           id: 'packing',
           labelKey: 'stagePacking',
-          descriptionKey: 'stagePackingDescription',
           machineIds: Array.from(tagsByMachine.keys()).filter((id) => id.startsWith('packer-')),
         },
         {
           id: 'logistics',
           labelKey: 'stageLogistics',
-          descriptionKey: 'stageLogisticsDescription',
           machineIds: Array.from(tagsByMachine.keys()).filter(
             (id) => id.startsWith('forklift-') || id.endsWith('-truck')
           ),
@@ -513,27 +521,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
       maintenanceDowntime: read(OPERATION_TAG_IDS.maintenanceDowntime),
     };
   }, [values]);
-
-  const utilityTelemetry = useMemo(
-    () =>
-      campaign.utilityAssets.map((asset) => {
-        const tagIds = UTILITY_ASSET_TAG_IDS[asset.id];
-        const read = (tagId: string | undefined, fallback: number): number => {
-          const value = tagId ? values.get(tagId)?.value : undefined;
-          return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-        };
-        const levelPercent = read(tagIds?.level, asset.levelPercent);
-        return {
-          ...asset,
-          levelPercent,
-          temperatureC: read(tagIds?.temperature, asset.temperatureC),
-          pressureBar: read(tagIds?.pressure, asset.pressureBar),
-          status: levelPercent <= 10 ? 'critical' : levelPercent <= 20 ? 'low' : 'normal',
-          quality: tagIds ? (values.get(tagIds.level)?.quality ?? 'STALE') : 'STALE',
-        };
-      }),
-    [campaign.utilityAssets, values]
-  );
 
   const eventTimeline = useMemo(
     () =>
@@ -812,7 +799,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-cyan-400">
-                {t('tagCount', { count: formatFixed(tags.length, 0) })}
+                {t('tagCount', { count: formatFixed(tags.length, 0), n: tags.length })}
               </span>
               <button
                 onClick={() => setWorkspaceOpen(true)}
@@ -925,7 +912,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           >
                             <span className="text-slate-300 truncate flex-1 mr-2">{tag.name}</span>
                             <span
-                              className={`font-mono tabular-nums ${isStale ? 'text-yellow-400' : 'text-green-400'}`}
+                              data-quality={value?.quality}
+                              className={`font-mono tabular-nums ${readoutClass(
+                                value?.quality,
+                                isStale ? 'text-yellow-400' : 'text-green-400'
+                              )}`}
                             >
                               {displayValue}
                             </span>
@@ -1025,7 +1016,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label={t('workspaceDialogLabel')}
-        aria-describedby="scada-workspace-description"
         className="fixed inset-2 z-50 flex flex-col overflow-hidden millos-glass millos-glass-thick rounded-xl border-cyan-500/30 sm:inset-5"
       >
         {/* Header */}
@@ -1036,12 +1026,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                 className={`mt-1.5 h-3 w-3 shrink-0 rounded-full ${linkUp ? 'bg-green-500' : 'bg-red-500'}`}
                 aria-hidden="true"
               />
-              <div>
-                <h2 className="text-lg font-bold text-white">{t('workspaceTitle')}</h2>
-                <p id="scada-workspace-description" className="text-xs text-slate-300">
-                  {t('workspaceDescription')}
-                </p>
-              </div>
+              <h2 className="text-lg font-bold text-white">{t('workspaceTitle')}</h2>
             </div>
             <button
               ref={closeButtonRef}
@@ -1302,15 +1287,12 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
 
               <section className="mb-4" aria-labelledby="scada-material-ledger-heading">
                 <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-                  <div>
-                    <h3
-                      id="scada-material-ledger-heading"
-                      className="text-sm font-semibold text-white"
-                    >
-                      {t('ledgerHeading')}
-                    </h3>
-                    <p className="text-xs text-slate-400">{t('ledgerBody')}</p>
-                  </div>
+                  <h3
+                    id="scada-material-ledger-heading"
+                    className="text-sm font-semibold text-white"
+                  >
+                    {t('ledgerHeading')}
+                  </h3>
                   <div
                     className={`rounded border px-2 py-1 text-[10px] ${
                       Math.abs(operationalTelemetry.balanceError) <= 0.01
@@ -1325,21 +1307,41 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                   </div>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  {[
-                    [t('rawGrain'), operationalTelemetry.rawInventory, 't'],
-                    [t('inProcess'), operationalTelemetry.inProcess, 't'],
-                    [t('finishedGoods'), operationalTelemetry.finishedGoods, 't'],
-                    [t('finalFlow'), operationalTelemetry.packerFlow, 't/h'],
-                  ].map(([label, value, unit]) => (
+                  {(
+                    [
+                      [t('rawGrain'), operationalTelemetry.rawInventory, 't', 'rawInventory'],
+                      [t('inProcess'), operationalTelemetry.inProcess, 't', 'inProcess'],
+                      [
+                        t('finishedGoods'),
+                        operationalTelemetry.finishedGoods,
+                        't',
+                        'finishedGoods',
+                      ],
+                      [t('finalFlow'), operationalTelemetry.packerFlow, 't/h', 'packerFlow'],
+                    ] as const
+                  ).map(([label, value, unit, key]) => (
                     <div
-                      key={label as string}
+                      key={label}
                       className="rounded-lg border border-slate-700/60 bg-slate-950/35 p-2.5"
                     >
                       <div className="text-[10px] uppercase tracking-wide text-slate-400">
                         {label}
                       </div>
-                      <div className="mt-1 font-mono text-lg text-cyan-200">
-                        {formatFixed(value as number, 2)}{' '}
+                      <div
+                        data-quality={values.get(OPERATION_TAG_IDS[key])?.quality}
+                        className={`mt-1 font-mono text-lg ${readoutClass(
+                          values.get(OPERATION_TAG_IDS[key])?.quality,
+                          'text-cyan-200'
+                        )}`}
+                      >
+                        {doubtfulQuality(values.get(OPERATION_TAG_IDS[key])?.quality) && (
+                          <span className="sr-only">
+                            {t('quality', {
+                              quality: values.get(OPERATION_TAG_IDS[key])?.quality ?? '',
+                            })}{' '}
+                          </span>
+                        )}
+                        {formatFixed(value, 2)}{' '}
                         <span className="text-xs text-slate-400">{unit}</span>
                       </div>
                     </div>
@@ -1448,13 +1450,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
 
               <section className="mb-3 rounded-lg border border-cyan-500/25 bg-cyan-950/10 p-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-                      <BriefcaseBusiness className="h-4 w-4 text-cyan-300" aria-hidden="true" />
-                      {t('operationsCommitments')}
-                    </h3>
-                    <p className="text-xs text-slate-400">{t('operationsCommitmentsBody')}</p>
-                  </div>
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
+                    <BriefcaseBusiness className="h-4 w-4 text-cyan-300" aria-hidden="true" />
+                    {t('operationsCommitments')}
+                  </h3>
                   <button
                     type="button"
                     onClick={() => setActiveTab('events')}
@@ -1484,7 +1483,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                             {t('activeOrder')}
                           </div>
                           <div className="mt-1 truncate text-xs font-semibold text-cyan-200">
-                            {activeOrder?.customer ?? t('allCommitmentsComplete')}
+                            {(activeOrder ? customerDisplayName(activeOrder.customer) : null) ??
+                              t('allCommitmentsComplete')}
                           </div>
                           <div className="mt-1 font-mono text-[10px] text-slate-400">
                             {t('percentDispatched', { percent: formatFixed(progress, 0) })}
@@ -1495,8 +1495,8 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                             {t('executionState')}
                           </div>
                           <div className="mt-1 font-mono text-xs text-slate-200">
-                            {t('percentSetpoint', {
-                              percent: formatFixed(campaign.execution.lineSetpointPercent, 0),
+                            {t('percentProductionSpeed', {
+                              percent: formatFixed(productionSpeed * 100, 0),
                             })}
                           </div>
                           <div
@@ -1580,63 +1580,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                 </div>
               </section>
 
-              <section className="mb-3 rounded-lg border border-emerald-500/20 bg-emerald-950/10 p-3">
-                <div>
-                  <h3 className="flex items-center gap-2 text-sm font-semibold text-white">
-                    <Gauge className="h-4 w-4 text-emerald-300" aria-hidden="true" />
-                    {t('utilityHeading')}
-                  </h3>
-                  <p className="text-xs text-slate-400">{t('utilityBody')}</p>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                  {utilityTelemetry.map((asset) => (
-                    <article
-                      key={asset.id}
-                      className="rounded border border-slate-700/60 bg-slate-950/35 p-2.5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="truncate text-[10px] font-semibold text-slate-200">
-                          {asset.label}
-                        </div>
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${
-                            asset.status === 'critical'
-                              ? 'bg-rose-400'
-                              : asset.status === 'low'
-                                ? 'bg-amber-400'
-                                : 'bg-emerald-400'
-                          }`}
-                          role="img"
-                          aria-label={t('assetLevelAria', {
-                            status: asset.status,
-                            quality: asset.quality.toLowerCase(),
-                          })}
-                          title={t('assetSignalTitle', { quality: asset.quality })}
-                        />
-                      </div>
-                      <div className="mt-1 font-mono text-sm font-semibold text-white">
-                        {formatFixed(asset.levelPercent, 1)}%
-                      </div>
-                      <div className="mt-1 font-mono text-[10px] text-slate-400">
-                        {formatFixed(asset.temperatureC, 1)} °C ·{' '}
-                        {formatFixed(asset.pressureBar, 2)} bar
-                      </div>
-                      <div className="mt-1 truncate text-[9px] text-slate-500">
-                        {asset.contents}
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-
-              <div className="mb-2 flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-white">{t('grainFlowHeading')}</h3>
-                  <p className="text-xs text-slate-400">{t('grainFlowBody')}</p>
-                </div>
-                <div className="rounded border border-slate-700/60 px-2 py-1 text-[10px] text-slate-300">
-                  {t('rearIntakeToFrontDispatch')}
-                </div>
+              {/* The utility vessels' cards are gone (plan 7.9): no rule reads a
+                  level, an empty vessel stops nothing, and the reorder refills
+                  each one long before it runs low. Their tags stay. */}
+              <div className="mb-2">
+                <h3 className="text-sm font-semibold text-white">{t('grainFlowHeading')}</h3>
               </div>
 
               <div className="grid gap-3 lg:grid-cols-5">
@@ -1675,9 +1623,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                         <div>
                           <div className="text-xs font-semibold uppercase tracking-wide text-white">
                             {formatFixed(stageIndex + 1, 0)}. {t(stage.labelKey)}
-                          </div>
-                          <div className="text-[11px] text-slate-300">
-                            {t(stage.descriptionKey)}
                           </div>
                         </div>
                         <span
@@ -1777,7 +1722,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                       }`}
                     >
                       {TAG_GROUP_ICONS[group]}
-                      {group}
+                      {t(`group${group}` as const)}
                     </button>
                   ))}
                 </div>
@@ -1816,7 +1761,10 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                             {machineId}
                           </span>
                           <span className="text-xs text-slate-400">
-                            {t('tagCount', { count: formatFixed(filteredMachineTags.length, 0) })}
+                            {t('tagCount', {
+                              count: formatFixed(filteredMachineTags.length, 0),
+                              n: filteredMachineTags.length,
+                            })}
                           </span>
                         </button>
                         {onFocusMachine && (
@@ -1865,7 +1813,11 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                                   {value && (
                                     <>
                                       <span
-                                        className={`${alarmState ? 'text-white font-bold' : 'text-cyan-400'}`}
+                                        data-quality={value.quality}
+                                        className={readoutClass(
+                                          value.quality,
+                                          alarmState ? 'text-white font-bold' : 'text-cyan-400'
+                                        )}
                                       >
                                         {formatValue(value, tag)}
                                       </span>
@@ -2063,7 +2015,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                             type="button"
                             disabled={!alarmNote.trim()}
                             aria-label={t('shelveAria', { tag: alarm.tagName })}
-                            title={alarmNote.trim() ? undefined : t('enterReasonFirst')}
                             aria-describedby={alarmNote.trim() ? undefined : 'scada-alarm-note'}
                             onClick={() => {
                               shelve(
@@ -2082,7 +2033,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                             type="button"
                             disabled={!alarmNote.trim()}
                             aria-label={t('suppressAria', { tag: alarm.tagName })}
-                            title={alarmNote.trim() ? undefined : t('enterReasonFirst')}
                             aria-describedby={alarmNote.trim() ? undefined : 'scada-alarm-note'}
                             onClick={() => {
                               suppress(
@@ -2101,7 +2051,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                             type="button"
                             disabled={!alarmNote.trim()}
                             aria-label={t('outOfServiceAria', { tag: alarm.tagName })}
-                            title={alarmNote.trim() ? undefined : t('enterReasonFirst')}
                             aria-describedby={alarmNote.trim() ? undefined : 'scada-alarm-note'}
                             onClick={() => {
                               takeOutOfService(
@@ -2252,10 +2201,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                           type="button"
                           onClick={() => setActiveTab('events')}
                           className="min-h-8 rounded border border-amber-500/30 px-2 text-[10px] text-amber-100 hover:bg-amber-500/10"
-                          title={t('incidentTitle', {
-                            phase: incident.phase,
-                            description: incidentDescription(incident),
-                          })}
                         >
                           {t('incidentChip', {
                             minute: formatFixed(Math.round(incident.startedAtMinute), 0),
@@ -2361,7 +2306,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                     </button>
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-400">{t('trendFootnote')}</p>
               </div>
 
               {/* Chart Area */}
@@ -2370,7 +2314,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                   <div className="h-full flex flex-col items-center justify-center text-slate-400">
                     <TrendingUp className="w-12 h-12 mb-3 opacity-50" aria-hidden="true" />
                     <p className="text-sm">{t('selectTagsPrompt')}</p>
-                    <p className="text-xs mt-1">{t('upToSixTags')}</p>
                   </div>
                 ) : trendView === 'chart' ? (
                   <div className="h-full" aria-hidden="true">
@@ -2600,10 +2543,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
               tabIndex={0}
             >
               <div className="flex items-center justify-between gap-3 border-b border-slate-700/50 p-3">
-                <div>
-                  <h3 className="text-sm font-medium text-white">{t('eventHistoryHeading')}</h3>
-                  <p className="text-xs text-slate-400">{t('eventHistoryBody')}</p>
-                </div>
+                <h3 className="text-sm font-medium text-white">{t('eventHistoryHeading')}</h3>
                 <button
                   type="button"
                   onClick={() => void loadEventHistory()}
@@ -2632,7 +2572,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                         <BookOpenText className="h-4 w-4 text-indigo-300" aria-hidden="true" />
                         {t('operationsLogbook')}
                       </h3>
-                      <p className="text-xs text-slate-400">{t('operationsLogbookBody')}</p>
                     </div>
                     <button
                       type="button"
@@ -2764,10 +2703,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
               aria-labelledby="scada-tab-button-faults"
               tabIndex={0}
             >
-              <div className="mb-4 rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 text-sm text-amber-100">
-                {t('simulationLabBanner')}
-              </div>
-
               <div className="space-y-3">
                 {(['sensor_fail', 'spike', 'drift', 'stuck', 'noise'] as const).map((faultType) => (
                   <button
@@ -2861,9 +2796,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                       {scadaEnabled ? t('enabled') : t('disabled')}
                     </button>
                   </div>
-                  {!scadaEnabled && (
-                    <div className="mt-2 text-[11px] text-amber-300">{t('enableToStart')}</div>
-                  )}
                 </div>
 
                 {/* Connection Type Selector */}
@@ -2875,33 +2807,28 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                         type: 'simulation' as const,
                         icon: Server,
                         label: t('connSimulation'),
-                        desc: t('connSimulationDescription'),
                       },
                       {
                         type: 'rest' as const,
                         icon: Globe,
                         label: 'REST API',
-                        desc: t('connRestDescription'),
                       },
                       {
                         type: 'mqtt' as const,
                         icon: Radio,
                         label: 'MQTT',
-                        desc: t('connMqttDescription'),
                       },
                       {
                         type: 'websocket' as const,
                         icon: Wifi,
                         label: 'WebSocket',
-                        desc: t('connWebsocketDescription'),
                       },
                       {
                         type: 'opcua' as const,
                         icon: Server,
                         label: 'OPC-UA',
-                        desc: t('connOpcuaDescription'),
                       },
-                    ].map(({ type, icon: Icon, label, desc }) => (
+                    ].map(({ type, icon: Icon, label }) => (
                       <button
                         key={type}
                         onClick={() => {
@@ -2915,7 +2842,7 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                             : 'bg-slate-800/50 border border-slate-700/50 hover:border-slate-600/50'
                         }`}
                       >
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2">
                           <Icon
                             className={`w-4 h-4 ${connectionType === type ? 'text-cyan-400' : 'text-slate-300'}`}
                             aria-hidden="true"
@@ -2926,7 +2853,6 @@ export const SCADAPanel: React.FC<SCADAPanelProps> = ({
                             {label}
                           </span>
                         </div>
-                        <div className="text-xs text-slate-400">{desc}</div>
                       </button>
                     ))}
                   </div>

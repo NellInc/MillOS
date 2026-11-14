@@ -224,7 +224,10 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           aria-modal="true"
           aria-label={t('dialogLabel')}
           tabIndex={-1}
-          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center px-6"
+          // Scrolls, centred by two flex spacers: on a landscape phone the
+          // stalled cover is taller than the screen, and justify-center in a
+          // box that did not scroll put the way out below the bottom edge.
+          className="fixed inset-0 z-[9999] flex flex-col items-center overflow-y-auto px-6 py-4 before:flex-1 before:content-[''] after:flex-1 after:content-['']"
           style={{
             backgroundColor: '#081015',
             opacity: isExiting ? 0 : 1,

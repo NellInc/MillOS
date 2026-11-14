@@ -6,15 +6,18 @@ import { useWorkplaceReplayStore } from '../../../stores/workplaceReplayStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import {
   MANAGEMENT_APPROACHES,
+  mondayMinute,
   requiredChecks,
   WORKPLACE_CHECKS,
 } from '../../../simulation/workplaceCampaign';
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { setLocale } from '../../../i18n';
 import type { WorkplaceProfile } from '../../../types/workplace';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 function finishCampaign(profile: WorkplaceProfile) {
   const store = useWorkplaceStore.getState();
+  fulfilFirstDelivery();
   expect(store.startCampaign(profile, 17).changed).toBe(true);
   for (let shift = 0; shift < 3; shift++) {
     if (shift !== 1)
@@ -33,7 +36,7 @@ function finishCampaign(profile: WorkplaceProfile) {
     expect(store.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
     while (useWorkplaceStore.getState().workplace.phase === 'active') {
       const state = useWorkplaceStore.getState().workplace;
-      if (shift === 1 && state.minute >= 25 && !state.campaign?.decision)
+      if (shift === 1 && state.minute >= mondayMinute(state) && !state.campaign?.decision)
         store.campaignDecision('inspect', 'quality');
       store.tick(5, 0, false);
     }

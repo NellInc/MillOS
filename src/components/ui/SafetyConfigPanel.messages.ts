@@ -13,16 +13,6 @@ export const safetyConfigPanelMessages = defineMessages({
     speedZoneRateAria: 'Speed zone rate (percent)',
     valueMetres: '{value} metres',
     valuePercent: '{value} percent',
-    vehicleDetectionLabel: 'Vehicle Detection:',
-    vehicleDetectionHelp: 'Protected separation between mobile units',
-    forkliftSpacingLabel: 'Forklift Spacing:',
-    forkliftSpacingHelp: 'Min distance between forklifts',
-    lookAheadLabel: 'Look-ahead:',
-    lookAheadHelp: 'How far ahead to check path',
-    speedZoneLabel: 'Speed Zone:',
-    speedZoneHelp: 'Speed % in slow zones',
-    enforcementNote:
-      'Detection, spacing and look-ahead drive the forklift controller live. Inside a speed zone, every forklift, on its route or driven, runs at no more than the speed zone rate.',
   },
   'pt-BR': {
     title: 'Configuração de segurança',
@@ -36,15 +26,5 @@ export const safetyConfigPanelMessages = defineMessages({
     speedZoneRateAria: 'Taxa da zona de velocidade (porcentagem)',
     valueMetres: '{value} metros',
     valuePercent: '{value} por cento',
-    vehicleDetectionLabel: 'Detecção de veículos:',
-    vehicleDetectionHelp: 'Separação protegida entre unidades móveis',
-    forkliftSpacingLabel: 'Distância entre empilhadeiras:',
-    forkliftSpacingHelp: 'Distância mínima entre empilhadeiras',
-    lookAheadLabel: 'Antecipação:',
-    lookAheadHelp: 'Até onde verificar o caminho à frente',
-    speedZoneLabel: 'Zona de velocidade:',
-    speedZoneHelp: '% da velocidade nas zonas lentas',
-    enforcementNote:
-      'Detecção, distância e antecipação comandam o controlador das empilhadeiras em tempo real. Dentro de uma zona de velocidade, toda empilhadeira, em sua rota ou conduzida, anda no máximo na taxa da zona de velocidade.',
   },
 });

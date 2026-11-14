@@ -40,6 +40,7 @@ import {
   communityWorkResponse,
   communityAgreementCue,
   communityAgreementResponse,
+  placeCommunityAgreement,
   advanceCommunityAgreementClock,
   COMMUNITY_WALK_SPEED_MPS,
   communityRootYaw,
@@ -287,6 +288,7 @@ export function CommunityLife() {
       const pose = sampleCommunityPerson(person, initialHour, createCommunityPose());
       const response = communityWorkResponse(person, pose, operations);
       const agreement = communityAgreementCue(person.id, workplace);
+      placeCommunityAgreement(agreement, pose);
       communityAgreementResponse(agreement, pose, response);
       const activity = emergency && !pose.seated ? 'idle' : response.activity;
       const gaitScale = game.gameSpeed > 0 ? game.gameSpeed / STANDARD_GAME_SPEED : 1;
@@ -574,6 +576,7 @@ export function CommunityLife() {
         shownHour(actor.person, actor.person.district === 'bus' ? clocks.current.bus : actor.hour),
         actor.pose
       );
+      placeCommunityAgreement(agreement, actor.pose);
       const inCab =
         actor.crewSite && crewLive
           ? applyForkliftCrewPose(

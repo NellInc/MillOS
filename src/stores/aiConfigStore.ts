@@ -181,10 +181,9 @@ interface AIConfigState {
   // Tactical layer state
   isTacticalThinking: boolean;
   setTacticalThinking: (thinking: boolean) => void;
-  // System performance metrics (shared between background loop and UI)
+  // Status shared between the background loop and the UI. No CPU or memory
+  // reading: the rules layer has none (review 10, F3).
   systemStatus: {
-    cpu: number;
-    memory: number;
     decisions: number;
     successRate: number;
   };
@@ -567,8 +566,6 @@ export const useAIConfigStore = create<AIConfigState>()(
 
       // System status
       systemStatus: {
-        cpu: 15,
-        memory: 35,
         decisions: 0,
         successRate: 0,
       },

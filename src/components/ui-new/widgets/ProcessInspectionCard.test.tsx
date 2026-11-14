@@ -12,6 +12,18 @@ const mount = (kind: ProcessInspectionKind, id = kind) => {
   releases.push(store.getState().register({ id, kind, name: `Actual ${id}` }));
 };
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+// Lesson copy with its numbers filled in, as the card shows it in English with
+// no silo level published yet.
+const EN_PARAMS: Record<string, string> = {
+  breakLow: '1.5',
+  breakHigh: '3.0',
+  breakBest: '2.5',
+  reductionLow: '1.1',
+  reductionHigh: '1.5',
+  right: '0',
+  wrong: '50',
+};
+const filled = (text: string) => text.replace(/\{(\w+)\}/g, (_, name: string) => EN_PARAMS[name]);
 beforeEach(() => setLocale('en'));
 afterEach(() => {
   cleanup();
@@ -26,7 +38,9 @@ describe('process inspection card', () => {
     (kind) => {
       mount(kind);
       render(<ProcessInspectionCard subjectId={kind} />);
-      const copy = processInspectionLessons[kind].en;
+      const copy = Object.fromEntries(
+        Object.entries(processInspectionLessons[kind].en).map(([key, text]) => [key, filled(text)])
+      ) as typeof processInspectionLessons.mill.en;
       click('View inside');
       expect(screen.getByRole('heading', { name: `Actual ${kind}: ${copy.title0}` })).toHaveFocus();
       expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();

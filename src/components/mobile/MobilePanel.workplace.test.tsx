@@ -45,13 +45,13 @@ afterEach(() => {
 
 it('mounts the real workplace laboratory in a tall, bounded mobile workspace', () => {
   render(<MobilePanel isVisible content="management" onClose={vi.fn()} />);
-  const dialog = screen.getByRole('dialog', { name: 'Bilateral Autonomy mobile panel' });
+  const dialog = screen.getByRole('dialog', { name: 'Autonomy mobile panel' });
   // jsdom drops min()/env() styles. The browser capture checks the actual
   // height; here retain the shipped class contract rather than fake CSS support.
   expect(dialog.firstElementChild?.className).toContain(
     'max-h-[min(70dvh,calc(100dvh-116px-env(safe-area-inset-bottom)))]'
   );
-  expect(screen.getByRole('region', { name: 'Workplace laboratory' })).toBeInTheDocument();
+  expect(screen.getByRole('region', { name: 'Cooperative season' })).toBeInTheDocument();
   expect(
     screen.getByRole('button', { name: 'Start playable shift at teaching pace (1/2x)' })
   ).toBeInTheDocument();
@@ -84,8 +84,11 @@ it('wraps both Tab directions through the visible disclosure, ignoring its colla
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([
     { width: 100, height: 24 },
   ] as unknown as DOMRectList);
+  // A workshop shows its tools as the screen; a solo game season opens on its
+  // next step with the tools behind one disclosure (5.1).
+  useWorkplaceStore.setState({ workplace: createWorkplace('workshop') });
   render(<MobilePanel isVisible content="management" onClose={vi.fn()} />);
-  screen.getByRole('dialog', { name: 'Bilateral Autonomy mobile panel' });
+  screen.getByRole('dialog', { name: 'Autonomy mobile panel' });
   const close = screen.getByRole('button', { name: 'Close panel' });
   const summary = screen.getByText('AI: why this response?', { selector: 'summary' });
   const details = summary.closest('details')!;

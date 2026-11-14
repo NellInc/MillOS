@@ -26,6 +26,9 @@ import { forkliftCrewLive, isForkliftCrewActive } from '../stores/forkliftCrewSt
 import type { ForkliftCrewPhase } from '../simulation/forkliftCrew';
 import { focusDockItem } from './ui-new/dock/focusDockItem';
 import { LiveRegionPortal } from './ui/LiveRegionPortal';
+import { useModalDialogOpen } from './ui/useModalDialogOpen';
+import { useMobileControlStore } from '../stores/mobileControlStore';
+import { useChronicleStore } from '../stores/chronicleStore';
 
 /**
  * The selected forklift's load as it is now. The click hands over one reading;
@@ -159,6 +162,14 @@ export const DeferredOperationalUI: React.FC<DeferredOperationalUIProps> = ({
   // to: the dock takes it. The card is still on the page here (it animates out).
   // Working if Tab continues from the dock after the card closes.
   const forkliftOpen = selectedForklift !== null;
+  // A dialog, a phone sheet or a Chronicle decision is what is read: PAUSED
+  // drew over a dialog that opened while paused. The notice steps aside at
+  // once (no exit animation over the dialog), as the rain badge does; the
+  // live region below still announces it.
+  const sheetOpen = useMobileControlStore((state) => state.mobilePanelVisible);
+  const chronicleDialog = useChronicleStore((state) => state.dialogOpen);
+  const modalOpen = useModalDialogOpen(Boolean(qualityNotification));
+  const noticeCovered = sheetOpen || chronicleDialog || modalOpen;
   React.useLayoutEffect(() => {
     if (forkliftOpen) return;
     const active = document.activeElement;
@@ -257,7 +268,7 @@ export const DeferredOperationalUI: React.FC<DeferredOperationalUIProps> = ({
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.92 }}
-            className="pointer-events-none fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2"
+            className={`pointer-events-none fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 ${noticeCovered ? 'invisible' : ''}`}
           >
             <div
               className={`rounded-xl border px-6 py-4 text-center shadow-2xl backdrop-blur-xl ${

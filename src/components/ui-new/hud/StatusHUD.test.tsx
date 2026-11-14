@@ -1,6 +1,9 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StatusHUD } from './StatusHUD';
+import { MachineInspector } from '../sidebar/MachineInspector';
+import { MachineType, type MachineData } from '../../../types';
 import { useUIStore } from '../../../stores/uiStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
@@ -9,8 +12,14 @@ import { useGraphicsStore } from '../../../stores/graphicsStore';
 import { computeSafetyScore, useSafetyStore } from '../../../stores/safetyStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
-import { createWorkplace } from '../../../simulation/bilateralWorkplace';
+import {
+  createWorkplace,
+  transitionWorkplace,
+  type WorkplaceCommand,
+} from '../../../simulation/bilateralWorkplace';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 import { autoplayWorkplaceStep } from '../../../simulation/workplaceAutoplay';
+import { mondayMinute } from '../../../simulation/workplaceCampaign';
 import { withAutomaticWorkplaceStep } from '../../../simulation/workplaceParticipation';
 
 const viewport = { width: window.innerWidth, height: window.innerHeight };
@@ -21,7 +30,6 @@ describe('StatusHUD operational controls', () => {
     useProductionStore.setState({
       metrics: { ...useProductionStore.getState().metrics, throughput: 9320 },
       dailyBagsProduced: 4680,
-      productionTarget: { ...useProductionStore.getState().productionTarget!, targetBags: 5000 },
     });
     useGameSimulationStore.setState({ gameTime: 16.5, currentShift: 'afternoon' });
     useGraphicsStore.setState({
@@ -35,10 +43,15 @@ describe('StatusHUD operational controls', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: viewport.height });
   });
 
-  it('shows actual packer output, target, simulation time and shared safety score', () => {
+  // The capture pass (wave 2): the bag rate is gone from the HUD; the target
+  // is tonnes, and a rate beside it competed with it.
+  it('shows the programme target, simulation time and shared safety score, and no bag rate', () => {
+    useOperationsCampaignStore.getState().resetCampaign();
     render(<StatusHUD />);
-    expect(screen.getByLabelText('Final packer throughput 9,320 bags per hour')).toBeVisible();
-    expect(screen.getByLabelText('Daily target 4680 of 5000 bags')).toBeVisible();
+    expect(screen.queryByLabelText(/bags per hour/)).not.toBeInTheDocument();
+    // D11: the guided programme's 18 t, not the day's bag count (4,680 here).
+    expect(screen.getByLabelText('Programme commitment: 0.0 of 18.0 tonnes shipped')).toBeVisible();
+    expect(screen.queryByText(/4,680/)).not.toBeInTheDocument();
     expect(screen.getByText('16:30')).toBeVisible();
     expect(screen.getByLabelText('MillOS')).toBeVisible();
     expect(
@@ -46,19 +59,8 @@ describe('StatusHUD operational controls', () => {
         `Safety score: ${computeSafetyScore(useSafetyStore.getState().safetyMetrics)} percent`
       )
     ).toBeVisible();
-    expect(screen.getByLabelText('Simulated SCADA telemetry enabled')).toBeVisible();
-    act(() =>
-      useProductionStore.setState({
-        metrics: { ...useProductionStore.getState().metrics, throughput: 0 },
-      })
-    );
-    expect(screen.getByLabelText('Final packer throughput 0 bags per hour')).toBeVisible();
-    act(() =>
-      useGraphicsStore.setState({
-        graphics: { ...useGraphicsStore.getState().graphics, enableSCADA: false },
-      })
-    );
-    expect(screen.getByLabelText('SCADA telemetry disabled')).toBeVisible();
+    // SCADA's mode is shown in the SCADA workspace, not as a constant here.
+    expect(screen.queryByText(/SCADA/)).not.toBeInTheDocument();
   });
 
   it('says the line is changing over when it has moved on to the next commitment', () => {
@@ -81,7 +83,7 @@ describe('StatusHUD operational controls', () => {
       render(<StatusHUD />);
       expect(
         screen.getByLabelText(
-          'Changing over: the line is starting the next order, for Community Pasta Works'
+          'Changing over: the line is starting the next order, for Community Polenta Kitchen'
         )
       ).toBeVisible();
       expect(screen.queryByLabelText(/Line idle/)).not.toBeInTheDocument();
@@ -112,10 +114,15 @@ describe('StatusHUD operational controls', () => {
           },
         })
       );
-      expect(screen.getByLabelText('Final packer throughput 0 bags per hour')).toBeVisible();
-      expect(
-        screen.getByLabelText('Line idle: the active order is packed and awaiting dispatch')
-      ).toBeVisible();
+      const chip = screen.getByLabelText(
+        'Line idle: the active order is packed and awaiting dispatch'
+      );
+      expect(chip).toBeVisible();
+      // The chip names the reason as its state, whole: it never truncates.
+      const text = within(chip).getByText('Line idle: all packed');
+      expect(text.className).not.toMatch(/\btruncate\b/);
+      expect(text.className).toMatch(/whitespace-nowrap/);
+      expect(chip.className).toMatch(/\bshrink-0\b/);
       // Output resumes, or the order is fulfilled: the explanation goes away.
       act(() =>
         useProductionStore.setState({
@@ -137,27 +144,74 @@ describe('StatusHUD operational controls', () => {
     }
   });
 
-  it('names the agreed line pacing beside the plant rate while a cooperative shift runs', () => {
+  // D4: the steady, resequence and cover plans run the line at the plant's own
+  // rate (1.0), so a season that runs to them does not slow the line and the
+  // chip has nothing to explain. It shows only while the agreed pace is below
+  // the plant rate: the Monday inspection hold and the handoff experiment.
+  it('shows no agreement chip while a steady-plan shift runs at the plant rate', () => {
     try {
       useWorkplaceStore.setState({ workplace: { ...createWorkplace(), phase: 'active' } });
       render(<StatusHUD />);
-      // The steady plan paces the line to 78% of the plant rate.
-      expect(
-        screen.getByLabelText('The cooperative agreement paces the line at 78% of the plant rate')
-      ).toBeVisible();
-      expect(screen.getByText('Agreement pacing 78%')).toBeVisible();
-      act(() => useWorkplaceStore.setState({ workplace: createWorkplace() }));
-      expect(screen.queryByText(/Agreement pacing/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/^Agreement /)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/cooperative agreement/)).not.toBeInTheDocument();
     } finally {
       useWorkplaceStore.setState({ workplace: createWorkplace() });
     }
   });
 
-  it('keeps the agreement chip through a running season instead of blinking out between shifts', () => {
-    // The runtime trace read 78%, absent, 98%, 78%: the cover plan after its
-    // cover expires, the gap between two shifts, then the next shift's cover.
-    // Drive the real season the autonomous demo runs through those moments.
+  it('names the handoff briefing hold, and shows nothing once the line runs at the plant rate', () => {
+    // The briefing arrangement holds the line for its 5-minute briefing; after
+    // it, and once stopped, the trial runs at the plant rate (5.4, D4), so the
+    // chip has nothing to say, between shifts too. Driven through the engine.
+    let state = createWorkplace('game', 17);
+    const run = (command: WorkplaceCommand) => {
+      const result = transitionWorkplace(state, command);
+      state = result.state;
+      return result;
+    };
+    const show = () => act(() => useWorkplaceStore.setState({ workplace: state }));
     try {
+      expect(run({ type: 'beginImprovement', args: ['cooperative', state.revision] }).changed).toBe(
+        true
+      );
+      run({ type: 'proposeImprovement', args: ['briefing', 'packing'] });
+      run({ type: 'acknowledgeImprovement', args: [] });
+      for (const m of state.members) {
+        run({ type: 'understand', args: [m.id] });
+        run({ type: 'vote', args: [m.id, true] });
+      }
+      run({ type: 'vote', args: ['quality', false] });
+      expect(run({ type: 'activate', args: [state.revision] }).changed).toBe(true);
+      render(<StatusHUD />);
+      show();
+      expect(
+        screen.getByLabelText('The cooperative agreement paces the line at 0% of the plant rate')
+      ).toBeVisible();
+      expect(screen.getByText('Agreement pacing 0%')).toBeVisible();
+      run({ type: 'tick', args: [10, 40, false] });
+      show();
+      expect(screen.queryByText(/^Agreement /)).not.toBeInTheDocument();
+      expect(run({ type: 'stopImprovement', args: ['quality'] }).changed).toBe(true);
+      show();
+      expect(screen.queryByText(/^Agreement /)).not.toBeInTheDocument();
+      run({ type: 'tick', args: [80, 400, false] });
+      expect(state.phase).toBe('review');
+      show();
+      expect(screen.queryByText(/^Agreement /)).not.toBeInTheDocument();
+      act(() => useWorkplaceStore.setState({ workplace: createWorkplace() }));
+      expect(screen.queryByText(/^Agreement /)).not.toBeInTheDocument();
+    } finally {
+      useWorkplaceStore.setState({ workplace: createWorkplace() });
+    }
+  });
+
+  it('shows the chip in a running season only while the Monday inspection holds the line', () => {
+    // Drive the real season the autonomous demo runs: its plans run at the
+    // plant rate, so no shift or gap between shifts shows the chip, until the
+    // second shift reaches the season's drawn Monday minute (5.10) and Quality
+    // holds the line for its inspection (5b).
+    try {
+      fulfilFirstDelivery();
       useWorkplaceStore.setState({
         workplace: createWorkplace(),
         participationMode: 'solo',
@@ -188,25 +242,37 @@ describe('StatusHUD operational controls', () => {
         expect(useWorkplaceStore.getState().workplace.phase).toBe(phase);
       };
       until('active');
-      expect(reading()).toBe('Agreement pacing 98%');
+      expect(useWorkplaceStore.getState().workplace.campaign?.shift).toBe(0);
+      expect(reading()).toBeNull();
       act(() => {
         useWorkplaceStore.getState().tick(15, 0, false);
       });
-      expect(reading()).toBe('Agreement pacing 78%');
+      expect(reading()).toBeNull();
       act(() => {
         useWorkplaceStore.getState().tick(75, 0, false);
       });
       expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
-      expect(reading()).toBe('Agreement between shifts');
+      expect(reading()).toBeNull();
       readings.length = 0;
       until('active');
       expect(useWorkplaceStore.getState().workplace.campaign?.shift).toBe(1);
-      expect(reading()).toBe('Agreement pacing 98%');
-      // Every sample between the two shifts kept the chip, saying why it reads as it does.
       expect(readings.length).toBeGreaterThan(5);
-      expect(readings.every((text) => text !== null)).toBe(true);
+      expect(readings.every((text) => text === null)).toBe(true);
+      expect(reading()).toBeNull();
+      act(() => {
+        const s = useWorkplaceStore.getState();
+        s.tick(mondayMinute(s.workplace) + 1, 0, false);
+      });
+      expect(useWorkplaceStore.getState().workplace.campaign?.decision).toBe('inspect');
+      expect(useWorkplaceStore.getState().workplace.campaign?.inspectionComplete).toBe(false);
+      expect(reading()).toBe('Agreement pacing 0%');
+      act(() => {
+        useWorkplaceStore.getState().tick(5, 0, false);
+      });
+      expect(reading()).toBeNull();
     } finally {
       useWorkplaceStore.setState({ workplace: createWorkplace() });
+      useOperationsCampaignStore.getState().resetCampaign();
     }
   });
 
@@ -295,9 +361,10 @@ describe('StatusHUD operational controls', () => {
       ],
     });
     const opened = vi.fn();
+    const focusMachine = vi.fn();
     window.addEventListener('millos:open-operations-workspace', opened);
     try {
-      render(<StatusHUD />);
+      render(<StatusHUD onFocusMachine={focusMachine} />);
       fireEvent.click(screen.getByRole('button', { name: 'Notifications (2 unread)' }));
       // A healthy machine's notice has nothing to repair.
       expect(
@@ -307,6 +374,8 @@ describe('StatusHUD operational controls', () => {
       expect(useUIStore.getState().maintenanceFocusRequested).toBe(true);
       expect(opened).toHaveBeenCalledTimes(1);
       expect((opened.mock.calls[0][0] as CustomEvent).detail).toBe('overview');
+      // A fault is repaired through its work order, not serviced at the unit.
+      expect(focusMachine).not.toHaveBeenCalled();
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     } finally {
       window.removeEventListener('millos:open-operations-workspace', opened);
@@ -354,6 +423,77 @@ describe('StatusHUD operational controls', () => {
       ).not.toBeInTheDocument();
     } finally {
       useProductionStore.setState({ machines });
+    }
+  });
+
+  // A wear notice's Open repair went to Overview's maintenance section, where
+  // the only service offered was the booked one. Working if it selects the
+  // worn unit, its Inspector opens, and focus lands on Maintain; a fault's
+  // notice still goes to the work orders (the test above).
+  it('sends a wear notice to the unit: its Inspector opens with focus on Maintain', () => {
+    const machines = useProductionStore.getState().machines;
+    const silo: MachineData = {
+      id: 'silo-alpha',
+      name: 'Silo Alpha',
+      type: MachineType.SILO,
+      position: [0, 0, 0],
+      size: [1, 1, 1],
+      rotation: 0,
+      status: 'warning',
+      metrics: { rpm: 0, temperature: 30, vibration: 1, load: 60, wear: 75, efficiency: 90 },
+      lastMaintenance: '',
+      nextMaintenance: '',
+    };
+    // App holds the selection; GameInterface passes its focus route to the HUD.
+    const Workspace = () => {
+      const [selected, setSelected] = useState<MachineData | null>(null);
+      return (
+        <>
+          <StatusHUD
+            onFocusMachine={(id) =>
+              setSelected(useProductionStore.getState().machines.find((m) => m.id === id) ?? null)
+            }
+          />
+          {selected && <MachineInspector key={selected.id} machine={selected} />}
+        </>
+      );
+    };
+    useBreakdownStore.getState().resetBreakdownStore();
+    useProductionStore.setState({ machines: [silo] });
+    useUIStore.setState({
+      maintenanceFocusRequested: false,
+      alerts: [
+        {
+          id: `wear-warning-${silo.id}`,
+          type: 'warning',
+          title: 'Wear warning',
+          message: `${silo.name} needs a diagnostic review.`,
+          machineId: silo.id,
+          timestamp: new Date(),
+          acknowledged: false,
+        },
+      ],
+    });
+    const opened = vi.fn();
+    window.addEventListener('millos:open-operations-workspace', opened);
+    try {
+      render(<Workspace />);
+      fireEvent.click(screen.getByRole('button', { name: 'Notifications (1 unread)' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Open repair for Wear warning' }));
+
+      // Service takes game time, so the button names its part and its minutes.
+      const maintain = screen.getByRole('button', {
+        name: 'Perform Maintenance · 1 × filters · 20 min offline',
+      });
+      expect(maintain).toBeEnabled();
+      expect(maintain).toHaveFocus();
+      expect(opened).not.toHaveBeenCalled();
+      expect(useUIStore.getState().maintenanceFocusRequested).toBe(false);
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    } finally {
+      window.removeEventListener('millos:open-operations-workspace', opened);
+      useProductionStore.setState({ machines });
+      useUIStore.setState({ maintenanceFocusRequested: false });
     }
   });
 

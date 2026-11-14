@@ -1,6 +1,7 @@
 import { formatGrouped } from '../../i18n';
 import { getEras, getImprovements } from '../../chronicle/plans';
 import { getForecasts } from '../../chronicle/forecasts';
+import { frontPreparedByPlan, getFronts } from '../../chronicle/longNight';
 import { getCropYears } from '../../chronicle/cropYears';
 import { localizedTraitLabel } from '../../chronicle/contractors';
 import { useT, createTranslator, getLocale } from '../../i18n';
@@ -20,7 +21,17 @@ import { planAvailability } from '../../chronicle/plans';
 import type { ImprovementDefinition, ModifierValues } from '../../chronicle/types';
 
 import { useChronicleStore } from '../../stores/chronicleStore';
-import { BUTTON, CHIP, CostTag, FundAmount, plural, Section } from './shared';
+import {
+  BUTTON,
+  CHIP,
+  CostTag,
+  FundAmount,
+  HeldReason,
+  plural,
+  Section,
+  useStoppedReason,
+} from './shared';
+import { useId } from 'react';
 
 export function effectSummary(plan: ImprovementDefinition): string {
   const t = createTranslator(messages, getLocale());
@@ -60,8 +71,11 @@ export function PlansTab({ state }: { state: ChronicleState }) {
   const installing = state.improvements.some((p) => p.phase === 'installing');
   // An ended chronicle takes no more plans or contractors; the engine refuses them.
   const active = state.status === 'active';
+  const stopped = useStoppedReason();
+  const heldId = useId();
   return (
     <div className="space-y-3">
+      {!active && <HeldReason id={heldId}>{stopped}</HeldReason>}
       <Section
         title={t('m7')}
         action={
@@ -78,7 +92,7 @@ export function PlansTab({ state }: { state: ChronicleState }) {
           </ul>
         )}
         {installing && (
-          <p role="status" className="text-[11px] text-amber-200">
+          <p id={`${heldId}-installing`} role="status" className="text-[11px] text-amber-200">
             {t('m1')}
           </p>
         )}
@@ -95,7 +109,9 @@ export function PlansTab({ state }: { state: ChronicleState }) {
                 <button
                   className={`${BUTTON} mt-2`}
                   disabled={!active || installing || !canAfford(state, { fund: offer.retainer })}
-                  title={installing ? t('m2') : undefined}
+                  aria-describedby={
+                    !active ? heldId : installing ? `${heldId}-installing` : undefined
+                  }
                   onClick={() => actions.hire(offer.id)}
                 >
                   {t('m3')}
@@ -116,6 +132,9 @@ export function PlansTab({ state }: { state: ChronicleState }) {
               const progress = state.improvements.find((p) => p.id === plan.id);
               const block =
                 availability === 'planned' ? localizedInstallBlockReason(state, plan.id) : null;
+              // The four plans the long night counts; a sandbox has no long night.
+              const prepares =
+                state.charter?.mode === 'sandbox' ? null : frontPreparedByPlan(plan.id);
               return (
                 <article
                   key={plan.id}
@@ -131,7 +150,12 @@ export function PlansTab({ state }: { state: ChronicleState }) {
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h4 className="font-medium text-white">
                       {plan.label}
-                      <span className="font-normal text-slate-300">: {effectSummary(plan)}</span>
+                      <span className="font-normal text-slate-300">
+                        : {effectSummary(plan)}
+                        {prepares
+                          ? t('preparesNight', { front: getFronts()[prepares].subject })
+                          : ''}
+                      </span>
                     </h4>
                     <span className="text-[11px] text-slate-300">
                       {availability === 'installed'
@@ -163,6 +187,7 @@ export function PlansTab({ state }: { state: ChronicleState }) {
                       <button
                         className={BUTTON}
                         disabled={!active || knowHowOf(state) < plan.planCost}
+                        aria-describedby={active ? undefined : heldId}
                         onClick={() => actions.plan(plan.id)}
                       >
                         {t('m4')}
@@ -173,7 +198,7 @@ export function PlansTab({ state }: { state: ChronicleState }) {
                       <button
                         className={BUTTON}
                         disabled={block !== null}
-                        title={block ?? undefined}
+                        aria-describedby={block !== null ? `${heldId}-${plan.id}` : undefined}
                         onClick={() => actions.install(plan.id)}
                       >
                         {t('m5')} {plural(installShifts(state, plan.id), 'shift')}
@@ -189,7 +214,11 @@ export function PlansTab({ state }: { state: ChronicleState }) {
                     )}
                   </div>
                   {block && availability === 'planned' && (
-                    <p role="status" className="mt-1 text-[11px] text-amber-200">
+                    <p
+                      id={`${heldId}-${plan.id}`}
+                      role="status"
+                      className="mt-1 text-[11px] text-amber-200"
+                    >
                       {block}
                     </p>
                   )}

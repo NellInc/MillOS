@@ -208,7 +208,7 @@ describe('bilateral workplace laboratory', () => {
     expect(c.activate().changed).toBe(false);
     c.respond();
     expect(c.activate().changed).toBe(true);
-    expect(workplaceCapacity(c.state)).toBe(0.78);
+    expect(workplaceCapacity(c.state)).toBe(1);
     expect(c.state.finance.wageReserve).toBe(108);
     conserved(c.state);
   });
@@ -265,7 +265,7 @@ describe('bilateral workplace laboratory', () => {
     expect(c.state.members.filter((m) => m.extraMinutes > 0)).toHaveLength(1);
     expect(c.state.finance.compensationPaid).toBe(8);
     expect(c.state.finance.compensationReserve).toBe(0);
-    expect(workplaceCapacity(c.state)).toBe(0.78);
+    expect(workplaceCapacity(c.state)).toBe(1);
     conserved(c.state);
     for (const mode of ['workshop', 'pilot'] as const)
       expect(scenario('steady', mode).run({ type: 'simulateResponses', args: [] }).changed).toBe(
@@ -411,8 +411,9 @@ describe('bilateral workplace laboratory', () => {
     for (const id of ['packing', 'quality', 'maintenance'])
       c.run({ type: 'voteSurplus', args: [id, 'members'] });
     expect(c.run({ type: 'distributeSurplus', args: [] }).changed).toBe(true);
-    expect(c.state.finance.distributed).toBeCloseTo(32);
-    expect(c.state.finance.cash).toBeCloseTo(400);
+    // 5.5: the Reserve Fund (10%) and FATES (5%) stay with the co-op.
+    expect(c.state.finance.distributed).toBeCloseTo(32 * 0.85);
+    expect(c.state.finance.cash).toBeCloseTo(400 + 32 * 0.15);
     expect(new Set(c.state.members.map((m) => m.earnedPay)).size).toBe(1);
     const before = c.state;
     expect(c.run({ type: 'distributeSurplus', args: [] }).changed).toBe(false);

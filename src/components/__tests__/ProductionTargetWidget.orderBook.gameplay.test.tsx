@@ -14,10 +14,12 @@ import { useMobileControlStore } from '../../stores/mobileControlStore';
 // Playtest: every open order's remainder (6,000 + 4,000 + 8,000 kg) packed by
 // 13:48, the line idle awaiting dispatch, and the card read BEHIND SCHEDULE
 // and demanded 1.4 t per game hour that the order feed would never admit.
+// Since D11 the card reads the programme and demands no rate at all.
 describe('ProductionTargetWidget when the order book is packed', () => {
   const originalExecution = useOperationsCampaignStore.getState().execution;
 
   beforeEach(() => {
+    useOperationsCampaignStore.getState().resetCampaign();
     useWorkplaceStore.setState({ workplace: createWorkplace() });
     useMobileControlStore.getState().closeMobilePanel();
     useAIConfigStore.getState().setShowProductionTarget(true);
@@ -32,6 +34,7 @@ describe('ProductionTargetWidget when the order book is packed', () => {
 
   afterEach(() => {
     cleanup();
+    useOperationsCampaignStore.getState().resetCampaign();
     useOperationsCampaignStore.setState({ execution: originalExecution });
     const game = useGameSimulationStore.getInitialState();
     const production = useProductionStore.getInitialState();
@@ -60,16 +63,16 @@ describe('ProductionTargetWidget when the order book is packed', () => {
     expect(screen.getByText('AWAITING DISPATCH')).toBeInTheDocument();
     expect(screen.queryByText('BEHIND SCHEDULE')).toBeNull();
     expect(screen.queryByText('Req:')).toBeNull();
-    // The day's target and progress stay the figures the header shows.
+    // The target and progress stay the figures the header shows: the
+    // programme's tonnes shipped of tonnes committed, packed stock not counted.
+    expect(screen.getByText('0.0t')).toBeInTheDocument();
     expect(screen.getByText('18.0t')).toBeInTheDocument();
-    expect(screen.getByText('30t')).toBeInTheDocument();
   });
 
-  it('still reports a changeover to the next commitment against the schedule', () => {
+  it('does not call a changeover to the next commitment awaiting dispatch', () => {
     packed('Northside Bakery');
     render(<ProductionTargetWidget />);
     expect(screen.queryByText('AWAITING DISPATCH')).toBeNull();
-    expect(screen.getByText('Req:')).toBeInTheDocument();
   });
 
   it('does not call a running line awaiting dispatch', () => {

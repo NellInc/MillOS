@@ -3,9 +3,10 @@ import { formatFixed } from '../i18n';
  * One time model for the whole plant.
  *
  * `gameSpeed` is game seconds per real second: the clock, customer deadlines,
- * wear, wages and the cooperative ledger all advance by it. Everything physical
- * (material flow, packing, loading, trucks, forklifts, repair downtime) runs on
- * plant time, which is a FIXED fraction of game time. So a pace control scales
+ * wear, wages, the cooperative ledger and repair downtime (counted in game
+ * seconds against the shift clock, UnifiedGameTick.ts) all advance by it.
+ * Everything physical (material flow, packing, loading, trucks, forklifts) runs
+ * on plant time, which is a FIXED fraction of game time. So a pace control scales
  * the whole world together, and a delivery that is feasible at one pace is
  * feasible at every pace. Before this, plant physics ran on real seconds while
  * deadlines ran on the clock, and at the old 180x default the first order could

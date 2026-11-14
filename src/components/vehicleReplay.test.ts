@@ -212,7 +212,8 @@ describe('component-owned vehicle replay', () => {
     const execution = useOperationsCampaignStore.getState().execution;
     useOperationsCampaignStore.setState({ execution: { ...execution, lineSetpointPercent: 0 } });
     try {
-      expect(useOperationsCampaignStore.getState().getProductionMultiplier()).toBe(0);
+      // One rate (plan item 3.6): a zero setpoint no longer stops the line.
+      expect(useOperationsCampaignStore.getState().getProductionMultiplier()).toBe(1);
       // Neither the campaign setpoint nor the line rate is a pause.
       useProductionStore.setState({ productionSpeed: 0 });
       useGameSimulationStore.setState({ gameSpeed: STANDARD_GAME_SPEED });

@@ -6,11 +6,13 @@ export const knowledgeEntryCardMessages = defineMessages({
     inBrief: 'In Brief',
     whereToSeeIt: 'Where to see it',
     relatedTopics: 'Related Topics',
+    sources: 'Sources',
   },
   'pt-BR': {
     backToList: 'Voltar à lista',
     inBrief: 'Em resumo',
     whereToSeeIt: 'Onde ver isso',
     relatedTopics: 'Temas relacionados',
+    sources: 'Fontes',
   },
 });

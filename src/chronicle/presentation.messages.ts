@@ -6,6 +6,8 @@ export const presentationMessages = defineMessages({
     b0: 'The upkeep shortfall went unanswered, so the mill is conserving resources.',
     t1: 'Lack of material',
     b1: 'Upkeep of {n0} is due and the fund holds {n1}. Decrepit plant raises the chance of breakdown and fire.',
+    // The same notice without its closing advice (D14); b1 reads saves from before.
+    shortfallBody: 'Upkeep of {n0} is due and the fund holds {n1}.',
     t2: 'Conserving resources',
     b2: 'Some plant is shut down: upkeep halved, production x0.92, wear x1.2, fire risk rising each shift.',
     t3: 'Conserving resources',
@@ -29,6 +31,10 @@ export const presentationMessages = defineMessages({
     t12: 'Grain conditioned',
     b12: 'This crop year’s grain is treated; its quality penalty is eased to {n0}.',
     t13: 'Grain conditioned',
+    grainDried: 'Grain dried',
+    qcReview: 'County Food Standards reviews the QC record',
+    qcReviewBody: '{n0} batches passed QC since the last review: standing +{n1}.',
+    qcReviewOneBody: '{n0} batch passed QC since the last review: standing +{n1}.',
     b13: 'This crop year’s grain is treated; its quality penalty is lifted.',
     t14: 'Training mode is available',
     b14: 'Fund costs -25%, forecast chance -25%, final score -{n0}.',
@@ -61,6 +67,8 @@ export const presentationMessages = defineMessages({
     forecastPassed: '{title}: it passed',
     struckBody:
       'The {n0}% forecast came true. Recover the incident from the operations card, then restore controls here.',
+    // Without the closing advice (D14); struckBody and fellBody read saves from before.
+    struckNowBody: 'The {n0}% forecast came true.',
     passedBody: 'The {n0}% forecast did not come to pass.',
     forecastUnderWay: '{title}: already under way',
     underWayBody:
@@ -75,6 +83,15 @@ export const presentationMessages = defineMessages({
     window: 'The window closed.',
     qualityFail: '{n0} kg failed its recipe quality threshold.',
     cleanFail: '{n0} of {n1} consecutive clean shift closes.',
+    failDispatch: 'Dispatch broke it: {g0} of {g1} kg dispatched.',
+    failEnergy: 'Energy broke it: {n0} per kg against {n1}.',
+    failGrade: 'The grade broke it: average grade points {n0} against {n1}.',
+    failQuality: 'Quality broke it: {n0} kg failed its recipe quality threshold.',
+    failQc: 'QC broke it at the shift {n0} close: no batch passed QC.',
+    failCleanQuality:
+      'Quality broke it at the shift {n0} close: flour failed its recipe quality threshold.',
+    failIncident:
+      'An incident broke it at the shift {n0} close: a high-severity incident was still open.',
     retained: '{label} retained',
     retainedBody: 'Their crew will carry out the next installs.',
     installSummary: 'Started installing {label}',
@@ -91,6 +108,8 @@ export const presentationMessages = defineMessages({
     cropYear: 'Crop year {n0}: {label}',
     cropBase: 'Moisture about {n0}%, protein about {n1}%.',
     cropPenalty: 'Wheat recipes lose {n0} quality points until the grain is treated.',
+    cropPenaltyDried:
+      'Wheat recipes lose {n0} quality points unless the grain is dried first on the Tempering card.',
     cropReinvestment: 'Reinvestment +{n0}%.',
     newEra: 'A new era: {label}',
     noBonus: 'New plans can be drawn up.',
@@ -106,8 +125,11 @@ export const presentationMessages = defineMessages({
     held: '{label} held',
     fell: '{label} fell',
     heldBody: 'Held on preparation alone ({n0} of {n1} prepared).',
+    // As the long night's buttons put it; heldBody reads saves from before.
+    heldNowBody: 'Held on preparation alone ({n0} prepared, {n1} needed).',
     fellBody:
       '{label} needed {n0} preparation and had {n1}. Recover the incident under Incidents raised by the chronicle.',
+    fellNowBody: '{label} needed {n0} preparation and had {n1}.',
     dispatchFail: '{n0} of {target} kg dispatched.',
     energyFail: 'Energy {n0} per kg against {n1}.',
     gradeFail: 'Average grade points {n0} against {n1}.',
@@ -144,6 +166,10 @@ export const presentationMessages = defineMessages({
     ballotCuts: 'it cuts against their need for {need}',
     ballotLifts: 'it lifts their objection on {ladder}',
     ballotStands: 'their objection on {ladder} still stands',
+    ballotRulingStands: 'their objection to {ruling} still stands',
+    rulingObjection: 'The {role} objects to {ruling}',
+    rulingObjectionBody:
+      'It cuts against what they value: {value}. The objection stands until it is met.',
     ballotToward: 'it moves toward what they value: {value}',
     ballotAway: 'it moves away from what they value: {value}',
     ballotEager: 'they back a change that leaves them be',
@@ -156,7 +182,7 @@ export const presentationMessages = defineMessages({
     blockLockedMany: 'changed lately: {n0} shifts more',
     blockPlan: 'needs {label}',
     blockProposal: 'a change is already before the assembly',
-    blockCost: 'needs {n0} know-how and a council point',
+    blockCost: 'needs {n0} know-how',
     conditionRaisedBody: '{effect}. To clear: {clear}.',
     conditionCleared: '{label}: cleared',
     conditionClearedBody: 'Its effect has lifted.',
@@ -171,6 +197,12 @@ export const presentationMessages = defineMessages({
     adminRestored:
       'The mill’s policies are its own again, and the AI partner’s grant is back where it was.',
     adminKept: 'The mill’s policies are its own again, and the AI partner keeps the grant you set.',
+    adminOffered: 'Why the federation offers an administrator',
+    adminOfferMissed: 'The mill missed {n0} quotas in a row.',
+    adminOfferCool: '{n0} of the valley’s organisations have cooled on the mill.',
+    adminBroughtBy: ' Brought by: {causes}.',
+    causeReturn: 'the crop year {n0} return',
+    causePolicy: 'the {ladder} policy',
     adminArrives: 'The federation sends an administrator',
     adminMissed:
       'The mill missed {n0} quotas in a row. For {n1} shifts its policies are locked, upkeep is x{n2} and the AI partner acts at Forecasts or above. Then it leaves.',
@@ -183,6 +215,9 @@ export const presentationMessages = defineMessages({
     carriedAbstain: 'Carried {n0} to {n1}, {n2} abstaining. {ladder}: {rung} ({effect}).',
     outvoted: 'The {role} was outvoted on {need}; the objection stands.',
     objectionLifted: 'The {role}’s objection is lifted.',
+    tieOffRedLine: 'The tie carries it: the move leaves a step an organisation has warned against.',
+    tieClearsCondition:
+      'The tie carries it: the move leaves the step a standing condition needs left to clear.',
     assemblyFails: 'The assembly does not carry the {ladder} change',
     notCarried: '{n0} for, {n1} against. Meet a need another way, or withdraw it.',
     notCarriedAbstain:
@@ -239,6 +274,7 @@ export const presentationMessages = defineMessages({
     b0: 'O déficit de manutenção ficou sem resposta, então o moinho está conservando recursos.',
     t1: 'Falta de material',
     b1: 'A manutenção de {n0} está vencendo e o fundo tem {n1}. Instalações deterioradas aumentam o risco de avaria e incêndio.',
+    shortfallBody: 'A manutenção de {n0} está vencendo e o fundo tem {n1}.',
     t2: 'Conservando recursos',
     b2: 'Parte das instalações está parada: manutenção pela metade, produção x0,92, desgaste x1,2 e risco de incêndio crescente a cada turno.',
     t3: 'Conservando recursos',
@@ -262,6 +298,10 @@ export const presentationMessages = defineMessages({
     t12: 'Grão condicionado',
     b12: 'O grão deste ano agrícola foi tratado; a penalidade de qualidade foi reduzida para {n0}.',
     t13: 'Grão condicionado',
+    grainDried: 'Grãos secos',
+    qcReview: 'County Food Standards revisa o registro de CQ',
+    qcReviewBody: '{n0} lotes aprovados no CQ desde a última revisão: reputação +{n1}.',
+    qcReviewOneBody: '{n0} lote aprovado no CQ desde a última revisão: reputação +{n1}.',
     b13: 'O grão deste ano agrícola foi tratado; a penalidade de qualidade foi eliminada.',
     t14: 'Modo de treinamento disponível',
     b14: 'Custos do fundo -25%, probabilidade das previsões -25%, pontuação final -{n0}.',
@@ -293,11 +333,12 @@ export const presentationMessages = defineMessages({
     forecastStruck: '{title}: concretizou-se',
     forecastPassed: '{title}: passou',
     struckBody:
-      'A previsão de {n0}% se concretizou. Resolva o incidente no cartão de operações e restaure os controles aqui.',
+      'A previsão de {n0}% se concretizou. Resolva a ocorrência no cartão de operações e restaure os controles aqui.',
+    struckNowBody: 'A previsão de {n0}% se concretizou.',
     passedBody: 'A previsão de {n0}% não se concretizou.',
     forecastUnderWay: '{title}: já em curso',
     underWayBody:
-      'A previsão de {n0}% se concretizou quando o mesmo incidente já estava em curso, então nada mais foi acionado.',
+      'A previsão de {n0}% se concretizou quando a mesma ocorrência já estava em curso, então nada mais foi acionado.',
     forecastIssued: '{title}: {n0}% em {n1} {unit}',
     trialSoon: '{title} começa em {n0} turnos',
     trialBegun: '{title} começou',
@@ -308,6 +349,16 @@ export const presentationMessages = defineMessages({
     window: 'O prazo terminou.',
     qualityFail: '{n0} kg ficaram abaixo do limite de qualidade da receita.',
     cleanFail: '{n0} de {n1} encerramentos de turno consecutivos sem falhas.',
+    failDispatch: 'O despacho a fez falhar: {g0} de {g1} kg expedidos.',
+    failEnergy: 'A energia a fez falhar: {n0} por kg frente a {n1}.',
+    failGrade: 'A nota a fez falhar: média de pontos de nota de {n0} frente a {n1}.',
+    failQuality:
+      'A qualidade a fez falhar: {n0} kg ficaram abaixo do limite de qualidade da receita.',
+    failQc: 'O CQ a fez falhar no fechamento do turno {n0}: nenhum lote passou no CQ.',
+    failCleanQuality:
+      'A qualidade a fez falhar no fechamento do turno {n0}: farinha abaixo do limite de qualidade da receita.',
+    failIncident:
+      'Uma ocorrência a fez falhar no fechamento do turno {n0}: uma ocorrência de alta gravidade continuava aberta.',
     retained: '{label} contratado',
     retainedBody: 'A equipe realizará as próximas instalações.',
     installSummary: 'Iniciou a instalação de {label}',
@@ -318,13 +369,15 @@ export const presentationMessages = defineMessages({
     suppressSummary: 'Financiou o combate ao incêndio',
     suppressReason:
       'A produção foi parada por um incêndio no duto e o fundo podia custear o combate.',
-    restoreSummary: 'Restaurou os controles após um incidente mitigado',
-    restoreReason: 'O incidente foi mitigado e seus efeitos aplicados.',
+    restoreSummary: 'Restaurou os controles após uma ocorrência mitigada',
+    restoreReason: 'A ocorrência foi mitigada e seus efeitos aplicados.',
     begins: 'A crônica começa',
     beginBody: '{label}, ano agrícola 1: {crop}.',
     cropYear: 'Ano agrícola {n0}: {label}',
     cropBase: 'Umidade em torno de {n0}%, proteína em torno de {n1}%.',
     cropPenalty: 'Receitas de trigo perdem {n0} pontos de qualidade até o tratamento do grão.',
+    cropPenaltyDried:
+      'Receitas de trigo perdem {n0} pontos de qualidade, a menos que o grão seja seco antes no cartão de Condicionamento.',
     cropReinvestment: 'Reinvestimento +{n0}%.',
     newEra: 'Uma nova era: {label}',
     noBonus: 'Novos planos podem ser elaborados.',
@@ -340,8 +393,10 @@ export const presentationMessages = defineMessages({
     held: '{label} resistiu',
     fell: '{label} cedeu',
     heldBody: 'Resistiu apenas com a preparação ({n0} de {n1} preparados).',
+    heldNowBody: 'Resistiu apenas com a preparação ({n0} preparados, {n1} necessários).',
     fellBody:
-      '{label} precisava de {n0} de preparação e tinha {n1}. Resolva o incidente em Incidentes causados pela crônica.',
+      '{label} precisava de {n0} de preparação e tinha {n1}. Resolva a ocorrência em Ocorrências geradas pela crônica.',
+    fellNowBody: '{label} precisava de {n0} de preparação e tinha {n1}.',
     dispatchFail: '{n0} de {target} kg expedidos.',
     energyFail: 'Energia de {n0} por kg frente a {n1}.',
     gradeFail: 'Média de pontos de nota de {n0} frente a {n1}.',
@@ -380,6 +435,10 @@ export const presentationMessages = defineMessages({
     ballotCuts: 'vai contra a necessidade de {need}',
     ballotLifts: 'resolve a objeção sobre {ladder}',
     ballotStands: 'a objeção sobre {ladder} continua de pé',
+    ballotRulingStands: 'a objeção contra {ruling} continua de pé',
+    rulingObjection: '{role}: objeção contra {ruling}',
+    rulingObjectionBody:
+      'Vai contra o que valoriza: {value}. A objeção continua de pé até ser atendida.',
     ballotToward: 'aproxima-se do que valoriza: {value}',
     ballotAway: 'afasta-se do que valoriza: {value}',
     ballotEager: 'apoia uma mudança que não lhe diz respeito',
@@ -392,7 +451,7 @@ export const presentationMessages = defineMessages({
     blockLockedMany: 'mudou há pouco: faltam {n0} turnos',
     blockPlan: 'requer {label}',
     blockProposal: 'já há uma mudança em votação na assembleia',
-    blockCost: 'requer {n0} de conhecimento prático e um ponto de Conselho',
+    blockCost: 'requer {n0} de conhecimento prático',
     conditionRaisedBody: '{effect}. Para resolver: {clear}.',
     conditionCleared: 'Condição encerrada: {label}',
     conditionClearedBody: 'O efeito deixou de valer.',
@@ -408,6 +467,12 @@ export const presentationMessages = defineMessages({
       'O moinho volta a decidir as próprias políticas, e a autorização do parceiro de IA volta a ser a de antes.',
     adminKept:
       'O moinho volta a decidir as próprias políticas, e o parceiro de IA mantém a autorização que você definiu.',
+    adminOffered: 'Por que a federação oferece um administrador',
+    adminOfferMissed: 'O moinho deixou de cumprir {n0} cotas seguidas.',
+    adminOfferCool: '{n0} organizações do vale esfriaram a relação com o moinho.',
+    adminBroughtBy: ' Motivos: {causes}.',
+    causeReturn: 'a declaração do ano agrícola {n0}',
+    causePolicy: 'a política de {ladder}',
     adminArrives: 'A federação envia um administrador',
     adminMissed:
       'O moinho deixou de cumprir {n0} cotas seguidas. Por {n1} turnos, as políticas ficam bloqueadas, o custo de manutenção fica em x{n2} e o parceiro de IA age no nível Previsões ou acima. Depois, o administrador vai embora.',
@@ -420,6 +485,10 @@ export const presentationMessages = defineMessages({
     carriedAbstain: 'Aprovada por {n0} a {n1}, com {n2} em abstenção. {ladder}: {rung} ({effect}).',
     outvoted: '{role}: voto vencido quanto a {need}; a objeção continua de pé.',
     objectionLifted: '{role}: objeção retirada.',
+    tieOffRedLine:
+      'O empate a aprova: a mudança tira o moinho de um nível contra o qual uma organização emitiu um alerta.',
+    tieClearsCondition:
+      'O empate a aprova: a mudança tira o moinho do nível que uma condição permanente precisa que ele deixe para ser resolvida.',
     assemblyFails: 'A assembleia não aprova a mudança de {ladder}',
     notCarried:
       '{n0} a favor, {n1} contra. Atenda a uma necessidade de outra forma ou retire a proposta.',

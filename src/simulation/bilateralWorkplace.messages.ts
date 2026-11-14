@@ -63,12 +63,30 @@ export const bilateralWorkplaceMessages = defineMessages({
     planSteadyTitle: 'Protect the rhythm',
     planSteadyExplanation: 'Keep the ordinary sequence and all protected rest.',
     planResequenceTitle: 'Resequence together',
+    // 5.4: a plan that costs more than steady says what it buys. The trucks
+    // set what ships (measured), so no plan claims tonnes or line pace.
     planResequenceExplanation:
-      'Spend 40 illustrative credits on a shared handoff improvement without changing rest.',
+      'Costs 40 illustrative credits. Rest is unchanged. Moves the rush first or last for the shift: which order the next truck serves.',
     planCoverTitle: 'Invite voluntary cover',
     planCoverExplanation:
-      'One eligible volunteer may shift up to 10 minutes of timing, earning 0.8 credits per minute and 10 minutes protected recovery. Minimum rest stays intact. Capacity returns to the protected rhythm after cover.',
-    planRushTitle: 'Rush through rest (blocked)',
+      'Costs 0.8 credits a minute and 10 minutes of protected recovery. Buys up to 10 paid minutes of a qualified volunteer, who does the work of the role away at the shift’s start, counted in their share of the surplus; minimum rest stays intact.',
+    // 5.4: what a plan does to the plant this shift, on its choice.
+    effectAwayQuality: 'Quality is away until minute {minute}: no new lab test starts until then.',
+    effectAwayMaintenance: 'Maintenance is away until minute {minute}: a service waits until then.',
+    // Review 2: cover by a member qualified for release, which costs its own task.
+    effectCoverQuality:
+      'Cover by {role} runs Quality’s lab tests until minute {minute}; {role}’s own work waits until then.',
+    // Review 2: no volunteer is qualified for Quality's release.
+    effectCoverQualityHeld:
+      'Release stays with qualified quality staff, so cover runs no lab test: none starts until minute {minute}.',
+    effectCoverMaintenance:
+      'Cover keeps services running while Maintenance is away, until minute {minute}.',
+    effectRushFirst: 'Serves the rush, {customer}, first. In hand: {list}.',
+    effectRushLast: 'Serves {customer} first; the rush waits a truck. In hand: {list}.',
+    effectNoResequence: 'No open order of another product: no truck moves.',
+    effectInHand: '{customer} {minutes} min',
+    effectLate: '{customer} {minutes} min late',
+    planRushTitle: 'Rush through rest',
     planRushExplanation:
       'A tempting throughput proposal that breaches the non-negotiable rest floor.',
     planRushIllegal: 'Protected minimum rest cannot be waived, even by a unanimous ballot.',
@@ -87,7 +105,7 @@ export const bilateralWorkplaceMessages = defineMessages({
       'I can accept a bounded handoff change when compensation and recovery are reserved.',
     roleCoordinator: 'Coordinator',
     boundaryCoordinator: 'Coordination grants no power to waive another member’s boundary.',
-    preferenceCoordinator: 'I prefer the stable sequence and decline optional cover.',
+    preferenceCoordinator: 'I prefer the stable sequence.',
     // Who acted, in event receipts
     actorAdviser: 'Adviser',
     actorSystem: 'System',
@@ -252,8 +270,7 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Close the handoff experiment only after the member review is finalised, with no owed recovery, open objection or reserve, from the current revision.',
     evContinued:
       'Opening cash equals the previous closing balance. History and customer work remain; prior consent is expired.',
-    rejStartCampaign:
-      'Start a known fictional campaign from the idle laboratory with a valid seed.',
+    rejStartCampaign: 'Start a known fictional season from idle, with a valid seed.',
     evCampaignStarted:
       'Three fictional shifts. Fairness and closing cash carry forward; every shift needs fresh consent.',
     rejNextShift:
@@ -273,7 +290,16 @@ export const bilateralWorkplaceMessages = defineMessages({
     rejSkipInspection:
       'Deadline pressure cannot waive qualified inspection or release a held batch.',
     rejInspectionTiming:
-      'Qualified Quality may initiate inspection once the minute-25 pacing hold begins.',
+      'Qualified Quality may initiate inspection once the disputed sample holds line pacing.',
+    evInspectionStartedSample:
+      'Quality puts Monday’s sample first on the lab bench; the line holds until the bench has read it.',
+    evSampleHeld:
+      'Monday’s sample: batch {batch} of this order awaits its bench test, and the line holds for it.',
+    evSampleLeft: 'Monday’s sample {batch} left the bench untested, and the line runs again.',
+    evSamplePassed:
+      'Monday’s sample {batch} read on the bench: quality {quality} meets the order’s minimum of {minimum}.',
+    evSampleFailed:
+      'Monday’s sample {batch} read on the bench: quality {quality} is under the order’s minimum of {minimum}.',
     evInspectionStarted:
       'Five modeled minutes of line pacing hold initiated; batch quality authority remains unchanged.',
     rejDifferentResponse: 'Choose a different episode response during deliberation.',
@@ -322,8 +348,12 @@ export const bilateralWorkplaceMessages = defineMessages({
     evReloadSafety: 'Reload safety: future authority and consent revoked; earned pay retained.',
     evShiftResumed:
       'Shift resumed at minute {minute} after a reload; it continues once everyone consents again.',
+    evShiftResumedAfterSafety:
+      'Shift resumed at minute {minute} after a safety stop; it continues once everyone consents again.',
+    evShiftResumedAfterObjection:
+      'Shift resumed at minute {minute} after its objection was resolved; it continues once everyone consents again.',
     rejResumeShift:
-      'Only a shift that a reload stopped before its end, or a handoff deliberation it interrupted before funding, can resume; other endings stand.',
+      'Only a shift paused by a reload, a safety stop or a resolved objection, or a handoff deliberation a reload interrupted before funding, can resume; other endings stand.',
     rejCoverConsent:
       'Record distinct cover consent only after understanding the current cover plan.',
     rejNotQualified: 'This role is not qualified for cover.',
@@ -341,7 +371,35 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Authored response simulation is available only in Game mode. Workshop requires manual role input; Pilot is planning-only.',
     rejAuthoredAlready: 'Authored responses already recorded.',
     evAuthoredCampaign:
-      'Authored peer answers and choices recorded. Packing understanding, ballot and cover consent require separate explicit input. Adviser checks remain explicit; existing declines remain intact.',
+      'The other roles and the adviser answered from their own values. Packing understanding, ballot and cover consent are yours to give.',
+    // Recorded before the adviser answered for itself (5b); kept so old receipts translate.
+    evAuthoredCampaignBefore5b:
+      'The other roles answered from their own values. Packing understanding, ballot and cover consent are yours to give; adviser checks remain explicit.',
+    // 5.3: an authored role's no, in its own terms (AUTHORED_REFUSAL_KEYS).
+    refuseCoordinatorWages:
+      'The Coordinator says no: after this plan the books would hold less than one shift of wages, and the team is paid first.',
+    refuseQualityInspection:
+      'Quality says no: a quality investigation is open on the line, and Quality approves only on evidence. It answers again once the lab closes it.',
+    declineCoverDone:
+      'Maintenance declines cover: it has already covered this season, and once is its share.',
+    declineCoverDoneCoordinator:
+      'The Coordinator declines cover: it has already covered this season, and once is its share.',
+    declineCoverMaintenance:
+      'Maintenance declines cover this season: the machines it keeps need it at the mill, not on the packing line.',
+    declineCoverCoordinator:
+      'The Coordinator declines cover this season: someone has to keep the shift to its plan, and that is its work.',
+    // 5.3 (D5): each authored role's stated value, its why-line beside what it
+    // answered, and the calls it makes itself. Words only: never a number.
+    valueQuality: 'Approves only on evidence; release stays with qualified quality staff.',
+    valueMaintenance: 'Accepts a bounded change when pay and recovery are reserved.',
+    valueCoordinator: 'Prefers the stable sequence, and pays the team first.',
+    valueAdviser: 'Advises within bounded authority and never waives a boundary.',
+    callInstallment:
+      'The Coordinator asks for an installment: it prefers the stable sequence to a rush.',
+    callProtectRefusal:
+      'The Coordinator protects the refusal: coordination grants no power to waive another member’s boundary.',
+    callInspect:
+      'Quality inspects the disputed sample: release stays with qualified quality staff.',
     evAuthoredRoles:
       'Fictional role responses recorded from authored preferences; declines carry no penalty.',
     rejObjectRole:
@@ -352,6 +410,8 @@ export const bilateralWorkplaceMessages = defineMessages({
     evObjection: (p: { kind: string }) =>
       `Raised a ${p.kind} objection; activation is blocked until the raiser resolves it.`,
     settleObjection: 'Stopped safely after an objection; earned obligations retained.',
+    // English sentinel (shiftResumable): a campaign shift an objection paused.
+    settleObjectionPaused: 'Paused safely for an objection; earned obligations retained.',
     rejResolveRaiser: 'Only the original raiser may resolve their open objection.',
     rejRestateFirst: 'Restate the protected terms before the raiser reviews this remedy.',
     objectionResolution: (p: { actor: string; kind: string }) =>
@@ -371,6 +431,9 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Linked dispatch evidence changed or failed quality. Future optional authority stopped; earned obligations retained.',
     rejNoRecovery: 'No recovery time to deliver.',
     settleEmergency: 'Emergency stop: optional work halted immediately.',
+    // English sentinel (shiftResumable): a campaign shift an E-stop or drill paused.
+    settleEmergencyPaused:
+      'Emergency stop or drill: this shift paused; earned obligations retained.',
     evInspectionCompleted:
       'Five modeled inspection minutes completed. Actual batch certification and release checks remain separate.',
     settleEnded:
@@ -382,10 +445,39 @@ export const bilateralWorkplaceMessages = defineMessages({
     evSurplusBallot: (p: { destination: string }) =>
       `Member chose ${p.destination}; no capital-weighted votes.`,
     rejSettleFirst: 'Settle obligations and objections before a one-time surplus decision.',
-    rejSurplusAgree: 'At least three members must agree on a surplus destination.',
+    rejSurplusPaused: 'A paused shift shares its surplus once it has resumed and ended.',
+    rejSurplusSeasonEnd:
+      'The surplus is the season’s: the members settle it once its last shift ends.',
+    rejSurplusAgree: 'Every member votes on the surplus before it is shared.',
     rejNoSurplus: 'No positive operating surplus; starting capital cannot be shared as profit.',
     evSurplusDecided:
+      '{destination}: {amount} illustrative credits after {reserve} to the Reserve Fund and {fates} to the Assistance Fund; members’ shares follow the minutes each worked.',
+    // The receipt the build before phase 5 recorded (saved seasons still hold it).
+    evSurplusDecidedV1:
       '{destination}: {amount} illustrative credits; equal shares if distributed to members.',
+    // Review 2: how a surplus vote carried when not by three of four.
+    evSurplusChair: 'Two to two: the chair’s ballot carried.',
+    evSurplusDefault:
+      'No destination carried, so the law’s default applies: the rest returns to members by minutes worked (Lei 5.764/71, art. 4 VII).',
+    evSurplusCharter:
+      'This charter shares no surplus: after the statutory funds the rest stays in the Reserve Fund.',
+    evSurplusLeft:
+      'The season was left early: what it earned is settled by the statutory default, the Reserve Fund and the Assistance Fund first, the rest kept in the Reserve Fund.',
+    // Review 2: each authored role's need, met or outvoted. Words only.
+    needQualityMet:
+      'Quality’s need, a loss repaired from the reserve before anything is shared, was met.',
+    needQualityOutvoted:
+      'Quality’s need, a loss repaired from the reserve before anything is shared, was outvoted.',
+    needMaintenanceMet:
+      'Maintenance’s need, the minutes each member worked paid back, cover included, was met.',
+    needMaintenanceOutvoted:
+      'Maintenance’s need, the minutes each member worked paid back, cover included, was outvoted.',
+    needCoordinatorMet:
+      'The Coordinator’s need, a Reserve Fund that pays a season’s wages, was met.',
+    needCoordinatorOutvoted:
+      'The Coordinator’s need, a Reserve Fund that pays a season’s wages, was outvoted.',
+    evReserveBrought: 'The Reserve Fund brings {amount} illustrative credits from last season.',
+    evReserveFunded: 'The Reserve Fund paid {amount} illustrative credits of this purchase.',
     // Display labels for the record ids that open a receipt (displayEventDetail).
     recordDecisionKeepTarget: 'Keep the target',
     recordDecisionRenegotiate: 'Renegotiate',
@@ -435,11 +527,27 @@ export const bilateralWorkplaceMessages = defineMessages({
     planSteadyExplanation: 'Manter a sequência normal e todo o descanso protegido.',
     planResequenceTitle: 'Resequenciar juntos',
     planResequenceExplanation:
-      'Gastar 40 créditos ilustrativos em uma melhoria compartilhada da passagem de turno, sem alterar o descanso.',
+      'Custa 40 créditos ilustrativos. O descanso não muda. Põe o pedido urgente primeiro ou por último no turno: qual pedido o próximo caminhão atende.',
     planCoverTitle: 'Convidar cobertura voluntária',
     planCoverExplanation:
-      'Um voluntário elegível pode deslocar até 10 minutos do horário, recebendo 0,8 crédito por minuto e 10 minutos de recuperação protegida. O descanso mínimo continua intacto. A capacidade volta ao ritmo protegido depois da cobertura.',
-    planRushTitle: 'Atropelar o descanso (bloqueado)',
+      'Custa 0,8 crédito por minuto e 10 minutos de recuperação protegida. Compra até 10 minutos remunerados de um voluntário qualificado, que faz o trabalho da função ausente no início do turno, contados na sua parte das sobras; o descanso mínimo continua intacto.',
+    effectAwayQuality:
+      'A Qualidade está ausente até o minuto {minute}: nenhum teste novo de laboratório começa até lá.',
+    effectAwayMaintenance:
+      'A Manutenção está ausente até o minuto {minute}: uma manutenção espera até lá.',
+    effectCoverQuality:
+      'Cobertura pela função {role}: faz os testes de laboratório da Qualidade até o minuto {minute}; o trabalho próprio da função {role} espera até lá.',
+    effectCoverQualityHeld:
+      'A liberação continua com a equipe qualificada da qualidade, então a cobertura não faz testes de laboratório: nenhum começa até o minuto {minute}.',
+    effectCoverMaintenance:
+      'A cobertura faz as manutenções enquanto a Manutenção está ausente, até o minuto {minute}.',
+    effectRushFirst: 'Atende primeiro o pedido urgente, {customer}. Folga: {list}.',
+    effectRushLast:
+      'Atende primeiro {customer}; o pedido urgente espera um caminhão. Folga: {list}.',
+    effectNoResequence: 'Nenhum pedido aberto de outro produto: nenhum caminhão muda.',
+    effectInHand: '{customer} {minutes} min',
+    effectLate: '{customer} {minutes} min de atraso',
+    planRushTitle: 'Atropelar o descanso',
     planRushExplanation:
       'Uma proposta tentadora de vazão que viola o piso inegociável de descanso.',
     planRushIllegal:
@@ -461,7 +569,7 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Posso aceitar uma mudança limitada na passagem de turno quando a compensação e a recuperação estiverem reservadas.',
     roleCoordinator: 'Coordenação',
     boundaryCoordinator: 'A coordenação não dá poder para dispensar o limite de outro cooperado.',
-    preferenceCoordinator: 'Prefiro a sequência estável e recuso a cobertura opcional.',
+    preferenceCoordinator: 'Prefiro a sequência estável.',
     actorAdviser: 'Conselheiro',
     actorSystem: 'Sistema',
     actorTeam: 'Equipe',
@@ -634,7 +742,7 @@ export const bilateralWorkplaceMessages = defineMessages({
     evContinued:
       'O caixa de abertura é igual ao saldo de fechamento anterior. O histórico e o trabalho para clientes permanecem; o consentimento anterior expirou.',
     rejStartCampaign:
-      'Inicie uma campanha fictícia conhecida a partir do laboratório ocioso, com uma semente válida.',
+      'Inicie uma temporada fictícia conhecida a partir do estado ocioso, com uma semente válida.',
     evCampaignStarted:
       'Três turnos fictícios. A equidade e o caixa de fechamento passam para o turno seguinte; cada turno precisa de novo consentimento.',
     rejNextShift:
@@ -655,7 +763,17 @@ export const bilateralWorkplaceMessages = defineMessages({
     rejSkipInspection:
       'A pressão do prazo não pode dispensar a inspeção qualificada nem liberar um lote retido.',
     rejInspectionTiming:
-      'A função de Qualidade, qualificada para isso, pode iniciar a inspeção assim que começar a retenção de ritmo do minuto 25.',
+      'A função de Qualidade, qualificada para isso, pode iniciar a inspeção assim que a amostra contestada retiver o ritmo da linha.',
+    evInspectionStartedSample:
+      'A Qualidade coloca a amostra de segunda-feira em primeiro lugar na bancada do laboratório; a linha fica retida até a bancada lê-la.',
+    evSampleHeld:
+      'Amostra de segunda-feira: o lote {batch} deste pedido aguarda o teste de bancada, e a linha fica retida por ele.',
+    evSampleLeft:
+      'A amostra de segunda-feira {batch} saiu da bancada sem teste, e a linha volta a rodar.',
+    evSamplePassed:
+      'Amostra de segunda-feira {batch} lida na bancada: qualidade {quality} atende ao mínimo do pedido, {minimum}.',
+    evSampleFailed:
+      'Amostra de segunda-feira {batch} lida na bancada: qualidade {quality} fica abaixo do mínimo do pedido, {minimum}.',
     evInspectionStarted:
       'Iniciada a retenção de ritmo da linha por cinco minutos modelados; a autoridade de qualidade sobre o lote não muda.',
     rejDifferentResponse: 'Escolha uma resposta diferente ao episódio durante a deliberação.',
@@ -708,8 +826,12 @@ export const bilateralWorkplaceMessages = defineMessages({
       'Proteção na recarga: autoridade e consentimento futuros revogados; remuneração adquirida mantida.',
     evShiftResumed:
       'Turno retomado no minuto {minute} após uma recarga; continua quando todos consentirem de novo.',
+    evShiftResumedAfterSafety:
+      'Turno retomado no minuto {minute} após uma parada de segurança; continua quando todos consentirem de novo.',
+    evShiftResumedAfterObjection:
+      'Turno retomado no minuto {minute} depois de resolvida a objeção; continua quando todos consentirem de novo.',
     rejResumeShift:
-      'Só um turno interrompido por uma recarga antes do fim, ou uma deliberação de passagem de turno que ela interrompeu antes do financiamento, pode ser retomado; os outros encerramentos permanecem.',
+      'Só um turno pausado por uma recarga, uma parada de segurança ou uma objeção resolvida, ou uma deliberação de passagem de turno que uma recarga interrompeu antes do financiamento, pode ser retomado; os outros encerramentos permanecem.',
     rejCoverConsent:
       'Registre um consentimento de cobertura distinto só depois de entender o plano de cobertura atual.',
     rejNotQualified: 'Esta função não é qualificada para cobertura.',
@@ -728,7 +850,33 @@ export const bilateralWorkplaceMessages = defineMessages({
       'A simulação de respostas roteirizadas só está disponível no modo Jogo. A Oficina exige entrada manual das funções; o Piloto é só de planejamento.',
     rejAuthoredAlready: 'Respostas roteirizadas já registradas.',
     evAuthoredCampaign:
-      'Respostas e escolhas roteirizadas dos colegas registradas. O entendimento, o voto e o consentimento de cobertura do Ensaque exigem entrada explícita separada. As verificações do conselheiro continuam explícitas; as recusas existentes permanecem intactas.',
+      'As outras funções e o conselheiro responderam a partir dos próprios valores. O entendimento, o voto e o consentimento de cobertura do Ensaque cabem a você.',
+    evAuthoredCampaignBefore5b:
+      'As outras funções responderam a partir dos próprios valores. O entendimento, o voto e o consentimento de cobertura do Ensaque cabem a você; as verificações do conselheiro continuam explícitas.',
+    refuseCoordinatorWages:
+      'A Coordenação diz não: depois deste plano o caixa ficaria com menos que a remuneração de um turno, e a equipe é paga primeiro.',
+    refuseQualityInspection:
+      'A Qualidade diz não: há uma investigação de qualidade aberta na linha, e a Qualidade só aprova com evidência. Responde de novo quando o laboratório a encerrar.',
+    declineCoverDone:
+      'A Manutenção recusa a cobertura: já cobriu nesta temporada, e uma vez é a sua parte.',
+    declineCoverDoneCoordinator:
+      'A Coordenação recusa a cobertura: já cobriu nesta temporada, e uma vez é a sua parte.',
+    declineCoverMaintenance:
+      'A Manutenção recusa a cobertura nesta temporada: as máquinas de que cuida precisam dela no moinho, não na linha de ensaque.',
+    declineCoverCoordinator:
+      'A Coordenação recusa a cobertura nesta temporada: alguém precisa manter o turno no plano, e esse é o seu trabalho.',
+    valueQuality:
+      'Só aprova com evidência; a liberação fica com a equipe de qualidade qualificada.',
+    valueMaintenance:
+      'Aceita uma mudança delimitada quando a remuneração e a recuperação estão reservadas.',
+    valueCoordinator: 'Prefere a sequência estável e paga a equipe primeiro.',
+    valueAdviser: 'Aconselha dentro da autoridade delimitada e nunca dispensa um limite.',
+    callInstallment:
+      'A Coordenação pede uma entrega parcelada: prefere a sequência estável a uma corrida.',
+    callProtectRefusal:
+      'A Coordenação protege a recusa: a coordenação não dá poder para dispensar o limite de outro cooperado.',
+    callInspect:
+      'A Qualidade inspeciona a amostra contestada: a liberação fica com a equipe de qualidade qualificada.',
     evAuthoredRoles:
       'Respostas fictícias das funções registradas a partir de preferências roteirizadas; recusas não têm penalidade.',
     rejObjectRole:
@@ -741,6 +889,7 @@ export const bilateralWorkplaceMessages = defineMessages({
     evObjection: (p: { kind: string }) =>
       `Levantou uma objeção de ${pt(PT_OBJECTION_KIND, p.kind)}; a ativação fica bloqueada até que quem a levantou a resolva.`,
     settleObjection: 'Parada segura após uma objeção; obrigações adquiridas mantidas.',
+    settleObjectionPaused: 'Pausado com segurança por uma objeção; obrigações adquiridas mantidas.',
     rejResolveRaiser: 'Só quem levantou a objeção aberta pode resolvê-la.',
     rejRestateFirst:
       'Reafirme os termos protegidos antes que quem levantou a objeção revise esta reparação.',
@@ -761,6 +910,8 @@ export const bilateralWorkplaceMessages = defineMessages({
       'A evidência de expedição vinculada mudou ou foi reprovada pela qualidade. A autoridade opcional futura foi interrompida; as obrigações adquiridas foram mantidas.',
     rejNoRecovery: 'Não há tempo de recuperação para entregar.',
     settleEmergency: 'Parada de emergência: trabalho opcional interrompido imediatamente.',
+    settleEmergencyPaused:
+      'Parada de emergência ou simulado: este turno foi pausado; obrigações adquiridas mantidas.',
     evInspectionCompleted:
       'Cinco minutos modelados de inspeção concluídos. A certificação real do lote e as verificações de liberação continuam separadas.',
     settleEnded:
@@ -775,11 +926,38 @@ export const bilateralWorkplaceMessages = defineMessages({
       `O cooperado escolheu ${pt(PT_DESTINATION, p.destination)}; sem votos ponderados pelo capital.`,
     rejSettleFirst:
       'Quite as obrigações e resolva as objeções antes da decisão única sobre as sobras.',
-    rejSurplusAgree: 'Pelo menos três cooperados precisam concordar com um destino para as sobras.',
+    rejSurplusPaused: 'Um turno pausado reparte as sobras depois de retomado e encerrado.',
+    rejSurplusSeasonEnd:
+      'As sobras são da temporada: os cooperados decidem sobre elas quando o último turno terminar.',
+    rejSurplusAgree: 'Todos os cooperados votam sobre as sobras antes do rateio.',
     rejNoSurplus:
       'Não há sobras operacionais positivas; o capital inicial não pode ser repartido como lucro.',
     evSurplusDecided:
+      '{destination}: {amount} créditos ilustrativos depois de {reserve} ao Fundo de Reserva e {fates} ao FATES; a parte de cada cooperado segue os minutos que trabalhou.',
+    evSurplusDecidedV1:
       '{destination}: {amount} créditos ilustrativos; partes iguais se distribuídas aos cooperados.',
+    evSurplusChair: 'Dois a dois: o voto da presidência decidiu.',
+    evSurplusDefault:
+      'Nenhum destino venceu, então vale o padrão da lei: o restante volta aos cooperados pelos minutos trabalhados (Lei 5.764/71, art. 4º, VII).',
+    evSurplusCharter:
+      'Este estatuto não reparte sobras: depois dos fundos obrigatórios, o restante fica no Fundo de Reserva.',
+    evSurplusLeft:
+      'A temporada foi deixada antes do fim: o que ela ganhou é acertado pelo padrão da lei, primeiro o Fundo de Reserva e o FATES, e o restante fica no Fundo de Reserva.',
+    needQualityMet:
+      'A necessidade da Qualidade, cobrir a perda com a reserva antes de repartir qualquer coisa, foi atendida.',
+    needQualityOutvoted:
+      'A necessidade da Qualidade, cobrir a perda com a reserva antes de repartir qualquer coisa, foi vencida na votação.',
+    needMaintenanceMet:
+      'A necessidade da Manutenção, devolver os minutos que cada cooperado trabalhou, cobertura incluída, foi atendida.',
+    needMaintenanceOutvoted:
+      'A necessidade da Manutenção, devolver os minutos que cada cooperado trabalhou, cobertura incluída, foi vencida na votação.',
+    needCoordinatorMet:
+      'A necessidade da Coordenação, um Fundo de Reserva que pague a remuneração de uma temporada, foi atendida.',
+    needCoordinatorOutvoted:
+      'A necessidade da Coordenação, um Fundo de Reserva que pague a remuneração de uma temporada, foi vencida na votação.',
+    evReserveBrought:
+      'O Fundo de Reserva traz {amount} créditos ilustrativos da temporada anterior.',
+    evReserveFunded: 'O Fundo de Reserva pagou {amount} créditos ilustrativos desta compra.',
     recordDecisionKeepTarget: 'Manter a meta',
     recordDecisionRenegotiate: 'Renegociar',
     recordDecisionInspect: 'Inspecionar',

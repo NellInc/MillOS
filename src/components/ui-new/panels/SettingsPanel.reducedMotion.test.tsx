@@ -29,14 +29,22 @@ describe('SettingsPanel reduce motion control', () => {
   it('is absent while the in-app setting is gated off', () => {
     FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED = false;
     renderPanel();
-    expect(screen.queryByRole('radiogroup', { name: 'Reduce motion' })).toBeNull();
+    expect(screen.queryByRole('radiogroup', { name: /^Reduce motion/ })).toBeNull();
     expect(screen.queryByText(/plant equipment keeps moving/i)).toBeNull();
   });
 
-  it('offers Follow system and On, explains them, and switches the mode', () => {
+  it('offers Follow system and On, with no help line under them (D14), and switches the mode', () => {
     FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED = true;
     renderPanel();
-    const group = screen.getByRole('radiogroup', { name: 'Reduce motion' });
+    // The setting holds people, machine cycles, scenery, camera and panel
+    // motion; vehicles and belts keep moving because they are the process.
+    // With the help line cut, the control's own label names what it reduces.
+    const group = screen.getByRole('radiogroup', {
+      name: 'Reduce motion: people, machines, scenery, camera',
+    });
+    expect(
+      screen.getByText('Reduce motion: people, machines, scenery, camera', { selector: 'legend' })
+    ).toBeVisible();
     const follow = within(group).getByRole('radio', { name: 'Follow system' });
     const on = within(group).getByRole('radio', { name: 'On' });
     expect(follow).toHaveAttribute('aria-checked', 'true');
@@ -44,7 +52,7 @@ describe('SettingsPanel reduce motion control', () => {
     // Native buttons: reachable by Tab, activated by Enter and Space.
     expect(on.tagName).toBe('BUTTON');
     expect(on).toHaveAttribute('type', 'button');
-    expect(screen.getByText(/plant equipment keeps moving/i)).toBeInTheDocument();
+    expect(screen.queryByText(/plant equipment keeps moving/i)).toBeNull();
 
     fireEvent.click(on);
     expect(useMotionPreferenceStore.getState().mode).toBe('reduce');
@@ -59,10 +67,12 @@ describe('SettingsPanel reduce motion control', () => {
     FEATURE_FLAGS.IN_APP_REDUCED_MOTION_ENABLED = true;
     setLocale('pt-BR');
     renderPanel();
-    const group = screen.getByRole('radiogroup', { name: 'Reduzir movimento' });
+    const group = screen.getByRole('radiogroup', {
+      name: 'Reduzir movimento: pessoas, máquinas, cenário, câmera',
+    });
     expect(within(group).getByRole('radio', { name: 'Seguir o sistema' })).toBeInTheDocument();
     expect(within(group).getByRole('radio', { name: 'Ligado' })).toBeInTheDocument();
-    expect(screen.getByText(/equipamentos da fábrica continuam se movendo/i)).toBeInTheDocument();
+    expect(screen.queryByText(/equipamentos da fábrica continuam se movendo/i)).toBeNull();
   });
 
   // Runs last: Reset Simulation suspends persistence for the rest of the page.

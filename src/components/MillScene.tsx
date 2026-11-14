@@ -98,6 +98,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useT } from '../i18n';
 import { millSceneMessages } from './MillScene.messages';
 import { AccessFittings } from './accessibility/AccessFittings';
+import { EgressRouteFloor } from './accessibility/EgressRouteFloor';
 
 /**
  * Authored `wireframe` values of the materials the toggle has overridden, so
@@ -963,6 +964,7 @@ export const MillScene: React.FC<MillSceneProps> = ({
 
       {/* Fire Drill Exit Markers - shown during active drill */}
       <ServiceEgressMarkers />
+      <EgressRouteFloor />
 
       {/* Ramps, tactile paving, visual alarms, the quiet room and the
           accessible bay (D-058, accessibility/AccessFittings.tsx). */}

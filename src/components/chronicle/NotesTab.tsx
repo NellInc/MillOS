@@ -1,6 +1,6 @@
 import { useLocale } from '../../i18n';
 import { getHistoryNotes } from '../../chronicle/history';
-import { getQuizQuestions } from '../../chronicle/quiz';
+import { dealQuizRound, presentQuizQuestion, quizPool } from '../../chronicle/quiz';
 import { localizedMarkLabel } from '../../chronicle/record';
 import { localizedNotice } from '../../chronicle/presentation';
 import { useT } from '../../i18n';
@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import type { ChronicleState } from '../../chronicle/engine';
 import { isFiledOutcome, recordEntries } from '../../chronicle/record';
-import { chronicleStream } from '../../chronicle/rng';
 import type { NoticeKind } from '../../chronicle/types';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { useKnowledgeStore } from '../../stores/knowledgeStore';
@@ -174,10 +173,9 @@ function QuizSection({ state }: { state: ChronicleState }) {
     setFocusPending(false);
     sectionRef.current?.querySelector<HTMLElement>('[data-quiz-focus]')?.focus();
   }, [focusPending, quiz]);
-  const pool = useMemo(
-    () => getQuizQuestions().filter((q) => state.unlockedNotes.includes(q.noteId)),
-    [state.unlockedNotes, locale]
-  );
+  // The record's questions and the unlocked notes', in the language shown now.
+  const pool = useMemo(() => quizPool(state), [state, locale]);
+  const seed = state.charter?.seed ?? 1;
   const best = state.quizBest === null ? '' : t('p17', { best: state.quizBest });
 
   if (pool.length < 4)
@@ -192,27 +190,15 @@ function QuizSection({ state }: { state: ChronicleState }) {
   const begin = () => {
     // The round's questions are fixed when it starts, so a note unlocking
     // mid-round never reshuffles them.
-    // The round count is this session's; the saved answers and history key it
+    // The round count is this session's; the saved attempts and history key it
     // too, so a reload does not deal the round the player already sat again.
-    const next = chronicleStream(
-      state.charter?.seed ?? 1,
-      `quiz:${state.quizAnswered.length}:${state.sequence}`,
-      round
-    );
     setFocusPending(true);
-    actions.start(
-      [...pool]
-        .map((question) => ({ question, key: next() }))
-        .sort((a, b) => a.key - b.key)
-        .slice(0, 10)
-        .map((entry) => entry.question.id)
-    );
+    actions.start(dealQuizRound(state, round));
   };
 
-  const question =
-    quiz && !quiz.finished
-      ? getQuizQuestions().find((q) => q.id === quiz.questionIds[quiz.index])
-      : undefined;
+  const dealt =
+    quiz && !quiz.finished ? pool.find((q) => q.id === quiz.questionIds[quiz.index]) : undefined;
+  const question = dealt ? presentQuizQuestion(dealt, seed) : undefined;
   if (!quiz || quiz.finished || !question)
     return (
       <div ref={sectionRef}>
@@ -263,6 +249,14 @@ function QuizSection({ state }: { state: ChronicleState }) {
             );
           })}
         </div>
+        {picked !== null && (quiz.repeat || quiz.earned) && (
+          <p
+            className={`text-xs ${quiz.earned ? 'text-emerald-200' : 'text-slate-300'}`}
+            data-testid="quiz-credit"
+          >
+            {quiz.earned ? t('m16') : t('m17')}
+          </p>
+        )}
         {picked !== null && (
           <button
             className={BUTTON}

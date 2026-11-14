@@ -4,8 +4,9 @@ export const aboutModalMessages = defineMessages({
   en: {
     title: 'About MillOS',
     close: 'Close about dialog',
+    // D14: the one line About keeps, and the only disclaimer in the game.
     description:
-      'A digital twin of a grain mill — AI-managed, 3D-rendered, and opinionated about how humans and machines should work together.',
+      'MillOS is a simulation: its roles, ballots, credits and minutes are illustrative, and no real worker data is used.',
     music: 'Music',
     musicBy: 'Music by',
     soundtrackBy: 'Original MillOS soundtrack by Nell Watson',
@@ -22,7 +23,7 @@ export const aboutModalMessages = defineMessages({
     title: 'Sobre o MillOS',
     close: 'Fechar a janela Sobre',
     description:
-      'Um gêmeo digital de um moinho de grãos — gerenciado por IA, renderizado em 3D e com opinião própria sobre como pessoas e máquinas devem trabalhar juntas.',
+      'O MillOS é uma simulação: seus papéis, votações, créditos e minutos são ilustrativos, e nenhum dado real de trabalhador é usado.',
     music: 'Música',
     musicBy: 'Música de',
     soundtrackBy: 'Trilha sonora original do MillOS por Nell Watson',

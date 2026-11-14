@@ -69,16 +69,6 @@ export interface ProductData {
   weight?: number;
 }
 
-export interface ProductionTarget {
-  id: string;
-  date: string;
-  targetBags: number;
-  producedBags: number;
-  targetThroughput: number;
-  actualThroughput: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-}
-
 export interface AlertData {
   id: string;
   type: 'warning' | 'critical' | 'info' | 'success' | 'safety';

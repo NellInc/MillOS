@@ -33,6 +33,7 @@ import { WebSocketAdapter } from './adapters/WebSocketAdapter';
 import { AlarmManager } from './AlarmManager';
 import { HistoryStore } from './HistoryStore';
 import { recordSetpointDecision, type SetpointWriteActor } from './setpointDecisionLog';
+import { applyRollSpeedWrite } from './lineRateSetpoint';
 
 /** Callback for real-time value updates */
 type ValueUpdateCallback = (values: TagValue[]) => void;
@@ -94,6 +95,8 @@ export class SCADAService {
   // Replayed into a freshly built SimulationAdapter, which would otherwise
   // report every machine as running until the store next changes.
   private lastMachineStates: MachineStateInput[] | null = null;
+  /** The open control-network incident the simulation degrades for, if any. */
+  private networkDegradationKey: string | null = null;
 
   constructor(config?: Partial<SCADAConfig>) {
     this.config = {
@@ -209,6 +212,11 @@ export class SCADAService {
   /**
    * Change operating mode (requires restart)
    */
+  /** The operating mode: plant writes (lineRateSetpoint) go only to the simulation. */
+  getMode(): SCADAMode {
+    return this.config.mode;
+  }
+
   async setMode(mode: SCADAMode): Promise<void> {
     if (mode === this.config.mode) return;
 
@@ -260,6 +268,9 @@ export class SCADAService {
 
     if (this.lastMachineStates && this.adapter instanceof SimulationAdapter) {
       this.updateMachineStates(this.lastMachineStates);
+    }
+    if (this.adapter instanceof SimulationAdapter) {
+      this.adapter.setNetworkDegradation(this.networkDegradationKey);
     }
   }
 
@@ -517,7 +528,11 @@ export class SCADAService {
       this.handleTagUpdates([{ tagId, value, quality: 'GOOD', timestamp: Date.now() }]);
     }
 
-    if (actor) recordSetpointDecision(tag, value, actor);
+    if (actor) {
+      recordSetpointDecision(tag, value, actor);
+      // A roll speed is the line rate (lineRateSetpoint.ts, plan item 7.5).
+      applyRollSpeedWrite(tagId, value);
+    }
     return true;
   }
 
@@ -749,6 +764,31 @@ export class SCADAService {
     if (this.adapter instanceof SimulationAdapter) {
       this.adapter.updateOperationalValues(values);
     }
+  }
+
+  /**
+   * The campaign's control-network incident, by id, or null when none is open.
+   * Only the simulation degrades; a live adapter reports its own quality.
+   */
+  setNetworkDegradation(key: string | null): void {
+    this.networkDegradationKey = key;
+    if (this.adapter instanceof SimulationAdapter) {
+      this.adapter.setNetworkDegradation(key);
+    }
+  }
+
+  /** Tags the simulated network incident is holding UNCERTAIN now. */
+  getNetworkUncertainTagIds(): string[] {
+    return this.adapter instanceof SimulationAdapter
+      ? this.adapter.getNetworkUncertainTagIds()
+      : [];
+  }
+
+  /** The simulation's own figures beneath the tags the network incident holds. */
+  getNetworkHeldProcessValues(): TagValue[] {
+    return this.adapter instanceof SimulationAdapter
+      ? this.adapter.getNetworkHeldProcessValues()
+      : [];
   }
 
   /**

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkplaceLab } from './WorkplaceLab';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { setLocale } from '../../../i18n';
@@ -13,6 +14,8 @@ beforeEach(() => {
   setLocale('en');
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+  // D4: a season is offered once the first delivery is in.
+  fulfilFirstDelivery();
   useWorkplaceStore.setState({
     participationMode: 'solo',
     turn: null,

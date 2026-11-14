@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { setLocale } from '../i18n';
 import { localizedInitiative, localizedNotice } from './presentation';
-import { EVENT_DECK } from './eventDeck';
+import { cropYearSummary } from './engine';
+import { EVENT_DECK, getEventDeck } from './eventDeck';
+import { localizedStakeholderName } from './stakeholders';
 import { FORECASTS } from './forecasts';
 import { HISTORY_NOTES } from './history';
 import { IMPROVEMENTS } from './plans';
@@ -110,6 +112,77 @@ describe('saved Chronicle presentation', () => {
       }
     }
   });
+  it('translates the shortfall, struck-forecast and fallen-front notices with and without their old closing advice (D14)', () => {
+    setLocale('pt-BR');
+    const forecast = Object.values(FORECASTS)[0];
+    const pairs: Array<[ChronicleNotice, string]> = [
+      [
+        receipt('ledger', 'Lack of material', 'Upkeep of 2345 is due and the fund holds 17.'),
+        'A manutenção de 2.345 está vencendo e o fundo tem 17.',
+      ],
+      [
+        receipt(
+          'forecast',
+          `${forecast.title}: it struck`,
+          'The 40% forecast came true.',
+          'forecast-5'
+        ),
+        'A previsão de 40% se concretizou.',
+      ],
+      [
+        receipt(
+          'forecast',
+          `${forecast.title}: it struck`,
+          'The 40% forecast came true. Recover the incident from the operations card, then restore controls here.',
+          'forecast-5'
+        ),
+        'A previsão de 40% se concretizou. Resolva a ocorrência no cartão de operações e restaure os controles aqui.',
+      ],
+      [
+        receipt(
+          'trial',
+          'The roller floor fell',
+          'The roller floor needed 5 preparation and had 2.',
+          LONG_NIGHT_EVENT_ID
+        ),
+        'precisava de 5 de preparação e tinha 2.',
+      ],
+      [
+        receipt(
+          'trial',
+          'The roller floor fell',
+          'The roller floor needed 5 preparation and had 2. Recover the incident under Incidents raised by the chronicle.',
+          LONG_NIGHT_EVENT_ID
+        ),
+        'Resolva a ocorrência em Ocorrências geradas pela crônica.',
+      ],
+    ];
+    for (const [notice, expected] of pairs)
+      expect(localizedNotice(notice).body, notice.body).toContain(expected);
+  });
+  it('reads a front held on preparation as the buttons do, and still reads the old wording', () => {
+    setLocale('pt-BR');
+    const held = (body: string) =>
+      localizedNotice(receipt('trial', 'The roller floor held', body, LONG_NIGHT_EVENT_ID)).body;
+    expect(held('Held on preparation alone (4 prepared, 2 needed).')).toBe(
+      'Resistiu apenas com a preparação (4 preparados, 2 necessários).'
+    );
+    expect(held('Held on preparation alone (4 of 2 prepared).')).toBe(
+      'Resistiu apenas com a preparação (4 de 2 preparados).'
+    );
+  });
+  // Review 2, finding 7: a wet year has no treatment, so its notice names the
+  // Tempering card; a sprouted year is still treated (blended).
+  it('names the Tempering card in a wet year’s notice, in both languages', () => {
+    const wet = cropYearSummary({ index: 1, kind: 'wet', treated: false });
+    expect(wet).toMatch(/unless the grain is dried first on the Tempering card\.$/);
+    expect(cropYearSummary({ index: 2, kind: 'sprouted', treated: false })).toMatch(
+      /until the grain is treated\.$/
+    );
+    setLocale('pt-BR');
+    const local = localizedNotice(receipt('event', 'Crop year 2: wet harvest', wet));
+    expect(local.body).toMatch(/seco antes no cartão de Condicionamento\.$/);
+  });
   it('retains forecast probability and lead time from the receipt', () => {
     setLocale('pt-BR');
     const forecast = Object.values(FORECASTS)[0];
@@ -208,5 +281,81 @@ describe('saved Chronicle presentation', () => {
     expect(localizedInitiative(edited)).toBe(edited);
     const unknown = { ...old, targetId: 'custom-plan' };
     expect(localizedInitiative(unknown)).toBe(unknown);
+  });
+});
+
+describe('result notices that carry their changes', () => {
+  const event = EVENT_DECK.find((candidate) => candidate.id === 'evt-court-short-weight')!;
+  const choice = event.choices.find((candidate) => candidate.id === 'terminate')!;
+  const title = `${event.title}: ${choice.label}`;
+  const local = () => {
+    const deck = getEventDeck().find((candidate) => candidate.id === event.id)!;
+    return {
+      title: `${deck.title}: ${deck.choices.find((c) => c.id === choice.id)!.label}`,
+      result: deck.choices.find((c) => c.id === choice.id)!.effect.result,
+    };
+  };
+
+  it('translates the result with its changes', () => {
+    setLocale('pt-BR');
+    const now = receipt(
+      'event',
+      title,
+      `${choice.effect.result} (Growers’ cooperative -10)`,
+      'event-3'
+    );
+    expect(localizedNotice(now)).toEqual({
+      ...now,
+      title: local().title,
+      body: `${local().result} (${localizedStakeholderName('growers')} -10)`,
+    });
+  });
+
+  it('still translates a result saved before notices carried their changes', () => {
+    setLocale('pt-BR');
+    const old = receipt('event', title, choice.effect.result, 'event-3');
+    expect(localizedNotice(old).body).toBe(local().result);
+  });
+
+  it('translates a suspension named with its result', () => {
+    const log = EVENT_DECK.find((candidate) => candidate.id === 'evt-cleaning-log')!;
+    const backdate = log.choices.find((c) => c.id === 'backdate')!;
+    setLocale('pt-BR');
+    const local = localizedNotice(
+      receipt(
+        'event',
+        `${log.title}: ${backdate.label}`,
+        `${backdate.effect.result} (approval suspended; all customers -10)`,
+        'event-6'
+      )
+    );
+    expect(local.body).toMatch(/\(aprovação suspensa; todos os clientes -10\)$/);
+  });
+
+  it('translates the standing change and a variant’s because with it', () => {
+    const meeting = EVENT_DECK.find((candidate) => candidate.id === 'evt-valley-meeting')!;
+    const speak = meeting.choices.find((c) => c.id === 'speak')!;
+    const close = meeting.choices.find((c) => c.id === 'close')!;
+    const variant = close.variants![0];
+    setLocale('pt-BR');
+    const spoken = localizedNotice(
+      receipt(
+        'event',
+        `${meeting.title}: ${speak.label}`,
+        `${speak.effect.result} (Village committee +8; Growers’ cooperative +8; standing +0.10)`,
+        'event-4'
+      )
+    );
+    expect(spoken.body).toMatch(/reputação \+0,10\)$/);
+    const closed = localizedNotice(
+      receipt(
+        'event',
+        `${meeting.title}: ${close.label}`,
+        `${variant.because}. ${variant.effect.result} (Village committee -10; Growers’ cooperative -8; Valley Haulage -8)`,
+        'event-5'
+      )
+    );
+    expect(closed.body).not.toMatch(/Because|Village committee/);
+    expect(closed.body).toMatch(/Valley Haulage -8\)$/);
   });
 });

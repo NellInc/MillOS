@@ -13,6 +13,7 @@ import {
   campaignOutcomes,
   requiredChecks,
   WORKPLACE_CHECKS,
+  mondayMinute,
 } from './workplaceCampaign';
 import type { WorkplaceProfile } from '../types/workplace';
 
@@ -38,12 +39,19 @@ function episode(
   };
   const finish = () => {
     while (state.phase === 'active') {
-      if (state.campaign?.shift === 1 && state.minute >= 25 && !state.campaign.decision)
+      if (
+        state.campaign?.shift === 1 &&
+        state.minute >= mondayMinute(state) &&
+        !state.campaign.decision
+      )
         run({ type: 'campaignDecision', args: ['inspect', 'quality'] });
       run({ type: 'tick', args: [5, 30, false] });
     }
   };
   run({ type: 'startCampaign', args: [profile, 17] });
+  // Thursday's repeat-cover route: a season in the fixed order a season begun
+  // before seeded draws keeps (5.10), so that pressure falls on Thursday.
+  delete state.campaign!.draw;
   for (let shift = 0; shift < 2; shift++) {
     if (shift === 0) run({ type: 'campaignDecision', args: [firstDecision, 'coordinator'] });
     answer();
@@ -102,7 +110,8 @@ describe('complete Thursday dissent route', () => {
       expect(
         e.state.members.every((m) => !m.understood && m.ballot === null && m.coverConsent === null)
       ).toBe(true);
-      expect(e.state.campaign?.adviserAcknowledged).toBe(false);
+      // 5.2: the call renews every vote; the adviser's checks keep their terms.
+      expect(e.state.campaign?.adviserAcknowledged).toBe(true);
       expect(e.run({ type: 'activate', args: [before.revision] }).changed).toBe(false);
       e.run({ type: 'selectPlan', args: ['steady'] });
       e.answer();
@@ -213,10 +222,12 @@ describe('complete Thursday dissent route', () => {
       for (const actor of ['packing', 'quality', 'maintenance'])
         e.run({ type: 'voteSurplus', args: [actor, destination] });
       expect(e.run({ type: 'distributeSurplus', args: [] }).changed).toBe(true);
-      expect(e.state.finance.cash).toBe(cash - (destination === 'reserve' ? 0 : 54));
-      expect(
-        e.state.members.every((m) => m.earnedPay === (destination === 'members' ? 40.5 : 27))
-      ).toBe(true);
+      // 5.5: the season's sobras (54 a shift, three shifts), less the Reserve
+      // Fund and FATES; members worked equal minutes, so equal shares.
+      const remainder = 3 * 54 * 0.85;
+      expect(cash - e.state.finance.cash).toBeCloseTo(destination === 'reserve' ? 0 : remainder);
+      for (const m of e.state.members)
+        expect(m.earnedPay).toBeCloseTo(27 + (destination === 'members' ? remainder / 4 : 0));
       expect(restoreWorkplace(saveWorkplace(e.state)).finance).toEqual(e.state.finance);
     }
   );

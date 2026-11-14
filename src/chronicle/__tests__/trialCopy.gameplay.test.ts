@@ -19,7 +19,10 @@ describe('trial failure copy', () => {
       }
     );
     expect(failed.phase).toBe('failed');
-    expect(failed.failureReason).toBe('0.3 kg failed its recipe quality threshold.');
+    // Item 4.5: the failure names the condition that broke it.
+    expect(failed.failureReason).toBe(
+      'Quality broke it: 0.3 kg failed its recipe quality threshold.'
+    );
   });
 
   it('keeps whole kilograms for larger failures', () => {
@@ -36,6 +39,8 @@ describe('trial failure copy', () => {
         unresolvedHighIncident: false,
       }
     );
-    expect(failed.failureReason).toBe('120 kg failed its recipe quality threshold.');
+    expect(failed.failureReason).toBe(
+      'Quality broke it: 120 kg failed its recipe quality threshold.'
+    );
   });
 });
