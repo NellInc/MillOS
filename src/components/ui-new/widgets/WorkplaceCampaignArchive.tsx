@@ -13,12 +13,14 @@ import {
   campaignTotals,
   formatKg,
   shiftResumable,
+  campaignShiftPause,
 } from '../../../simulation/workplaceCampaign';
 import { improvementObligations } from '../../../simulation/workplaceImprovement';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import type { WorkplaceState, WorkplaceTransitionResult } from '../../../types/workplace';
 import { formatFixed, translate, useT } from '../../../i18n';
 import { workplaceCampaignArchiveMessages } from './WorkplaceCampaignArchive.messages';
+import { customerDisplayName } from '../../../stores/customerNames';
 
 const buttonClass =
   'min-h-11 rounded-md border border-cyan-300/25 px-3 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
@@ -107,9 +109,12 @@ export function FollowOnNotice({ state }: { state: WorkplaceState }) {
   if (!followOn || followOn.evidence === 'current') return null;
   return (
     <p>
-      {t('followOnStopped', { customer: followOn.customer, evidence: followOn.evidence })}{' '}
+      {t('followOnStopped', {
+        customer: customerDisplayName(followOn.customer),
+        evidence: followOn.evidence,
+      })}{' '}
       {next
-        ? t('followOnReplacement', { customer: next })
+        ? t('followOnReplacement', { customer: customerDisplayName(next) })
         : t(state.campaign!.shift >= 2 ? 'followOnLastShift' : 'followOnNoReplacement')}
     </p>
   );
@@ -209,7 +214,7 @@ export function WorkplaceLeaveSeason({
         {waiting ??
           t('leaveKept', {
             kg: formatKg(outcome.delivery.deliveredKg),
-            customer: outcome.delivery.customer,
+            customer: customerDisplayName(outcome.delivery.customer),
             pay: formatFixed(outcome.accounts.wages + outcome.accounts.compensation, 2),
             recovery: formatFixed(
               totals.members.reduce((sum, member) => sum + member.recoveryMinutes, 0),
@@ -234,9 +239,11 @@ export function WorkplaceCampaignArchive({ onFreshExercise }: { onFreshExercise:
   const [feedback, setFeedback] = useState<WorkplaceTransitionResult | null>(null);
   const finalReview = state.phase === 'review' && state.campaign?.shift === 2;
   if (!finalReview && reviews.length === 0 && left.length === 0) return null;
-  // A final shift a reload paused has not ended; archiving it would keep it as
-  // "agreement pending" for good (archiveCampaign refuses it too).
+  // A final shift a reload, a safety stop or a resolved objection paused has
+  // not ended; archiving it would keep it as "agreement pending" for good
+  // (archiveCampaign refuses it too).
   const paused = finalReview && shiftResumable(state);
+  const pause = campaignShiftPause(state);
   const blocked =
     replayActive ||
     paused ||
@@ -259,8 +266,6 @@ export function WorkplaceCampaignArchive({ onFreshExercise }: { onFreshExercise:
       {finalReview && (
         <div className="space-y-2 border-t border-slate-700 pt-4">
           <h4 className="font-semibold text-white">{t('freshHeading')}</h4>
-          <p>{t('freshIntro')}</p>
-          <p>{t('freshCredits')}</p>
           <button type="button" className={buttonClass} disabled={blocked} onClick={beginFresh}>
             {t('archiveButton')}
           </button>
@@ -269,7 +274,13 @@ export function WorkplaceCampaignArchive({ onFreshExercise }: { onFreshExercise:
               {replayActive
                 ? t('blockedReplay')
                 : paused
-                  ? t('blockedPaused')
+                  ? t(
+                      pause === 'safety'
+                        ? 'blockedPausedSafety'
+                        : pause === 'objection'
+                          ? 'blockedPausedObjection'
+                          : 'blockedPaused'
+                    )
                   : t('blockedObligations')}
             </p>
           )}
@@ -285,7 +296,6 @@ export function WorkplaceCampaignArchive({ onFreshExercise }: { onFreshExercise:
           <summary className="min-h-11 cursor-pointer py-2 font-semibold text-cyan-100">
             {t('leftSeasons', { count: formatFixed(left.length, 0) })}
           </summary>
-          <p className="pb-2 text-slate-300">{t('leftNote')}</p>
           {[...left].reverse().map((review) => (
             <ReviewRecord key={`${review.seed}-${review.revision}`} state={review} left />
           ))}
@@ -296,7 +306,6 @@ export function WorkplaceCampaignArchive({ onFreshExercise }: { onFreshExercise:
           <summary className="min-h-11 cursor-pointer py-2 font-semibold text-cyan-100">
             {t('retainedReviews', { count: formatFixed(reviews.length, 0) })}
           </summary>
-          <p className="pb-2 text-slate-300">{t('retainedNote')}</p>
           {[...reviews].reverse().map((review) => (
             <ReviewRecord key={`${review.seed}-${review.revision}`} state={review} />
           ))}

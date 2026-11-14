@@ -17,6 +17,7 @@ import {
 import { useTruckScheduleStore } from './truckScheduleStore';
 import { unifiedGameTickMessages } from '../systems/UnifiedGameTick.messages';
 import { UTILITY_ASSET_DEFINITIONS } from '../constants/utilityAssets';
+import { energyTariffPerKwh } from '../utils/energyCalculations';
 import { getTagById } from '../scada/tagDatabase';
 import {
   CAMPAIGN_MASS_EPSILON_KG as EPSILON_KG,
@@ -34,21 +35,34 @@ import {
 } from '../simulation/operationsPlay';
 import { formatFixed, formatGrouped, getLocale, translate, useLocaleStore } from '../i18n';
 import { buildProgramme, programmeShift } from '../simulation/programmes';
+import { compareDispatchOrder, meetsMinimum } from '../simulation/shipmentPlan';
+import { grainInShipped } from '../simulation/grainPrice';
+import { DOCK_PROJECTION } from '../simulation/partnerProposals';
 import {
+  accumulateShiftOee,
   gradeShift,
   shiftGradeBasis,
   shiftGradeReasons,
+  proposalRecordText,
   shiftHeadline,
+  type ProposalRecord,
   type ShiftGrade,
   type ShiftGradeBasis,
   type ShiftOpenIncident,
   type ShiftOrderOutcome,
+  type ShiftOeeRecord,
 } from '../simulation/shiftReview';
 import { operationsCampaignMessages as messages } from './operationsCampaignStore.messages';
 import { incidentDescription, incidentTitle } from './incidentText';
 import { dispatchBlockText } from './dispatchBlockText';
 import { isPaceGameSpeed } from '../simulation/pace';
 import { paceMessages } from '../simulation/pace.messages';
+import { customerDisplayName } from './customerNames';
+import {
+  incidentResponse,
+  INCIDENT_RESPONSES,
+  PLANT_INCIDENT_MINUTES,
+} from '../simulation/incidentResponses';
 
 export type OrderStatus = 'planned' | 'active' | 'late' | 'fulfilled' | 'cancelled';
 export type IncidentKind =
@@ -98,6 +112,21 @@ export interface CustomerOrder {
    * customer's usual terms (src/simulation/programmes.ts). Absent otherwise.
    */
   rushPremiumPercent?: number;
+  /**
+   * Set when the order was forfeited: closed unfulfilled (status 'cancelled')
+   * FORFEIT_LATENESS_MINUTES past its due time (plan items 3.4, 3.7). Absent
+   * on every order that was not, and on every order saved before forfeits.
+   */
+  forfeitedAtMinute?: number;
+  /**
+   * Why: 'unreachable' when the best stamp the line can make on its grain
+   * (forfeitBestQuality) is under its minimum, 'late' otherwise.
+   */
+  forfeitReason?: 'unreachable' | 'late';
+  /** The best stamp the line could make on the order's grain when it was forfeited. */
+  forfeitBestQuality?: number;
+  /** The penalty booked at the forfeit (FORFEIT_FEE_HOURS of its late rate on what it lacked). */
+  forfeitFee?: number;
 }
 
 export interface OperationalIncident {
@@ -112,6 +141,19 @@ export interface OperationalIncident {
   resolvedAtMinute: number | null;
   affectedMachineId: string | null;
   effectApplied: boolean;
+  /**
+   * 'plant' when the plant raised it (a started recovery challenge, or a mill
+   * that failed after its service was answered "run on"): it takes the
+   * partner's two answers and resolves at `endsAtMinute` (plan item 3.5).
+   * Absent on a Chronicle-raised incident and on every incident saved before.
+   */
+  origin?: 'plant';
+  /** How it was met (simulation/incidentResponses.ts); absent: halved, as before. */
+  response?: string;
+  /** A plant incident's end, set when it is answered. */
+  endsAtMinute?: number;
+  /** The answer's own action (a relief lorry, a filter, a recall) has run. */
+  responseActed?: boolean;
 }
 
 export interface CampaignEconomics {
@@ -122,6 +164,33 @@ export interface CampaignEconomics {
   maintenanceCost: number;
   demurrageCost: number;
   latePenalties: number;
+}
+
+/**
+ * The purchase lines (plan items 3.3, 3.8), kept apart from CampaignEconomics
+ * so readers that list its lines one by one keep their shape.
+ */
+export interface CampaignPurchaseLedger {
+  /**
+   * Grain bought, booked when a delivery is taken in (simulation/grainPrice.ts).
+   * Optional, like the two lines below: a save from before them has none, and
+   * every reader takes a missing line as 0.
+   */
+  grainCost?: number;
+  /** Spare parts bought, booked when an order arrives with a grain delivery. */
+  partsCost?: number;
+  /**
+   * Grain bought and not yet shipped, at cost: rises with each delivery, falls
+   * by the grain in each shipment. A credit to the net, so a shift pays for the
+   * grain in what it sold, and grain held as stock is money spent, not earned.
+   */
+  stockHeld?: number;
+}
+
+/** A purchase the plant books: grain at a delivery, parts on order arriving with it. */
+export interface CampaignPurchase {
+  grainCost?: number;
+  partsCost?: number;
 }
 
 /** Failure costs accruing right now, per game hour; written by the tick that books them. */
@@ -136,7 +205,7 @@ export const MAINTENANCE_COST_PER_WORK_ORDER_HOUR = 90;
 export const DEMURRAGE_COST_PER_HOUR = 120;
 const ZERO_COST_RATES: CampaignCostRates = { maintenance: 0, demurrage: 0, late: 0 };
 
-export interface ShiftCampaignMetrics extends CampaignEconomics {
+export interface ShiftCampaignMetrics extends CampaignEconomics, CampaignPurchaseLedger {
   dispatchedKg: number;
   qualityFailureKg: number;
   incidentsResolved: number;
@@ -146,6 +215,11 @@ export interface ShiftCampaignMetrics extends CampaignEconomics {
    * clock time is not counted: a held tick never reaches tickCampaign.
    */
   commitmentMinutes: number;
+  /**
+   * The shift review's OEE inputs (plan item 7.6), over the minutes an order
+   * was open. Absent on reports from before it; their review states no OEE.
+   */
+  oee?: ShiftOeeRecord;
 }
 
 export interface ShiftCampaignReport {
@@ -176,6 +250,12 @@ export interface ShiftCampaignReport {
   narration?: string[];
   /** Each narration line's wording, by index; null where a line has none (absent before). */
   narrationWording?: (LogWording | null)[];
+  /**
+   * Every partner proposal compared in the window, as keys and numbers, worded
+   * at read time (shiftReview describeShiftProposals). Bounded by
+   * MAX_REPORT_PROPOSALS; absent before plan 3.4.
+   */
+  proposals?: ProposalRecord[];
 }
 
 export interface CampaignLogEntry {
@@ -242,6 +322,17 @@ export type LogWording =
       totalKg: number;
     }
   | { key: 'logManifestAllocated'; manifest: string; kg: number }
+  /** An order forfeited at its lateness bound; `best` is set when the line could not make it. */
+  | {
+      key: 'logOrderForfeited';
+      customer: string;
+      minutes: number;
+      shippedKg: number;
+      requiredKg: number;
+      minimum: number;
+      best: number | null;
+      fee: number;
+    }
   | {
       key: 'logSetpointWritten';
       tag: string;
@@ -251,6 +342,8 @@ export type LogWording =
       engUnit: string | null;
     }
   | { key: 'operatorAction'; action: OperatorAction }
+  /** A partner proposal's record an hour after its answer (plan 3.0, 3.4). */
+  | { key: 'proposalRecord'; record: ProposalRecord }
   | ExecutionWording;
 
 type ExecutionWording =
@@ -428,6 +521,70 @@ export interface CampaignTickContext {
    * recipe's, so the active order's own route has not been read yet.
    */
   routeUnread?: boolean;
+  /**
+   * The best stamp the line can make on each grain: every unit on the product
+   * path serviced, less what holds the stamp down for longer than a repair (a
+   * Chronicle crop year or modifier). An open order whose minimum is above its
+   * grain's figure cannot be made: it is not the order the plant works first
+   * while another can be, and its forfeit says so. Absent, every order reads
+   * as reachable, as before.
+   */
+  /** This tick's packing against the line rate, for the review's OEE (UnifiedGameTick). */
+  oee?: { unitCount: number; packedKg: number; ratedKg: number };
+  bestReachableQuality?: Partial<
+    Record<Extract<MaterialType, 'wheat_grain' | 'corn_grain'>, number>
+  >;
+  /**
+   * The grain cost of the plant's stock on site (grainPrice grainValueOnSite),
+   * handed in on the first tick of a material session only: the opening stock,
+   * booked as grain bought and held as stock that day, so its shipments debit
+   * stock held for grain that was bought (review 2, the ledger).
+   */
+  openingStockValue?: number;
+}
+
+/**
+ * How late an open order may run before it is forfeited, in game minutes: half
+ * a shift. Measured on the ten-shift harness, the latest any order delivered at
+ * orders twice the programme's size was 76 minutes late; at three times, 252.
+ * Every state therefore has a way out (Chronicle rule 4): an order the line
+ * cannot make, or will not make in time, closes here, and the programmes go on.
+ */
+export const FORFEIT_LATENESS_MINUTES = 240;
+/**
+ * The penalty booked when an order is forfeited: this many hours of its late
+ * rate on the kilograms it still lacked, on top of the late rate it accrued
+ * while it was overdue. With the revenue it never earns, a forfeit always
+ * costs more than delivering late.
+ */
+export const FORFEIT_FEE_HOURS = FORFEIT_LATENESS_MINUTES / 60;
+
+/** Whether an open order's minimum is within the best stamp its grain allows. */
+export function orderReachable(
+  order: Pick<CustomerOrder, 'recipe'>,
+  best: CampaignTickContext['bestReachableQuality']
+): boolean {
+  const figure = best?.[order.recipe.sourceMaterial];
+  return figure === undefined || !Number.isFinite(figure)
+    ? true
+    : meetsMinimum(figure, order.recipe.minimumQuality);
+}
+
+/**
+ * The programme an order belongs to, by id: `<prefix>-order-<k>` from
+ * acceptNextProgramme, and the guided programme's `order-00k` as one.
+ */
+export function programmeOfOrder(orderId: string): string {
+  const at = orderId.lastIndexOf('-order-');
+  return at > 0 ? orderId.slice(0, at) : 'guided';
+}
+
+export interface AcceptProgrammeOptions {
+  /**
+   * Take it while an order of the running programme is still open (plan item
+   * 3.7). At most one programme may be open beside the running one.
+   */
+  early?: boolean;
 }
 
 export interface IncidentEffect {
@@ -447,12 +604,22 @@ interface OperationsCampaignState {
   startChallenge: (id: OperationsChallengeId, actor?: CampaignActor) => boolean;
   abandonChallenge: (actor?: CampaignActor) => void;
   finishChallengeRecovery: (actor?: CampaignActor) => boolean;
-  acceptNextProgramme: (actor?: CampaignActor) => boolean;
+  acceptNextProgramme: (actor?: CampaignActor, options?: AcceptProgrammeOptions) => boolean;
+  /**
+   * Forfeit an open order before its lateness bound (plan item 3.7): the
+   * partner's early forfeit, once the facts say the line cannot make it. The
+   * same close, fee and record as the bound's. False when it is not open.
+   */
+  forfeitOrder: (
+    orderId: string,
+    actor?: CampaignActor,
+    best?: CampaignTickContext['bestReachableQuality']
+  ) => boolean;
   elapsedMinutes: number;
   orders: CustomerOrder[];
   activeOrderId: string | null;
   incidents: OperationalIncident[];
-  economics: CampaignEconomics;
+  economics: CampaignEconomics & CampaignPurchaseLedger;
   shiftMetrics: ShiftCampaignMetrics;
   /** Instantaneous; not persisted. Reference is kept while the rates are unchanged. */
   costRates: CampaignCostRates;
@@ -471,7 +638,34 @@ interface OperationsCampaignState {
   programmeCount: number;
   initializeCampaign: () => void;
   activateOrder: (orderId: string, actor?: CampaignActor) => void;
-  triggerIncident: (kind: IncidentKind) => OperationalIncident | null;
+  triggerIncident: (
+    kind: IncidentKind,
+    /** A plant-raised incident (plan item 3.5), and the unit it is on where not its definition's. */
+    options?: { origin?: 'plant'; machineId?: string }
+  ) => OperationalIncident | null;
+  /**
+   * Meet an incident with one of its two answers (plan item 3.5): acknowledged
+   * if raised, then mitigated with that answer's shares. False when it is not
+   * open or the answer is not one of its kind's.
+   */
+  respondToIncident: (
+    incidentId: string,
+    response: string,
+    actor?: CampaignActor,
+    /**
+     * False for a Chronicle-raised incident: the answer only chooses how it is
+     * met once mitigated; acknowledging and mitigating stay on its own route.
+     */
+    meet?: boolean
+  ) => boolean;
+  /** The answer's action has run, so it never runs twice. */
+  markIncidentResponseActed: (incidentId: string) => void;
+  /** Resolve every plant incident whose end has come (the tick, once a tick). */
+  endPlantIncidents: () => void;
+  /** A charge a response books (a relief lorry, a refused lot's fee), to the demurrage line. */
+  bookDemurrageCharge: (amount: number) => void;
+  /** A one-off energy charge (plan item 7.7: the temper card's drying), booked to energy. */
+  bookEnergyCharge: (amount: number) => void;
   acknowledgeIncident: (incidentId: string, actor?: CampaignActor) => void;
   mitigateIncident: (incidentId: string, actor?: CampaignActor) => void;
   resolveIncident: (incidentId: string, actor?: CampaignActor) => void;
@@ -499,16 +693,29 @@ interface OperationsCampaignState {
    * order's material.
    */
   getLineProductionPlan: (
-    finishedAvailableKg: Partial<Record<Extract<MaterialType, 'flour' | 'semolina'>, number>>
+    finishedAvailableKg: Partial<Record<Extract<MaterialType, 'flour' | 'semolina'>, number>>,
+    /**
+     * The best stamp each grain allows (CampaignTickContext.bestReachableQuality):
+     * an order the line cannot make is neither made for nor counted in the
+     * feed budget, or its kilograms are packed under its minimum and stranded.
+     */
+    bestReachable?: CampaignTickContext['bestReachableQuality']
   ) => LineProductionPlan | null;
   getProductionMultiplier: () => number;
   getIncidentEffect: () => IncidentEffect;
+  /**
+   * Book a purchase (CampaignPurchase): grain goes into stock held at cost, so
+   * it reaches the net only as it ships (tickCampaign); parts are spent.
+   */
+  bookPurchase: (purchase: CampaignPurchase) => void;
   resetCampaign: () => void;
 }
 
 const MAX_LOG_ENTRIES = 160;
 const MAX_REPORTS = 12;
 const MAX_REPORT_CHOICES = 24;
+/** Partner records a report keeps: about 3 a shift are compared in the measured play. */
+const MAX_REPORT_PROPOSALS = 12;
 const MAX_INCIDENTS = 32;
 const MAX_PROCESSED_MANIFESTS = MAX_MATERIAL_MANIFESTS;
 
@@ -584,6 +791,18 @@ function compactLegacyCreditKey(key: string): string {
   }
 }
 
+/** Credit keys kept: every listed batch's, then the last CREDIT_KEY_TAIL of the rest. */
+const CREDIT_KEY_TAIL = 24;
+function retainCreditKeys(
+  credited: Record<string, number>,
+  listed: ReadonlySet<string>
+): Record<string, number> {
+  const entries = Object.entries(credited);
+  const others = entries.filter(([key]) => !listed.has(key)).slice(-CREDIT_KEY_TAIL);
+  const keep = new Set(others.map(([key]) => key));
+  return Object.fromEntries(entries.filter(([key]) => listed.has(key) || keep.has(key)));
+}
+
 /** Rewrites full-evidence credit keys from older saves into the compact form. */
 export function compactBatchCreditKeys(credited: Record<string, number>): Record<string, number> {
   const compacted: Record<string, number> = {};
@@ -596,7 +815,7 @@ export function compactBatchCreditKeys(credited: Record<string, number>): Record
 /** No open commitment: keep the line warm and build stock instead of stopping. */
 const STOCK_BUILD_SETPOINT_PERCENT = 70;
 
-const ZERO_ECONOMICS: CampaignEconomics = {
+const ZERO_ECONOMICS: CampaignEconomics & CampaignPurchaseLedger = {
   revenue: 0,
   energyCost: 0,
   automationCost: 0,
@@ -604,6 +823,9 @@ const ZERO_ECONOMICS: CampaignEconomics = {
   maintenanceCost: 0,
   demurrageCost: 0,
   latePenalties: 0,
+  grainCost: 0,
+  partsCost: 0,
+  stockHeld: 0,
 };
 
 const ZERO_SHIFT_METRICS: ShiftCampaignMetrics = {
@@ -876,6 +1098,102 @@ function appendIncident(
   return next;
 }
 
+/**
+ * Whether the truck at the dock holds a load of this order's product, is
+ * about to leave with it (loading or ready), and no other open order of that
+ * product (`otherTaker`) would take it. Forfeited then, nothing of the
+ * product would be owed when the truck leaves, and the truck would carry that
+ * flour off ungraded with no order to pay for it while its grain is still
+ * debited (review 2, finding 7). So the forfeit waits for the truck to leave,
+ * about 15 game minutes from docking (DOCK_PROJECTION): the load is delivered
+ * to the order at its late terms, and only what it still lacks is forfeited.
+ * Delivering late always costs less than the forfeit (D-110), the flour is
+ * already aboard, and returned to stock it would wait for an order that may
+ * never take it. A truck held at the dock (a quality hold, waiting for stock)
+ * does not hold the forfeit: the bound stays a way out.
+ *
+ * The wait is bounded by the dock's own turn: a docked truck leaves before the
+ * next one is due (DOCK_PROJECTION.cycleMinutes, 81 game minutes from one
+ * departure to the next), so one still at the dock a whole cycle past the
+ * order's bound is held by something else (a stop, a drill), and the order is
+ * forfeited then. Its load then returns to stock at departure rather than
+ * leave unpaid (UnifiedGameTick, the departure).
+ */
+export function truckLoadingFor(
+  order: Pick<CustomerOrder, 'recipe' | 'dueAtMinute'>,
+  load: Pick<DispatchLoadSnapshot, 'status' | 'loadedKg' | 'materialType'> | undefined,
+  docked: boolean,
+  otherTaker: boolean,
+  minute: number
+): boolean {
+  return (
+    minute < order.dueAtMinute + FORFEIT_LATENESS_MINUTES + DOCK_PROJECTION.cycleMinutes &&
+    docked &&
+    !otherTaker &&
+    !!load &&
+    (load.status === 'loading' || load.status === 'ready') &&
+    load.loadedKg > EPSILON_KG &&
+    load.materialType === order.recipe.finishedMaterial
+  );
+}
+
+/**
+ * An open order forfeited now: closed unfulfilled ('cancelled') with when, why
+ * and its fee (FORFEIT_FEE_HOURS of its late rate on what it lacked), and the
+ * record's wording. Pure; the caller books the fee and writes the line.
+ */
+function forfeitOrderAt(
+  order: CustomerOrder,
+  minute: number,
+  best: CampaignTickContext['bestReachableQuality']
+): { order: CustomerOrder; fee: number; wording: LogWording } {
+  const lackingKg = Math.max(0, order.requiredKg - order.shippedKg);
+  const fee = Math.round(lackingKg * order.latePenaltyPerKgHour * FORFEIT_FEE_HOURS * 100) / 100;
+  const figure = best?.[order.recipe.sourceMaterial];
+  const reason = orderReachable(order, best) ? 'late' : 'unreachable';
+  return {
+    fee,
+    wording: {
+      key: 'logOrderForfeited',
+      customer: order.customer,
+      minutes: minute - order.dueAtMinute,
+      shippedKg: order.shippedKg,
+      requiredKg: order.requiredKg,
+      minimum: order.recipe.minimumQuality,
+      best: reason === 'unreachable' && figure !== undefined ? figure : null,
+      fee,
+    },
+    order: {
+      ...order,
+      status: 'cancelled',
+      forfeitedAtMinute: minute,
+      forfeitReason: reason,
+      ...(figure !== undefined && Number.isFinite(figure) ? { forfeitBestQuality: figure } : {}),
+      forfeitFee: fee,
+    },
+  };
+}
+
+function forfeitLogEntry(
+  sequence: number,
+  minute: number,
+  orderId: string,
+  wording: LogWording,
+  actor?: CampaignActor
+): CampaignLogEntry {
+  return {
+    id: `log-${String(sequence).padStart(4, '0')}`,
+    simulationMinute: minute,
+    source: translate(messages, 'sourceOrderScheduler'),
+    category: 'operation',
+    message: logWordingText(wording) ?? '',
+    relatedId: orderId,
+    ...(actor ? { actor } : {}),
+    wording,
+    sourceKey: 'sourceOrderScheduler',
+  };
+}
+
 function priorityRank(priority: CustomerOrder['priority']): number {
   return priority === 'critical' ? 0 : priority === 'high' ? 1 : 2;
 }
@@ -1143,7 +1461,7 @@ export function logWordingText(wording: LogWording | null | undefined): string |
       case 'logOrderActivated': {
         if (!Object.prototype.hasOwnProperty.call(MILL_RECIPES, wording.recipeId)) return null;
         return translate(messages, 'logOrderActivated', {
-          customer: wording.customer,
+          customer: customerDisplayName(wording.customer),
           recipe: MILL_RECIPES[wording.recipeId].label,
         });
       }
@@ -1168,7 +1486,7 @@ export function logWordingText(wording: LogWording | null | undefined): string |
       case 'logProgrammeAccepted':
         return translate(messages, 'logProgrammeAccepted', {
           number: formatFixed(wording.number, 0),
-          customer: wording.customer,
+          customer: customerDisplayName(wording.customer),
           rushKg: formatGrouped(wording.rushKg),
           totalKg: formatGrouped(wording.totalKg),
         });
@@ -1177,6 +1495,22 @@ export function logWordingText(wording: LogWording | null | undefined): string |
           manifest: wording.manifest,
           kg: formatGrouped(wording.kg, { maximumFractionDigits: 1 }),
         });
+      case 'logOrderForfeited': {
+        const params = {
+          customer: customerDisplayName(wording.customer),
+          minutes: formatFixed(Math.max(0, Math.round(wording.minutes)), 0),
+          shipped: formatGrouped(Math.round(wording.shippedKg)),
+          required: formatGrouped(Math.round(wording.requiredKg)),
+          minimum: formatFixed(wording.minimum, 0),
+          fee: formatFixed(wording.fee, 2),
+        };
+        return wording.best !== null && Number.isFinite(wording.best)
+          ? translate(messages, 'logOrderForfeitedUnreachable', {
+              ...params,
+              best: formatFixed(wording.best, 1),
+            })
+          : translate(messages, 'logOrderForfeited', params);
+      }
       case 'logSetpointWritten': {
         const number = formatGrouped(wording.value, { maximumFractionDigits: 1 });
         return translate(messages, 'logSetpointWritten', {
@@ -1186,8 +1520,12 @@ export function logWordingText(wording: LogWording | null | undefined): string |
       }
       case 'operatorAction':
         return operatorActionText(wording.action);
+      case 'proposalRecord':
+        return proposalRecordText(wording.record, getLocale());
       case 'execPackedPrestaging':
-        return translate(messages, 'execPackedPrestaging', { customer: wording.customer });
+        return translate(messages, 'execPackedPrestaging', {
+          customer: customerDisplayName(wording.customer),
+        });
       case 'execProcessing':
         return translate(messages, 'execProcessing', {
           material:
@@ -1278,11 +1616,20 @@ function combinedIncidentEffect(incidents: ReadonlyArray<OperationalIncident>): 
     if (incident.phase === 'resolved') continue;
     const definition = INCIDENT_DEFINITIONS[incident.kind].effect;
     const scale = incident.phase === 'mitigated' ? 0.5 : 1;
-    effect.productionMultiplier *= 1 - (1 - definition.productionMultiplier) * scale;
-    effect.energyMultiplier *= 1 + (definition.energyMultiplier - 1) * scale;
-    effect.qualityPenalty += definition.qualityPenalty * scale;
-    effect.dispatchBlocked ||= definition.dispatchBlocked && incident.phase !== 'mitigated';
-    effect.vehicleSpeedMultiplier *= 1 - (1 - definition.vehicleSpeedMultiplier) * scale;
+    // Met with an answer (plan item 3.5), each part takes that answer's share.
+    const shares =
+      incident.phase === 'mitigated'
+        ? incidentResponse(incident.kind, incident.response)?.shares
+        : null;
+    effect.productionMultiplier *=
+      1 - (1 - definition.productionMultiplier) * (shares?.production ?? scale);
+    effect.energyMultiplier *= 1 + (definition.energyMultiplier - 1) * (shares?.energy ?? scale);
+    effect.qualityPenalty += definition.qualityPenalty * (shares?.quality ?? scale);
+    effect.dispatchBlocked ||= shares
+      ? definition.dispatchBlocked && shares.dispatch > 0
+      : definition.dispatchBlocked && incident.phase !== 'mitigated';
+    effect.vehicleSpeedMultiplier *=
+      1 - (1 - definition.vehicleSpeedMultiplier) * (shares?.vehicle ?? scale);
   }
   return {
     productionMultiplier: clamp(effect.productionMultiplier, 0.2, 1),
@@ -1303,7 +1650,7 @@ function constraintDetail(wording: ConstraintWording): string {
     case 'constraintOverdueDetail':
     case 'constraintDueSoonDetail':
       return translate(messages, wording.key, {
-        customer: wording.customer,
+        customer: customerDisplayName(wording.customer),
         count: wording.minutes,
         minutes: formatFixed(wording.minutes, 0),
       });
@@ -1652,13 +1999,23 @@ export interface ShiftReportInput {
  * its own risk, as each late completed order counts in lateDeliveries.
  * Working if two overdue open orders cost two issues in the grade while the
  * card still shows one due line.
+ *
+ * "Commitment due soon" is a warning on the card, not a carried risk: an order
+ * on schedule but due after the close is nothing the shift could have cleared
+ * (plan 1.7). Its constraint is the one order-due line that is not critical.
+ * Working if an on-schedule order due 30 minutes after the close still allows
+ * an A, and an order overdue at the close does not.
  */
+const isDueSoon = (constraint: CampaignConstraint) =>
+  constraint.id.startsWith('order-due-') && constraint.severity !== 'critical';
 function riskEvidence(
   constraints: ReadonlyArray<CampaignConstraint>,
   orders: ReadonlyArray<CustomerOrder> = [],
   atMinute = Number.NEGATIVE_INFINITY
 ) {
-  const open = constraints.filter((constraint) => constraint.severity !== 'info');
+  const open = constraints.filter(
+    (constraint) => constraint.severity !== 'info' && !isDueSoon(constraint)
+  );
   const named = new Set(
     open
       .filter((constraint) => constraint.id.startsWith('order-due-'))
@@ -1687,7 +2044,9 @@ function riskEvidence(
   return {
     risks: labels.map((label, index) => {
       const subject = riskSubjects[index];
-      return subject ? translate(messages, 'riskNamed', { label, subject }) : label;
+      return subject
+        ? translate(messages, 'riskNamed', { label, subject: customerDisplayName(subject) })
+        : label;
     }),
     riskLabelKeys: [
       ...open.map((constraint) => constraint.labelKey ?? null),
@@ -1750,6 +2109,29 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
     order.completedAtMinute > startedAtMinute;
   const open = (order: CustomerOrder) =>
     order.status !== 'fulfilled' && order.status !== 'cancelled';
+  // Forfeited in this window (plan item 3.7): a missed commitment, counted
+  // with the late deliveries and listed with the orders. Read from its log
+  // line, by the window's sequence watermark as the choices are: a partner's
+  // forfeit lands just after the tick that opened the window, at its very
+  // minute. An order whose line has left the logbook goes by the minute.
+  const watermarkOf = input.startedAfterSequence;
+  const forfeitLines = input.logbook.filter((entry) => entry.wording?.key === 'logOrderForfeited');
+  const forfeitedInWindow = new Set(
+    forfeitLines
+      .filter((entry) => {
+        const sequence = LOG_SEQUENCE.exec(entry.id);
+        return watermarkOf !== undefined && sequence
+          ? Number(sequence[1]) > watermarkOf
+          : entry.simulationMinute > startedAtMinute;
+      })
+      .map((entry) => entry.relatedId)
+  );
+  const forfeitLogged = new Set(forfeitLines.map((entry) => entry.relatedId));
+  const forfeitedHere = (order: CustomerOrder) =>
+    order.status === 'cancelled' &&
+    order.forfeitedAtMinute !== undefined &&
+    (forfeitedInWindow.has(order.id) ||
+      (!forfeitLogged.has(order.id) && order.forfeitedAtMinute > startedAtMinute));
   const completed = orders.filter(completedHere);
   const unsafe = input.incidents.filter(
     (incident) =>
@@ -1760,7 +2142,8 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
     input.metrics,
     input.risks,
     unsafe.map((incident) => incidentTitle(incident)),
-    completed.filter((order) => order.completedAtMinute! > order.dueAtMinute + 1e-6).length,
+    completed.filter((order) => order.completedAtMinute! > order.dueAtMinute + 1e-6).length +
+      orders.filter(forfeitedHere).length,
     unsafe.map((incident) => ({
       title: incidentTitle(incident),
       detail: incidentDescription(incident),
@@ -1771,7 +2154,8 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
     // Commitments that could have shipped: due by the close, open or done here.
     orders.filter(
       (order) =>
-        (open(order) || completedHere(order)) && order.dueAtMinute <= input.endedAtMinute + 1e-6
+        (open(order) || completedHere(order) || forfeitedHere(order)) &&
+        order.dueAtMinute <= input.endedAtMinute + 1e-6
     ).length,
     input.riskSubjects
   );
@@ -1796,6 +2180,12 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
       message: entry.message,
       ...(entry.wording ? { wording: entry.wording } : {}),
     }));
+  // The partner's records reach the review through their own field, not
+  // the narration's tail, which keeps eight lines of anything the plant said.
+  // They stay in the narration and choices too, which the debrief renders.
+  const proposals = inWindow
+    .flatMap((entry) => (entry.wording?.key === 'proposalRecord' ? [entry.wording.record] : []))
+    .slice(-MAX_REPORT_PROPOSALS);
   const narrated = inWindow
     .filter((entry) => (entry.actor ?? 'controller') === 'controller')
     .slice(-8);
@@ -1808,7 +2198,7 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
     metrics: { ...input.metrics },
     completedOrderIds: completed.map((order) => order.id),
     orderOutcomes: orders
-      .filter((order) => completedHere(order) || open(order))
+      .filter((order) => completedHere(order) || open(order) || forfeitedHere(order))
       .map((order) => ({
         id: order.id,
         customer: order.customer,
@@ -1817,6 +2207,16 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
         dueAtMinute: order.dueAtMinute,
         completedAtMinute: completedHere(order) ? order.completedAtMinute : null,
         qualityFailureKg: order.qualityFailureKg,
+        ...(forfeitedHere(order)
+          ? {
+              forfeit: {
+                atMinute: order.forfeitedAtMinute!,
+                reason: order.forfeitReason ?? ('late' as const),
+                minimum: order.recipe.minimumQuality,
+                best: order.forfeitBestQuality ?? null,
+              },
+            }
+          : {}),
       })),
     openRisks: [...input.risks],
     grade,
@@ -1826,6 +2226,7 @@ export function buildShiftReport(input: ShiftReportInput): ShiftCampaignReport {
     choices,
     narration: narrated.map((entry) => entry.message),
     narrationWording: narrated.map((entry) => entry.wording ?? null),
+    ...(proposals.length > 0 ? { proposals } : {}),
     summary: shiftHeadline(gradeBasis, grade, locale),
   };
 }
@@ -1881,7 +2282,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         const definition = OPERATIONS_CHALLENGES.find((challenge) => challenge.id === id);
         if (!definition || challengeBlockReason(state)) return false;
         const order = state.orders.find((candidate) => candidate.id === state.activeOrderId)!;
-        const incident = state.triggerIncident(definition.kind);
+        // The challenge is the incident it stands for, raised by the plant: the
+        // partner's two answers then meet it as in play (plan item 3.5).
+        const incident = state.triggerIncident(definition.kind, { origin: 'plant' });
         if (!incident) return false;
         const material = materialShipmentTotals(state.orders, order.recipe.finishedMaterial);
         set({
@@ -1945,12 +2348,18 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         state.resolveIncident(incident.id, actor);
         return true;
       },
-      acceptNextProgramme: (actor = 'controller') => {
+      acceptNextProgramme: (actor = 'controller', options = {}) => {
         const state = get();
-        if (
-          state.activeChallenge ||
-          state.orders.some((order) => order.status !== 'fulfilled' && order.status !== 'cancelled')
-        )
+        const open = state.orders.filter(
+          (order) => order.status !== 'fulfilled' && order.status !== 'cancelled'
+        );
+        if (state.activeChallenge) return false;
+        // Taken early (plan item 3.7), it joins the running programme: at most
+        // one programme open beside it, and the running order keeps the line
+        // and the dock until the queue moves on. Otherwise every order is closed.
+        const early = options.early === true && open.length > 0;
+        if (open.length > 0 && !early) return false;
+        if (early && new Set(open.map((order) => programmeOfOrder(order.id))).size > 1)
           return false;
         // Varied by programme number and shift (src/simulation/programmes.ts);
         // ids keep the logbook sequence, so they stay unique across a session.
@@ -1964,30 +2373,43 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         );
         const lead = programme[0];
         const totalKg = programme.reduce((sum, order) => sum + order.requiredKg, 0);
-        set({
-          orders: [...state.orders.slice(-30), ...programme],
-          activeOrderId: lead.id,
-          programmeCount: state.programmeCount + 1,
-          execution: {
-            ...createInitialExecution(),
-            orderId: lead.id,
-            recipeId: lead.recipe.id,
-            sourceMaterial: lead.recipe.sourceMaterial,
-            finishedMaterial: lead.recipe.finishedMaterial,
-            remainingKg: lead.requiredKg,
-            // Plant readings, not the order's: no tick runs while the shift is
-            // paused, and the card must not drop a quality hold or a truck
-            // half loaded at the dock until one does.
-            qualityReleased: state.execution.qualityReleased,
-            dispatchLoad: { ...state.execution.dispatchLoad },
-          },
-        });
+        set(
+          early
+            ? {
+                // The orders queue behind the one in hand; the tick's
+                // activation picks the next by priority and due time as each
+                // one closes, and the line and the dock keep what they hold.
+                orders: [
+                  ...state.orders.slice(-30),
+                  ...programme.map((order) => ({ ...order, status: 'planned' as const })),
+                ],
+                programmeCount: state.programmeCount + 1,
+              }
+            : {
+                orders: [...state.orders.slice(-30), ...programme],
+                activeOrderId: lead.id,
+                programmeCount: state.programmeCount + 1,
+                execution: {
+                  ...createInitialExecution(),
+                  orderId: lead.id,
+                  recipeId: lead.recipe.id,
+                  sourceMaterial: lead.recipe.sourceMaterial,
+                  finishedMaterial: lead.recipe.finishedMaterial,
+                  remainingKg: lead.requiredKg,
+                  // Plant readings, not the order's: no tick runs while the
+                  // shift is paused, and the card must not drop a quality hold
+                  // or a truck half loaded at the dock until one does.
+                  qualityReleased: state.execution.qualityReleased,
+                  dispatchLoad: { ...state.execution.dispatchLoad },
+                },
+              }
+        );
         state.addLogEntry(
           translate(messages, 'sourceOrderScheduler'),
           'operation',
           translate(messages, 'logProgrammeAccepted', {
             number: formatFixed(number, 0),
-            customer: lead.customer,
+            customer: customerDisplayName(lead.customer),
             rushKg: formatGrouped(lead.requiredKg),
             totalKg: formatGrouped(totalKg),
           }),
@@ -2004,6 +2426,52 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             sourceKey: 'sourceOrderScheduler',
           }
         );
+        return true;
+      },
+
+      forfeitOrder: (orderId, actor = 'controller', best) => {
+        const state = get();
+        const order = state.orders.find((candidate) => candidate.id === orderId);
+        if (!order || order.status === 'fulfilled' || order.status === 'cancelled') return false;
+        // Not while a truck at the dock is about to leave with its flour
+        // (truckLoadingFor): refused, and the bound forfeits what is left.
+        const docked = useTruckScheduleStore.getState().truckSchedule.shipping.truckDocked ?? false;
+        const otherTaker = state.orders.some(
+          (other) =>
+            other.id !== orderId &&
+            other.status !== 'fulfilled' &&
+            other.status !== 'cancelled' &&
+            other.recipe.finishedMaterial === order.recipe.finishedMaterial
+        );
+        if (
+          truckLoadingFor(
+            order,
+            state.execution.dispatchLoad,
+            docked,
+            otherTaker,
+            state.elapsedMinutes
+          )
+        )
+          return false;
+        const forfeit = forfeitOrderAt(order, state.elapsedMinutes, best);
+        const sequence = state.sequence + 1;
+        const book = <T extends CampaignEconomics>(ledger: T): T => ({
+          ...ledger,
+          latePenalties: ledger.latePenalties + forfeit.fee,
+        });
+        set({
+          orders: state.orders.map((candidate) =>
+            candidate.id === orderId ? forfeit.order : candidate
+          ),
+          economics: book(state.economics),
+          shiftMetrics: book(state.shiftMetrics),
+          sequence,
+          logbook: appendBounded(
+            state.logbook,
+            forfeitLogEntry(sequence, state.elapsedMinutes, orderId, forfeit.wording, actor),
+            MAX_LOG_ENTRIES
+          ),
+        });
         return true;
       },
 
@@ -2110,7 +2578,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 source: translate(messages, 'sourceOrderScheduler'),
                 category: 'operation',
                 message: translate(messages, 'logOrderActivated', {
-                  customer: selected.customer,
+                  customer: customerDisplayName(selected.customer),
                   recipe: selected.recipe.label,
                 }),
                 relatedId: selected.id,
@@ -2127,7 +2595,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           };
         }),
 
-      triggerIncident: (kind) => {
+      triggerIncident: (kind, options = {}) => {
         const state = get();
         if (
           state.incidents.some(
@@ -2147,8 +2615,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           startedAtMinute: state.elapsedMinutes,
           acknowledgedAtMinute: null,
           resolvedAtMinute: null,
-          affectedMachineId: definition.affectedMachineId,
+          affectedMachineId: options.machineId ?? definition.affectedMachineId,
           effectApplied: false,
+          ...(options.origin === 'plant' ? { origin: 'plant' as const } : {}),
         };
         set({
           incidents: appendIncident(state.incidents, incident),
@@ -2219,6 +2688,12 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           if (state.activeChallenge?.incidentId === incidentId && target.phase !== 'acknowledged')
             return state;
           const sequence = state.sequence + 1;
+          // A plant incident is met with an answer and ends at a stated minute
+          // (plan item 3.5); the free Mitigate gives it its kind's first answer.
+          const plant = target.origin === 'plant';
+          const response =
+            incidentResponse(target.kind, target.response)?.id ??
+            (plant ? INCIDENT_RESPONSES[target.kind][0].id : undefined);
           const incidents = state.incidents.map(
             (incident): OperationalIncident =>
               incident.id === incidentId
@@ -2226,6 +2701,10 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                     ...incident,
                     phase: 'mitigated',
                     acknowledgedAtMinute: incident.acknowledgedAtMinute ?? state.elapsedMinutes,
+                    ...(response ? { response } : {}),
+                    ...(plant
+                      ? { endsAtMinute: state.elapsedMinutes + PLANT_INCIDENT_MINUTES }
+                      : {}),
                   }
                 : incident
           );
@@ -2312,6 +2791,75 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
           };
         });
         closeSettledIncidentPredictions(get().incidents, incidentId);
+      },
+
+      respondToIncident: (incidentId, response, actor = 'controller', meet = true) => {
+        const target = get().incidents.find(
+          (incident) =>
+            incident.id === incidentId &&
+            (incident.phase === 'raised' || incident.phase === 'acknowledged')
+        );
+        const answer = target ? incidentResponse(target.kind, response) : null;
+        if (!target || !answer) return false;
+        set((state) => ({
+          incidents: state.incidents.map((incident) =>
+            incident.id === incidentId ? { ...incident, response: answer.id } : incident
+          ),
+        }));
+        if (!meet) return true;
+        if (target.phase === 'raised') get().acknowledgeIncident(incidentId, actor);
+        get().mitigateIncident(incidentId, actor);
+        return get().incidents.some(
+          (incident) => incident.id === incidentId && incident.phase === 'mitigated'
+        );
+      },
+
+      markIncidentResponseActed: (incidentId) =>
+        set((state) => ({
+          incidents: state.incidents.map((incident) =>
+            incident.id === incidentId ? { ...incident, responseActed: true } : incident
+          ),
+        })),
+
+      endPlantIncidents: () => {
+        const state = get();
+        for (const incident of state.incidents)
+          if (
+            incident.origin === 'plant' &&
+            incident.phase === 'mitigated' &&
+            incident.effectApplied &&
+            typeof incident.endsAtMinute === 'number' &&
+            Number.isFinite(incident.endsAtMinute) &&
+            state.elapsedMinutes >= incident.endsAtMinute
+          )
+            get().resolveIncident(incident.id, 'controller');
+      },
+
+      bookDemurrageCharge: (amount) => {
+        const charge = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+        if (charge === 0) return;
+        set((state) => ({
+          economics: {
+            ...state.economics,
+            demurrageCost: state.economics.demurrageCost + charge,
+          },
+          shiftMetrics: {
+            ...state.shiftMetrics,
+            demurrageCost: state.shiftMetrics.demurrageCost + charge,
+          },
+        }));
+      },
+
+      bookEnergyCharge: (amount) => {
+        const charge = Number.isFinite(amount) ? Math.max(0, amount) : 0;
+        if (charge === 0) return;
+        set((state) => ({
+          economics: { ...state.economics, energyCost: state.economics.energyCost + charge },
+          shiftMetrics: {
+            ...state.shiftMetrics,
+            energyCost: state.shiftMetrics.energyCost + charge,
+          },
+        }));
       },
 
       markIncidentEffectApplied: (incidentId) =>
@@ -2427,18 +2975,33 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 (materialRemaining.get(material) ?? 0) - productRemaining
               );
               remaining -= productRemaining;
-              for (const order of orders
+              // No order is paid for flour under its recipe minimum (plan item
+              // 3.4, D6): each batch is read at the stamp it was packed at,
+              // whatever the manifest says it was loaded for. A batch saved
+              // before stamps were recorded reads as conforming.
+              const queue = orders
                 .filter(
                   (candidate) =>
                     candidate.status !== 'fulfilled' &&
                     candidate.status !== 'cancelled' &&
-                    candidate.recipe.finishedMaterial === material
+                    candidate.recipe.finishedMaterial === material &&
+                    meetsMinimum(batch.qualityScore, candidate.recipe.minimumQuality)
                 )
-                .sort(
-                  (a, b) =>
-                    priorityRank(a.priority) - priorityRank(b.priority) ||
-                    a.dueAtMinute - b.dueAtMinute
-                )) {
+                .sort(compareDispatchOrder);
+              // The orders the shipment plan loaded this batch for are served
+              // first, in its order; then the one it named; the rest, and any
+              // manifest without either, go by the dispatch queue.
+              const preferred = [
+                ...(manifest.orderLoads ?? [])
+                  .filter((load) => load.batchId === product.batchId)
+                  .map((load) => load.orderId),
+                ...(manifest.orderId ? [manifest.orderId] : []),
+              ];
+              for (const orderId of [...preferred].reverse()) {
+                const chosen = queue.findIndex((candidate) => candidate.id === orderId);
+                if (chosen > 0) queue.unshift(...queue.splice(chosen, 1));
+              }
+              for (const order of queue) {
                 if (productRemaining <= EPSILON_KG) break;
                 const needed = Math.max(0, order.requiredKg - order.shippedKg);
                 const allocated = Math.min(needed, productRemaining);
@@ -2448,17 +3011,9 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
                 allocatedManifestKg += allocated;
                 if (!order.batchIds.includes(product.batchId)) order.batchIds.push(product.batchId);
                 if (!order.manifestIds.includes(manifest.id)) order.manifestIds.push(manifest.id);
-                // Each batch is judged at the quality it was packed at; batches
-                // saved before that was recorded fall back to the plant reading.
-                const shippedQuality = Number.isFinite(batch.qualityScore)
-                  ? (batch.qualityScore as number)
-                  : context.averageQuality;
-                if (shippedQuality < order.recipe.minimumQuality) {
-                  order.qualityFailureKg += allocated;
-                  shiftMetrics.qualityFailureKg = (shiftMetrics.qualityFailureKg ?? 0) + allocated;
-                  economics.latePenalties += allocated * 0.08;
-                  shiftMetrics.latePenalties += allocated * 0.08;
-                }
+                // The queue holds only orders whose minimum the batch meets, so
+                // nothing here adds to qualityFailureKg or its 0.08 a kg any
+                // more: both stay on orders and reports saved before plan 3.4.
                 const revenue = allocated * order.revenuePerKg;
                 economics.revenue += revenue;
                 shiftMetrics.revenue += revenue;
@@ -2506,14 +3061,71 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               ? { ...order, status: 'late' }
               : order
           );
+          // The way out (plan items 3.4, 3.7; Chronicle rule 4): an order
+          // FORFEIT_LATENESS_MINUTES past its due time is closed unfulfilled,
+          // with a penalty and the reason in the record. Flour packed for it
+          // stays in stock for any order it meets.
+          const best = context.bestReachableQuality;
+          let forfeitFees = 0;
+          // An open order of a product, not at its bound this tick, that would
+          // take a truck's load of it.
+          const takerOf = (product: CustomerOrder['recipe']['finishedMaterial']) =>
+            orders.some(
+              (other) =>
+                other.status !== 'fulfilled' &&
+                other.status !== 'cancelled' &&
+                other.recipe.finishedMaterial === product &&
+                elapsedMinutes < other.dueAtMinute + FORFEIT_LATENESS_MINUTES
+            );
+          orders = orders.map((order) => {
+            if (
+              order.status === 'fulfilled' ||
+              order.status === 'cancelled' ||
+              elapsedMinutes < order.dueAtMinute + FORFEIT_LATENESS_MINUTES ||
+              // A truck about to leave with its flour delivers it first.
+              truckLoadingFor(
+                order,
+                context.dispatchLoad,
+                context.shippingDocked,
+                takerOf(order.recipe.finishedMaterial),
+                elapsedMinutes
+              )
+            )
+              return order;
+            const forfeit = forfeitOrderAt(order, elapsedMinutes, best);
+            forfeitFees += forfeit.fee;
+            sequence += 1;
+            logbook = appendBounded(
+              logbook,
+              forfeitLogEntry(sequence, elapsedMinutes, order.id, forfeit.wording),
+              MAX_LOG_ENTRIES
+            );
+            return forfeit.order;
+          });
+          if (forfeitFees > 0) {
+            economics.latePenalties += forfeitFees;
+            shiftMetrics.latePenalties += forfeitFees;
+          }
+          // The order the plant works first: the active one while it is open
+          // and can be made; otherwise the first in the queue, an order the
+          // line can make before one it cannot (its grain's best stamp is
+          // under its minimum), so the others are not held behind it.
           let activeOrderId = state.activeOrderId;
           const active = orders.find((order) => order.id === activeOrderId);
-          if (!active || active.status === 'fulfilled' || active.status === 'cancelled') {
+          const isOpen = (order: CustomerOrder) =>
+            order.status !== 'fulfilled' && order.status !== 'cancelled';
+          const reachable = (order: CustomerOrder) => orderReachable(order, best);
+          if (
+            !active ||
+            !isOpen(active) ||
+            (!reachable(active) && orders.some((order) => isOpen(order) && reachable(order)))
+          ) {
             activeOrderId =
               orders
-                .filter((order) => order.status !== 'fulfilled' && order.status !== 'cancelled')
+                .filter(isOpen)
                 .sort(
                   (a, b) =>
+                    Number(!reachable(a)) - Number(!reachable(b)) ||
                     priorityRank(a.priority) - priorityRank(b.priority) ||
                     a.dueAtMinute - b.dueAtMinute
                 )[0]?.id ?? null;
@@ -2621,10 +3233,7 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             context.clockMinuteOfDay !== undefined && Number.isFinite(context.clockMinuteOfDay)
               ? context.clockMinuteOfDay
               : elapsedMinutes % (24 * 60);
-          const energyCost =
-            effectiveEnergyKw *
-            (minuteOfDay >= 540 && minuteOfDay <= 1260 ? 0.15 : 0.08) *
-            deltaHours;
+          const energyCost = effectiveEnergyKw * energyTariffPerKwh(minuteOfDay) * deltaHours;
           const automationCost = 28 * deltaHours;
           // A changed physical session starts a new waste ledger even when its
           // counter already exceeds the previous reading. Same-session reload
@@ -2665,8 +3274,24 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             state.orders.some(
               (order) => order.status !== 'fulfilled' && order.status !== 'cancelled'
             )
-          )
+          ) {
             shiftMetrics.commitmentMinutes = (shiftMetrics.commitmentMinutes ?? 0) + deltaMinutes;
+            if (context.oee)
+              shiftMetrics.oee = accumulateShiftOee(shiftMetrics.oee, {
+                ...context.oee,
+                minutes: deltaMinutes,
+                unitsDown: context.openWorkOrders,
+                // The stamp packed now against the minimum of the order the line works.
+                conforming: (() => {
+                  const lineOrder = state.orders.find(
+                    (order) => order.id === (context.lineOrderId ?? state.activeOrderId)
+                  );
+                  return lineOrder
+                    ? meetsMinimum(context.averageQuality, lineOrder.recipe.minimumQuality)
+                    : true;
+                })(),
+              });
+          }
           for (const [key, value] of Object.entries({
             energyCost,
             automationCost,
@@ -2678,6 +3303,36 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             economics[key] += value;
             shiftMetrics[key] += value;
           }
+          // The grain in what left on a truck this tick leaves stock held: the
+          // net pays for it now, as it pays for the grain in nothing unsold.
+          // Read from the shipping manifests the credit loop above took in.
+          let grainShipped = 0;
+          for (const manifest of context.manifests)
+            if (
+              manifest.kind === 'shipping' &&
+              (materialSessionChanged || !state.processedManifestIds.includes(manifest.id))
+            )
+              grainShipped += grainInShipped(manifest.materials);
+          if (grainShipped > 0) {
+            economics.stockHeld = (economics.stockHeld ?? 0) - grainShipped;
+            shiftMetrics.stockHeld = (shiftMetrics.stockHeld ?? 0) - grainShipped;
+          }
+          // A new material session's opening stock, at cost, as bought that
+          // day and held: it nets nothing now (bought and held at once), and
+          // its grain leaves stock held as it ships, as bought grain's does.
+          // Before, opening stock was never bought but was debited when it
+          // shipped, so stock held ran below zero (review 2, the ledger).
+          const opening =
+            materialSessionChanged &&
+            Number.isFinite(context.openingStockValue) &&
+            (context.openingStockValue ?? 0) > 0
+              ? (context.openingStockValue as number)
+              : 0;
+          if (opening > 0)
+            for (const ledger of [economics, shiftMetrics]) {
+              ledger.grainCost = (ledger.grainCost ?? 0) + opening;
+              ledger.stockHeld = (ledger.stockHeld ?? 0) + opening;
+            }
 
           let reports = state.reports;
           let currentShiftKey = state.currentShiftKey ?? context.shiftKey;
@@ -2838,7 +3493,17 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
             initialized: true,
             activeChallenge,
             challengeHistory,
-            creditedBatchKg: Object.fromEntries(Object.entries(creditedBatchKg).slice(-1000)),
+            // Only a batch still listed can appear in a manifest to credit:
+            // its key is kept, and a short tail of the rest (plan item 3.4,
+            // the save's budget; was the last 1,000 keys of any batch).
+            creditedBatchKg: retainCreditKeys(
+              creditedBatchKg,
+              new Set(
+                context.productionBatches.map((batch) =>
+                  batchCreditKey(context.materialSessionId ?? null, batch)
+                )
+              )
+            ),
             lastMaterialSessionId: context.materialSessionId ?? state.lastMaterialSessionId,
             elapsedMinutes,
             orders,
@@ -2874,10 +3539,12 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         };
       },
 
-      getLineProductionPlan: (finishedAvailableKg) => {
+      getLineProductionPlan: (finishedAvailableKg, bestReachable) => {
         const state = get();
         const active = state.orders.find((candidate) => candidate.id === state.activeOrderId);
         if (!active || active.status === 'fulfilled' || active.status === 'cancelled') return null;
+        // Only orders the line cannot make are open: nothing is milled for them.
+        if (!orderReachable(active, bestReachable)) return null;
         // Walk the commitments in the order dispatch will serve them: the
         // active order, then the same priority/due order activation uses. Packed
         // stock covers them in turn; the line works on the first one it does not
@@ -2891,12 +3558,10 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
               (order) =>
                 order.id !== active.id &&
                 order.status !== 'fulfilled' &&
-                order.status !== 'cancelled'
+                order.status !== 'cancelled' &&
+                orderReachable(order, bestReachable)
             )
-            .sort(
-              (a, b) =>
-                priorityRank(a.priority) - priorityRank(b.priority) || a.dueAtMinute - b.dueAtMinute
-            ),
+            .sort(compareDispatchOrder),
         ];
         const stock = { flour: 0, semolina: 0, ...finishedAvailableKg };
         const queuedKg = { flour: 0, semolina: 0 };
@@ -2927,14 +3592,29 @@ export const useOperationsCampaignStore = create<OperationsCampaignState>()(
         };
       },
 
-      getProductionMultiplier: () => {
-        const state = get();
-        const incident = combinedIncidentEffect(state.incidents).productionMultiplier;
-        const setpoint = clamp(state.execution.lineSetpointPercent / 100, 0, 1.08);
-        return clamp(incident * setpoint, 0, 1.08);
-      },
+      // One rate, the player's (plan item 3.6): the line runs at the production
+      // speed set in Settings, slowed only by an open incident. The derived
+      // line setpoint no longer scales it; execution keeps it for old saves.
+      getProductionMultiplier: () =>
+        clamp(combinedIncidentEffect(get().incidents).productionMultiplier, 0, 1),
 
       getIncidentEffect: () => combinedIncidentEffect(get().incidents),
+      bookPurchase: (purchase) => {
+        const money = (value: number | undefined) =>
+          Number.isFinite(value) ? Math.max(0, value as number) : 0;
+        const grain = money(purchase.grainCost);
+        const parts = money(purchase.partsCost);
+        if (grain === 0 && parts === 0) return;
+        set((state) => {
+          const add = <T extends CampaignPurchaseLedger>(ledger: T): T => ({
+            ...ledger,
+            grainCost: (ledger.grainCost ?? 0) + grain,
+            partsCost: (ledger.partsCost ?? 0) + parts,
+            stockHeld: (ledger.stockHeld ?? 0) + grain,
+          });
+          return { economics: add(state.economics), shiftMetrics: add(state.shiftMetrics) };
+        });
+      },
       resetCampaign: () => set(emptyState()),
     }),
     {

@@ -35,6 +35,9 @@ export function describeModifier(values: ModifierValues): string[] {
   if (values.forecastChance)
     parts.push(`forecasts ${signed(Math.round(values.forecastChance * 100))} points`);
   if (values.upkeep !== undefined) parts.push(`upkeep x${values.upkeep}`);
+  // Zero is said as the fact ("x0" read as a misprint, seen in pt-BR).
+  if (values.dryingEnergy === 0) parts.push('drying books no energy');
+  else if (values.dryingEnergy !== undefined) parts.push(`drying energy x${values.dryingEnergy}`);
   return parts;
 }
 
@@ -108,6 +111,9 @@ export function localizedDescribeModifier(values: ModifierValues): string[] {
   if (values.forecastChance)
     parts.push(t('m5', { value: localizedSigned(Math.round(values.forecastChance * 100)) }));
   if (values.upkeep !== undefined) parts.push(t('m6', { value: formatGrouped(values.upkeep) }));
+  if (values.dryingEnergy === 0) parts.push(t('m23'));
+  else if (values.dryingEnergy !== undefined)
+    parts.push(t('m22', { value: formatGrouped(values.dryingEnergy) }));
   return parts;
 }
 
@@ -132,17 +138,8 @@ export function localizedDescribeEffect(
         })
       );
   }
-  const deltas = !effect.relationship
-    ? []
-    : Array.isArray(effect.relationship)
-      ? effect.relationship
-      : [effect.relationship];
-  for (const { customer, delta } of deltas) {
-    const name = customer === 'all' ? t('m12') : localizedPartyName(customer);
-    parts.push(`${name} ${localizedSigned(delta)}`);
-  }
-  if (effect.standing && !context.suspended)
-    parts.push(t('m13', { value: localizedSignedHundredths(effect.standing) }));
+  const changes = localizedEffectChanges(effect, context);
+  if (changes) parts.push(changes);
   // What a mark does at once is shown; what it leads to later is the record's to tell.
   for (const id of effect.marks ?? []) {
     for (const prepare of MARKS[id]?.prepares ?? [])
@@ -173,6 +170,44 @@ export function localizedDescribeEffect(
   if (effect.incident)
     parts.push(t('m20', { incident: INCIDENT_DEFINITIONS[effect.incident].title.toLowerCase() }));
   if (effect.closeInspection) parts.push(t('m21'));
+  return parts.join('; ');
+}
+
+/** The organisation, customer and standing changes alone, as the button shows them. */
+export function localizedEffectChanges(
+  effect: ChronicleEventEffect,
+  context: { suspended?: boolean } = {}
+): string {
+  const t = createTranslator(describeMessages, getLocale());
+  const parts: string[] = [];
+  const deltas = !effect.relationship
+    ? []
+    : Array.isArray(effect.relationship)
+      ? effect.relationship
+      : [effect.relationship];
+  for (const { customer, delta } of deltas) {
+    const name = customer === 'all' ? t('m12') : localizedPartyName(customer);
+    parts.push(`${name} ${localizedSigned(delta)}`);
+  }
+  if (effect.standing && !context.suspended)
+    parts.push(t('m13', { value: localizedSignedHundredths(effect.standing) }));
+  return parts.join('; ');
+}
+
+/**
+ * Everything a result notice names in brackets: the changes above, then a
+ * suspension (not repeated on a mill already suspended) or a reinstatement.
+ * The localized side of the engine's `effectChanges`.
+ */
+export function localizedResultChanges(
+  effect: ChronicleEventEffect,
+  context: { suspended?: boolean } = {}
+): string {
+  const t = createTranslator(describeMessages, getLocale());
+  const parts = [localizedEffectChanges(effect, context)].filter(Boolean);
+  if (effect.suspend && !context.suspended)
+    parts.push(t('m16', { value: localizedSigned(SUSPENSION_CUSTOMER_DELTA) }));
+  if (effect.reinstate) parts.push(t('m17'));
   return parts.join('; ');
 }
 

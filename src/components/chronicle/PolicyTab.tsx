@@ -1,6 +1,8 @@
+import { useId } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { AlertTriangle, ArrowRight, Check, Clock, Minus, Users, X } from 'lucide-react';
 import {
+  concessionBlockReason,
   concessionFor,
   policyBlockReason,
   POLICY_COST,
@@ -8,14 +10,20 @@ import {
   type ChronicleState,
 } from '../../chronicle/engine';
 import {
+  BREAK_OFF_DELTA,
   conditionProgress,
+  COUNTDOWN_SHIFTS,
   getLadder,
   getPolicyLadders,
   getRung,
   getStandingConditions,
   getTemperaments,
   localizedCrewMember,
+  localizedRulingObjection,
+  projectedVote,
+  rungConsequences,
 } from '../../chronicle/governance';
+import { getForecasts } from '../../chronicle/forecasts';
 import {
   localizedBallotReason,
   localizedBlockReason,
@@ -46,6 +54,7 @@ const VOTE_CLASS: Record<CrewVote, string> = {
  */
 export function PolicyTab({ state }: { state: ChronicleState }) {
   const t = useT(messages);
+  const heldId = useId();
   const actions = useChronicleStore(
     useShallow((s) => ({ propose: s.propose, withdraw: s.withdraw, meetNeed: s.meetNeed }))
   );
@@ -53,10 +62,55 @@ export function PolicyTab({ state }: { state: ChronicleState }) {
   const standing = proposalStanding(state);
   const installed = state.improvements.filter((p) => p.phase === 'installed').length;
   const active = state.status === 'active';
+  // A concession that could not carry the change is refused before it is paid (4.10).
+  const refused = (memberId: (typeof gov.crew)[number]['id']) =>
+    concessionBlockReason(state, memberId) !== null;
   // Presentation copies in the current language; the engine keeps reading the English.
   const ladders = getPolicyLadders();
   const conditions = getStandingConditions();
   const temperaments = getTemperaments();
+  const installedIds = state.improvements.filter((p) => p.phase === 'installed').map((p) => p.id);
+
+  // What a step sets off, on its button: the red line it crosses, the condition
+  // it raises and, for the next step, how the assembly would vote (report 08, P4).
+  const setsOff = (ladder: PolicyLadder, step: PolicyRung, adjacent: boolean): string => {
+    const { redLines, conditions: raised } = rungConsequences(gov, ladder, step, installedIds);
+    const parts = [
+      ...redLines.map((line) =>
+        t('rungRedLine', {
+          party: localizedStakeholderName(line.party),
+          delta: formatGrouped(BREAK_OFF_DELTA),
+          shifts: plural(COUNTDOWN_SHIFTS, 'shift'),
+        })
+      ),
+      ...raised.map((condition) =>
+        condition.afterShifts !== undefined
+          ? t('rungConditionAfter', {
+              condition: conditions[condition.id].label,
+              shifts: plural(condition.afterShifts, 'shift'),
+            })
+          : t('rungConditionForecast', {
+              condition: conditions[condition.id].label,
+              forecast: condition.forecast
+                ? getForecasts()[condition.forecast].title.toLowerCase()
+                : '',
+            })
+      ),
+    ];
+    // A tally of the assembly, never a person's (Chronicle rule 8).
+    if (adjacent && !gov.proposal && !gov.administration) {
+      const vote = projectedVote(gov, ladder, step);
+      parts.push(
+        t('rungVote', {
+          for: formatGrouped(vote.for),
+          against: formatGrouped(vote.against),
+          abstain: vote.abstain ? t('p3', { abstain: formatGrouped(vote.abstain) }) : '',
+          outcome: vote.carried ? t('rungCarries') : t('rungFalls'),
+        })
+      );
+    }
+    return parts.join('; ');
+  };
 
   return (
     <div className="space-y-3">
@@ -95,14 +149,17 @@ export function PolicyTab({ state }: { state: ChronicleState }) {
                     </span>
                   </div>
                   {concession && ballot.vote === 'against' && (
-                    <button
-                      className={`${BUTTON} mt-1`}
-                      disabled={!active}
-                      onClick={() => actions.meetNeed(ballot.memberId)}
-                    >
-                      {t('p8', { need: localizedConcession(concession.text, member) })}
-                      <CostTag state={state} cost={{ fund: concession.fund }} />
-                    </button>
+                    <>
+                      <button
+                        className={`${BUTTON} mt-1`}
+                        disabled={!active || refused(ballot.memberId)}
+                        onClick={() => actions.meetNeed(ballot.memberId)}
+                      >
+                        {t('p8', { need: localizedConcession(concession.text, member) })}
+                        <CostTag state={state} cost={{ fund: concession.fund }} />
+                      </button>
+                      {refused(ballot.memberId) && <p className="mt-1 text-rose-200">{t('p25')}</p>}
+                    </>
                   )}
                 </li>
               );
@@ -147,17 +204,23 @@ export function PolicyTab({ state }: { state: ChronicleState }) {
               // The open proposal is shown once, at the top; it is not repeated on every step.
               const reason =
                 blocked !== null && !gov.proposal ? localizedBlockReason(blocked) : null;
+              const consequences = setsOff(ladder.id as PolicyLadder, step, adjacent);
               return (
                 <button
                   key={rung.label}
                   className={`${BUTTON} text-left`}
                   disabled={blocked !== null}
+                  aria-describedby={reason !== null ? `${heldId}-${ladder.id}-${step}` : undefined}
                   onClick={() => actions.propose(ladder.id as PolicyLadder, step)}
                 >
                   <span className="font-semibold">{rung.label}</span>: {rung.effectText}
                   {adjacent && blocked === null && <CostTag state={state} cost={POLICY_COST} />}
-                  {adjacent && reason !== null && (
-                    <span className="block text-rose-200">{reason}</span>
+                  {consequences && <span className="block text-amber-200">{consequences}</span>}
+                  {/* Every held step says why, a far one too ("one step at a time"). */}
+                  {reason !== null && (
+                    <span id={`${heldId}-${ladder.id}-${step}`} className="block text-rose-200">
+                      {reason}
+                    </span>
                   )}
                 </button>
               );
@@ -267,6 +330,9 @@ export function PolicyTab({ state }: { state: ChronicleState }) {
                     {objection && (
                       <div className="text-rose-200">
                         {t('p23', { shift: formatGrouped(objection.raisedShift) })}
+                        {'ruling' in objection && objection.ruling
+                          ? ` ${t('p24', { ruling: localizedRulingObjection(objection.ruling) })}`
+                          : ''}
                       </div>
                     )}
                   </div>

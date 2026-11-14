@@ -81,7 +81,7 @@ describe('campaign bell notices follow the language', () => {
     expect(alertText(quality).message).toBe(
       'O resultado de laboratório mais recente foi reprovado. Resolva a condição antes da liberação. Enquanto o caminhão espera na doca, o custo é de £120,00 por hora de jogo.'
     );
-    expect(alertText(material).message).toBe('Aguardando semolina liberada nas ensacadeiras.');
+    expect(alertText(material).message).toBe('Aguardando fubá liberado nas ensacadeiras.');
     expect(alertText(product).message).toBe('Aguardando produto liberado nas ensacadeiras.');
   });
 });

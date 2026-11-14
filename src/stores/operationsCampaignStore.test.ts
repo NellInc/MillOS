@@ -5,6 +5,7 @@ import {
   type ProductionBatch,
 } from './materialFlowStore';
 import { useOperationsCampaignStore, type CampaignTickContext } from './operationsCampaignStore';
+import { gradeShift, shiftGradeReasons } from '../simulation/shiftReview';
 
 const flourBatch: ProductionBatch = {
   id: 'batch-0001',
@@ -266,9 +267,10 @@ describe('autonomous operations programme', () => {
     expect(state.orders.every((order) => order.status === 'fulfilled')).toBe(true);
     expect(state.activeOrderId).toBeNull();
     expect(state.execution.lineSetpointPercent).toBe(70);
-    expect(state.getProductionMultiplier()).toBeCloseTo(0.7, 5);
+    // One rate (plan item 3.6): the setpoint no longer scales the line.
+    expect(state.getProductionMultiplier()).toBe(1);
     expect(state.logbook.at(-1)?.message).toBe(
-      'All commitments fulfilled. Accept the next production programme or review the completed period.'
+      'All commitments fulfilled. Accept the next delivery programme or review the completed period.'
     );
     expect(state.acceptNextProgramme()).toBe(true);
     expect(useOperationsCampaignStore.getState().orders).toHaveLength(6);
@@ -645,7 +647,12 @@ describe('autonomous operations programme', () => {
         averageQuality: 99,
       })
     );
-    expect(useOperationsCampaignStore.getState().orders[0].qualityFailureKg).toBeGreaterThan(0);
+    // Re-pinned for plan item 3.4 (D6): 93 flour is never paid as strong white
+    // (95); it goes to the community order (92), and nothing fails.
+    const orders = useOperationsCampaignStore.getState().orders;
+    expect(orders[0].shippedKg).toBe(0);
+    expect(orders[0].qualityFailureKg).toBe(0);
+    expect(orders.find((order) => order.recipe.minimumQuality === 92)!.shippedKg).toBe(5000);
   });
 
   it('caps period grading for unsafe recovery and quality failures with causal reasons', () => {
@@ -666,15 +673,21 @@ describe('autonomous operations programme', () => {
       60,
       context({
         manifests: [shippingManifest],
-        productionBatches: [flourBatch],
+        productionBatches: [{ ...flourBatch, qualityScore: 90 }],
         averageQuality: 90,
       })
     );
     store.tickCampaign(60, context({ shiftKey: 'afternoon' }));
-    expect(useOperationsCampaignStore.getState().reports.at(-1)).toMatchObject({
-      grade: 'F',
-      gradeReasons: expect.arrayContaining([expect.stringContaining('caps the grade at F')]),
-    });
+    // Re-pinned for plan item 3.4 (D6): flour under every flour minimum is
+    // paid to no order, so a new window fails no kilogram; the F cap and its
+    // reason still read a report saved with failing kilograms.
+    const report = useOperationsCampaignStore.getState().reports.at(-1)!;
+    expect(report.gradeBasis?.qualityFailureKg).toBe(0);
+    const failed = { ...report.gradeBasis!, qualityFailureKg: 5000 };
+    expect(gradeShift(failed)).toBe('F');
+    expect(shiftGradeReasons(failed, 'en')).toEqual(
+      expect.arrayContaining([expect.stringContaining('caps the grade at F')])
+    );
   });
   it('preserves batch mass credit across save reload and fresh manifests', () => {
     const store = useOperationsCampaignStore.getState();
@@ -969,8 +982,11 @@ describe('compact batch credit keys', () => {
       store.tickCampaign(60, live());
     }
     const credited = useOperationsCampaignStore.getState().creditedBatchKg;
-    expect(Object.keys(credited)).toHaveLength(1000);
-    expect(Object.keys(credited).some((key) => key.includes(resident.id))).toBe(false);
+    // Re-pinned for plan item 3.4 (the save's budget): the record keeps the
+    // key of every batch still listed and a short tail of the rest (was the
+    // last 1,000 of any), so the resident batch's credit is never dropped.
+    expect(Object.keys(credited).length).toBeLessThanOrEqual(1 + 32 + 24);
+    expect(Object.keys(credited).some((key) => key.includes(resident.id))).toBe(true);
     expect(shipped()).toBe(1100);
 
     // Reload the saved campaign against the same physical window.

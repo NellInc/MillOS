@@ -16,7 +16,7 @@ export const workplaceImprovementMessages = defineMessages({
       'Pause line pacing for five paid minutes, then use a clearer handoff sequence. All work stays within current qualifications.',
     bufferTitle: 'Maintenance proposes a small packing buffer',
     bufferDetail:
-      'Fund a reusable staging arrangement. Higher modeled line capacity costs more upfront; quality release and machine safety remain unchanged.',
+      'Fund a reusable staging arrangement for the packing handoff. It costs more upfront; line pace, quality release and machine safety stay unchanged.',
     lateTruckTitle: 'The collection truck is late',
     lateTruckPremise: 'Assume collection loses the first 45 minutes of this 90-minute window.',
     lateTruckRecommendation:
@@ -90,10 +90,6 @@ export const workplaceImprovementMessages = defineMessages({
       'Where did packing or collection wait, and which one handoff change would you compare without borrowing another role’s rest?',
     questionComparison:
       'Let each role predict what another arrangement would change. Which observation would change your minds, and where do you still disagree?',
-    limitationEarly:
-      'This shortened trial cannot be treated as a completed 90-minute result. One trial cannot establish the arrangement’s causal effect.',
-    limitationComplete:
-      'One trial cannot establish the arrangement’s causal effect. A matched comparison keeps shared inputs fixed; real collection still needs its own receipts.',
   },
   'pt-BR': {
     briefingTitle: 'O Ensaque propõe um briefing remunerado de passagem de turno',
@@ -101,7 +97,7 @@ export const workplaceImprovementMessages = defineMessages({
       'Pause o ritmo da linha por cinco minutos remunerados e depois use uma sequência de passagem de turno mais clara. Todo o trabalho fica dentro das qualificações atuais.',
     bufferTitle: 'A Manutenção propõe um pequeno estoque intermediário no ensaque',
     bufferDetail:
-      'Financie uma estrutura de preparação reutilizável. A maior capacidade modelada da linha custa mais no início; a liberação de qualidade e a segurança das máquinas não mudam.',
+      'Financie uma estrutura de preparação reutilizável para a passagem de turno no ensaque. Custa mais no início; o ritmo da linha, a liberação de qualidade e a segurança das máquinas não mudam.',
     lateTruckTitle: 'O caminhão de coleta está atrasado',
     lateTruckPremise:
       'Suponha que a coleta perca os primeiros 45 minutos desta janela de 90 minutos.',
@@ -180,9 +176,5 @@ export const workplaceImprovementMessages = defineMessages({
       'Onde o ensaque ou a coleta ficaram esperando, e qual mudança de passagem de turno vocês comparariam sem tomar o descanso de outra função?',
     questionComparison:
       'Deixem cada função prever o que outro arranjo mudaria. Qual observação mudaria a opinião de vocês, e onde ainda discordam?',
-    limitationEarly:
-      'Este teste encurtado não pode ser tratado como um resultado completo de 90 minutos. Um único teste não estabelece o efeito causal do arranjo.',
-    limitationComplete:
-      'Um único teste não estabelece o efeito causal do arranjo. Uma comparação pareada mantém fixos os insumos compartilhados; a coleta real ainda precisa dos próprios comprovantes.',
   },
 });

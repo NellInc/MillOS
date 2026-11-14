@@ -38,10 +38,10 @@ const status = () => screen.getByRole('status');
 
 it('the status line follows a language switch for the planner own messages', () => {
   render(<LayoutPlanner onClose={vi.fn()} />);
-  expect(status()).toHaveTextContent('Edit a proposal or search');
-  act(() => setLocale('pt-BR'));
-  expect(status()).toHaveTextContent('Edite uma proposta');
-  act(() => setLocale('en'));
+  // No opening line telling the player what the planner is for (D-012): the
+  // status region is there, empty, until something happens.
+  expect(status()).toHaveTextContent(/^$/);
+  expect(screen.queryByText(/Edit a proposal or search/)).toBeNull();
   click('Pause mill');
   expect(status()).toHaveTextContent('Mill paused. Apply a clear proposal');
   act(() => setLocale('pt-BR'));

@@ -192,9 +192,12 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'cooperative',
     requires: ['spare-parts-store'],
     planCost: 16,
-    installCost: 200,
+    // Priced on what it saves (item 4.3, D8): its share of the parts and work
+    // orders the probe saw it avoid, about 4.9 a shift (credited by the formula,
+    // not shown by a paired control); 1 to 6 shifts in the runs. Was 200 and 5.
+    installCost: 20,
     installShifts: 3,
-    upkeep: 5,
+    upkeep: 1,
     effect: { wear: 0.92 },
   },
   {
@@ -277,9 +280,12 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'regional',
     requires: [],
     planCost: 32,
-    installCost: 400,
+    // Priced on what it saves (item 4.3, D8): about 10.7 of the 167 of energy
+    // booked a shift in the paired control (9.9 in the probe's runs, where it
+    // paid back in 6 to 11 shifts). Was 400 and 6, which never paid back.
+    installCost: 60,
     installShifts: 4,
-    upkeep: 6,
+    upkeep: 2,
     effect: { energy: 0.94 },
     noteId: 'history-windmills',
   },
@@ -304,9 +310,12 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'regional',
     requires: [],
     planCost: 28,
-    installCost: 280,
+    // Priced on what it saves (item 4.3, D8): about 7 of the 167 of energy
+    // booked a shift in the paired control (6.5 in the probe's runs, where it
+    // paid back in 6 to 10 shifts). Was 280 and 5.
+    installCost: 45,
     installShifts: 3,
-    upkeep: 5,
+    upkeep: 1,
     effect: { energy: 0.96 },
   },
   // Federated cooperative

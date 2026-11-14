@@ -69,6 +69,8 @@ function release(entry: LoadedVoice): void {
  */
 export function preparePAVoice(locale: Locale): Promise<boolean> {
   if (loaded?.locale === locale) return Promise.resolve(true);
+  // Muted, the PA is captions only (D15): no model is downloaded or started.
+  if (audioManager.muted) return Promise.resolve(false);
   if (loading?.locale === locale) return loading.promise.then(Boolean);
   if (performance.now() - failedAt < RETRY_AFTER_FAILURE_MS) return Promise.resolve(false);
 
@@ -151,6 +153,7 @@ export async function speakPAVoice(
   speed = 1
 ): Promise<{ seconds: number; ended: Promise<void> } | null> {
   stopPAVoice();
+  if (audioManager.muted) return null;
   const entry = loaded;
   if (!entry || entry.locale !== locale) {
     void preparePAVoice(locale);

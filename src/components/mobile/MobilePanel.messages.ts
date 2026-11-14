@@ -8,7 +8,8 @@ export const mobilePanelMessages = defineMessages({
     titleScada: 'Simulated SCADA',
     titleSafety: 'Safety & Emergency',
     titleSettings: 'Settings',
-    titleManagement: 'Bilateral Autonomy',
+    aboutMillOS: 'About MillOS',
+    titleManagement: 'Autonomy',
     titleChronicle: 'Mill Chronicle',
     titlePanel: 'Panel',
     panelAriaLabel: '{title} mobile panel',
@@ -30,9 +31,9 @@ export const mobilePanelMessages = defineMessages({
     materialWheatGrain: 'wheat grain',
     materialCornGrain: 'corn grain',
     materialFlour: 'flour',
-    materialSemolina: 'semolina',
+    // Milled from corn (D17): maize meal, not semolina.
+    materialSemolina: 'cornmeal',
 
-    planLogistics: 'Plan logistics',
     batchTraceability: 'Batch quality and traceability',
     paused: 'PAUSED',
     throughput: 'Throughput',
@@ -44,7 +45,8 @@ export const mobilePanelMessages = defineMessages({
     statusWarn: 'Warn',
     statusCrit: 'Crit',
     statusIdle: 'Idle',
-    dailyTarget: 'Daily Target',
+    programme: 'Programme',
+    programmeTonnes: '{shipped} / {committed} t',
     safety: 'Safety',
     safetyStops: 'Stops:',
     daysSinceIncident: 'Days:',
@@ -52,7 +54,7 @@ export const mobilePanelMessages = defineMessages({
     ordersProgress: '{done}/{total} orders',
     activeIncidents: 'Active incidents:',
     revenue: 'Revenue:',
-    setpointPercent: '{value}% setpoint',
+    productionSpeedPercent: '{value}% production speed',
     outbound: 'Outbound',
     totalBags: 'Total Bags',
 
@@ -73,13 +75,11 @@ export const mobilePanelMessages = defineMessages({
     noProduct: 'no product',
     qcStatus: (p: { released: boolean; kg: string }) =>
       `QC ${p.released ? 'released' : 'held'}, ${p.kg} kg available`,
-    utilityVessels: 'Utility vessels',
 
     autonomousReadiness: 'Autonomous readiness',
     activeAssets: 'Active assets',
     bagsPerHour: 'Bags per hour',
     openIncidents: 'Open incidents',
-    closedLoopNote: 'Process, logistics, safety, and dispatch remain under closed-loop control.',
   },
   'pt-BR': {
     titleProduction: 'Produção',
@@ -88,7 +88,8 @@ export const mobilePanelMessages = defineMessages({
     titleScada: 'SCADA simulado',
     titleSafety: 'Segurança e emergência',
     titleSettings: 'Configurações',
-    titleManagement: 'Autonomia Bilateral',
+    aboutMillOS: 'Sobre o MillOS',
+    titleManagement: 'Autonomia',
     titleChronicle: 'Crônica do moinho',
     titlePanel: 'Painel',
     panelAriaLabel: 'Painel móvel: {title}',
@@ -111,9 +112,8 @@ export const mobilePanelMessages = defineMessages({
     materialWheatGrain: 'grão de trigo',
     materialCornGrain: 'grão de milho',
     materialFlour: 'farinha',
-    materialSemolina: 'semolina',
+    materialSemolina: 'fubá',
 
-    planLogistics: 'Planejar logística',
     batchTraceability: 'Qualidade e rastreabilidade dos lotes',
     paused: 'PAUSADO',
     throughput: 'Vazão',
@@ -125,7 +125,8 @@ export const mobilePanelMessages = defineMessages({
     statusWarn: 'Alerta',
     statusCrit: 'Crít.',
     statusIdle: 'Ociosas',
-    dailyTarget: 'Meta diária',
+    programme: 'Programa',
+    programmeTonnes: '{shipped} / {committed} t',
     safety: 'Segurança',
     safetyStops: 'Paradas:',
     daysSinceIncident: 'Dias:',
@@ -133,7 +134,7 @@ export const mobilePanelMessages = defineMessages({
     ordersProgress: '{done}/{total} pedidos',
     activeIncidents: 'Ocorrências ativas:',
     revenue: 'Receita:',
-    setpointPercent: '{value}% do setpoint',
+    productionSpeedPercent: '{value}% de velocidade de produção',
     outbound: 'Expedição',
     totalBags: 'Total de sacos',
 
@@ -154,13 +155,10 @@ export const mobilePanelMessages = defineMessages({
     noProduct: 'sem produto',
     qcStatus: (p: { released: boolean; kg: string }) =>
       `CQ ${p.released ? 'liberado' : 'retido'}, ${p.kg} kg disponíveis`,
-    utilityVessels: 'Reservatórios de utilidades',
 
     autonomousReadiness: 'Prontidão para autonomia',
     activeAssets: 'Ativos em operação',
     bagsPerHour: 'Sacos por hora',
     openIncidents: 'Ocorrências abertas',
-    closedLoopNote:
-      'Processo, logística, segurança e expedição seguem sob controle em malha fechada.',
   },
 });

@@ -11,6 +11,9 @@ import { useGraphicsStore } from '../stores/graphicsStore';
 import { useUIStore } from '../stores/uiStore';
 import { FirstPersonController, FPSInstructions } from './FirstPersonController';
 import { WORLD_RADIUS } from '../constants/siteLayout';
+import { SITE_WALK_SPEED } from '../utils/walkingPace';
+/** Frames at 60 Hz that cover what `frames` covered at the old 12 m/s walk. */
+const OUTDOOR_FRAMES = (frames: number) => Math.ceil((frames * 12) / SITE_WALK_SPEED);
 const harness = vi.hoisted(() => ({
   camera: null as unknown as THREE.PerspectiveCamera,
   frame: (_: unknown, _dt: number) => {},
@@ -60,14 +63,16 @@ it('climbs, stops in the courtyard, then descends using only W and S', () => {
   camera.lookAt(target[0], camera.position.y, target[2]);
   const key = (type: string, code: string) =>
     window.dispatchEvent(new KeyboardEvent(type, { code }));
+  // Frame counts are at the outdoor walk (utils/walkingPace.ts, D16): the same
+  // 30 m up and 34 m back that 150 and 170 frames covered at the old 12 m/s.
   key('keydown', 'KeyW');
-  for (let i = 0; i < 150; i++) harness.frame({}, 1 / 60);
+  for (let i = 0; i < OUTDOOR_FRAMES(150); i++) harness.frame({}, 1 / 60);
   key('keyup', 'KeyW');
   harness.frame({}, 1 / 60);
   expect(castleLocalPosition(camera.position.x, camera.position.z)[1]).toBeLessThan(8);
   expect(camera.position.y).toBeCloseTo(castleWorldPosition(7.2, 3.2, 0)[1] + 1.7, 4);
   key('keydown', 'KeyS');
-  for (let i = 0; i < 170; i++) harness.frame({}, 1 / 60);
+  for (let i = 0; i < OUTDOOR_FRAMES(170); i++) harness.frame({}, 1 / 60);
   key('keyup', 'KeyS');
   expect(castleLocalPosition(camera.position.x, camera.position.z)[1]).toBeGreaterThan(25);
   expect(camera.position.y).toBeCloseTo(
@@ -83,7 +88,7 @@ it('steps onto the actual river deck from ground level with the default walking 
   const camera = harness.camera;
   camera.lookAt(0, camera.position.y, -190);
   window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
-  for (let i = 0; i < 150; i++) harness.frame({}, 1 / 60);
+  for (let i = 0; i < OUTDOOR_FRAMES(150); i++) harness.frame({}, 1 / 60);
   window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
   expect(camera.position.z).toBeLessThan(-125);
   expect(camera.position.y).toBeCloseTo(4.1, 5);

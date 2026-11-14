@@ -19,11 +19,10 @@ export const deliveryJourneyMessages = defineMessages({
     repairTitle: 'Repair {machine}',
     repairDetail:
       '{machine} has broken down and its part of the line has stopped. Open Mill Overview, Maintenance: dispatch service on work order {workOrderId}, complete and verify the repair, then request a controlled restart.',
-    fulfilledDetail:
-      '{kg} kg of {product} dispatched for {customer} in recorded manifests. Departed manifests credit this customer. Inspection is a separate milestone.',
+    fulfilledDetail: '{kg} kg of {product} dispatched for {customer} in recorded manifests.',
     inspectTitle: 'Inspect the line',
     inspectDetail:
-      'Select a silo, roller mill, plansifter or packer in the scene, or use Inspect a roller mill below. Read its status and buffers before changing the line. Full output buffers can reveal a downstream bottleneck.',
+      'Select a silo, roller mill, plansifter or packer in the scene, or use Inspect a roller mill below.',
     returnTitle: 'Return to your commitment',
     returnDetail:
       'A different order is active. Choose this customer in Your shift commitment in Overview to continue its live route.',
@@ -31,8 +30,6 @@ export const deliveryJourneyMessages = defineMessages({
     qualityHoldDetail:
       '{qualityTarget} {reason} Review the QC controls in Overview and resolve the release condition before loading.',
     qualityHoldUnknown: 'Dispatch quality release is unavailable.',
-    departureRule:
-      'Only a departed manifest credits this customer; packed {product} alone does not.',
     packedRest:
       ' The rest of this order is already packed; the line rests until the next truck collects it.',
     packedRestNext:
@@ -51,13 +48,12 @@ export const deliveryJourneyMessages = defineMessages({
     departedDetail:
       '{lastKg} kg left the shipping bay. Customer receipt: {shippedKg} / {requiredKg} kg for {customer}.',
     grain: (p: { material: string }) => p.material.replace('_', ' '),
-    qualityRule: '{qualityTarget} Conforming output must pass QC before loading.',
     prepareTitle: 'Prepare {product}',
     planningDetail:
-      "Scheduled grain: {grain}. {quality} Resume the shift to refresh this customer's stock and line setpoint.",
+      "Scheduled grain: {grain}. {quality} Resume the shift to refresh this customer's stock.",
     followTitle: 'Follow the grain',
     followDetail:
-      'Source inventory: {sourceKg} kg of {grain}. Line setpoint: {setpoint}%. Released {product}: {releasedKg} kg. {quality} Open SCADA for live line telemetry, or select a machine to read its buffers.',
+      'Source inventory: {sourceKg} kg of {grain}. Production speed: {speed}%. Released {product}: {releasedKg} kg. {quality}',
   },
   'pt-BR': {
     dueNow: 'Vence agora (tempo simulado)',
@@ -72,11 +68,10 @@ export const deliveryJourneyMessages = defineMessages({
     repairTitle: 'Reparar {machine}',
     repairDetail:
       'A máquina {machine} entrou em pane e a parte dela na linha parou. Abra Visão geral do moinho, Manutenção: envie a equipe na ordem de serviço {workOrderId}, conclua e verifique o reparo e, depois, solicite um reinício controlado.',
-    fulfilledDetail:
-      '{kg} kg de {product} expedidos para {customer} em romaneios registrados. Os romaneios com saída registrada são creditados a este cliente. A inspeção é uma etapa à parte.',
+    fulfilledDetail: '{kg} kg de {product} expedidos para {customer} em romaneios registrados.',
     inspectTitle: 'Inspecione a linha',
     inspectDetail:
-      'Selecione um silo, moinho de rolos, plansifter ou ensacadeira na cena, ou use Inspecionar um moinho de rolos abaixo. Leia o status e os estoques intermediários antes de alterar a linha. Estoques intermediários de saída cheios podem revelar um gargalo mais adiante no fluxo.',
+      'Selecione um silo, moinho de rolos, plansifter ou ensacadeira na cena, ou use Inspecionar um moinho de rolos abaixo.',
     returnTitle: 'Volte ao seu compromisso',
     returnDetail:
       'Outro pedido está ativo. Escolha este cliente em Seu compromisso do turno, na Visão geral, para continuar a rota ao vivo dele.',
@@ -84,8 +79,6 @@ export const deliveryJourneyMessages = defineMessages({
     qualityHoldDetail:
       '{qualityTarget} {reason} Revise os controles do CQ na Visão geral e resolva a condição de liberação antes do carregamento.',
     qualityHoldUnknown: 'A liberação de qualidade para expedição não está disponível.',
-    departureRule:
-      'Só um romaneio com saída registrada é creditado a este cliente; apenas ensacar {product} não basta.',
     packedRest:
       ' O restante deste pedido já está ensacado; a linha fica parada até o próximo caminhão buscá-lo.',
     packedRestNext:
@@ -105,13 +98,11 @@ export const deliveryJourneyMessages = defineMessages({
     departedDetail:
       '{lastKg} kg saíram da área de expedição. Creditado ao cliente {customer}: {shippedKg} / {requiredKg} kg.',
     grain: (p: { material: string }) => PT_GRAIN[p.material] ?? p.material.replace('_', ' '),
-    qualityRule:
-      '{qualityTarget} A produção conforme precisa passar pelo CQ antes do carregamento.',
     prepareTitle: 'Prepare {product}',
     planningDetail:
-      'Grão programado: {grain}. {quality} Retome o turno para atualizar o estoque deste cliente e o setpoint da linha.',
+      'Grão programado: {grain}. {quality} Retome o turno para atualizar o estoque deste cliente.',
     followTitle: 'Acompanhe o grão',
     followDetail:
-      'Estoque de origem: {sourceKg} kg de {grain}. Setpoint da linha: {setpoint}%. Estoque liberado de {product}: {releasedKg} kg. {quality} Abra o SCADA para ver a telemetria da linha ao vivo, ou selecione uma máquina para ler os estoques intermediários dela.',
+      'Estoque de origem: {sourceKg} kg de {grain}. Velocidade de produção: {speed}%. Estoque liberado de {product}: {releasedKg} kg. {quality}',
   },
 });

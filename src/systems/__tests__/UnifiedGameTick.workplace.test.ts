@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import * as ts from 'typescript';
 import { unifiedGameTick, resetUnifiedTickState } from '../UnifiedGameTick';
-import { useWorkplaceStore } from '../../stores/workplaceStore';
+import { forecastWorkplacePlansNow, useWorkplaceStore } from '../../stores/workplaceStore';
 import { safeJSONStorage } from '../../stores/storage';
 import {
   createWorkplace,
@@ -14,7 +14,7 @@ import {
   workplaceCapacity,
 } from '../../simulation/bilateralWorkplace';
 import { useProductionStore } from '../../stores/productionStore';
-import { useMaterialFlowStore } from '../../stores/materialFlowStore';
+import { MAX_MATERIAL_MANIFESTS, useMaterialFlowStore } from '../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useBreakdownStore } from '../../stores/breakdownStore';
@@ -25,6 +25,8 @@ import { toSimulationMinutes } from '../../simulation/simulationClock';
 import {
   campaignComplete,
   campaignOutcomes,
+  mondayMinute,
+  mondayHolds,
   requiredChecks,
   WORKPLACE_CHECKS,
 } from '../../simulation/workplaceCampaign';
@@ -48,6 +50,7 @@ import {
   advanceReplayClock,
   beginReplayClock,
 } from '../../simulation/workplaceReplayRuntime';
+import { fulfilFirstDelivery } from '../../test/firstDelivery';
 
 // The replays tick the whole game 720 times per 90-minute shift, up to five
 // shifts per test, so their duration tracks machine load. Measured 2026-10-19
@@ -229,14 +232,15 @@ function agree(
   expect(s.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
 }
 
-it('the agreed capacity reaches the real material tick and changes actual packed mass under matched conditions', () => {
+it('the agreed capacity reaches the real material tick, and steady and resequence pack the same mass', () => {
   const run = (plan: 'steady' | 'resequence') => {
     reset();
     agree(plan);
     const flow = useMaterialFlowStore.getState();
     const spy = vi.spyOn(flow, 'tickMaterialFlow');
     for (let i = 0; i < 80; i++) step();
-    const expectedCapacity = plan === 'steady' ? 0.78 : 0.9;
+    // D4: no legal plan paces the line below the plant rate.
+    const expectedCapacity = 1;
     expect(spy.mock.calls[0]?.[1]).toBeCloseTo(
       useOperationsCampaignStore.getState().getProductionMultiplier() * expectedCapacity
     );
@@ -248,7 +252,8 @@ it('the agreed capacity reaches the real material tick and changes actual packed
   const protectedMass = run('steady');
   const improvedMass = run('resequence');
   expect(protectedMass).toBeGreaterThan(0);
-  expect(improvedMass).toBeGreaterThan(protectedMass);
+  // Cooperating is never the slow option: both plans pack what no season packs.
+  expect(improvedMass).toBeCloseTo(protectedMass, 6);
 });
 
 it('workshop agreements do not alter plant pacing or silently accrue wages on the plant clock', () => {
@@ -291,6 +296,13 @@ it('a safety stop ends optional work without removing earned compensation or res
 // playableJourney does. Real loading, certification, manifests and money come
 // from unifiedGameTick. It does not model physical truck travel or human work.
 function replayStep() {
+  // Every kilogram shipped in this step is on a shipping manifest made in it.
+  // Checked per step because the manifest window keeps only the newest
+  // MAX_MATERIAL_MANIFESTS (8 since plan item 3.4), so a three-shift run's
+  // retained manifests no longer sum to the session's shipped mass.
+  const flowBefore = useMaterialFlowStore.getState();
+  const shippedBefore = flowBefore.shippedKg;
+  const manifestsBefore = new Set(flowBefore.manifests.map((m) => m.id));
   const trucks = useTruckScheduleStore.getState();
   for (const dock of ['receiving', 'shipping'] as const) {
     if (trucks.truckSchedule[dock].truckActive && !trucks.truckSchedule[dock].truckDocked) {
@@ -322,6 +334,14 @@ function replayStep() {
     useTruckScheduleStore.getState().recordTruckDeparture('receiving', now);
     receivingDwell = 0;
   }
+  const flowAfter = useMaterialFlowStore.getState();
+  const added = flowAfter.manifests.filter(
+    (m) => m.kind === 'shipping' && !manifestsBefore.has(m.id)
+  );
+  expect(added.reduce((kg, m) => kg + m.actualKg, 0)).toBeCloseTo(
+    flowAfter.shippedKg - shippedBefore,
+    6
+  );
 }
 
 function finishShift() {
@@ -336,7 +356,12 @@ function replayResult() {
   const workplace = useWorkplaceStore.getState().workplace;
   const availablePackedKg = flow.productionBatches.reduce((kg, b) => kg + b.availableKg, 0);
   const shipments = flow.manifests.filter((m) => m.kind === 'shipping');
-  expect(shipments.reduce((kg, m) => kg + m.actualKg, 0)).toBeCloseTo(flow.shippedKg, 6);
+  // The retained window is the whole record until it fills; past that, the
+  // per-step check in replayStep carries the every-kilogram claim.
+  const retainedKg = shipments.reduce((kg, m) => kg + m.actualKg, 0);
+  if (flow.manifests.length < MAX_MATERIAL_MANIFESTS)
+    expect(retainedKg).toBeCloseTo(flow.shippedKg, 6);
+  else expect(retainedKg).toBeLessThanOrEqual(flow.shippedKg + 1e-6);
   expect(workplace.shippedKg).toBeLessThanOrEqual(flow.shippedKg + 1e-8);
   expect(workplace.finance.operatingRevenue).toBeCloseTo(workplace.shippedKg * 0.5, 6);
   expect(workplace.finance.operatingCost).toBeCloseTo(workplace.shippedKg * 0.2, 6);
@@ -467,11 +492,14 @@ it('replays 90 matched modeled minutes for real packing and dispatch, with no go
   const resequence = run('resequence');
   const cover = run('cover');
   expect(steady.actual.packedAvailablePlusShippedKg).toBeGreaterThan(0);
-  expect(resequence.actual.packedAvailablePlusShippedKg).toBeGreaterThan(
-    steady.actual.packedAvailablePlusShippedKg
+  // D4: every legal plan runs the line at the plant rate, so none packs less.
+  expect(resequence.actual.packedAvailablePlusShippedKg).toBeCloseTo(
+    steady.actual.packedAvailablePlusShippedKg,
+    6
   );
-  expect(cover.actual.packedAvailablePlusShippedKg).toBeGreaterThan(
-    steady.actual.packedAvailablePlusShippedKg
+  expect(cover.actual.packedAvailablePlusShippedKg).toBeCloseTo(
+    steady.actual.packedAvailablePlusShippedKg,
+    6
   );
   expect(cover.actual.finance.compensationPaid).toBeCloseTo(8);
   expect(cover.actual.members.reduce((n, m) => n + m.extraMinutes, 0)).toBeCloseTo(10);
@@ -493,16 +521,47 @@ it('replays 90 matched modeled minutes for real packing and dispatch, with no go
   emitEvidence('matched-replay', { steady, resequence, cover, consultative, team });
 });
 
+/** Packing's checks; a check its terms left standing is not asked again (5.2). */
+function answerPackingChecks() {
+  const s = useWorkplaceStore.getState();
+  for (const actor of ['packing', 'mind'])
+    for (const id of requiredChecks(actor)) {
+      const correct = WORKPLACE_CHECKS.find((q) => q.id === id)!.correct;
+      if (useWorkplaceStore.getState().workplace.campaign?.checks[actor]?.[id] !== correct)
+        expect(s.answerCheck(actor, id, correct).changed).toBe(true);
+    }
+}
+
+/**
+ * Monday: the line holds at the season's drawn minute (5.10) and Quality, not
+ * the player, starts the inspection there (5b). A season linked to an order
+ * reads the lab's bench (5.7): it holds only once a real batch of its order
+ * awaits a test, from that minute; with none all shift it never holds.
+ * Returns the minute it held, or null when it never did.
+ */
+function holdForQualityInspection(): number | null {
+  const s = useWorkplaceStore.getState();
+  const ws = () => useWorkplaceStore.getState().workplace;
+  const monday = mondayMinute(ws());
+  expect(s.campaignDecision('inspect', 'quality').reasonCopy?.key).toBe('authoredRoleAnswers');
+  while (ws().minute < monday) replayStep();
+  for (let i = 0; i < 720 && !mondayHolds(ws()) && ws().phase === 'active'; i++) replayStep();
+  const held = ws();
+  if (!mondayHolds(held)) {
+    expect(held.campaign?.mondaySample).toBeNull();
+    return null;
+  }
+  const at = held.campaign?.mondaySample?.heldAtMinute ?? monday;
+  expect(held.campaign?.decision).toBe('inspect');
+  expect(held.campaign?.inspectionUntilMinute).toBe(at + 5);
+  expect(held.events.find((e) => e.kind === 'inspection-started')?.actorId).toBe('quality');
+  return at;
+}
+
 function agreeCampaignCover() {
   const s = useWorkplaceStore.getState();
   s.selectPlan('cover');
-  for (const actor of ['packing', 'mind']) {
-    for (const id of requiredChecks(actor)) {
-      expect(
-        s.answerCheck(actor, id, WORKPLACE_CHECKS.find((q) => q.id === id)!.correct).changed
-      ).toBe(true);
-    }
-  }
+  answerPackingChecks();
   s.understand('packing');
   s.vote('packing', true);
   s.consentToCover('packing', true);
@@ -514,8 +573,11 @@ function agreeCampaignCover() {
 it('runs all three real campaign shifts with inspection, retained pay and rotating fresh consent', () => {
   initialConditions = plantConditions();
   const s = useWorkplaceStore.getState();
+  fulfilFirstDelivery();
   expect(s.startCampaign('cooperative', 17).changed).toBe(true);
-  expect(s.campaignDecision('renegotiate', 'coordinator').changed).toBe(true);
+  // The Coordinator's Friday call is its own (5b): an installment.
+  expect(s.campaignDecision('keep-target', 'coordinator').changed).toBe(false);
+  expect(useWorkplaceStore.getState().workplace.campaign?.decision).toBe('renegotiate');
   expect(useWorkplaceStore.getState().workplace.targetKg).toBe(480);
   const volunteers: (string | null)[] = [];
   const results: ReturnType<typeof replayResult>[] = [];
@@ -523,15 +585,14 @@ it('runs all three real campaign shifts with inspection, retained pay and rotati
     const shippedBefore = useMaterialFlowStore.getState().shippedKg;
     if (shift === 2) {
       expect(s.campaignDecision('penalize-refusal', 'coordinator').changed).toBe(false);
-      expect(s.campaignDecision('protect-refusal', 'coordinator').changed).toBe(true);
+      expect(useWorkplaceStore.getState().workplace.campaign?.decision).toBe('protect-refusal');
       expect(useWorkplaceStore.getState().workplace.campaign?.repairs).toBe(1);
     }
     volunteers.push(agreeCampaignCover());
     if (shift === 1) {
-      while (useWorkplaceStore.getState().workplace.minute < 25) replayStep();
-      expect(workplaceCapacity(useWorkplaceStore.getState().workplace)).toBe(0);
       expect(s.campaignDecision('skip-inspection', 'coordinator').changed).toBe(false);
-      expect(s.campaignDecision('inspect', 'quality').changed).toBe(true);
+      const monday = holdForQualityInspection();
+      expect(workplaceCapacity(useWorkplaceStore.getState().workplace)).toBe(0);
       const qcBefore = structuredClone(useQCLabStore.getState().qcLab);
       const tickMaterialFlow = useMaterialFlowStore.getState().tickMaterialFlow;
       const spy = vi.spyOn(useMaterialFlowStore.getState(), 'tickMaterialFlow');
@@ -542,10 +603,16 @@ it('runs all three real campaign shifts with inspection, retained pay and rotati
       }
       spy.mockRestore();
       useMaterialFlowStore.setState({ tickMaterialFlow });
-      expect(useWorkplaceStore.getState().workplace.minute).toBe(30);
+      expect(useWorkplaceStore.getState().workplace.minute).toBe(monday + 5);
       expect(useWorkplaceStore.getState().workplace.campaign?.inspectionComplete).toBe(true);
-      expect(workplaceCapacity(useWorkplaceStore.getState().workplace)).toBe(0.78);
-      expect(useQCLabStore.getState().qcLab).toEqual(qcBefore);
+      expect(workplaceCapacity(useWorkplaceStore.getState().workplace)).toBe(1);
+      // The season's inspection runs no lab test of its own (5.7 waits on the
+      // lab). The plant's own bench may finish one meanwhile (3.2): only the
+      // autonomous controller may have written to the lab's record.
+      const added = useQCLabStore
+        .getState()
+        .qcLab.dispositionHistory.slice(qcBefore.dispositionHistory.length);
+      expect(added.every((d) => d.controlSource === 'Autonomous QC controller')).toBe(true);
     }
     finishShift();
     results.push(replayResult());
@@ -564,7 +631,12 @@ it('runs all three real campaign shifts with inspection, retained pay and rotati
         closing.members.map((m) => m.recoveryOwedMinutes)
       );
       expect(opened.members.every((m) => m.coverConsent === null && m.ballot === null)).toBe(true);
-      expect(opened.campaign?.checks).toEqual({});
+      // 5.2: every ballot and consent is fresh; checks whose terms stand are kept.
+      expect(opened.campaign?.checks.packing).toEqual({
+        refusal: 'individual',
+        privacy: 'optional',
+        repayment: 'retained',
+      });
     }
   }
   expect(volunteers.slice(0, 2)).toEqual(['maintenance', 'packing']);
@@ -580,6 +652,7 @@ it('binds the three-shift game to actual selected-order dispatch without double-
   initialConditions = plantConditions();
   const operations = useOperationsCampaignStore.getState();
   operations.initializeCampaign();
+  fulfilFirstDelivery();
   const before = structuredClone(useOperationsCampaignStore.getState().orders);
   const revenueBefore = useOperationsCampaignStore.getState().economics.revenue;
   const s = useWorkplaceStore.getState();
@@ -589,17 +662,40 @@ it('binds the three-shift game to actual selected-order dispatch without double-
   const binding = structuredClone(useWorkplaceStore.getState().workplace.campaign!.mission!);
   const reviews = [];
   const earned: { revenue: number; followOn: string | null; followOnCreditedKg: number }[] = [];
+  const forecasts: {
+    shift: number;
+    plantShipped: number;
+    forecast: ReturnType<typeof forecastWorkplacePlansNow>[number];
+  }[] = [];
   for (let shift = 0; shift < 3; shift++) {
     if (shift !== 1)
-      expect(
-        s.campaignDecision(shift === 0 ? 'renegotiate' : 'protect-refusal', 'coordinator').changed
-      ).toBe(true);
-    agreeCampaignCover();
+      expect(useWorkplaceStore.getState().workplace.campaign?.decision).toBe(
+        shift === 0 ? 'renegotiate' : 'protect-refusal'
+      );
+    // 5.6: the forecast before the vote, from the plant as it stands.
+    const forecast = forecastWorkplacePlansNow(useWorkplaceStore.getState().workplace);
+    const orderShipped = () =>
+      useOperationsCampaignStore.getState().orders.find((o) => o.id === forecast[0].boundOrderId)
+        ?.shippedKg ?? 0;
+    const shippedBefore = orderShipped();
+    const coveredBy = agreeCampaignCover();
+    // Review 2 (seed 17): Quality is away for Monday's first minutes, and
+    // release stays with a qualified member. Maintenance, the one qualified,
+    // spent its season's cover on Friday, so Packing covers Monday and runs
+    // no lab test: the bench waits for Quality, a batch of the season's order
+    // is still awaiting its test at Monday's minute (26), and Monday holds
+    // there until Quality has inspected it.
     if (shift === 1) {
-      while (useWorkplaceStore.getState().workplace.minute < 25) replayStep();
-      expect(s.campaignDecision('inspect', 'quality').changed).toBe(true);
+      expect(coveredBy).toBe('packing');
+      expect(holdForQualityInspection()).toBe(mondayMinute(useWorkplaceStore.getState().workplace));
     }
     finishShift();
+    // The bound is for the order the adviser rehearsed: what of it shipped.
+    const plantShipped = orderShipped() - shippedBefore;
+    forecasts.push({ shift, plantShipped, forecast: forecast[0] });
+    expect(plantShipped).toBeGreaterThanOrEqual(forecast[0].shippedLowKg - 1e-6);
+    if (forecast[0].shippedHighKg !== null)
+      expect(plantShipped).toBeLessThanOrEqual(forecast[0].shippedHighKg + 1e-6);
     const workplace = useWorkplaceStore.getState().workplace;
     const actualOrder = useOperationsCampaignStore
       .getState()
@@ -625,15 +721,28 @@ it('binds the three-shift game to actual selected-order dispatch without double-
     });
     if (shift < 2) expect(s.nextCampaignShift().changed).toBe(true);
   }
+  // 5.6: the adviser stated a bound on at least one shift (it abstains on a
+  // plant no tick has read yet, and with no order open), and it held.
+  expect(forecasts.some((entry) => entry.forecast.shippedHighKg !== null)).toBe(true);
   const outcome = campaignOutcomes(useWorkplaceStore.getState().workplace);
   const orders = useOperationsCampaignStore.getState().orders;
   expect(orders.find((o) => o.id === binding.orderId)!.status).toBe('fulfilled');
   expect(earned[0].followOn).toBeNull();
+  expect(earned[1].followOnCreditedKg).toBeGreaterThan(0);
   for (const shift of [1, 2]) {
     expect(earned[shift].followOn).not.toBeNull();
     expect(earned[shift].followOn).not.toBe(binding.orderId);
-    expect(earned[shift].followOnCreditedKg).toBeGreaterThan(0);
-    expect(earned[shift].revenue).toBeCloseTo(earned[shift].followOnCreditedKg * 0.5, 6);
+    // A shift earns its own new credit; a follow-on carried from the shift
+    // before keeps what it earned there. At the plant rate (D4) the whole
+    // programme can be in before the last shift, which then earns nothing.
+    const carried =
+      earned[shift - 1].followOn === earned[shift].followOn
+        ? earned[shift - 1].followOnCreditedKg
+        : 0;
+    expect(earned[shift].revenue).toBeCloseTo(
+      (earned[shift].followOnCreditedKg - carried) * 0.5,
+      6
+    );
   }
   const final = useWorkplaceStore.getState().workplace;
   expect(restoreWorkplace(saveWorkplace(final)).campaign?.followOn).toEqual(
@@ -683,7 +792,7 @@ it('the real material tick time-weights cover expiry when a coarse step crosses 
     elapsedTime: replayTick * 0.5,
     tickCount: ++replayTick,
   });
-  expect(spy.mock.calls.at(-1)?.[1]).toBeCloseTo(operationsMultiplier * ((0.98 + 0.78) / 2));
+  expect(spy.mock.calls.at(-1)?.[1]).toBeCloseTo(operationsMultiplier);
   spy.mockRestore();
   useMaterialFlowStore.setState({ tickMaterialFlow });
   const after = useWorkplaceStore.getState().workplace;
@@ -691,7 +800,7 @@ it('the real material tick time-weights cover expiry when a coarse step crosses 
   expect(after.coverRemainingMinutes).toBe(0);
   expect(after.members.reduce((n, m) => n + m.extraMinutes, 0)).toBe(10);
   expect(after.finance.compensationPaid).toBeCloseTo(8);
-  expect(workplaceCapacity(after)).toBe(0.78);
+  expect(workplaceCapacity(after)).toBe(1);
 });
 
 describe('whole operational checkpoint replay', () => {
@@ -700,6 +809,8 @@ describe('whole operational checkpoint replay', () => {
   function checkpoint(onRestore?: () => void) {
     useSafetyStore.setState(useSafetyStore.getInitialState());
     useOperationsCampaignStore.getState().initializeCampaign();
+    // D4: a season starts only after the first delivery.
+    fulfilFirstDelivery();
     useGameSimulationStore.getState().setGameSpeed(0);
     useWorkplaceReplayStore.getState().forget();
     actorState.routeDistance = 3;
@@ -717,11 +828,8 @@ describe('whole operational checkpoint replay', () => {
   }
   function approve(plan: 'steady' | 'resequence' | 'cover') {
     const s = useWorkplaceStore.getState();
-    s.campaignDecision('keep-target', 'coordinator');
     s.selectPlan(plan);
-    for (const actor of ['packing', 'mind'])
-      for (const id of requiredChecks(actor))
-        s.answerCheck(actor, id, WORKPLACE_CHECKS.find((q) => q.id === id)!.correct);
+    answerPackingChecks();
     s.understand('packing');
     s.vote('packing', true);
     if (plan === 'cover') s.consentToCover('packing', true);
@@ -846,8 +954,7 @@ describe('whole operational checkpoint replay', () => {
       store.simulateResponses();
       expect(store.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
       useGameSimulationStore.getState().setGameSpeed(15);
-      while (useWorkplaceStore.getState().workplace.minute < 25) replayStep();
-      expect(store.campaignDecision('inspect', 'quality').changed).toBe(true);
+      holdForQualityInspection();
       finishShift();
       useGameSimulationStore.getState().setGameSpeed(0);
       expect(lab.record().changed).toBe(true);
@@ -896,8 +1003,10 @@ describe('whole operational checkpoint replay', () => {
     expect(a.record.elapsedMinutes).toBe(90);
     expect(a.record.financial.workplaceWages).toBeCloseTo(108);
     expect(c.record.financial.improvements).toBe(40);
-    expect(c.physical.packedAvailablePlusShippedKg).toBeGreaterThan(
-      a.physical.packedAvailablePlusShippedKg
+    // D4: resequencing costs its credits but never paces the line below steady.
+    expect(c.physical.packedAvailablePlusShippedKg).toBeCloseTo(
+      a.physical.packedAvailablePlusShippedKg,
+      6
     );
     expect(c.record.manifestIds.length).toBeGreaterThan(0);
     expect(c.record.remainingKg).toBeGreaterThanOrEqual(0);
@@ -974,6 +1083,40 @@ describe('whole operational checkpoint replay', () => {
       state?: { workplace?: { phase?: string } | null };
     } | null;
     expect(stored?.state?.workplace?.phase).toBe('review');
+  });
+  // The 'scada' hold is set by the tick when live or hybrid control takes the
+  // plant during a replay or trial; it ended only on "Resume the clock". Its
+  // cause is the control mode, so the tick ends it when the mode returns to the
+  // simulation. Working if the hold stays while control is live and the clock
+  // resumes at its pace on the first tick after control comes back.
+  it('releases the SCADA hold itself once control returns to the simulation', () => {
+    const lab = checkpoint();
+    lab.begin('cooperative');
+    approve('steady');
+    let mode: 'live' | 'simulation' = 'live';
+    vi.spyOn(scada, 'peekSCADAService').mockImplementation(
+      () => ({ getState: () => ({ mode }) }) as scada.SCADAService
+    );
+    useGameSimulationStore.getState().setGameSpeed(30);
+    const holders = () => useGameSimulationStore.getState().clockHolds.map((h) => h.holder);
+    // As the central tick calls it: the store's pace, 0 while held.
+    const tick = () =>
+      unifiedGameTick({
+        deltaSeconds: 0.5,
+        gameTime: useGameSimulationStore.getState().gameTime,
+        gameSpeed: useGameSimulationStore.getState().gameSpeed,
+        elapsedTime: 0,
+        tickCount: 1,
+      });
+    tick();
+    expect(holders()).toEqual(['scada']);
+    tick();
+    expect(holders()).toEqual(['scada']);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    mode = 'simulation';
+    tick();
+    expect(holders()).toEqual([]);
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
   });
   it('exports public conduct only, without raw checkpoints, private preference or authority', () => {
     const lab = checkpoint();
@@ -1075,7 +1218,8 @@ it('handoff trial pacing changes the real material assembly, stops immediately a
       expect(member.restMinutes).toBeCloseTo(15, 8);
       expect(member.extraMinutes).toBe(0);
     }
-    expect(pace.mock.calls[0]?.[1]).toBe(arrangement === 'briefing' ? 0 : 1.02);
+    // 5.4 (D4): the buffer runs the line at the plant's rate, as every plan does.
+    expect(pace.mock.calls[0]?.[1]).toBe(arrangement === 'briefing' ? 0 : 1);
     const observed = pace.mock.calls.map((call) => call[1]);
     expect(observed.some((factor) => factor > 0)).toBe(true);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
@@ -1136,12 +1280,13 @@ it('releases the plant clock once the handoff member review has a verdict, and n
   expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
   expect(useGameSimulationStore.getState().gameTime).toBe(reviewTime);
   w.acknowledgeImprovementReview();
-  for (const m of useWorkplaceStore.getState().workplace.members)
-    w.voteImprovementReview(m.id, 'stop');
+  // 5b: the player casts Packing's verdict; the others answer from their
+  // values, and adopt a trial that ran its shift and shipped.
+  w.voteImprovementReview('packing', 'stop');
   w.finishImprovementReview(useWorkplaceStore.getState().workplace.revision);
   const reviewed = useWorkplaceStore.getState().workplace;
   expect(reviewed.phase).toBe('review');
-  expect(reviewed.improvement?.verdict).toBe('stop');
+  expect(reviewed.improvement?.verdict).toBe('adopt');
   const settled = structuredClone(reviewed);
   // "Stop, return to ordinary pacing": play holds and the plant clock advances,
   // while the finalised review's receipts stay fixed.

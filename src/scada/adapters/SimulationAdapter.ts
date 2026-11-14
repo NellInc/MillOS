@@ -71,6 +71,34 @@ const SAMPLE_INTERVAL_S = 1;
 /** Background vibration velocity of a stopped unit (the offline model's idle level). */
 const STOPPED_VIBRATION_MM_S = 0.2;
 
+/**
+ * Share of the read-only tags whose path the control-network incident drops.
+ * Each tag is drawn on its own (incident id, tag id) hash, so the subset is the
+ * same for the same incident whatever tags join or leave the list.
+ */
+const NETWORK_UNCERTAIN_SHARE = 0.25;
+
+function networkDraw(key: string, tagId: string): number {
+  // FNV-1a, 32-bit: one uniform draw per (incident, tag).
+  let hash = 0x811c9dc5;
+  const text = `${key}:${tagId}`;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0) / 4294967296;
+}
+
+/** The tags an incident keyed `key` leaves UNCERTAIN: read-only readings only. */
+export function networkUncertainTagIds(tags: Iterable<TagDefinition>, key: string): string[] {
+  const ids: string[] = [];
+  for (const tag of tags) {
+    if (tag.accessMode !== 'READ' || !tag.simulation) continue;
+    if (networkDraw(key, tag.id) < NETWORK_UNCERTAIN_SHARE) ids.push(tag.id);
+  }
+  return ids;
+}
+
 /** Machine state from Zustand store */
 interface MachineState {
   id: string;
@@ -103,6 +131,14 @@ export class SimulationAdapter implements IProtocolAdapter {
   /** Where each setpoint-following reading has got to on its way to the setpoint. */
   private trackedBase: Map<string, number> = new Map();
   private sampleIndex = 0;
+  /** The control-network incident's held tags, keyed by the incident. */
+  private networkHold: { key: string; tagIds: Set<string> } | null = null;
+  /**
+   * The plant's own reading beneath each held tag: the network degrades what
+   * reaches the panel, not the machine, so the process goes on underneath and
+   * a released tag resumes from it.
+   */
+  private heldProcess: Map<string, TagValue> = new Map();
 
   // Statistics
   private stats = {
@@ -441,6 +477,38 @@ export class SimulationAdapter implements IProtocolAdapter {
   }
 
   // =========================================================================
+  // Control-network incident
+  // =========================================================================
+
+  /**
+   * While the campaign's control-network incident is open (`key` is its id), a
+   * seeded subset of readings reaches the panel UNCERTAIN, holding the last
+   * value that got through; null restores every path. Kept apart from the
+   * fault lab, so clearing injected faults never ends the incident.
+   */
+  setNetworkDegradation(key: string | null): void {
+    if (key === (this.networkHold?.key ?? null)) return;
+    this.networkHold = key
+      ? { key, tagIds: new Set(networkUncertainTagIds(this.tags.values(), key)) }
+      : null;
+    if (this.connected) this.tick();
+  }
+
+  /** The tags the network incident holds now, in tag order. */
+  getNetworkUncertainTagIds(): string[] {
+    return this.networkHold ? [...this.networkHold.tagIds] : [];
+  }
+
+  /**
+   * What the simulation computes for each held tag, with the quality it would
+   * have had: the plant's own figure, not the reading the panel is served.
+   * Empty when no incident holds a tag.
+   */
+  getNetworkHeldProcessValues(): TagValue[] {
+    return [...this.heldProcess.values()];
+  }
+
+  // =========================================================================
   // Simulation Engine
   // =========================================================================
 
@@ -475,7 +543,11 @@ export class SimulationAdapter implements IProtocolAdapter {
       const current = this.values.get(id);
       if (!current) return;
 
-      let newValue = current.value as number;
+      // A held tag is computed from the process beneath it, then served held.
+      const held = this.networkHold?.tagIds.has(id) ?? false;
+      const process = this.heldProcess.get(id);
+      this.heldProcess.delete(id);
+      let newValue = (process?.value ?? current.value) as number;
       let quality: Quality = 'GOOD';
 
       // Get machine state
@@ -490,8 +562,9 @@ export class SimulationAdapter implements IProtocolAdapter {
       // Check for active fault
       const activeFault = this.activeFaults.get(id);
 
-      // Handle faults first
-      if (activeFault) {
+      // Handle faults first: a fault distorts the reading, so a held one
+      // (which never reaches the panel) leaves the process beneath it alone.
+      if (activeFault && !held) {
         const faultResult = this.applyFault(activeFault, tag, newValue, plantSeconds);
         // A transmitter saturates at its range limits.
         newValue = Math.max(tag.engLow, Math.min(tag.engHigh, faultResult.value));
@@ -563,6 +636,14 @@ export class SimulationAdapter implements IProtocolAdapter {
       // Handle integer types
       if (tag.dataType === 'INT16' || tag.dataType === 'INT32') {
         newValue = Math.round(newValue);
+      }
+
+      // A reading the degraded network cannot carry holds what last got
+      // through, marked UNCERTAIN; the plant's own figure is kept beneath it.
+      if (held) {
+        this.heldProcess.set(id, { tagId: id, value: newValue, quality, timestamp: now });
+        newValue = current.value as number;
+        quality = 'UNCERTAIN';
       }
 
       // Update value

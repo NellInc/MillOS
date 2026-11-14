@@ -36,7 +36,7 @@ const renderSidebar = (mode: 'management' | 'chronicle' = 'management') =>
 it('takes focus on its heading when the opening control asked for it', async () => {
   useUIStore.getState().requestPanelFocus();
   renderSidebar();
-  const heading = screen.getByRole('heading', { name: 'Workplace & Autonomy' });
+  const heading = screen.getByRole('heading', { name: 'Autonomy' });
   await waitFor(() => expect(heading).toHaveFocus());
   expect(heading).toHaveAttribute('tabindex', '-1');
   expect(useUIStore.getState().panelFocusRequested).toBe(false);
@@ -45,7 +45,7 @@ it('takes focus on its heading when the opening control asked for it', async () 
 it('leaves focus alone when nothing asked for it', async () => {
   renderSidebar();
   await screen.findByText('Autonomy controls');
-  expect(screen.getByRole('heading', { name: 'Workplace & Autonomy' })).not.toHaveFocus();
+  expect(screen.getByRole('heading', { name: 'Autonomy' })).not.toHaveFocus();
 });
 
 it('translates the Chronicle heading and panel name on a live language change', async () => {

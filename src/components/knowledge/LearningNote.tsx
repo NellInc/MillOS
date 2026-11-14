@@ -10,7 +10,7 @@ export function LearningNote({ entryId }: { entryId: string }) {
   );
   if (!entry) return null;
   return (
-    <details className="rounded-lg border border-slate-700 bg-slate-900/60 p-3 text-xs text-slate-300">
+    <details className="mt-2 rounded-lg border border-slate-700 bg-slate-900/60 p-3 text-xs text-slate-300">
       <summary className="min-h-10 cursor-pointer py-2 font-semibold text-cyan-200">
         {t('whyItMatters', { title: entry.title })}
       </summary>

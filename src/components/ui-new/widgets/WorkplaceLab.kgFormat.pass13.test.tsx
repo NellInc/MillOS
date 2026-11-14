@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkplaceLab } from './WorkplaceLab';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
@@ -17,6 +18,8 @@ beforeEach(() => {
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season is offered once the first delivery is in.
+  fulfilFirstDelivery();
   useGameSimulationStore.getState().setGameSpeed(0);
   useWorkplaceStore.setState({
     participationMode: 'solo',
@@ -42,7 +45,8 @@ describe('kilogram figures in the Lab, thirteenth pass', () => {
     );
     expect(useWorkplaceStore.getState().workplace.campaign?.mission).toBeDefined();
     const text = document.body.textContent ?? '';
-    expect(text).toMatch(/6,000 kg/);
-    expect(text).not.toMatch(/\b6000 kg/);
+    // After the first delivery (D4) the season binds order-002, 4,000 kg.
+    expect(text).toMatch(/4,000 kg/);
+    expect(text).not.toMatch(/\b4000 kg/);
   });
 });

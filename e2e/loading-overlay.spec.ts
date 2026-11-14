@@ -81,11 +81,7 @@ test('the loading cover passes WCAG A/AA before and after its recovery controls'
     await expect(cover.getByRole('button', { name: 'Use low graphics' })).toBeVisible({
       timeout: 60_000,
     });
-    await expect(
-      cover.getByText(
-        'Loading is taking longer than usual. Low graphics can help on a slower device.'
-      )
-    ).toBeVisible();
+    await expect(cover.getByText('Loading is taking longer than usual.')).toBeVisible();
     await expectNoWcagViolations(page, testInfo, 'loading-cover-recovery');
   } finally {
     releaseHeld();

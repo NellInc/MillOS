@@ -22,7 +22,7 @@ describe('Mill Chronicle workspace', () => {
     render(<ChroniclePanel />);
     expect(screen.getByRole('radio', { name: /Cooperative growers/ })).toBeChecked();
     fireEvent.click(screen.getByRole('radio', { name: /Hard fortune/ }));
-    fireEvent.click(screen.getByRole('button', { name: /Sign the charter \(score \+3\)/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Sign the charter: .*\(score \+3\)$/ }));
     expect(useChronicleStore.getState().chronicle.charter?.fortune).toBe('hard');
     expect(screen.getByRole('tab', { name: /Chronicle/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Village mill')).toBeInTheDocument();

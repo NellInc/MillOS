@@ -905,3 +905,676 @@ and back exits run through docks a metre up; and on first-person walking passing
 the ramp. Tests: `accessibleEgress.test.ts`, `aiAccommodation.test.ts`,
 `capsuleWalk.routes.test.ts` (ramp and door walks), `agreedAdjustments.test.ts`,
 `firstPersonSpawn.sweep.test.tsx`, `civicLampShadows.test.ts`.
+
+### D-080 · The plant floor is played through the partner's proposals · [proposed] · 2026-11-13
+
+Made under Nell's instructions "Proceed please, fix everything, and another pass please."
+(2026-11-12), "Fix everything please. When all is fixed and done, push live please." and "Fix
+all issues please." (2026-11-13). Nell ruled on no single decision, so this entry and every one
+to D-118 is Nell's to confirm or reverse.
+A floor decision arrives as the AI partner's proposal (top of the AI panel's Decisions tab, and
+the phone panel): each answer priced, the partner's choice marked, a window on the game clock.
+Unanswered, the partner's choice runs. A game hour later the record prices every answer again
+with the same function. Each kind can be set to "Ask me" or "Decide and tell me". The
+`prediction` and `coordination` cards, which did nothing when accepted, are gone.
+Why: with no input every order shipped on time and no choice changed an outcome. No input now
+delivers 52 orders on time over ten shifts, none late, ten A.
+Note, 2026-11-13 (review 2): that figure is `npm run playtest:plant -- --suite=partner`, arm p
+(net 42,593.2); the plain command runs the older arms a, b and c.
+To reverse: `src/simulation/partnerProposals.ts`, `src/systems/partnerProposalRuntime.ts`.
+Unfinished: automatic alarm reactions as a level the player grants were not built.
+Source: the plan, `_contprompts/millos_mechanics_mastery_20261112.md`, D1 and item 3.0; its
+wave log, rows 3a and 3d. Evidence: `docs/reviews/mechanics-20261112/`.
+
+### D-081 · The first floor decisions, as built · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+The plan named four (intake, the maintenance window, dispatch by grade, two answers per
+incident). Eight proposal kinds were built: `programme` (take the next programme or hold it an
+hour), `commitment` (take the next one early, beside the running one), `service` (service now
+or run on), `dispatch` (send a part load now or hold up to 45 minutes), `forfeit` (D-110),
+`intake` (accept, blend or refuse a grain lot on its moisture, protein and falling number,
+under a charter only; refusing costs 120 and a seeded even chance the next truck is 45 minutes
+late), `incident` (two priced answers for each of the eight incident kinds) and `temper`
+(D-117). A "service at the quiet spell" answer is built and off
+(`SERVICE_CARD.quietSpellOffered`): it never won.
+Unfinished: blend was never offered in play (no silo had room).
+To reverse: remove the kind from `PROPOSAL_KINDS` (`partnerProposals.ts`).
+Source: the plan, D2; wave log 3a, 3b, 3c, 3e.
+
+### D-082 · The plant is dock-bound: decisions are priced in what it responds to, and asked only when either answer can win · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+The dock and the order book set the tonnes. On the ten-shift harness a mill down up to 240 game
+minutes, two of four mills down, a packer down or the line at 0.6 to 1.2 shipped the same
+kilograms (179.5 t, 44 on time): about 52 t of stock sits between mills and packers. So
+decisions are priced in truck slots, grade against the order's minimum, lateness and money,
+never in line tonnes. A kind is asked only when the harness has an arm where the other answer
+wins and one where it loses; otherwise the partner decides and says what the other answer would
+have cost. Asked today: `commitment` and `intake`. Decided and told: programme (hold never won,
+78 of 78), service (8 of 8), dispatch (never raised), forfeit, every incident kind, temper.
+To reverse: `DELEGATION_EVIDENCE` (`partnerProposals.ts`), `INCIDENT_DELEGATION_EVIDENCE`
+(`incidentProposal.ts`).
+Source: the plan, "Which levers bind" and "Phase 3 re-planned (proposed D22)"; wave log 3c, 3d,
+3e, 7c.
+Correction, 2026-11-13 (review 2): "78 of 78" and "8 of 8" were arithmetic, not measurement.
+A hold always carries its hour against none, and running on always adds the service's part to
+the failure's costs, so those records could not come out the other way; the same holds for
+keeping an order the line cannot make. Those three records now state what each answer cost and
+name no better one. The harness measures those kinds on arm totals instead: holding every offer
+shipped 8 t and netted -1,477 against arm p's 209.5 t and 42,593; running on every service netted
+25,348 with four breakdowns; keeping every unreachable order netted 4,646 against 15,822. They
+stay decided. "Dispatch (never raised)" was false: it is raised twice in ten shifts when the line
+is never serviced (arm q), and held both times the record ranked sending better both times. The
+early programme's record judged on net alone; it now judges as the partner chooses, nothing late
+first, then net. Asked still holds for it: waiting every time at demand 1, the record ranked
+another answer than the partner's 11 times in 88; taking every time at demand 2, waiting was
+better 14 times in 14 (`npm run playtest:plant -- --suite=ask`, which now checks the null claims
+too).
+
+### D-083 · The Chronicle is tuned on the measured plant, and its fund is in the plant's currency · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+The fund counts the plant's own money (`CURRENCY_TO_FUND` 1). Members reinvest a share of each
+shift's surplus derived from measured net (`REINVESTED_PER_MEASURED_SHIFT` over the measured
+4,259 a shift: 0.91% in the commit of 13 November, 0.82% in the final tune still running; it
+was 0.25 of net at 0.18 fund a unit). Plans, mitigations and two event prices are rescaled to the unit (install:
+wind 400 to 60, heat recovery 280 to 45, vibration monitoring 200 to 20). Trial tonnage is 1.2
+times 19,500 kg a shift over the shifts gold allows; Grid Winter's energy cap goes from 0.08 to
+0.008 a kg. Era gates and the rank ladder are unchanged. A saved fund keeps its number, read as
+currency.
+Why: it was tuned at 180x on 3 to 5 t a shift; at pace 30 the plant ships about 18 t, and the
+fund stopped binding by shift 15.
+To reverse: `src/chronicle/measuredPlant.ts`; `CURRENCY_TO_FUND` in `engine.ts`.
+Unfinished: the final tune is still running (D-118).
+Source: the plan, D3 and item 4.1; wave log 0.2, 4c, 7c.
+Correction (2026-11-13, review 2): the final tune on the final plant set the share at 30 of
+4,259 (0.70%), not 0.82%; `REINVESTED_PER_MEASURED_SHIFT` in `measuredPlant.ts` says why.
+Correction (2026-11-14, review 2): the measured pace is 20,500 kg a shift, not 19,500 (arm p
+re-run on the final tree), so the full trials ask 123,000 to 172,000 kg; the short ones are set
+at 1.17 times the pace, 72,000 to 96,000 (74,000 to 98,500 at 1.2 cost skilled gold).
+
+### D-084 · A 27-shift chronicle beside the 63, and a wet year that costs 5 · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+The charter has a Length column: 27 or 63 shifts. The short form places everything scheduled at
+floor(shift x 27/63), and each trial's window and tonnage shrink with it (Wet Harvest shifts 4
+to 7, Inspection 8 to 11, Bakers' Rush 12 to 15, Grid Winter 16 to 19, Great Programme 21 to
+25, the long night 23, the epilogue 27). Old saves are 63 shifts, and a digest of every close
+pins a 63-shift run unchanged. The wet year now costs strong white 5 points, not 6, so moisture
+meters hold 95 on a serviced line (99.2 - 5 + 1 = 95.2; before, 99.5 - 6 + 1 = 94.5). Drying
+removes the penalty (D-117).
+Why: 63 shifts is 16.8 real hours at 1x; 27 is about 7.2.
+To reverse: `SHORT_CHRONICLE_SHIFTS` (`src/chronicle/schedule.ts`); `wheatPenalty` in
+`cropYears.ts`.
+Source: the plan, D3, items 4.2 and 4.6; wave log 4b.
+Correction (2026-11-14, review 2): the short Grid Winter is announced six shifts ahead (shift
+10), not three, the full form's notice; no energy plan can be installed by then (wind and heat
+recovery are Regional, reached at shift 23 to 27), so it buys notice only; and a short chronicle cannot reach
+Federated (installs run one at a time), so an era scores as the share of its length's ladder:
+4 an era in 27 shifts, Regional 12, the same as Federated in 63 (`eraPoints`, `scoring.ts`).
+
+### D-085 · The Chronicle's documents state pace 30, and its copy is in both languages · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+`docs/CHRONICLE.md` and the code comments now give a 63-shift chronicle as 16.8 real hours at
+1x (4.2 at 4x). They no longer say 2.8 hours at 180x, that a shift with no truck is graded F,
+or that relationships weight events. Chronicle copy ships in English and Brazilian Portuguese;
+engine records stay canonical English and are translated at display. Buffalo's elevators and
+the cotton-bag booklet were corrected from sources; OGAS, Cybersyn, Haggenmacher and Ganz were
+confirmed as written (Gerovitch 2008; Medina 2006; HLS; US patent 251,124).
+Supersedes D-009's clause "Chronicle copy is still English only"; the rest of D-009 stands, as
+narrowed by D-048. No entry here recorded the 180x pace: D-059 mentions it only as history.
+Source: the plan, items 1.12 and 1.13; wave log 1a; `docs/CHRONICLE.md`.
+
+### D-086 · The cooperative season starts after the first delivery, and every plan runs the line at 1.0 · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+No season starts while `order-001` is open: the store refuses with a reason, and a save with a
+season already running carries on. Steady, resequence and cover all run the line at 1.0.
+Resequence reorders the campaign's own orders for the shift. Cover has a reader: on the one
+shift whose drawn pressure takes a member away, the bench starts no new test and a service
+waits unless someone covers. A season's end leaves a debrief that survives a reload.
+Why: the season started itself at the tour's end and slowed the line to 0.78 for three shifts,
+so cooperating was the slow option.
+Supersedes the 4 October direction that the season starts autonomously once startup and an open
+order are ready (`_contprompts/millos_owned_decisions_20261004.md:60`). It was Nell's
+clarification and never entered in this log, so the conflict is Nell's to settle.
+To reverse: `firstDeliveryFulfilled` in `src/stores/workplaceStore.ts`.
+Source: the plan, D4 and items 2.6, 5.4; wave log 2b, 5c.
+
+### D-087 · In a solo season the player is one role · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+In solo play the player is Packing. The store refuses the player's understanding, vote or cover
+for another role. Coordinator, Quality and Maintenance answer from their stated values and make
+their own calls: the Coordinator's Friday and Thursday decisions, Quality's inspection, and the
+chair, sobras and handoff ballots. The "(blocked)" labels are gone; a refusal shows at the
+button it answers, and the camera goes to the role that refused. The panel shows the next step
+only, over a five-row role table (Packing, Quality, Maintenance, Coordinator, the adviser) by
+Understands, Policy vote and Cover, with no digits. Separate turns and workshops keep every
+role's own input.
+Why: the player cast every member's ballot, so no refusal ever happened to them.
+To reverse: `authoredSeasonCommand` in `src/simulation/bilateralWorkplace.ts`.
+Source: the plan, D5 and items 5.1 to 5.3; wave log 5a, 5b.
+Correction (2026-11-13, review 2): the reason line under each role's name and the next-step
+sentence under the heading are gone, because they were helper text (D-012, `[Nell]`); a refusal
+shows as its own wording at the control it answers, and only a step no control answers (the
+shift running, an inspection, owed recovery) is read out. The authored sobras ballots no longer
+come from a fixed table: each follows the role's need and what the season did (a losing shift,
+a thin reserve), so in some seasons Packing's ballot decides and in others it is outvoted, and
+the record names each need met or outvoted.
+
+### D-088 · Friday is always an installment in solo play; changed terms re-ask every check · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Three rule changes follow from D-087. In a solo season the Coordinator's Friday call is always
+the renegotiated installment, because its stated value prefers the stable sequence to a rush;
+keeping the full order cannot be chosen. The season start not linked to an order is gone in
+solo play. Changing the terms asks every understanding check again. Also: a season paused by a
+stop or a drill resumes only after RESTART LINE (D-096), and an adopted arrangement survives the
+experiment's close, a reload and later seasons.
+To reverse: the Friday branch of `authoredSeasonCommand` (`c.shift === 0 ? 'renegotiate'`).
+Source: wave log 5b.
+
+### D-089 · Flour under an order's minimum is neither loaded nor paid for it; the lab bench is a resource · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+A truck loads a batch for an order only if the batch is tested and meets that order's minimum;
+the same rule decides what is available and what is paid. Flour under a minimum can fill an
+open order it does meet: a 93 batch goes to the community order (92), never to strong white
+(95). The bench runs one test at a time, 6 game minutes each, queued by a player's "Test
+first", then the earliest-due order's product, then the oldest. Trucks fill to capacity across
+same-product orders (`fill`: 190.0 t, 48 on time, net +9,403 over ten shifts against the old
+rule). Benchmarks keep the old rule and no bench.
+Why: a failing load earned full revenue less 0.08 a kg. Cost of the bench: 3.5 t and two
+deliveries over ten shifts.
+To reverse: `BENCH_TEST_MINUTES` (`qcLabStore.ts`); `planShipment` (`shipmentPlan.ts`).
+Source: the plan, D6, items 3.2 and 3.4; wave log 3a, 3b.
+
+### D-090 · Service takes game time, and three free exploits are closed · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+A service takes the unit offline on the game clock (roller mill 45 game minutes, sifter and
+packer 30, silo 20) and one part at the start, as its button says; a restart takes 75 game
+seconds. A unit saved mid-service finishes on restore, and a fault that ends a service refunds
+its part. Closed: a repair's restart no longer services the unit (it returns just under its
+breakdown threshold, its service proposed); parts follow a reorder rule, arrive with the next
+grain truck and are booked on a Parts line (game prices, unsourced); a down unit keeps its last
+efficiency in the quality mean.
+Why: measured, breaking two mills paid (+57) and never servicing cost nothing. Now two mills
+down 240 minutes give 159.8 t and net 25,332, against routine service's 188.5 t and 38,184.
+To reverse: `serviceMinutes` in `WEAR_CONFIG` (`productionStore.ts`); `src/systems/unitService.ts`.
+Source: the plan, D7, item 3.3; wave log 0.2b, 3b, 3c.
+
+### D-091 · Chronicle plans pay in the costs they avoid · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+A fund source, "Costs plans avoided", stands beside each plan's upkeep and reaches the fund in
+full, where surplus reaches it at the reinvestment share (D-083). A paired control on the real
+tick books exactly the energy wind and heat recovery save. Payback, from the probe: wind 6 to
+11 shifts, heat recovery 6 to 10, vibration monitoring 1 to 6, all inside the 25 the plan set.
+Plans also open floor options: moisture meters hold strong white in a wet year (D-084), and
+blending bins lift a sprouted year's best stamp from 90.5 to 97.5.
+Why: savings reached the fund at 4.5%, so plans cost more than they saved.
+Unfinished: the wear credit is unproven (the control booked no parts either way).
+To reverse: `AVOIDED_COST_RATE` in `src/chronicle/engine.ts`; `src/chronicle/avoided.ts`.
+Source: the plan, D8, item 4.3; wave log 4b, 4c.
+
+### D-092 · The federation's administrator is an offer the assembly may refuse · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+The administrator no longer locks a member co-op's policies. The federation offers it; refusing
+costs the federation 10, and accepting has the federation pay upkeep for its four shifts. The
+ratchet stays. The notice names the rulings that brought it, and quotes the ICA's fourth
+principle (autonomy and independence) from ica.coop.
+Why: the lock went against the game's own Mondragon note and that principle.
+To reverse: the `FEDERATION_ADMINISTRATOR_EVENT_ID` event in `src/chronicle/stewardDeck.ts` and
+its handling in `engine.ts`.
+Source: the plan, D9, item 4.11; wave log 4a, 4b.
+Correction (2026-11-13, review 2): "no longer locks" is wrong. Refused, the administrator locks
+nothing; accepted, it holds the policies where they stand for its four shifts, as the offer's
+own text says (`startAdministration` in `engine.ts`).
+
+### D-093 · Desks of attention are cut · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Works, trade and council points are gone; a save holding them loads and drops them. The co-op
+reserve at 100 or more counts as one long-night preparation.
+Why: over 63 shifts about nine council costs fell against a refill of one a shift, so they
+never bound. D10 said to keep them if the probe found a setting where they bind. A seeded
+probe of 40 chronicles did find one where a desk reaches 0, but what the desks then refused
+were lapses (decisions left to expire), not trades between options, so they were cut anyway.
+That is a judgement against the plan's literal condition.
+To reverse: restore the desk resources in `Cost` (`src/chronicle/types.ts`) from the history.
+Source: the plan, D10, item 4.8; wave log 4a.
+
+### D-094 · The goal is the programme's committed tonnes, not a daily bag count · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+The HUD, tracker widget, Overview, phone sheet, Autonomy and the multi-objective dashboard show
+the open programme (tonnes shipped of committed, next due, late), and nothing when none is
+open. `productionTarget` and `DAILY_TARGET_BAGS` are gone from types, stores and saves (a
+removed-field entry; old saves restore). The agent projection gives `campaign.programme`. The
+PA's one line of good news moved with it: "The programme's delivered!" replaces "today's
+target made".
+Why: the 1,200-bag target counted stock nobody ordered and competed with the customer's
+kilograms.
+Supersedes D-054's "the day's target made". D-054 is `[Nell]`; its rule (good news only on an
+event, one line) stands, and the change of event is Nell's to settle.
+To reverse: `src/stores/programmeCommitment.ts`; the PA line in `src/components/game/shared.tsx`.
+Source: the plan, D11, items 2.1, 2.5; wave log 2b, 2c, 2 tail.
+
+### D-095 · A driven forklift gives way, works its stations and stops at the hall's walls · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Under manual control a forklift slows within 6 m of anyone on foot and stops within 3.5 m,
+forward and in reverse, with the autopilot's constants, and logs a near miss once per approach.
+In the cab, E or a click at a station the forklift is lined up for runs the autopilot's own
+pick or drop, so the pallet counts as the trip it replaces; a pick with the forks wrong or above
+a crawl is refused with an error line, near people or not. Elsewhere the same press steps the
+driver down. A driven forklift stops at the hall's walls and passes only the two service doors.
+This narrows D-050 and D-053 (`[Nell]`: E or a click boards or leaves) and extends D-060
+(`[Nell]`) and D-058's give-way to the driver; Nell's to settle.
+Unfinished: fences, hedges and staff-facility walls are not solid to a forklift.
+To reverse: `forkliftManualDrive.ts`, `forkliftManualWorld.ts`; `requestWork` (`forkliftDriveStore.ts`).
+Source: the plan, D12, items 6.1, 6.2, 6.6; wave log 6a, 6 tail.
+
+### D-096 · Clearing a stop or ending a drill leaves the line idle until RESTART LINE · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+CLEAR EMERGENCY and END DRILL release the interlock and the forklifts and leave every unit idle.
+RESTART LINE (`restartLine`, which takes focus) returns each unit the stop idled to its recorded
+status; the bell says the line is ready. No agent command restarts the line; Reset Simulation
+still does. The drill's record names each zone's result (clear, alternative, blocked or
+unverified), any forklift that blocked it and the plant-clock time. While the Safety controls
+are open, routes and refuges draw on the floor, red where a forklift stands.
+Why: Machinery Directive 2006/42/EC Annex I 1.2.4.3 (EUR-Lex, read raw): disengaging the stop
+"must not restart the machinery but only permit restarting". No ISO clause is claimed.
+D-010 stands. No earlier entry recorded the restart at CLEAR or the drill's end.
+To reverse: `resolveEmergency`, `endEmergencyDrill` (`gameSimulationStore.ts`).
+Unfinished: the floor drawing has not been seen in pixels.
+Source: the plan, D13, items 6.3, 6.4; wave log 6a.
+
+### D-097 · Helper text is cut to D-012's wording; the loading quotes are sourced facts · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+About 440 strings were reviewed: about 172 cut, 107 trimmed to the state or a refusal, 6 moved,
+16 replaced and about 140 kept with reasons. A price or consequence on a button is effect text,
+not helper text. About carries the one disclaimer; the PA voice credit stays. The loading
+screen's nine invented "principle" quotes are nine sourced milling facts, each naming its
+publisher. AI narration cards no longer show; their Datalinks unlocks still happen. A catalogue
+test fails on a new hint-named key or on more `title` tooltips.
+This applies D-012 (`[Nell]`) and supersedes nothing.
+Unfinished: not seen on screen on the cooperative and Autonomy surfaces, the Inspector, the
+shift debrief or About. The working list, with each string's verdict and
+the reason for every one kept, is `docs/reviews/mechanics-20261112/d14-helper-text-list.md`.
+To reverse: per string, in its catalogue.
+Source: the plan, D14, item 1.18; wave log 1a, 2b, D14.
+
+### D-098 · Mute silences sound only; PA captions continue while muted · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Muted, every PA line is still filed, captioned, kept in the transcript and read to screen
+readers. The voice neither loads nor speaks; muting mid-line stops it, and the caption stays its
+own reading time (at least 10 s, 80 ms a character). Unmuting replays nothing. The HUD's result
+bell is quiet while muted.
+D-061 `[Nell]` stands whole: a paused or muted plant builds no urgency. Muted, a fault is
+captioned once and is not said again in rising terms until the sound is back. The first build
+of this entry let a muted plant build urgency in captions; that went past the plan's D15
+("Mute silences sound only") and against D-061, and was withdrawn on 2026-11-13 before merge.
+Whether a muted player should get the rising notices is Nell's to settle.
+Why: a player who is deaf, or keeps sound off, received no PA, a facility stop included.
+Another session's D-070 (uncommitted when this was written) records the same rule.
+To reverse: `voiceActive` and the mute effects in `PAAnnouncementSystem.tsx`; the filing in
+`shared.tsx`.
+Source: the plan, D15; wave log "D15, D17, D21".
+
+### D-099 · Walking is at a person's pace, and the hall's walls are solid · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+In first person the player walks 1.4 m/s inside the hall (2.7 with Shift) and 2.7 outside (5
+with Shift), beside colleagues at 1.25. The 128 m hall diagonal takes 91 s (47 hurrying). The
+paces are sourced in the file. The hall's walls, jambs and open door leaves stop a walker, and
+the four egress routes walk clean. Residents answer E or a tap with a card: role and what they
+are doing, and for the D-058 colleagues the adjustment by its register name, never a condition.
+Why: walking was 12 m/s and sprinting 43 m/s, so the hall was crossed in two seconds, at speeds
+the forklift give-way was never built for.
+Extends D-035 and D-039 (walking solids in the village) to the hall. No earlier entry set a
+walking speed.
+To reverse: `HALL_WALK_SPEED` and its neighbours in `src/utils/walkingPace.ts`.
+Source: the plan, D16, items 6.5, 6.6; wave log 6a.
+
+### D-100 · The per-forklift Efficiency figure is gone · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Safety analytics no longer show each forklift's "Efficiency %". Speed zones now change
+something: with the west-walkway zone the seeded run records no near misses, without it some.
+Why: the figure read as a number about the forklift's one operator, and fell every time the
+forklift gave way, so it marked down safe driving. That sits badly with D-058's rule of no
+number about anyone.
+No earlier entry recorded the figure.
+To reverse: restore it from the history; `SafetyAnalyticsPanel.noOperatorFigure.gameplay.test.tsx`
+pins its absence.
+Source: the plan, D16, item 6.7; wave log 6a.
+
+### D-101 · The town hall ramp is rebuilt to Approved Document M · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Two 6.8 m flights at 1:17 (Table 1 allows 1:16.8 at that going), 1.505 m clear, landings of
+1.55 m (mid), 2.2 m (head) and 1.25 m (foot): 15.15 m in all, each limit quoted in `DOC_M_RAMP`.
+Of clause 1.26's fourteen provisions, eleven are met, one is not needed, and slip resistance
+and friction are not modelled. The privet was cut back and three rail lamps moved (lamp atlas
+`14ffdb8f`). A test pushes a 0.72 m wheelchair from the street to the door.
+Why: the old ramp (two 4.8 m flights at 1:12, rising 0.4 m, 1.3 m wide) failed Volume 2 Table
+1 (about 0.32 m rise for that going) and the 1.5 m width.
+Supersedes the ramp geometry in D-058 ("a two-flight 1:12 ramp") and D-062. Both are `[Nell]`;
+their intent, a walkable step-free route, stands. Nell's to settle.
+Unfinished: the portico's own door landing is 0.8 m deep; no sign points to the ramp.
+Source: the plan, D16; wave log 6a, 6 ramp; `src/constants/accessibilityLayout.ts`.
+
+### D-102 · The cornmeal customer is "Community Polenta Kitchen" · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+The corn product shows as "Cornmeal" / "Fubá" and its customer as "Community Polenta Kitchen"
+in both languages, a proper name under the glossary, through one function. Stored names and ids
+are unchanged, so saves restore. The Chronicle's strings follow.
+Why: "Community Pasta Works" ordered semolina milled from corn, and pasta semolina is durum
+wheat. Read raw: 21 CFR 137.320 (semolina is ground durum), 137.250 and 137.275 (corn meal),
+Embrapa Documentos 59, ANVISA IN 351/2025. Codex could not be fetched.
+To reverse: `src/stores/customerNames.messages.ts`.
+Source: the plan, D17; wave log "D15, D17, D21", 4c.
+
+### D-103 · Sobras settle once a season, as Lei 5.764/71 sets out · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Sobras settle at the season's end, net of losses: 10% to the Reserve Fund and 5% to FATES first,
+the rest to the members' chosen destination in proportion to minutes worked. A losing shift
+shrinks the pool. The reserve carries over and pays for purchases with a receipt. The law was
+read from the Câmara dos Deputados' published text (planalto.gov.br redirected to a home page);
+articles 4 VII, 28, 44 II and 89 are quoted with the URL in the code.
+Why: sobras went whole to one destination, split equally, every shift.
+Unfinished: the plan's community share shown in the village was not reported built.
+To reverse: `RESERVE_FUND_SHARE`, `FATES_SHARE` (`src/simulation/workplaceCampaign.ts`).
+Source: the plan, D18, item 5.5; wave log 5a, 5b.
+Correction (2026-11-13, review 2): no screen shows a member's share any more; the debrief and
+the Lab show the pool and its split by destination (members, Reserve Fund, Assistance Fund),
+because per-role amounts are a number about a person (D-058, `[Nell]`). A vote no destination
+carries now settles by art. 4 VII's default (to members by minutes worked) and says so; a
+charter without shared surplus keeps it in the Reserve Fund at archive, and a charter with it
+cannot archive until it is shared, so no pool is lost. English says "surplus" and "Assistance
+Fund" (glossary); Portuguese keeps "sobras" and "FATES".
+
+### D-104 · The Chronicle's quiz is built from the player's own record · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Each round leads with questions from the player's record: what followed a ruling, what an
+installed plan changed, why a trial failed. Only a first attempt earns (saved `quizAttempted`;
+an old save counts questions already answered as attempted). Options reorder by the seeded
+generator. A note read before the Chronicle unlocked it now counts. The cutaway lessons ask
+what the live cutaway shows, with the answer's position seeded.
+Why: the quiz tested recall, never shuffled, and could be guessed until right.
+To reverse: `src/chronicle/quiz.ts`.
+Source: the plan, D19, items 7.2, 7.3; wave log 7a.
+
+### D-105 · The chair is "Presidência"; a native reader is still owed · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+The workspace is "Autonomy" / "Autonomia" on every surface, the season is "Cooperative season" /
+"Temporada cooperativa", and each charter title is defined once. The elected chair is
+"Presidência", the law's own word; the role stays "Coordenação", which had named both.
+Unfinished: no native Brazilian Portuguese reader has reviewed the cooperative vocabulary. The
+plan's D20 stays open.
+To reverse: the workplace catalogues.
+Source: the plan, D20, item 5.8; wave log 2b, 5b.
+
+### D-106 · A pace button ends only the player's own pause · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Any other hold on the clock (the tour, the layout planner, a failed restore, SCADA) refuses a
+pace button and is named, as P already did. Two holds whose only way out was a pace button have
+their own release: "Continue without the save" and "Resume the clock". A restore unfinished
+after 60 s of wall time takes the failed-restore path, and the tick releases the SCADA hold
+when the mode returns to simulation. The agent's pace command can still override a hold.
+Why: one rule for both controls; a pace button was silently clearing other features' holds.
+D-049 (`[Nell]`) stands: the sim starts ticking and a hold lasts only for its page. Its tests
+had pinned the old pace-button behaviour; if Nell meant that, D-049 wins.
+To reverse: the pace action in `src/stores/gameSimulationStore.ts`.
+Source: the plan, D21; wave log "D15, D17, D21", plant tail.
+
+### D-107 · A tie in the assembly carries a move off a red line or a condition's step · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+In part three's assembly a tied vote now carries a policy move off a red line (Any lot, Lean,
+Spot) or off the step a standing condition needs left, and the record says why it carried.
+Every other change still needs more votes for than against.
+Why: over all 64 crews, 4 could be trapped on Lean stock by a 1 to 1 tie; now none can, and
+Chronicle rule 4 calls a state with no way out a bug. Keyed only on a running warning, the same
+crews stayed stuck once the village had acted, so the rule is wider than planned.
+To reverse: the tie rule in `src/chronicle/governance.ts`; `governance.test.ts` pins it.
+Correction (2026-11-14, review 2): a tie carries only when someone voted. An all-abstain 0-0
+vote is no tie and carries nothing, because nobody chose the move; the 64-crew no-trap test
+still finds no crew trapped. `governance.review2.test.ts` pins it.
+Source: the plan, item 1.2; wave log 1a, 1a tail.
+
+### D-108 · Achievements: Full Capacity's rule, deferrals, and achievements that point at the game · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Full Capacity is "production speed at 100% with every machine running and none in warning".
+Decision Review counts deferrals, so no two achievements count one answer. "Interlock Proven"
+is "Egress Verified", earned by the drill. Seven new ones: first on-time delivery, first A
+shift, first programme accepted (the player's own acceptance only), first challenge, first hold
+resolved, first season, charter signed. The list opens from More on phones.
+Why: Full Capacity's load mark was out of reach (best whole-line load 72 at the 0.8 boot rate,
+77 at 1.0, against 80), and nothing rewarded a delivery, a grade or the Chronicle.
+Unfinished: an old save with a charter already signed keeps "charter signed" locked until the
+next signing.
+To reverse: `src/stores/achievementsStore.ts`.
+Source: the plan, items 1.14, 2.3; wave log 1a, 2b, plant tail.
+
+### D-109 · N, B, L and M open the commitment, the bell, Safety and the Chronicle; the Production dock entry is gone · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+N opens the shift commitment, B the bell, L Safety and M the Chronicle; M had been left unbound
+on purpose. All four are listed in the help. Ctrl+B stays blueprint mode. The dock's Production
+entry is removed: it opened the same panel as Overview, which is now the one entry.
+D-050 and D-053 (`[Nell]`: Space, E, X, F) are untouched.
+To reverse: `WORKSPACE_KEYS` in `src/hooks/useKeyboardShortcuts.ts`; the dock items.
+Source: the plan, item 2.10; wave log 2b.
+
+### D-110 · An order is forfeited 240 game minutes past due · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+An order still open 240 game minutes after it was due is forfeited: a fee of four hours of its
+late rate on the kilograms it lacked, a review line that counts as a late delivery, one bell. A
+forfeit always costs more than delivering late, and in the Chronicle it costs a customer what a
+late close does. The tick computes the best stamp each grain allows and does not mill for an
+order above it. A programme can be taken while an order is open (`commitment`, D-081).
+Why: once the line could not make 95, the strong-white order stayed open, no programme was
+offered and the plant stopped taking work, a state with no way out. Measured: the latest
+delivery at doubled orders was 76 minutes late, at tripled 252.
+To reverse: `FORFEIT_LATENESS_MINUTES` (`src/stores/operationsCampaignStore.ts`).
+Source: wave log 3b, advisor (04:35), 3c, 4c.
+Note, 2026-11-13 (review 2): one exception. While the truck at the dock is loading or ready with
+flour of the order's product and no other open order of that product would take it, the
+forfeit waits for that truck to leave (about 15 game minutes): the truck delivers to the order at
+its late terms and only what is still lacking is forfeited. Before, the truck left with that
+flour unpaid and its grain debited. A truck held at the dock does not hold the forfeit
+(`truckLoadingFor`). Found by reading; no harness arm reached it. The wait is bounded by one dock
+cycle past the bound (81 game minutes, `DOCK_PROJECTION.cycleMinutes`: a docked truck leaves before
+the next is due); a truck still there then (a stop holds the dock) does not hold the forfeit, and
+at its departure a load no open order takes stays in stock instead of leaving unpaid.
+
+### D-111 · Lot genealogy is kept three game days, and the save is version 2 · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+A released lot received more than three game days ago merges into its grain's "earlier stock"
+lot. Mass and balances are unchanged; held and recalled lots never merge; a hold on earlier
+stock reaches the merged lots. So a recall or supplier notice can name a lot from the last three
+game days, and anything older only as earlier stock. Lots are written compactly, and the save
+is version 2: an older build refuses it, leaves it untouched, holds the shift and warns. A
+refused autosave now rings a warning.
+Why: autosave stops above 3,000,000 bytes, and the worst case reached that near game day 15.8
+(a full chronicle is 21 days). Now: 519,356 bytes at shift 21 (815,160 before); 716K to 762K at
+most over a chronicle, against a 750,000-byte budget.
+To reverse: `GENEALOGY_RETENTION` (`src/stores/materialFlowStore.ts`).
+Source: wave log "save", 3d.
+
+### D-112 · The silos feed only the line's plan · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+With no order open the silos feed nothing and the line stands; with a plan each mill takes one
+grain at a time. Stock is no longer built with no order open. Benchmarks keep the old open
+valves.
+Why: with no order open the silos fed both grains to every mill. At line rates 1.6 and 2.0 wheat
+and corn mixed in one mill's input buffer and the packers filled with semolina nobody ordered,
+which stalled the plant; the cause predates this work. Ten shifts at rate 2.0 now ship 203.5 t,
+51 on time, ten A.
+To reverse: `PLAN_ONLY_SILO_FEED = false` (`src/stores/materialFlowStore.ts`).
+Source: wave log 3b (finding 1), 3c.
+
+### D-113 · Grain has a price · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+Wheat costs 0.46 and corn 0.33 a kg, derived from USDA ERS tables updated 10 November 2026 (the
+working is in the file), booked at intake with stock carried at cost. Grain, Parts and the
+change in stock held show on the shift card and review, and the Chronicle's net reads them.
+Why: the plant had no grain, labour or parts cost; all cost lines were 4 to 6% of revenue. Now
+grain is 72.9% of revenue and every other line under 1.5%; no-input net is about 3,850 a shift
+(about 14,760 before).
+Unfinished: parts prices are game prices, unsourced.
+To reverse: `GRAIN_PRICE_PER_KG` (`src/simulation/grainPrice.ts`).
+Source: the plan, item 3.8; wave log 3b, 7b.
+
+### D-114 · One line rate, and the roll-speed setpoint is that rate · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse. The plan left 7.5 to Nell.
+The mill has one rate, the player's slider; the setpoint no longer multiplies it. Roll speed is
+that rate: 0 to 2,000 RPM maps onto 0 to 200%, a write sets the rate through the slider's own
+action and states the result ("Line rate now 120%... wear x1.22, energy x1.10", seen), and a
+write outside the band is refused. Above 100% the line wears faster and uses more energy per
+tonne. Roll-speed alarm limits are removed: they only reported where the slider was.
+Why: the setpoint changed nothing and 200% always won. Measured: best net per tonne at 0.8
+(201.7), with 0.8 to 1.2 within about 1%; total net peaks at 1.2.
+To reverse: `src/scada/lineRateSetpoint.ts`; the roll-speed tags in `tagDatabase.ts`.
+Source: the plan, items 3.6, 7.5; wave log 3b, 3c, 7b, plant tail.
+
+### D-115 · Numbers no rule reads are removed; the layout planner sits behind More · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse. The plan left 7.8 and 7.9
+to Nell.
+Removed: the multi-objective dashboard's 250 kW target, carbon objective and row, 98% quality
+target and blended score, and both utility-vessel displays (the vessels in the world stay).
+Connected instead: quality against the line order's minimum, energy against the bill's tariff.
+The certificate's state is shown nowhere and set by nothing outside tests. The layout planner
+is an engineering tool opened from More; closing it releases its pause.
+Why: nothing on screen should be a number that no rule reads, and a normal plant always missed
+those targets.
+To reverse: `src/components/ui/MultiObjectiveDashboard.tsx` and the More menu, from the history.
+Source: the plan, items 7.8, 7.9; wave log 7b.
+
+### D-116 · SCADA tags can go uncertain; alarm priority follows consequence · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse.
+During the network incident about a quarter of read-only tags read UNCERTAIN and hold their
+last value, the same seeded subset for the same incident, clearing when it resolves; never in
+benchmarks. An uncertain reading cannot raise an alarm, and in simulation mode the plant reads
+the real value under a held tag. A trip on a tag that endangers people is CRITICAL and its
+warning HIGH; on a tag that stops the plant, HIGH and MEDIUM; on anything else, MEDIUM and LOW.
+Every alarm had been HIGH or CRITICAL. The HUD bell rings for every alarm on a people or plant
+tag; process alarms stay on the SCADA panel.
+Why: the history note already claimed uncertain tags, and an alarm list that is all urgent
+teaches nothing.
+To reverse: `tagAlarmConsequence` (`src/scada/tagDatabase.ts`), `alarmPriorityFor`
+(`AlarmManager.ts`).
+Source: the plan, item 7.4; wave log 7a, plant tail.
+
+### D-117 · Tempering is a card the partner runs · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12),
+which ruled on nothing singly; Nell's to confirm or reverse. The plan left 7.7 to Nell.
+Once a shift, under a charter, when the wheat about to be milled reads wet, a card offers
+"Temper as it comes" (the year's 5 points) or "Dry first, then temper" (no points, at the
+drying's energy, about 50 to 95 a shift, after the 2-hour rest). The partner dries and says so.
+The Chronicle's flat wet-year payment is gone; the wet-intake event keeps its id and answers,
+which make drying free or half price for three shifts.
+Why: drying won 114 comparisons of 114. Wet year, ten shifts: never dry, 0 of 16 strong-white
+orders made, net 15,822; always dry, 16 of 19, net 41,105. Figures are Kansas State MF-2353's
+only. No dry-year card: a dry year has no penalty.
+Unfinished: attentive players sit at 0.0079 a kg against Grid Winter's 0.008 cap, so drying in
+a wet Grid Winter would break it.
+To reverse: `temper` in `DELEGATION_EVIDENCE`; `src/chronicle/temper.ts`.
+Source: wave log 7c.
+
+### D-118 · The plan's own measures: met, not met, not measured · [proposed] · 2026-11-13
+
+Made under Nell's "Proceed please, fix everything, and another pass please." (2026-11-12); Nell
+ruled on no single decision, so this record is Nell's to read against the plan's targets.
+As of 13 November, 16:30 GMT, against the plan's "How we will know it worked". No stranger
+session was run, so every measure that needs a play-tester is unmeasured.
+- Met: a no-input run still delivers (ten shifts, 52 on time, none late, ten A; produced by
+  `npm run playtest:plant -- --suite=partner`, arm p, not the plain command, note of 13
+  November, review 2); under 150
+  words before the first cooperative decision (12 idle, 101 at a season's start, 117 at most;
+  Portuguese 14, 113, 133); an idle player ranks in the Chronicle's lowest two.
+- Not met, pending the final Chronicle run: answering every decision adds at least 25 points
+  (attentive minus idle 19 and 21 on the two lengths); full-length Wet Harvest gold for the
+  skilled player (3 of 8 seeds); one full-length buyer's fund ends at 1,481 against a 1,380 cap.
+- Not measured: decisions per ten minutes at 1x; skilled play against the partner over 20
+  programmes (nearest: taking a programme early when no order is at risk nets 16% more than
+  never, but the partner now does it); a first decision within 3 real minutes; naming the goal
+  with the guide closed; Chronicle decisions per real hour; every stated fact sourced.
+- Built, partly seen: the HUD result of a fulfilled order (seen; its sound not heard); lab
+  readings beside their limits (falling number only under a charter, not yet seen).
+Source: wave log "probe", 4c, 3d, 5b, fix.
+Correction (2026-11-14, review 2): on the final probe the Wet Harvest gold for the skilled
+player and the buyer's fund cap are met in both card modes; the 25-point measure is still not
+met (figures in `docs/CHRONICLE.md`, "Measured tuning (2026-11-13)").
+Correction (2026-11-14, review 2): an idle player wins trial medals (silver, once bronze) and
+no tonnage takes them away without taking the attentive player's: the plant is dock-bound
+(D-082), answering the cards does not raise tonnage, so a tonnage medal cannot tell an
+attentive player from the partner's defaults. Kg at silver's shift, seeds 101 to 108 (s
+silver, b bronze, f failed; final probe, cards asked, then left):
+  short Wet Harvest, shift 4: idle 90.5s 90.5s 90.5s 90.5s 80.5s 90.5s 87.5s 90.5s; attentive
+  90.5s 90.5s 90.5s 90.5s 90.5s 90.5s 82.5s 90.5s, left the same but 87.5s for seed 107.
+  short Bakers' Rush, shift 4: idle 59.5f 84.5s 58.5f 84.5s 74s 84.5s 64.5f 59.5f; attentive
+  79.5s in every seed, left 85.1s 84.5s 79.5s 84.5s 84.5s 84.5s 79.5s 84.7s.
+  full Wet Harvest, shift 6: idle 127.5s 57.5f 104f 127.5s 114b 127.5s 45.9f 83.5f; attentive
+  127.5s in all but 132.5s (106) and 127s (107), left 127.5s in every seed.
+The trials were left as they are; the probe's gate stays "the idle player wins no gold".

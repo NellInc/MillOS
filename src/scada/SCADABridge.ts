@@ -481,9 +481,15 @@ export function scadaToStoreMetrics(
       a.state !== 'RTN_UNACK' &&
       (a.disposition ?? 'IN_SERVICE') === 'IN_SERVICE'
   );
-  if (machineAlarms.some((a) => a.priority === 'CRITICAL')) {
+  // The machine's state follows the condition, not the alarm's priority: a
+  // trip limit (HIHI/LOLO) is critical, any other standing alarm a warning.
+  // Priority says what the condition costs (plan item 7.4), so a mill at its
+  // trip limit is still critical though its alarm reads HIGH.
+  if (
+    machineAlarms.some((a) => a.priority === 'CRITICAL' || a.type === 'HIHI' || a.type === 'LOLO')
+  ) {
     sync.status = 'critical';
-  } else if (machineAlarms.some((a) => a.priority === 'HIGH' || a.priority === 'MEDIUM')) {
+  } else if (machineAlarms.length > 0) {
     sync.status = 'warning';
   } else if (rpm !== undefined) {
     // Check machine type specific thresholds

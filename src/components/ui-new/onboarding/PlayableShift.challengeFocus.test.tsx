@@ -7,6 +7,7 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 beforeEach(() => {
@@ -136,8 +137,12 @@ it('keeps keyboard focus on a challenge button that a tick blocks', () => {
 // a quality failure on the active order, and focus fell to <body>. Working if
 // focus survives and the press then starts nothing.
 it('keeps keyboard focus on the campaign opt-in that a tick blocks', () => {
+  // D4: the opt-in is offered once the first delivery is in.
+  fulfilFirstDelivery();
   render(<OperationsPlayCard />);
-  const start = screen.getByRole('button', { name: 'Start linked cooperative campaign' });
+  const start = screen.getByRole('button', {
+    name: 'Start 3-shift cooperative season on this order (1x)',
+  });
   start.focus();
   act(() => {
     const state = useOperationsCampaignStore.getState();

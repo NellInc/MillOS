@@ -17,7 +17,9 @@ import {
   MAX_IMPROVEMENT_CYCLES,
 } from '../../../simulation/workplaceImprovement';
 import { turnChecks } from '../../../simulation/workplaceParticipation';
-import { workplaceReadiness } from '../../../simulation/bilateralWorkplace';
+import { authoredWhy, workplaceReadiness } from '../../../simulation/bilateralWorkplace';
+import { WORKPLACE_PROFILES } from '../../../simulation/workplaceCampaign';
+import { charterTitle } from '../../../simulation/workplaceCampaign.messages';
 import {
   formatKg,
   pressureObjectionText,
@@ -36,7 +38,7 @@ import type {
   WorkplaceMode,
   WorkplaceTransitionResult,
 } from '../../../types/workplace';
-import { formatFixed, translate, useT } from '../../../i18n';
+import { formatFixed, getLocale, translate, useT } from '../../../i18n';
 import { workplaceImprovementPanelMessages } from './WorkplaceImprovementPanel.messages';
 
 const button =
@@ -58,7 +60,7 @@ export function WorkplaceImprovementPanel({
   setProfile?: (value: WorkplaceProfile) => void;
   mode?: WorkplaceMode;
   setMode?: (value: WorkplaceMode) => void;
-  activate: () => Promise<void>;
+  activate: () => Promise<unknown>;
   busy: boolean;
   report: (result: WorkplaceTransitionResult) => void;
   onSeasonStart?: () => void;
@@ -81,6 +83,8 @@ export function WorkplaceImprovementPanel({
   const readiness = workplaceReadiness(s);
   const separateTurns = store.participationMode === 'separate-turns';
   const ownsRole = (id: string) => !separateTurns || store.turn?.actorId === id;
+  // 5b: in solo play the player is Packing; the others give their own verdict.
+  const authoredRole = (id: string) => !separateTurns && s.mode === 'game' && id !== 'packing';
   const facilitator = !separateTurns || !store.turn;
   const mandateReady =
     !separateTurns || turnChecks(s).every((q) => store.turn?.answers[q.id] === q.correct);
@@ -111,8 +115,6 @@ export function WorkplaceImprovementPanel({
     return (
       <section ref={panelRef} tabIndex={-1} aria-label={t('regionLabel')} className="space-y-4">
         <h4 className="text-base font-semibold text-white">{t('introHeading')}</h4>
-        <p>{t('introIdea')}</p>
-        <p className="text-slate-300">{t('introProtected')}</p>
         {s.phase === 'idle' && (
           <div className="grid gap-2 sm:grid-cols-2">
             <label>
@@ -136,9 +138,12 @@ export function WorkplaceImprovementPanel({
                 value={profile}
                 onChange={(e) => setProfile?.(e.target.value as WorkplaceProfile)}
               >
-                <option value="toe-dip">{t('profileToeDip')}</option>
-                <option value="team">{t('profileTeam')}</option>
-                <option value="cooperative">{t('profileCooperative')}</option>
+                {/* 5.8: each charter by its one name (workplaceCampaign). */}
+                {WORKPLACE_PROFILES.map((id) => (
+                  <option key={id} value={id}>
+                    {charterTitle(getLocale(), id)}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -155,7 +160,6 @@ export function WorkplaceImprovementPanel({
         >
           {t('openExperiment')}
         </button>
-        {(mode ?? s.mode) === 'game' && <p className="text-slate-300">{t('openHoldNote')}</p>}
         {(mode ?? s.mode) === 'game' && setProfile && (
           <WorkplaceSeasonEntry
             profile={profile}
@@ -198,7 +202,6 @@ export function WorkplaceImprovementPanel({
         <p className="text-cyan-100" aria-live="polite">
           {summary.next}
         </p>
-        <p className="text-xs text-slate-300">{t('rolePlayNote')}</p>
       </div>
       {handoffHoldsClock(s) && (
         <section
@@ -208,27 +211,19 @@ export function WorkplaceImprovementPanel({
           <h5 className="font-semibold text-amber-100">{t('holdHeading')}</h5>
           <TeachingPace />
           {cancellable ? (
-            <>
-              <button
-                type="button"
-                className={button}
-                disabled={!facilitator}
-                onClick={() => perform(store.cancelImprovement(s.revision), true)}
-              >
-                {t('cancelExperiment')}
-              </button>
-              <p className="text-xs text-slate-300">{t('cancelNote')}</p>
-            </>
+            <button
+              type="button"
+              className={button}
+              disabled={!facilitator}
+              onClick={() => perform(store.cancelImprovement(s.revision), true)}
+            >
+              {t('cancelExperiment')}
+            </button>
           ) : deliberating ? (
-            <>
-              <button type="button" className={button} onClick={() => perform(store.stop())}>
-                {t('endShiftNow')}
-              </button>
-              <p className="text-xs text-slate-300">{t('endToReviewNote')}</p>
-            </>
-          ) : resumable ? null : (
-            <p className="text-xs text-slate-300">{t('finaliseToReleaseNote')}</p>
-          )}
+            <button type="button" className={button} onClick={() => perform(store.stop())}>
+              {t('endShiftNow')}
+            </button>
+          ) : null}
         </section>
       )}
       {openObjections.length > 0 && (
@@ -237,7 +232,6 @@ export function WorkplaceImprovementPanel({
           className="space-y-3 border-b border-slate-700 pb-4"
         >
           <h5 className="font-semibold text-white">{t('remediesHeading')}</h5>
-          <p className="text-slate-300">{t('remediesNote')}</p>
           {openObjections.map((objection) => {
             const role =
               s.members.find((member) => member.id === objection.actorId)?.role ?? t('adviser');
@@ -303,14 +297,7 @@ export function WorkplaceImprovementPanel({
               cash: formatFixed(s.finance.cash, 2),
             })}
           </p>
-          {advice ? (
-            <FrozenPackingAdvice advice={advice} />
-          ) : (
-            <p className="text-xs text-slate-300">
-              {s.mode === 'game' ? t('hearAdviserHint') : t('workshopNoForecast')}{' '}
-              {t('noCapacityBonus')}
-            </p>
-          )}
+          {advice && <FrozenPackingAdvice advice={advice} />}
           {deliberating && (
             <MatchedPackingRehearsal
               key={`${summary.cycle}-${i.proposalId}-${i.episode?.id ?? ''}`}
@@ -397,7 +384,6 @@ export function WorkplaceImprovementPanel({
       {deliberating && i.proposalId && (
         <div className="space-y-3">
           <h5 className="font-semibold text-white">{t('roleDecisionsHeading')}</h5>
-          <p className="text-xs text-slate-300">{t('roleDecisionsNote')}</p>
           {s.members.map((m) => (
             <fieldset
               key={m.id}
@@ -481,12 +467,9 @@ export function WorkplaceImprovementPanel({
           <p className="tabular-nums">
             {i.stopped
               ? t('arrangementStopped')
-              : t('arrangementExpires', {
-                  detail:
-                    arrangement?.briefingMinutes && s.minute < 5
-                      ? t('briefingInProgress')
-                      : t('watchLineDispatch'),
-                })}
+              : arrangement?.briefingMinutes && s.minute < 5
+                ? `${t('arrangementExpires')} ${t('briefingInProgress')}`
+                : t('arrangementExpires')}
           </p>
           <label>
             {t('stoppingRole')}
@@ -634,11 +617,9 @@ export function WorkplaceImprovementPanel({
                   <li key={line}>{line}</li>
                 ))}
               </ul>
-              <p className="text-xs text-slate-300">{learning.limitation}</p>
               <p className="text-cyan-100">{learning.question}</p>
               {s.mode === 'game' && (
                 <>
-                  <p className="text-xs text-slate-300">{t('comparisonNote')}</p>
                   <MatchedPackingRehearsal state={s} report={report} />
                 </>
               )}
@@ -676,7 +657,7 @@ export function WorkplaceImprovementPanel({
           {/* Owed recovery runs only on an explicit resume ('workplace' hold).
               Working if the player finds that resume beside the obligation. */}
           {s.mode === 'game' && !i.verdict && summary.currentRecoveryOwedMinutes > 0 && (
-            <TeachingPace />
+            <TeachingPace releases="workplace" />
           )}
           {!i.verdict &&
             s.members.map((m) => (
@@ -685,7 +666,7 @@ export function WorkplaceImprovementPanel({
                 <select
                   aria-label={t('reviewDecision', { role: m.role })}
                   className={input}
-                  disabled={!i.reviewAcknowledged || !ownsRole(m.id)}
+                  disabled={!i.reviewAcknowledged || !ownsRole(m.id) || authoredRole(m.id)}
                   value={i.ballots[m.id] ?? ''}
                   onChange={(e) =>
                     perform(store.voteImprovementReview(m.id, e.target.value as ImprovementVerdict))
@@ -700,6 +681,9 @@ export function WorkplaceImprovementPanel({
                   <option value="amend">{t('verdictAmend')}</option>
                   <option value="stop">{t('verdictStop')}</option>
                 </select>
+                {authoredRole(m.id) && i.ballots[m.id] && (
+                  <span className="mt-1 block text-slate-300">{authoredWhy(s, m.id)}</span>
+                )}
               </label>
             ))}
           {!i.verdict ? (
@@ -719,10 +703,8 @@ export function WorkplaceImprovementPanel({
               {/* A finalised review releases the plant clock (UnifiedGameTick).
                   Working if the panel says the experiment is over and offers the
                   plant pace here, with another handoff shift left optional. */}
-              <p className="text-cyan-100">
-                {s.mode === 'game' ? t('completeGame') : t('completeWorkshop')}
-              </p>
-              {s.mode === 'game' && <TeachingPace />}
+              <p className="text-cyan-100">{t('complete')}</p>
+              {s.mode === 'game' && <TeachingPace releases="workplace" />}
               <button
                 type="button"
                 className={button}
@@ -740,7 +722,6 @@ export function WorkplaceImprovementPanel({
               >
                 {t('closeExperiment')}
               </button>
-              <p className="text-xs text-slate-300">{t('closeNote')}</p>
             </>
           )}
         </div>

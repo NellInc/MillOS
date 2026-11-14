@@ -147,7 +147,73 @@ describe('chronicle store', () => {
     expect(useGameSimulationStore.getState().crisisState.active).toBe(false);
   });
 
-  it('loads a chronicle saved before part two with organisations, a certifier and desks', () => {
+  it('loads a chronicle saved with desks of attention, which were cut (D10)', () => {
+    useChronicleStore.getState().sign(DEFAULT_CHARTER, 21);
+    const saved = {
+      ...useChronicleStore.getState().chronicle,
+      shift: 7,
+      // The shape every save from part two until 2026-11-13 holds.
+      desks: {
+        works: { points: 1, room: 2, spent: 1 },
+        trade: { points: 2, room: 2, spent: 0 },
+        council: { points: 0, room: 3, spent: 5 },
+      },
+    } as Record<string, unknown>;
+    const merge = useChronicleStore.persist.getOptions().merge!;
+    const restored = merge(
+      JSON.parse(JSON.stringify({ chronicle: saved })),
+      useChronicleStore.getState()
+    ) as ReturnType<typeof useChronicleStore.getState>;
+    expect(restored.chronicle.shift).toBe(7);
+    expect(restored.chronicle.status).toBe('active');
+    expect('desks' in restored.chronicle).toBe(false);
+  });
+
+  it('loads a saved objection to a ruling beside an outvoted need (4.10)', () => {
+    useChronicleStore.getState().sign(DEFAULT_CHARTER, 21);
+    const chronicle = useChronicleStore.getState().chronicle;
+    const objections = [
+      { memberId: 'intake-grader', ruling: 'grower-terminated', raisedShift: 6 },
+      { memberId: 'packing', ladder: 'orders', rung: 0, raisedShift: 9 },
+    ];
+    const merge = useChronicleStore.persist.getOptions().merge!;
+    const restored = merge(
+      JSON.parse(
+        JSON.stringify({
+          chronicle: { ...chronicle, governance: { ...chronicle.governance, objections } },
+        })
+      ),
+      useChronicleStore.getState()
+    ) as ReturnType<typeof useChronicleStore.getState>;
+    expect(restored.chronicle.governance.objections).toEqual(objections);
+  });
+
+  it('loads the certifier with and without passes awaiting its review (4.9)', () => {
+    useChronicleStore.getState().sign(DEFAULT_CHARTER, 21);
+    const merge = useChronicleStore.persist.getOptions().merge!;
+    const load = (certifier: unknown) =>
+      (
+        merge(
+          JSON.parse(
+            JSON.stringify({ chronicle: { ...useChronicleStore.getState().chronicle, certifier } })
+          ),
+          useChronicleStore.getState()
+        ) as ReturnType<typeof useChronicleStore.getState>
+      ).chronicle.certifier;
+    // A save from before the review has no `review`.
+    expect(load({ score: 540, suspended: false })).toEqual({ score: 540, suspended: false });
+    expect(load({ score: 540, suspended: false, review: { batches: 3, hundredths: 24 } })).toEqual({
+      score: 540,
+      suspended: false,
+      review: { batches: 3, hundredths: 24 },
+    });
+    expect(load({ score: 540, suspended: false, review: { batches: 'x' } })).toEqual({
+      score: 540,
+      suspended: false,
+    });
+  });
+
+  it('loads a chronicle saved before part two with organisations and a certifier', () => {
     useChronicleStore.getState().sign(DEFAULT_CHARTER, 21);
     const saved = { ...useChronicleStore.getState().chronicle, shift: 40 } as Record<
       string,
@@ -160,7 +226,6 @@ describe('chronicle store', () => {
       'firedScheduled',
       'stakeholders',
       'certifier',
-      'desks',
       'longNightTelegraphed',
     ])
       delete saved[key];
@@ -176,7 +241,6 @@ describe('chronicle store', () => {
       'federation',
     ]);
     expect(chronicle.certifier).toEqual({ score: 500, suspended: false });
-    expect(chronicle.desks.council.points).toBe(2);
     expect(chronicle.marks).toEqual({});
     // Scheduled events whose shift has gone are passed over, not all delivered at once;
     // the long night (shift 54) is still to come.

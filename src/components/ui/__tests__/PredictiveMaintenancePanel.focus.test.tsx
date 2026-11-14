@@ -2,10 +2,11 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PredictiveMaintenancePanel } from '../PredictiveMaintenancePanel';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
-import { useProductionStore } from '../../../stores/productionStore';
+import { getWearConfig, useProductionStore } from '../../../stores/productionStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { MachineType, type MachineData } from '../../../types';
+import { stepUnitWork } from '../../../systems/unitService';
 
 const worn: MachineData = {
   id: 'focus-mill',
@@ -28,7 +29,8 @@ const press = (name: string) => {
 
 // Every action in this panel removes or replaces the control that was pressed:
 // Acknowledge and Schedule remove the prediction, each work-order step swaps
-// its button for the next, and Complete removes the task. Focus used to fall
+// its button for the next, and Start swaps the task's button for its minutes
+// left (D7; it was Complete, which removed the task). Focus used to fall
 // to <body>, throwing a keyboard user to the top of the page at every step.
 // Working if focus stays in the section the player was working in, on the
 // next step's button when there is one.
@@ -79,7 +81,7 @@ describe('PredictiveMaintenancePanel focus after an action', () => {
     expect(document.activeElement).toHaveAttribute('data-breakdown-id', breakdown!.id);
   });
 
-  it('keeps focus in Scheduled Maintenance after completing the last task', () => {
+  it('keeps focus in Scheduled Maintenance after starting the last task', () => {
     useBreakdownStore.getState().scheduleMaintenanceTask({
       machineId: worn.id,
       machineName: worn.name,
@@ -89,7 +91,15 @@ describe('PredictiveMaintenancePanel focus after an action', () => {
       partsNeeded: ['bearings'],
     });
     render(<PredictiveMaintenancePanel />);
-    press('Complete maintenance on Focus mill');
+    press('Start maintenance on Focus mill');
+    expect(useBreakdownStore.getState().maintenanceSchedule[0].serviceMinutesLeft).toBe(
+      getWearConfig(MachineType.ROLLER_MILL).serviceMinutes
+    );
+    expect(document.activeElement).toBe(
+      screen.getByRole('heading', { name: 'Scheduled Maintenance' })
+    );
+    // The service finishing closes the task; focus stays in the section.
+    act(() => stepUnitWork(getWearConfig(MachineType.ROLLER_MILL).serviceMinutes * 60));
     expect(useBreakdownStore.getState().maintenanceSchedule[0].completed).toBe(true);
     expect(document.activeElement).toBe(
       screen.getByRole('heading', { name: 'Scheduled Maintenance' })

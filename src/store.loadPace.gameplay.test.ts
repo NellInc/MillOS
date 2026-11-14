@@ -19,6 +19,8 @@ const fakeService = {
   getState: () => ({ mode: 'simulation', connected: true }),
   updateMachineStates: () => undefined,
   updateOperationalValues: () => undefined,
+  // The bridge binds the mills' roll-speed setpoints to the line rate.
+  writeSetpoint: async () => true,
   stop: async () => undefined,
 };
 

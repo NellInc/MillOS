@@ -1,10 +1,6 @@
 import { defineMessages } from '../../../i18n';
+import { charterTitle } from '../../../simulation/workplaceCampaign.messages';
 
-const PT_PROFILE: Record<string, string> = {
-  'toe-dip': 'liderado pela coordenação',
-  team: 'acordo da equipe',
-  cooperative: 'governança dos cooperados',
-};
 const PT_DELIVERY: Record<string, string> = {
   met: 'cumprida',
   blocked: 'bloqueada',
@@ -36,46 +32,34 @@ interface ReviewSummaryParams {
   agreement: string;
 }
 
-/** The approach by the title the setup form gives it (MANAGEMENT_APPROACHES), not its id. */
-const EN_PROFILE: Record<string, string> = {
-  'toe-dip': 'Coordinator-led',
-  team: 'Team agreement',
-  cooperative: 'Member governance',
-};
-
 /** Status ids stay verbatim in English, which is what the review always printed. */
 export const workplaceCampaignArchiveMessages = defineMessages({
   en: {
     reviewSummary: (p: ReviewSummaryParams) =>
-      `${EN_PROFILE[p.profile] ?? p.profile}, seed ${p.seed}: delivery ${p.delivery}, agreement ${p.agreement}`,
+      `${charterTitle('en', p.profile)}, seed ${p.seed}: delivery ${p.delivery}, agreement ${p.agreement}`,
     dispatched: 'Dispatched {delivered} / {target} kg. Full commitment remaining: {remaining} kg.',
-    accounts:
-      'Illustrative credits: closing cash {cash}; wages paid {wages}; compensation paid {compensation}.',
+    accounts: 'Credits: closing cash {cash}; wages paid {wages}; compensation paid {compensation}.',
     memberLine:
       '{role}: extra duty {extra} min; rest {rest} min; recovery delivered {recovery} min; recovery owed {owed} min.',
     download: 'Download this redacted review',
     regionLabel: 'Completed workplace campaigns',
     freshHeading: 'Keep the review, try another charter',
-    freshIntro:
-      'Archive these three shifts before opening a fresh exercise. Earned pay, delivered recovery and shortfalls stay in the review. New terms need new role understanding, ballots and individual consent.',
-    freshCredits:
-      'Each exercise opens with 400 illustrative credits. Mill inventory, customer commitments and physical production continue unchanged.',
     archiveButton: 'Archive review and open a fresh exercise',
     blockedReplay: 'Finish or forget the matched replay first.',
     blockedPaused:
       'A reload paused the final shift before its end. Resume it in Review, then finish or end it, before archiving.',
+    blockedPausedSafety:
+      'An emergency stop or drill paused the final shift before its end. Resume it in Review, then finish or end it, before archiving.',
+    blockedPausedObjection:
+      'An objection paused the final shift before its end. Resume it in Review, then finish or end it, before archiving.',
     blockedObligations: 'Deliver owed recovery and settle open objections and reserved pay first.',
     retainedReviews: 'Retained campaign reviews ({count})',
-    retainedNote:
-      'The last six reviews stay on this browser, with private preferences redacted. Download any review you want to keep longer. A historical review cannot restart an agreement.',
     leaveButton: 'Leave this season',
     leaveKept:
-      'Leaving keeps what was earned: {kg} kg delivered to {customer}, {pay} credits in pay and cover, and {recovery} minutes of recovery delivered. It is kept as a season left early, not a completed one, and customer and next-programme choices open again.',
+      'Leaving keeps what was earned: {kg} kg delivered to {customer}, {pay} credits in pay and cover, and {recovery} minutes of recovery delivered.',
     leaveWaitActive: 'Leaving waits until this shift is stopped or ends, so its pay settles first.',
     leaveWaitObligations: 'Leaving waits until nothing is owed. {reasons}',
     leftSeasons: 'Seasons left early ({count})',
-    leftNote:
-      'Each was left before its final review. It keeps the pay, recovery and receipts it earned and does not count as a completed season.',
     leftSummary: 'Left early at shift {shift} of 3, seed {seed}',
     followOnStopped: (p: { customer: string; evidence: string }) =>
       `Credit from ${p.customer} has stopped: ${EN_EVIDENCE[p.evidence] ?? EN_EVIDENCE.missing}.`,
@@ -86,39 +70,35 @@ export const workplaceCampaignArchiveMessages = defineMessages({
   },
   'pt-BR': {
     reviewSummary: (p: ReviewSummaryParams) =>
-      `${PT_PROFILE[p.profile] ?? p.profile}, semente ${p.seed}: entrega ${
+      `${charterTitle('pt-BR', p.profile)}, semente ${p.seed}: entrega ${
         PT_DELIVERY[p.delivery] ?? p.delivery
       }, acordo ${PT_AGREEMENT[p.agreement] ?? p.agreement}`,
     dispatched: 'Expedido: {delivered} / {target} kg. Compromisso total restante: {remaining} kg.',
     accounts:
-      'Créditos ilustrativos: caixa de fechamento {cash}; remuneração paga {wages}; compensação paga {compensation}.',
+      'Créditos: caixa de fechamento {cash}; remuneração paga {wages}; compensação paga {compensation}.',
     memberLine:
       '{role}: serviço extra {extra} min; descanso {rest} min; recuperação concedida {recovery} min; recuperação devida {owed} min.',
     download: 'Baixar esta revisão com dados ocultados',
     regionLabel: 'Campanhas de trabalho concluídas',
     freshHeading: 'Guarde a revisão, experimente outro estatuto',
-    freshIntro:
-      'Arquive estes três turnos antes de abrir um novo exercício. A remuneração conquistada, a recuperação concedida e os déficits permanecem na revisão. Novos termos exigem novo entendimento das funções, novas votações e consentimento individual.',
-    freshCredits:
-      'Cada exercício começa com 400 créditos ilustrativos. O estoque do moinho, os compromissos com clientes e a produção física continuam inalterados.',
     archiveButton: 'Arquivar a revisão e abrir um novo exercício',
     blockedReplay: 'Primeiro conclua ou descarte a reprodução pareada.',
     blockedPaused:
       'Uma recarga pausou o turno final antes do fim. Retome-o em Revisão e depois conclua-o ou encerre-o antes de arquivar.',
+    blockedPausedSafety:
+      'Uma parada de emergência ou um simulado pausou o turno final antes do fim. Retome-o em Revisão e depois conclua-o ou encerre-o antes de arquivar.',
+    blockedPausedObjection:
+      'Uma objeção pausou o turno final antes do fim. Retome-o em Revisão e depois conclua-o ou encerre-o antes de arquivar.',
     blockedObligations:
       'Primeiro conceda a recuperação devida e resolva as objeções abertas e a remuneração reservada.',
     retainedReviews: 'Revisões de campanha guardadas ({count})',
-    retainedNote:
-      'As seis revisões mais recentes ficam neste navegador, com as preferências privadas ocultadas. Baixe qualquer revisão que quiser guardar por mais tempo. Uma revisão histórica não pode reiniciar um acordo.',
     leaveButton: 'Sair desta temporada',
     leaveKept:
-      'Sair mantém o que foi conquistado: {kg} kg entregues a {customer}, {pay} créditos de remuneração e cobertura e {recovery} minutos de recuperação concedida. Ela fica guardada como temporada encerrada antes do fim, não como concluída, e as escolhas de cliente e do próximo programa voltam a ficar disponíveis.',
+      'Sair mantém o que foi conquistado: {kg} kg entregues a {customer}, {pay} créditos de remuneração e cobertura e {recovery} minutos de recuperação concedida.',
     leaveWaitActive:
       'Para sair, espere este turno ser parado ou terminar, para que a remuneração seja acertada antes.',
     leaveWaitObligations: 'Para sair, nada pode estar devido. {reasons}',
     leftSeasons: 'Temporadas encerradas antes do fim ({count})',
-    leftNote:
-      'Cada uma foi encerrada antes da revisão final. Ela mantém a remuneração, a recuperação e os comprovantes conquistados e não conta como temporada concluída.',
     leftSummary: 'Encerrada antes do fim no turno {shift} de 3, semente {seed}',
     followOnStopped: (p: { customer: string; evidence: string }) =>
       `O crédito de ${p.customer} foi interrompido: ${PT_EVIDENCE[p.evidence] ?? PT_EVIDENCE.missing}.`,

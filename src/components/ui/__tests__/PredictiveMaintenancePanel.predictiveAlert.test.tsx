@@ -2,9 +2,10 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PredictiveMaintenancePanel } from '../PredictiveMaintenancePanel';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
-import { useProductionStore } from '../../../stores/productionStore';
+import { getWearConfig, useProductionStore } from '../../../stores/productionStore';
 import { useUIStore } from '../../../stores/uiStore';
 import { MachineType, type MachineData } from '../../../types';
+import { stepUnitWork } from '../../../systems/unitService';
 
 const worn: MachineData = {
   id: 'task-mill',
@@ -37,8 +38,9 @@ describe('PredictiveMaintenancePanel completed task and the open prediction', ()
 
   // A prediction raised after the task was booked (the first one is
   // acknowledged by Schedule) still names a failure window that the completed
-  // service has removed.
-  it('stops listing the machine prediction once the task is completed', () => {
+  // service has removed. Start closes it when the service begins (D7), and it
+  // stays closed when the service is performed.
+  it('stops listing the machine prediction once the service starts, and after it is done', () => {
     const store = useBreakdownStore.getState;
     store().scheduleMaintenanceTask({
       machineId: worn.id,
@@ -54,8 +56,13 @@ describe('PredictiveMaintenancePanel completed task and the open prediction', ()
       screen.getByRole('button', { name: 'Acknowledge prediction for Task mill' })
     ).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Complete maintenance on Task mill' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start maintenance on Task mill' }));
+    expect(
+      screen.queryByRole('button', { name: 'Acknowledge prediction for Task mill' })
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('No predicted failures')).toBeVisible();
 
+    act(() => stepUnitWork(getWearConfig(MachineType.ROLLER_MILL).serviceMinutes * 60));
     expect(useProductionStore.getState().machines[0].metrics.wear).toBe(20);
     expect(
       screen.queryByRole('button', { name: 'Acknowledge prediction for Task mill' })

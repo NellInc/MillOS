@@ -174,7 +174,7 @@ describe('accepting the next programme', () => {
       remainingKg: 2500,
     });
     expect(state.logbook.at(-1)?.message).toBe(
-      'Accepted programme 2: rush Community Pasta Works 2,500 kg, 11,500 kg in all. Existing material and genealogy remain unchanged.'
+      'Accepted programme 2: rush Community Polenta Kitchen 2,500 kg, 11,500 kg in all. Existing material and genealogy remain unchanged.'
     );
     // Accepted on the night shift, the next one carries the larger bulk order.
     useOperationsCampaignStore.setState({ currentShiftKey: 'day-0-night' });

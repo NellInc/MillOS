@@ -16,4 +16,3 @@ export {
   UnlockNotificationContainer,
   useUnlockNotifications,
 } from './UnlockNotification';
-export { AINarration, AINarrationModal, AINarrationInline } from './AINarration';

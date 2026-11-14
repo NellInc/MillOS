@@ -44,6 +44,7 @@ import {
 import { CANAL_FOOTBRIDGE_ACCESS } from '../../constants/publicRealmLayout';
 import {
   TOWN_HALL_HEDGE_GEOMETRY,
+  TOWN_HALL_PRIVET_RUNS,
   VILLAGE_ALLOTMENT_GEOMETRY,
   VILLAGE_HOMES,
 } from '../../components/scenery/VillageGardens';
@@ -699,11 +700,13 @@ describe('walking obstacles: hedges agree with their layout', () => {
   it("the town hall privet is the delivered hedge geometry's runs", () => {
     const gardens = readFileSync('src/components/scenery/VillageGardens.tsx', 'utf8');
     for (const literal of [
-      'run(side * 8, 0, 12, true);',
-      'for (const end of [-1, 1]) run(side * 5.9, end * 8.2, 3.4, false);',
+      'for (const [x, z, length, alongZ] of TOWN_HALL_PRIVET_RUNS) run(x, z, length, alongZ);',
       'const half = length / 2 + 0.36,',
     ])
       expect(gardens, literal).toContain(literal);
+    expect(TOWN_HALL_PRIVET.runs).toEqual(
+      TOWN_HALL_PRIVET_RUNS.map(([x, z, length, alongZ]) => ({ x, z, length, alongZ }))
+    );
     expect(readFileSync('src/components/VillageArea.tsx', 'utf8')).toContain('<TownHallPrivet />');
     // Every vertex of the privet above its soil strip lies in a declared run,
     // and each run's declared reach is met by the geometry.

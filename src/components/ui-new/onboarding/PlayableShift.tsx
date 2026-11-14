@@ -5,16 +5,22 @@ import { Minimize2, X } from 'lucide-react';
 import { useUIStore } from '../../../stores/uiStore';
 import { useMobileControlStore } from '../../../stores/mobileControlStore';
 import {
+  NOTICE_HOLDERS,
   selectChosenPace,
   selectClockHolder,
   selectPaceUnderPause,
   SHIFT_CLOSING_TIME,
   useGameSimulationStore,
+  type NoticeHolder,
 } from '../../../stores/gameSimulationStore';
 import { isPaceGameSpeed, PACE_GAME_SPEEDS, STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import { paceMessages } from '../../../simulation/pace.messages';
 import { FollowOnNotice, WorkplaceLeaveSeason } from '../widgets/WorkplaceCampaignArchive';
-import { useWorkplaceStore, workplaceReasonText } from '../../../stores/workplaceStore';
+import {
+  firstDeliveryFulfilled,
+  useWorkplaceStore,
+  workplaceReasonText,
+} from '../../../stores/workplaceStore';
 import {
   improvementSummary,
   improvementObligations,
@@ -24,6 +30,7 @@ import {
   campaignTotals,
   formatKg,
   shiftResumable,
+  campaignShiftPause,
 } from '../../../simulation/workplaceCampaign';
 import { displayEventDetail } from '../../../simulation/bilateralWorkplace';
 import type {
@@ -39,8 +46,12 @@ import {
 } from '../../../stores/operationsCampaignStore';
 import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
+import { useChronicleStore } from '../../../stores/chronicleStore';
+import { noteCharterOfferOpened } from '../../../chronicle/funnel';
 import {
   deriveOperationsPlay,
+  nextLayerWorkspace,
+  type NextLayer,
   RECOVERY_CHALLENGE_TARGET_KG,
   RECOVERY_CHALLENGE_WINDOW_MINUTES,
 } from '../../../simulation/operationsPlay';
@@ -55,6 +66,9 @@ import { formatFixed, formatGrouped, useLocale, useT } from '../../../i18n';
 import {
   describeOrderOutcome,
   describeShiftGap,
+  describeShiftOee,
+  describeShiftProposals,
+  describeShiftPurchases,
   describeShiftTryNext,
   nothingDueYet,
   shiftGradeReasons,
@@ -66,14 +80,18 @@ import { playableShiftMessages } from './PlayableShift.messages';
 import { openRepairWorkspace } from '../openRepairWorkspace';
 import { useProductionStore } from '../../../stores/productionStore';
 import { focusDockItem } from '../dock/focusDockItem';
+import { customerDisplayName } from '../../../stores/customerNames';
 
 const BUTTON =
   'min-h-11 rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-400/10 disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300';
 const CARD = 'rounded-xl border border-cyan-400/20 bg-slate-900/90 p-3 text-sm text-slate-200';
 // Short, wide screens put the lesson beside the soundtrack and above the dock.
 // Working if compact pace remains visible at844x390 without covering either.
+// While the compact layout shows the Inspector (the context sidebar), the card
+// is hidden but stays mounted, so the inspection still records: on a phone it
+// sat over the Inspector's title and Close, and its own X was what got tapped.
 const JOURNEY_FRAME =
-  'pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 shadow-xl sm:left-5 sm:right-auto sm:w-[360px] [@media(min-width:640px)_and_(max-height:500px)]:left-auto [@media(min-width:640px)_and_(max-height:500px)]:right-5 [@media(min-width:640px)_and_(max-height:500px)]:bottom-28 [@media(min-width:640px)_and_(max-height:500px)]:max-h-[calc(100dvh-11rem)]';
+  'pointer-events-auto fixed bottom-[11.5rem] left-3 right-3 z-40 max-h-[calc(100dvh-20rem)] overflow-y-auto overscroll-contain rounded-xl border border-cyan-400/40 bg-slate-950/95 shadow-xl sm:left-5 sm:right-auto sm:w-[360px] [@media(min-width:640px)_and_(max-height:500px)]:left-auto [@media(min-width:640px)_and_(max-height:500px)]:right-5 [@media(min-width:640px)_and_(max-height:500px)]:bottom-28 [@media(min-width:640px)_and_(max-height:500px)]:max-h-[calc(100dvh-11rem)] [[data-compact-layout][data-sidebar-visible=true]_&]:hidden';
 
 /**
  * The player's "Compact delivery guide" choice, outside the card: the host
@@ -89,6 +107,9 @@ const useJourneyCompactStore = create<{ orderId: string | null; compact: boolean
 }));
 const resetJourneyCompact = () =>
   useJourneyCompactStore.setState({ orderId: null, compact: false });
+/** The card's own collapse, for a returning player's guide (hud/reorientAfterRestore). */
+export const showJourneyCompact = (orderId: string) =>
+  useJourneyCompactStore.setState({ orderId, compact: true });
 // startDeliveryJourney is the only writer that empties the inspection record,
 // with a fresh array on every call, so a new empty array marks a new run. The
 // watch starts with the first card and stays: a replay can land while the
@@ -129,19 +150,58 @@ type StatusLine = { message: string; result?: WorkplaceTransitionResult };
 const statusLineText = (line: StatusLine): string =>
   (line.result && workplaceReasonText(line.result)) || line.message;
 
-export function PaceHoldNote() {
+const NOTICE_EXIT_LABEL = {
+  restoreFailed: 'continueWithoutSave',
+  scada: 'resumeClock',
+} as const satisfies Record<NoticeHolder, string>;
+const isNoticeHolder = (holder: string): holder is NoticeHolder =>
+  (NOTICE_HOLDERS as readonly string[]).includes(holder);
+
+/**
+ * Who holds the clock, beside the pace controls. A pace choice the hold
+ * refused (D21) re-renders it as the error on that action (`refusal` counts
+ * the refusals, so each one is announced). A hold no feature releases carries
+ * its own exit here, so nothing can hold the clock with no way out.
+ */
+export function PaceHoldNote({ refusal = 0 }: { refusal?: number }) {
   const holder = useGameSimulationStore(selectClockHolder);
+  const releaseNoticeHold = useGameSimulationStore((s) => s.releaseNoticeHold);
   const pace = useT(paceMessages);
-  if (!holder || holder === 'player') return null;
+  // The player's own pauses (a chosen Paused, or P) are never refused and the
+  // HUD's paused chip names them with their key: no line here. In Portuguese
+  // the P line fell below the guide card's fold at 1280 x 720.
+  if (!holder || holder === 'player' || holder === 'shortcut') return null;
   return (
-    <p className="mt-1 text-xs leading-5 text-amber-200" aria-live="polite">
-      {pace(`heldBy_${holder}`)}
-    </p>
+    <div className="mt-1">
+      {refusal > 0 ? (
+        <p key={refusal} role="alert" className="text-xs leading-5 font-semibold text-amber-100">
+          {pace(`heldBy_${holder}`)}
+        </p>
+      ) : (
+        <p className="text-xs leading-5 text-amber-200" aria-live="polite">
+          {pace(`heldBy_${holder}`)}
+        </p>
+      )}
+      {isNoticeHolder(holder) && (
+        <button
+          type="button"
+          onClick={() => releaseNoticeHold(holder)}
+          className="mt-1 min-h-11 rounded bg-slate-700 px-3 text-xs font-bold text-white hover:bg-slate-600"
+        >
+          {pace(NOTICE_EXIT_LABEL[holder])}
+        </button>
+      )}
+    </div>
   );
 }
 
-export function TeachingPace() {
-  const setSpeed = useGameSimulationStore((s) => s.setGameSpeed);
+/**
+ * Shift pace. `releases` names a feature whose own panel hosts it as that
+ * hold's exit (D21); anywhere else a feature's hold refuses the choice.
+ */
+export function TeachingPace({ releases }: { releases?: 'workplace' } = {}) {
+  const choosePace = useGameSimulationStore((s) => s.choosePace);
+  const [refusal, setRefusal] = useState(0);
   const t = useT(playableShiftMessages);
   const pace = useT(paceMessages);
   const shown = useGameSimulationStore(selectChosenPace);
@@ -155,14 +215,17 @@ export function TeachingPace() {
             caveat. Working if every option keeps the first delivery winnable. */}
         <select
           aria-label={t('shiftPace')}
-          title={pace('paceTitle')}
           value={known ? shown : 'custom'}
           onChange={(e) => {
             // A new running pace is the player's decision; a pause to inspect is
             // not (the same rule as the Overview pace buttons).
             const value = Number(e.target.value);
             const before = selectPaceUnderPause(useGameSimulationStore.getState());
-            setSpeed(value);
+            // A feature's hold refuses the choice and is named (D21).
+            if (choosePace(value, releases) !== null) {
+              setRefusal((count) => count + 1);
+              return;
+            }
             if (value > 0 && value !== before)
               recordOperatorAction({ kind: 'pace', gameSpeed: value });
           }}
@@ -176,10 +239,54 @@ export function TeachingPace() {
           {!known && <option value="custom">{pace('paceCustom')}</option>}
         </select>
       </label>
-      <PaceHoldNote />
+      <PaceHoldNote refusal={refusal} />
     </div>
   );
 }
+
+/**
+ * The layers a completed programme hands over beside the next programme: the
+ * cooperative season and the Chronicle charter, each opening its workspace.
+ * The charter press is counted by the local playtest funnel where one runs.
+ * Working if a completed programme offers both and each opens its workspace.
+ */
+function NextLayerButtons({ layers }: { layers: readonly NextLayer[] }) {
+  const playT = useT(operationsPlayMessages);
+  return (
+    <>
+      {layers.map((layer) => (
+        <button
+          key={layer}
+          className={BUTTON}
+          onClick={() => {
+            if (layer === 'chronicle') noteCharterOfferOpened();
+            window.dispatchEvent(
+              new CustomEvent('millos:open-operations-workspace', {
+                detail: nextLayerWorkspace(layer),
+              })
+            );
+          }}
+        >
+          {playT(layer === 'season' ? 'layerSeasonLabel' : 'layerCharterLabel')}
+        </button>
+      ))}
+    </>
+  );
+}
+
+/** The incidents the Chronicle raised: their next action is its Restore controls. */
+const ownedIncidentIds = (owned: readonly { incidentId: string }[]) =>
+  owned.map((entry) => entry.incidentId);
+/** Next actions a finished guide sends to Overview; the rest go to SCADA or the Chronicle. */
+const OVERVIEW_NEXT_KINDS: readonly string[] = [
+  'quality',
+  'programme',
+  'acknowledge',
+  'mitigate',
+  'resume',
+  'resolve',
+  'repair',
+];
 
 export function FirstDeliveryJourney({
   selectedMachine,
@@ -233,12 +340,14 @@ export function FirstDeliveryJourney({
     })
   );
   const order = campaign.orders.find((item) => item.id === ui.orderId) ?? null;
+  const productionSpeed = useProductionStore((s) => s.productionSpeed);
   const guide = deriveDeliveryJourney(
     order,
     campaign.execution,
     ui.inspected,
     shippingTruck,
-    fault.workOrderId ? fault : null
+    fault.workOrderId ? fault : null,
+    productionSpeed
   );
   const sceneFocused = useJourneyCompactStore((s) => s.compact && s.orderId === ui.orderId);
   const setSceneFocused = useCallback(
@@ -372,14 +481,22 @@ export function FirstDeliveryJourney({
     campaign.orders.length > 0 &&
     campaign.orders.every((item) => item.status === 'fulfilled' || item.status === 'cancelled');
   const completed = order?.status === 'fulfilled' || guidedOrderGone || programmeDone;
-  const play = deriveOperationsPlay(campaign);
+  const chronicleOwned = useChronicleStore((s) => s.chronicle.ownedIncidents);
+  const play = deriveOperationsPlay(campaign, ownedIncidentIds(chronicleOwned));
   const currentOrder =
     completed && play.nextAction.kind !== 'programme' && play.activeOrder?.id !== order?.id
       ? play.activeOrder
       : null;
   const currentDeadline = deriveDeliveryDeadline(currentOrder, campaign.elapsedMinutes);
   // Opening Overview for a repair also lands on its maintenance section.
-  const openWorkspace = (mode: 'scada' | 'overview') => {
+  // A Chronicle-raised incident is restored in the Chronicle workspace.
+  const openWorkspace = (mode: 'scada' | 'overview' | 'chronicle') => {
+    if (mode === 'chronicle') {
+      window.dispatchEvent(
+        new CustomEvent('millos:open-operations-workspace', { detail: 'chronicle' })
+      );
+      return;
+    }
     if (
       mode === 'overview' &&
       (guide.focus === 'maintenance' || (completed && play.nextAction.kind === 'repair'))
@@ -387,13 +504,13 @@ export function FirstDeliveryJourney({
       useUIStore.getState().requestMaintenanceFocus();
     onOpenWorkspace(mode);
   };
-  const compactWorkspace: 'overview' | 'scada' | null = completed
-    ? ['quality', 'programme', 'acknowledge', 'mitigate', 'resume', 'resolve', 'repair'].includes(
-        play.nextAction.kind
-      )
-      ? 'overview'
-      : 'scada'
-    : guide.workspace;
+  const completedWorkspace: 'overview' | 'scada' | 'chronicle' =
+    play.nextAction.kind === 'chronicle'
+      ? 'chronicle'
+      : OVERVIEW_NEXT_KINDS.includes(play.nextAction.kind)
+        ? 'overview'
+        : 'scada';
+  const compactWorkspace = completed ? completedWorkspace : guide.workspace;
   if (completed && !sceneFocused)
     return (
       <section ref={cardRef} aria-label={t('guidedDelivery')} className={`${JOURNEY_FRAME} p-4`}>
@@ -427,7 +544,7 @@ export function FirstDeliveryJourney({
                   locale
                 )
               : t('fulfilledDispatched', {
-                  customer: order.customer,
+                  customer: customerDisplayName(order.customer),
                   kg: formatKg(order.shippedKg),
                 })}
           </p>
@@ -439,7 +556,7 @@ export function FirstDeliveryJourney({
         {currentOrder && currentDeadline && (
           <p className="mt-2 text-sm leading-6 text-white">
             {t('currentOrder', {
-              customer: currentOrder.customer,
+              customer: customerDisplayName(currentOrder.customer),
               shipped: formatGrouped(shownShippedKg(currentOrder)),
               required: formatGrouped(Math.round(currentOrder.requiredKg)),
               due: currentDeadline.label,
@@ -450,41 +567,24 @@ export function FirstDeliveryJourney({
             day, as on the first-delivery card, never behind the receipt.
             Working if Shift pace is visible at 1366x768 and 1280x657. */}
         <TeachingPace />
-        <p className="mt-3 text-sm font-semibold text-cyan-100" aria-live="polite">
-          {play.nextAction.kind === 'programme' ? t('programmeComplete') : play.nextAction.label}
-        </p>
-        <p className="mt-1 text-xs leading-5 text-slate-300">
-          {play.nextAction.kind === 'programme'
-            ? t('programmeCompleteDetail')
-            : play.nextAction.consequence}
-        </p>
-        {/* Pinned like the first delivery's actions, so a long current-order
-            line (pt-BR at 1280x657) never pushes the next step below the fold. */}
-        <div className="sticky bottom-[-1rem] -mx-4 mt-3 border-t border-slate-800 bg-slate-950 px-4 pt-3 pb-7">
-          <button
-            className={BUTTON}
-            onClick={() =>
-              openWorkspace(
-                [
-                  'quality',
-                  'programme',
-                  'acknowledge',
-                  'mitigate',
-                  'resume',
-                  'resolve',
-                  'repair',
-                ].includes(play.nextAction.kind)
-                  ? 'overview'
-                  : 'scada'
-              )
-            }
-          >
+        {/* One next-step line (D-012): the workspace the button opens carries
+            the detail. Pinned with that button, like the first delivery's
+            actions: above the bar, the line went wholly under it in Portuguese
+            at 1280x720 (pace label and select on two rows). */}
+        <div className="sticky bottom-[-1rem] -mx-4 mt-3 flex flex-wrap gap-2 border-t border-slate-800 bg-slate-950 px-4 pt-3 pb-7">
+          <p className="w-full text-sm font-semibold text-cyan-100" aria-live="polite">
+            {play.nextAction.kind === 'programme' ? t('programmeComplete') : play.nextAction.label}
+          </p>
+          <button className={BUTTON} onClick={() => openWorkspace(completedWorkspace)}>
             {play.nextAction.kind === 'programme'
               ? t('reviewShiftProgramme')
               : compactWorkspace === 'overview'
                 ? t('openOverview')
-                : t('openScada')}
+                : compactWorkspace === 'chronicle'
+                  ? t('openChronicle')
+                  : t('openScada')}
           </button>
+          <NextLayerButtons layers={play.nextLayers} />
         </div>
         {order && (
           <details className="mt-2 text-xs text-slate-300">
@@ -493,6 +593,7 @@ export function FirstDeliveryJourney({
             </summary>
             <p className="leading-5">{guide.detail}</p>
             <LearningNote entryId={guide.entryId} />
+            <LearningNote entryId={guide.millingEntryId} />
           </details>
         )}
       </section>
@@ -535,7 +636,7 @@ export function FirstDeliveryJourney({
           <p className="mt-1 text-xs leading-5 text-white">
             {currentOrder && currentDeadline
               ? t('currentOrder', {
-                  customer: currentOrder.customer,
+                  customer: customerDisplayName(currentOrder.customer),
                   shipped: formatGrouped(shownShippedKg(currentOrder)),
                   required: formatGrouped(Math.round(currentOrder.requiredKg)),
                   due: currentDeadline.label,
@@ -546,6 +647,17 @@ export function FirstDeliveryJourney({
           </p>
         ) : (
           <>
+            {/* The compact card names its order, so a player returning to it
+                knows which commitment is running. */}
+            {order && (
+              <p className="mt-1 text-xs text-cyan-200">
+                {t('orderLine', {
+                  customer: customerDisplayName(order.customer),
+                  kg: formatKg(order.requiredKg),
+                  product: order.recipe.label,
+                })}
+              </p>
+            )}
             <DeliveryDeadline order={order} elapsedMinutes={campaign.elapsedMinutes} />
             <p className="mt-1 text-xs leading-5 text-slate-300">
               {t('inspectionStatus', {
@@ -567,11 +679,10 @@ export function FirstDeliveryJourney({
               ? !completed && guide.quality
                 ? t('reviewDeliveryQc')
                 : t('openOverview')
-              : t('openScada')}
+              : compactWorkspace === 'chronicle'
+                ? t('openChronicle')
+                : t('openScada')}
           </button>
-        )}
-        {!ui.inspected && (
-          <p className="text-xs leading-5 text-cyan-200">{t('selectMachineHint')}</p>
         )}
         {!completed && inspectButton(`${BUTTON} mt-2 w-full`)}
       </section>
@@ -583,7 +694,7 @@ export function FirstDeliveryJourney({
             own first order is "your first delivery". */}
         <h2 ref={headingRef} tabIndex={-1} className={`font-semibold text-white ${HEADING_FOCUS}`}>
           {order && order.id !== FIRST_ORDER_ID
-            ? t('deliveryFor', { customer: order.customer })
+            ? t('deliveryFor', { customer: customerDisplayName(order.customer) })
             : t('firstDelivery')}
         </h2>
         <button
@@ -602,7 +713,7 @@ export function FirstDeliveryJourney({
       <p className="mt-2 text-xs text-cyan-200">
         {order
           ? t('orderLine', {
-              customer: order.customer,
+              customer: customerDisplayName(order.customer),
               kg: formatKg(order.requiredKg),
               product: order.recipe.label,
             })
@@ -694,6 +805,7 @@ export function FirstDeliveryJourney({
         </div>
       )}
       <LearningNote entryId={guide.entryId} />
+      <LearningNote entryId={guide.millingEntryId} />
       <button className={`${BUTTON} mt-3`} onClick={() => closeGuide()}>
         {t('skipGuide')}
       </button>
@@ -763,7 +875,7 @@ function WorkingAgreementSummary({
           status: t('deliveryStatus', { status: outcome.delivery.status }),
           deliveredKg: formatKg(outcome.delivery.deliveredKg),
           targetKg: formatKg(outcome.delivery.targetKg),
-          customer: outcome.delivery.customer,
+          customer: customerDisplayName(outcome.delivery.customer),
         })}
       </p>
       {outcome.delivery.deferredKg > 0 && (
@@ -776,7 +888,7 @@ function WorkingAgreementSummary({
       {state.campaign.followOn && (
         <p>
           {t('followOnCredit', {
-            customer: state.campaign.followOn.customer,
+            customer: customerDisplayName(state.campaign.followOn.customer),
             kg: formatKg(state.campaign.followOn.creditedKg),
           })}
         </p>
@@ -789,13 +901,23 @@ function WorkingAgreementSummary({
         })}
       </p>
       {/* An incomplete agreement says what settled the shift (a reload's
-          safety settle, an objection, a stop), as the BAS panel does. */}
+          safety settle, an objection, a stop), as Autonomy does. */}
       {outcome.agreement.status === 'incomplete' && state.reviewReason && (
         <p>{t('agreementWhy', { reason: displayEventDetail(state.reviewReason) })}</p>
       )}
-      {/* A reload pauses rather than ends: say where it carries on. */}
+      {/* A reload, a safety stop or a resolved objection pauses rather than
+          ends: say what paused it and where it carries on. */}
       {shiftResumable(state) && (
-        <p>{t('agreementPausedByReload', { minute: formatFixed(state.minute, 0) })}</p>
+        <p>
+          {t(
+            campaignShiftPause(state) === 'safety'
+              ? 'agreementPausedBySafety'
+              : campaignShiftPause(state) === 'objection'
+                ? 'agreementPausedByObjection'
+                : 'agreementPausedByReload',
+            { minute: formatFixed(state.minute, 0) }
+          )}
+        </p>
       )}
       <details>
         <summary className="min-h-11 cursor-pointer py-3 text-cyan-200">
@@ -846,6 +968,13 @@ function WorkingAgreementSummary({
   );
 }
 
+/** Next-action paragraphs that only explain the plant (D-012); not shown. */
+const EXPLANATION_ONLY = [
+  'dispatchConsequence',
+  'productionConsequence',
+  'qualityConsequence',
+] as const;
+
 export function OperationsPlayCard() {
   const t = useT(playableShiftMessages);
   const playT = useT(operationsPlayMessages);
@@ -870,6 +999,11 @@ export function OperationsPlayCard() {
       s.shiftMetrics.latePenalties + s.shiftMetrics.maintenanceCost + s.shiftMetrics.demurrageCost
     )
   );
+  // The purchase lines (plan 3.3, 3.8) beside the failure costs, in whole pounds.
+  const grainCost = useOperationsCampaignStore((s) => Math.round(s.shiftMetrics.grainCost ?? 0));
+  const partsCost = useOperationsCampaignStore((s) => Math.round(s.shiftMetrics.partsCost ?? 0));
+  const stockHeld = useOperationsCampaignStore((s) => Math.round(s.shiftMetrics.stockHeld ?? 0));
+  const locale = useLocale();
   const focusId = useUIStore((s) => s.operationalFocusId);
   const nextActionRef = useRef<HTMLButtonElement>(null);
   const challengeSummaryRef = useRef<HTMLElement>(null);
@@ -912,7 +1046,10 @@ export function OperationsPlayCard() {
   const [missionFeedback, setMissionFeedback] = useState<StatusLine | null>(null);
   const reviewPending = linkedReviewPending(workplace);
   const gameSpeed = useGameSimulationStore((s) => s.gameSpeed);
-  const play = deriveOperationsPlay(snapshot);
+  // Incidents the Chronicle raised are restored there, so the next action
+  // routes them to it (deriveOperationsPlay's 'chronicle').
+  const chronicleOwned = useChronicleStore((s) => s.chronicle.ownedIncidents);
+  const play = deriveOperationsPlay(snapshot, ownedIncidentIds(chronicleOwned));
   // Whole minutes, rounded up: the run can still complete in a part minute.
   const runActive = !!play.challengeProgress;
   useLayoutEffect(() => {
@@ -940,10 +1077,24 @@ export function OperationsPlayCard() {
   // focused button into it, so it is inert rather than disabled (as below).
   const programmeHeld = play.nextAction.kind === 'programme' && reviewPending;
   const nextInert = awaitingResponse || programmeHeld;
+  // Steps that only open a workspace explained the plant under their button
+  // (D-012); the button says where it goes. A block reason or a route state
+  // in their place is not one of these, and still shows.
+  const explainsOnly = EXPLANATION_ONLY.some((key) => play.nextAction.consequence === playT(key));
   const programmeHintId = useId();
+  // The reason a held programme is refused shows when it is pressed, not as
+  // a caption under it; a screen reader has it as the button's description.
+  const [programmeRefused, setProgrammeRefused] = useState(false);
+  useEffect(() => {
+    if (!programmeHeld) setProgrammeRefused(false);
+  }, [programmeHeld]);
   const challengeHintId = useId();
+  // D4: the season is a layer offered after the first delivery, so the opt-in
+  // is not on the card while that delivery is the player's own.
+  const firstDone = firstDeliveryFulfilled(snapshot.orders);
   const canStartMission =
     workplace.phase === 'idle' &&
+    firstDone &&
     !!play.activeOrder &&
     !snapshot.activeChallenge &&
     play.activeOrder.qualityFailureKg === 0 &&
@@ -951,7 +1102,10 @@ export function OperationsPlayCard() {
   const startJourney = useUIStore((s) => s.startDeliveryJourney);
   const performNext = () => {
     const state = useOperationsCampaignStore.getState();
-    const action = deriveOperationsPlay(state).nextAction;
+    const action = deriveOperationsPlay(
+      state,
+      ownedIncidentIds(useChronicleStore.getState().chronicle.ownedIncidents)
+    ).nextAction;
     if (action.kind === 'acknowledge' && action.targetId)
       state.acknowledgeIncident(action.targetId, 'operator');
     if (action.kind === 'mitigate' && action.targetId)
@@ -968,6 +1122,10 @@ export function OperationsPlayCard() {
     if (action.kind === 'programme' && !linkedReviewPending(useWorkplaceStore.getState().workplace))
       state.acceptNextProgramme('operator');
     if (action.kind === 'repair') openRepairWorkspace();
+    else if (action.kind === 'chronicle')
+      window.dispatchEvent(
+        new CustomEvent('millos:open-operations-workspace', { detail: 'chronicle' })
+      );
     else if (['quality', 'receiving', 'dispatch', 'production'].includes(action.kind)) {
       window.dispatchEvent(
         new CustomEvent('millos:open-operations-workspace', {
@@ -1004,17 +1162,18 @@ export function OperationsPlayCard() {
               .filter((order) => order.status !== 'fulfilled' && order.status !== 'cancelled')
               .map((order) => (
                 <option key={order.id} value={order.id}>
-                  {order.customer}: {order.recipe.label}
+                  {customerDisplayName(order.customer)}: {order.recipe.label}
                 </option>
               ))}
           </select>
-          <span className="mt-1 block leading-5">
-            {snapshot.activeChallenge
-              ? t('switchChallengeHint')
-              : reviewPending
-                ? t(workplace.improvement ? 'switchHandoffHint' : 'switchReviewHint')
-                : t('switchHint')}
-          </span>
+          {/* Only why the select is held; no hint under a free control (D-012). */}
+          {(snapshot.activeChallenge || reviewPending) && (
+            <span className="mt-1 block leading-5">
+              {snapshot.activeChallenge
+                ? t('switchChallengeHint')
+                : t(workplace.improvement ? 'switchHandoffHint' : 'switchReviewHint')}
+            </span>
+          )}
         </label>
       )}
       {/* The programme's one choice, beside the select that makes it: the
@@ -1025,7 +1184,7 @@ export function OperationsPlayCard() {
       {rush && rushDeadline && (
         <p className="mt-2 text-xs leading-5 text-cyan-100">
           {t('rushChoice', {
-            customer: rush.order.customer,
+            customer: customerDisplayName(rush.order.customer),
             premium: formatFixed(rush.order.rushPremiumPercent ?? 0, 0),
             kg: formatGrouped(rush.order.requiredKg),
             product: rush.order.recipe.label,
@@ -1041,7 +1200,7 @@ export function OperationsPlayCard() {
       <p className="mt-2">
         {play.activeOrder
           ? t('activeOrderProgress', {
-              customer: play.activeOrder.customer,
+              customer: customerDisplayName(play.activeOrder.customer),
               shippedKg: formatKg(shownShippedKg(play.activeOrder)),
               requiredKg: formatKg(play.activeOrder.requiredKg),
             })
@@ -1077,6 +1236,12 @@ export function OperationsPlayCard() {
           )}
         </div>
       )}
+      {(grainCost !== 0 || partsCost !== 0 || stockHeld !== 0) && (
+        <div role="group" aria-label={t('purchases')} className="mt-2 text-xs leading-5">
+          <p className="font-semibold text-slate-100">{t('purchases')}</p>
+          <p>{describeShiftPurchases({ grainCost, partsCost, stockHeld }, locale)}</p>
+        </div>
+      )}
       {play.challengeProgress && (
         <div
           role="group"
@@ -1098,9 +1263,6 @@ export function OperationsPlayCard() {
         </div>
       )}
       <p className="mt-2 text-cyan-200">{t('nextLine', { label: nextLabel })}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-300">
-        {awaitingResponse ? t('runningAtPace') : play.nextAction.consequence}
-      </p>
       {/* Mitigation turns this button into 'Awaiting simulation update' for a
           tick; disabled, it dropped keyboard focus to <body>. It stays
           focusable and inert (performNext rechecks the live action), so the
@@ -1112,6 +1274,7 @@ export function OperationsPlayCard() {
         aria-disabled={nextInert || undefined}
         aria-describedby={programmeHeld ? programmeHintId : undefined}
         onClick={() => {
+          if (programmeHeld) setProgrammeRefused(true);
           if (!nextInert) performNext();
         }}
       >
@@ -1119,9 +1282,27 @@ export function OperationsPlayCard() {
       </button>
       {/* An inert press says why, as the debrief's Accept does. */}
       {programmeHeld && (
-        <p id={programmeHintId} className="mt-1 text-xs leading-5 text-slate-300">
+        <p
+          id={programmeHintId}
+          role="status"
+          hidden={!programmeRefused}
+          className="mt-1 text-xs leading-5 text-amber-200"
+        >
           {t('acceptNextHint')}
         </p>
+      )}
+      {play.nextLayers.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <NextLayerButtons layers={play.nextLayers} />
+        </div>
+      )}
+      {/* What the next action does, after the buttons: before them, the
+          programme's long offer pushed the third onward button below the
+          fold at 1280 x 657 in Portuguese. */}
+      {/* While a response waits, the button says so; no advice replaces the
+          effect line (D14). */}
+      {!awaitingResponse && !explainsOnly && (
+        <p className="mt-2 text-xs leading-5 text-slate-300">{play.nextAction.consequence}</p>
       )}
       <button
         className={`${BUTTON} mt-2`}
@@ -1146,7 +1327,7 @@ export function OperationsPlayCard() {
         state={workplace}
         onLeft={(message, result) => setMissionFeedback({ message, result })}
       />
-      {workplace.phase === 'idle' && (
+      {workplace.phase === 'idle' && firstDone && (
         <div className="mt-3 space-y-2 border-t border-slate-700 pt-3">
           <label className="block text-xs text-slate-300">
             {t('agreementProfile')}
@@ -1169,10 +1350,13 @@ export function OperationsPlayCard() {
             aria-disabled={!canStartMission || undefined}
             onClick={() => {
               if (!canStartMission) return;
+              // Review 2: the season's own seed and draw (the store defaults to
+              // the idle workplace's), and a start ends only the player's own
+              // pause (D-106): a feature's hold stays in place.
               const result = useWorkplaceStore.getState().startMission(profile);
               setMissionFeedback(result.reason ? { message: result.reason, result } : null);
               if (result.changed) {
-                useGameSimulationStore.getState().setGameSpeed(STANDARD_GAME_SPEED);
+                useGameSimulationStore.getState().choosePace(STANDARD_GAME_SPEED);
                 window.dispatchEvent(
                   new CustomEvent('millos:open-operations-workspace', { detail: 'autonomy' })
                 );
@@ -1181,7 +1365,6 @@ export function OperationsPlayCard() {
           >
             {t('startCampaign')}
           </button>
-          <p className="text-xs leading-5 text-slate-300">{t('campaignOptIn')}</p>
         </div>
       )}
       {missionFeedback && (
@@ -1200,8 +1383,9 @@ export function OperationsPlayCard() {
         >
           {t('adjustChallenge')}
         </summary>
+        {/* The terms each challenge button starts, as a readout (D14). */}
         <p className="mb-2 text-xs leading-5">
-          {t('challengeRules', {
+          {t('challengeTerms', {
             hours: formatFixed(RECOVERY_CHALLENGE_WINDOW_MINUTES / 60, 0),
             kg: formatGrouped(RECOVERY_CHALLENGE_TARGET_KG),
           })}
@@ -1273,6 +1457,17 @@ function ShiftReportArticle({
   const gap = basis ? describeShiftGap(basis, report.grade, locale) : null;
   const tryNext = basis ? describeShiftTryNext(basis, report.grade, locale) : null;
   const nothingDue = !!basis && nothingDueYet(basis);
+  const oeeLine = describeShiftOee(report.metrics, locale);
+  const purchasesLine = describeShiftPurchases(report.metrics, locale);
+  // The partner's compared proposals, each with who decided and its comparison.
+  // Their log lines are listed here once, not again under choices or narration.
+  const proposals = describeShiftProposals(report, locale);
+  const listedApart = (wording: { key?: string } | null | undefined) =>
+    proposals.length > 0 && wording?.key === 'proposalRecord';
+  const choices = report.choices?.filter((choice) => !listedApart(choice.wording));
+  const narration = report.narration?.filter(
+    (_, index) => !listedApart(report.narrationWording?.[index])
+  );
   return (
     <article className="mb-3 border-t border-slate-700 pt-3">
       <h4 className="font-semibold">
@@ -1289,13 +1484,14 @@ function ShiftReportArticle({
             ? t(nothingDue ? 'reportHeadingNothingDue' : 'reportHeadingUngraded', { shift })
             : t('reportHeading', { shift, grade: report.grade })}
       </h4>
-      {provisional && <p className="mt-1 text-xs text-slate-300">{t('provisionalNote')}</p>}
       {/* Older C to F reports saved their reasons as the summary too. */}
       {summary !== reasons.join(' ') && <p className="mt-1 text-xs leading-5">{summary}</p>}
       <ul className="mt-2 list-inside list-disc text-xs leading-5">
         {reasons.map((reason, index) => (
           <li key={index}>{reason}</li>
         ))}
+        {oeeLine && <li>{oeeLine}</li>}
+        {purchasesLine && <li>{purchasesLine}</li>}
       </ul>
       {report.orderOutcomes && report.orderOutcomes.length > 0 && (
         <>
@@ -1311,12 +1507,22 @@ function ShiftReportArticle({
       )}
       {gap && <p className="mt-2 text-xs leading-5">{gap}</p>}
       {tryNext && <p className="mt-1 text-xs leading-5 text-cyan-100">{tryNext}</p>}
-      {report.choices ? (
+      {proposals.length > 0 && (
+        <>
+          <h5 className="mt-2 text-xs font-semibold text-white">{t('proposalsHeading')}</h5>
+          <ul className="list-inside list-disc text-xs leading-5">
+            {proposals.map((line, index) => (
+              <li key={index}>{line}</li>
+            ))}
+          </ul>
+        </>
+      )}
+      {choices ? (
         <>
           <h5 className="mt-2 text-xs font-semibold text-white">{t('choicesHeading')}</h5>
-          {report.choices.length ? (
+          {choices.length ? (
             <ul className="list-inside list-disc text-xs leading-5">
-              {report.choices.map((choice, index) => (
+              {choices.map((choice, index) => (
                 <li key={index}>
                   {choice.actor === 'agent'
                     ? t('agentChoice', { message: choice.message })
@@ -1327,13 +1533,13 @@ function ShiftReportArticle({
           ) : (
             <p className="text-xs">{t('noChoices')}</p>
           )}
-          {report.narration && report.narration.length > 0 && (
+          {narration && narration.length > 0 && (
             <details className="mt-2">
               <summary className="min-h-11 cursor-pointer py-3 text-xs text-cyan-200">
                 {t('narrationHeading')}
               </summary>
               <ul className="list-inside list-disc text-xs leading-5">
-                {report.narration.map((line, index) => (
+                {narration.map((line, index) => (
                   <li key={index}>{line}</li>
                 ))}
               </ul>
@@ -1377,6 +1583,13 @@ export function ShiftDebrief() {
   const reports = useOperationsCampaignStore((s) => s.reports);
   const canNext = useOperationsCampaignStore((s) => deriveOperationsPlay(s).canAcceptNextProgramme);
   const t = useT(playableShiftMessages);
+  // Inert, not disabled, so a press can say why (D-012: no caption under it).
+  const acceptBlocked = !canNext || reviewPending;
+  const acceptHintId = useId();
+  const [acceptRefused, setAcceptRefused] = useState(false);
+  useEffect(() => {
+    if (!acceptBlocked) setAcceptRefused(false);
+  }, [acceptBlocked]);
   const open = useOperationsCampaignStore(
     useShallow((s) => ({
       currentShiftKey: s.currentShiftKey,
@@ -1451,9 +1664,14 @@ export function ShiftDebrief() {
         </p>
       )}
       <button
-        className={`${BUTTON} mt-3`}
-        disabled={!canNext || reviewPending}
+        className={`${BUTTON} mt-3 aria-disabled:opacity-40`}
+        aria-disabled={acceptBlocked || undefined}
+        aria-describedby={acceptBlocked ? acceptHintId : undefined}
         onClick={() => {
+          if (acceptBlocked) {
+            setAcceptRefused(true);
+            return;
+          }
           if (
             !linkedReviewPending(useWorkplaceStore.getState().workplace) &&
             useOperationsCampaignStore.getState().acceptNextProgramme('operator')
@@ -1463,8 +1681,15 @@ export function ShiftDebrief() {
       >
         {t('acceptNextProgramme')}
       </button>
-      {(!canNext || reviewPending) && (
-        <p className="mt-1 text-xs text-slate-300">{t('acceptNextHint')}</p>
+      {acceptBlocked && (
+        <p
+          id={acceptHintId}
+          role="status"
+          hidden={!acceptRefused}
+          className="mt-1 text-xs text-amber-200"
+        >
+          {t('acceptNextHint')}
+        </p>
       )}
     </section>
   );

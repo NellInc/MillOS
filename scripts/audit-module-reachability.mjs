@@ -191,6 +191,15 @@ const KNOWN_DEAD = new Map([
   ['src/components/ZoneAccentLights.tsx', ZONE_LIGHTS],
 
   [
+    'src/components/knowledge/AINarration.tsx',
+    'AI reflection cards, cut by D14; kept only for AINarration.focus.test.tsx, which still imports it.',
+  ],
+  [
+    'src/components/knowledge/AINarration.messages.ts',
+    'Copy for the cut AI reflection cards; its only importer is the dead AINarration.tsx.',
+  ],
+
+  [
     'src/hooks/useSafetySimulation.ts',
     'Uncrewed safety simulation hook with no importer; the current simulation does not mount random personnel-era incident generation.',
   ],

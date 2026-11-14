@@ -42,6 +42,21 @@ describe('persistence migrations', () => {
     });
   });
 
+  // The AI reflection cards are cut (D14) and nothing reads their switch, so a
+  // save that still carries it restores with the rest kept and the switch gone.
+  it('drops the retired AI narration switch from an older Datalinks save', () => {
+    expect(
+      sanitizeKnowledgeState({
+        unlockedEntries: ['a'],
+        showLoadingQuotes: false,
+        showAINarration: false,
+      })
+    ).toEqual({
+      unlockedEntries: ['a'],
+      showLoadingQuotes: false,
+    });
+  });
+
   it('preserves valid simulation values while excluding corrupt state and actions', () => {
     expect(
       sanitizeGameSimulationState({

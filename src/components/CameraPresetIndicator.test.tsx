@@ -25,7 +25,8 @@ describe('camera preset readout', () => {
     render(<CameraPresetIndicator />);
     const readout = screen.getByRole('status', { name: 'Camera view' });
     expect(readout).toHaveTextContent('Overview');
-    expect(readout).toHaveTextContent('Whole mill and logistics site');
+    // D14: the view's name stands alone; no caption beside it.
+    expect(readout).not.toHaveTextContent('Whole mill and logistics site');
     expect(readout).toHaveClass('top-32', 'left-4');
     expect(readout).not.toHaveClass('top-16', 'bottom-4', 'right-4');
     for (const key of ['0', '1', '2', '3', '4', '5', '6', '7']) {

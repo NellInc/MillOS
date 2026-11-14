@@ -100,6 +100,38 @@ npm run build
 # Output directory: dist/
 ```
 
+### Playtest instruments
+
+Three review instruments, run by name. None is a gate: `npm test` skips the two
+vitest ones (77 tests, all skipped unless their output variable is set), and
+the capture tool is not a test file. Times are from the 4 vCPU gate VM.
+
+| Command | Writes (default) | Measures | Does not measure | Time |
+|---|---|---|---|---|
+| `npm run playtest:plant [-- --out=<file> --suite=<arm set> --shifts=N]` | `test-results/playtest/plant-measure.json` | The real central tick and stores for whole shifts at the standard pace: what the plant made, shipped, earned and spent per shift, per player arm (`plantMeasure.playtest.test.ts`; `--suite` picks levers, demand, packer, shipment, partner, grade, maintenance or ask) | A browser, rendering or the 3D scene; components' own steps are mirrored (trucks, the offline machine model, button presses), each named in the file's header; no safety hold or SCADA | About 1 minute for the default ten-shift run |
+| `npm run playtest:chronicle [-- --out=<dir> --seeds=N --styles=a,b --lengths=short,full --shard=i/n]` | `test-results/playtest/chronicle-probe/` (one JSON per run) | A signed Chronicle played on that same plant, every close read from the report the real tick wrote: trial medals, the fund and the score, for the idle, attentive and skilled styles (`chronicleProbe.playtest.test.ts`); `--gates=<dir>` reads earlier runs and checks the gates without playing | Real players: three fixed styles; what the plant harness leaves out; no E-stop | About 1 minute for one idle 27-shift run; the default sweep is 48 runs, so split it with `--shard` |
+| `npm run playtest:surfaces -- --base-url=<served build> [--out=<dir> --only=a,b\|final --lang=en\|pt-BR\|all --viewport=desktop,narrow,phone,upright\|all --seed-dir=<dir>]` | `test-results/playtest-surfaces/` (JPEGs and `manifest.json`) | A built app in headless Chromium, played as a player (dock, keys, 4x waits): one frame per changed surface in English and Brazilian Portuguese, on a desktop, a 390 px window, a landscape touch phone (844x390, scale 2) and one upright frame (the rotate notice), with console errors, page errors, failed requests, `title` tooltips and cut text per frame. `--seed-dir` loads far states as a returning player's saved game (one JSON of localStorage keys per state), and the manifest names the seed of every frame taken on one | The 3D scene (render-only systems are off unless `--full-scene`, so it is dark); a real phone's browser chrome and safe areas; frame rate; seeded states are not reached by play | 3 to 22 minutes a variant on software GL (about 3 FPS), after a build and `vite preview` |
+
+The default suite (`measure`) runs the older arms a, b and c, which answer
+every service "run on"; it does not produce the no-input figures quoted in
+`CLAUDE.md` and the decision log. Those come from
+`npm run playtest:plant -- --suite=partner`, arm p: ten shifts, 52 orders on
+time, none late, net 42,593.2, graded A in every shift (about 1.2 minutes for
+its three arms). `--suite=ask` runs the arms behind `DELEGATION_EVIDENCE`
+(about 7 minutes) and checks every claim there, the null ones included.
+
+The floor arms behind the delegation rule's intake, temper and incident claims
+(`plantFloor.playtest.test.ts`, on the same plant) run by their output
+variable: `MILLOS_PLANT_INTAKE_OUT=<file> npx vitest run src/systems/__tests__/plantFloor.playtest.test.ts`
+(or `MILLOS_PLANT_TEMPER_OUT`, `MILLOS_PLANT_INCIDENT_OUT`). The sprouted intake
+arms run twenty shifts, the length their evidence was measured at
+(`MILLOS_PLANT_INTAKE_SHIFTS` overrides); the rest run ten. About 5 minutes
+for the intake suite.
+
+The capture tool is headless only and takes the repository's capture lock
+(`scripts/lib/capture-lock.mjs`) for its whole run, so it never renders beside
+another capture or benchmark.
+
 ---
 
 ## Project Structure

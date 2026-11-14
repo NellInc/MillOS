@@ -10,12 +10,16 @@ import { readPlantClock, type PlantClock } from '../utils/timeFormatting';
 export type SafetyIncidentDescriptionKey =
   | 'forkliftRouteBlocked'
   | 'keyboardEmergencyStop'
-  | 'facilityStop';
+  | 'panelForkliftStop'
+  | 'facilityStop'
+  | 'driverNearMiss';
 
 const DESCRIPTION_KEYS: ReadonlySet<string> = new Set<SafetyIncidentDescriptionKey>([
   'forkliftRouteBlocked',
   'keyboardEmergencyStop',
+  'panelForkliftStop',
   'facilityStop',
+  'driverNearMiss',
 ]);
 
 /**
@@ -258,6 +262,15 @@ interface SafetyStore {
   recordRouteConflict: () => void;
   incrementDaysSafe: () => void;
   recordNearMiss: () => void;
+  /**
+   * A driven forklift closed on someone on foot at speed (ForkliftSystem):
+   * logged where it happened and put on the heat map. Not counted against the
+   * safety score, whose treatment of near misses is still open (F9b).
+   */
+  recordDriverNearMiss: (detail: {
+    location: { x: number; z: number };
+    forkliftId: string;
+  }) => void;
 
   // Safety incident history
   safetyIncidents: Array<{
@@ -407,6 +420,17 @@ export const useSafetyStore = create<SafetyStore>()(
             daysSinceIncident: 0,
           },
         })),
+      recordDriverNearMiss: ({ location, forkliftId }) => {
+        if (!Number.isFinite(location.x) || !Number.isFinite(location.z)) return;
+        get().addSafetyIncident({
+          type: 'near_miss',
+          description: translate(msg, 'driverNearMiss'),
+          descriptionKey: 'driverNearMiss',
+          location: { x: location.x, z: location.z },
+          forkliftId,
+        });
+        get().recordIncidentLocation(location.x, location.z, 'near_miss');
+      },
 
       // Safety incident history
       safetyIncidents: [],

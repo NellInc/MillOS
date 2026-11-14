@@ -20,6 +20,7 @@ const runtime = vi.hoisted(() => ({
   closeSidebar: () => {},
   setPreset: vi.fn(),
   cancelAnimation: vi.fn(),
+  hudFocus: undefined as ((machineId: string) => void) | undefined,
 }));
 vi.mock('../../../hooks/useMobileDetection', () => ({
   useMobileDetection: () => ({ isCompactLayout: runtime.compact, isTouchDevice: runtime.touch }),
@@ -64,7 +65,12 @@ vi.mock('../sidebar/ContextSidebar', () => ({
     ) : null;
   },
 }));
-vi.mock('../hud/StatusHUD', () => ({ StatusHUD: () => null }));
+vi.mock('../hud/StatusHUD', () => ({
+  StatusHUD: (props: { onFocusMachine?: (machineId: string) => void }) => {
+    runtime.hudFocus = props.onFocusMachine;
+    return null;
+  },
+}));
 vi.mock('../../EmergencyOverlay', () => ({ EmergencyOverlay: () => null }));
 vi.mock('../../AlertSystem', () => ({ AlertSystem: () => null }));
 vi.mock('../../../hooks/useAchievementTracker', () => ({ AchievementTracker: () => null }));
@@ -580,6 +586,54 @@ describe('first-use journey wiring', () => {
     }
   );
 
+  // The shift card's Restore controls for a Chronicle-raised incident.
+  it.each([false, true])('opens the Chronicle workspace on request, compact=%s', (compact) => {
+    runtime.compact = compact;
+    useUIStore.setState({ hasSeenIntro: true });
+    useMobileControlStore.setState({ mobilePanelVisible: false });
+    renderInterface();
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent('millos:open-operations-workspace', { detail: 'chronicle' })
+      )
+    );
+    if (compact) {
+      expect(useMobileControlStore.getState().mobilePanelVisible).toBe(true);
+      expect(useMobileControlStore.getState().mobilePanelContent).toBe('chronicle');
+    } else {
+      expect(screen.getByTestId('game-interface')).toHaveAttribute('data-active-mode', 'chronicle');
+      expect(screen.getByTestId('game-interface')).toHaveAttribute('data-sidebar-visible', 'true');
+    }
+  });
+
+  // A wear notice selects its unit through the real focus route; SCADA has no
+  // Inspector, so there the bell keeps the repair route.
+  it.each([false, true])('gives the status bar the machine focus route, compact=%s', (compact) => {
+    runtime.compact = compact;
+    runtime.hudFocus = undefined;
+    useUIStore.setState({ hasSeenIntro: true });
+    useMobileControlStore.setState({ mobilePanelVisible: false });
+    const onFocusMachine = vi.fn();
+    render(
+      <GameInterface
+        productionSpeed={1}
+        setProductionSpeed={vi.fn()}
+        showZones={false}
+        setShowZones={vi.fn()}
+        selectedMachine={null}
+        onCloseSelection={vi.fn()}
+        onFocusMachine={onFocusMachine}
+      />
+    );
+    expect(runtime.hudFocus).toBe(onFocusMachine);
+    if (compact) return;
+    act(() =>
+      window.dispatchEvent(new CustomEvent('millos:open-operations-workspace', { detail: 'scada' }))
+    );
+    expect(screen.getByTestId('game-interface')).toHaveAttribute('data-active-mode', 'scada');
+    expect(runtime.hudFocus).toBeUndefined();
+  });
+
   it('leaves a repair route to the maintenance section it asked for', () => {
     useUIStore.setState({ hasSeenIntro: true, panelFocusRequested: false });
     useUIStore.getState().requestMaintenanceFocus();
@@ -659,7 +713,8 @@ describe('first-use journey wiring', () => {
     // History is kept; only an unacknowledged critical alert holds the UI quiet.
     expect(useUIStore.getState().alerts).toHaveLength(1);
     expect(screen.getByTestId('soundtrack')).toHaveAttribute('data-quiet', 'false');
-    expect(screen.getByRole('complementary', { name: 'AI reflection' })).toBeInTheDocument();
+    // D14: the reflection cards are cut; none shows once the alarm clears.
+    expect(screen.queryByRole('complementary', { name: 'AI reflection' })).not.toBeInTheDocument();
   });
 
   it('hides music behind a compact sheet without unmounting playback controls', () => {
@@ -704,81 +759,20 @@ describe('first-use journey wiring', () => {
     expect(screen.getByRole('region', { name: /Getting started/ })).toBeInTheDocument();
   });
 
-  it('hands focus to the dock when the reflection card is dismissed', () => {
+  // D14: the AI narration cards (a welcome, a library pointer, an hour-in
+  // prompt) told the player what screens are for. They are cut: a narration
+  // that fires unlocks its library entry in useKnowledgeIntegration, is marked
+  // delivered so it never fires again, and no card is drawn. Working if
+  // nothing narrates, on the desktop or compact.
+  it.each([false, true])('draws no AI reflection card, compact=%s', (compact) => {
+    runtime.compact = compact;
     useUIStore.setState({ hasSeenIntro: true });
     renderInterface();
     act(() => {
-      runtime.narrate?.({ id: 'dismiss-focus', trigger: 'first-play', content: 'Dismiss me.' });
+      runtime.narrate?.({ id: 'cut', trigger: 'first-play', content: 'Welcome reflection.' });
     });
-    const dismiss = screen.getByRole('button', { name: 'Dismiss reflection' });
-    dismiss.focus();
-    fireEvent.click(dismiss);
-    expect(screen.queryByText('Dismiss me.')).not.toBeInTheDocument();
-    expect(document.activeElement).not.toBe(document.body);
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Overview' }));
-  });
-
-  it('keeps the first queued reflection when a later one arrives', () => {
-    renderInterface();
-    act(() => {
-      vi.advanceTimersByTime(700);
-      runtime.narrate?.({ id: 'first', trigger: 'first-play', content: 'Welcome reflection.' });
-      runtime.narrate?.({ id: 'later', trigger: 'library-opened', content: 'Later reflection.' });
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Close getting started for this session' }));
-    expect(screen.getByText('Welcome reflection.')).toBeVisible();
-    expect(screen.queryByText('Later reflection.')).not.toBeInTheDocument();
-  });
-
-  it('queues reflection behind delivery guidance and the Overview sidebar without dismissing it', () => {
-    const narration: NarrationEntry = {
-      id: 'queued-desktop',
-      trigger: 'first-play',
-      content: 'Review production when ready.',
-    };
-    renderInterface();
-    act(() => {
-      vi.advanceTimersByTime(700);
-      runtime.narrate?.(narration);
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Start operating' }));
-    expect(screen.getByTestId('game-interface')).toHaveAttribute('data-active-mode', 'overview');
-    expect(screen.getByTestId('game-interface')).toHaveAttribute('data-sidebar-visible', 'false');
+    expect(useAINarrationStore.getState().hasBeenShown('cut')).toBe(true);
+    expect(screen.queryByRole('complementary', { name: 'AI reflection' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('reflection-content')).not.toBeInTheDocument();
-    expect(useAINarrationStore.getState().hasBeenShown(narration.id)).toBe(false);
-    fireEvent.click(screen.getByRole('button', { name: 'Skip guided delivery' }));
-    expect(screen.getByText(narration.content)).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Overview' }));
-    expect(screen.queryByTestId('reflection-content')).not.toBeInTheDocument();
-    act(() => runtime.closeSidebar());
-    expect(screen.getByText(narration.content)).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss reflection' }));
-    expect(useAINarrationStore.getState().hasBeenShown(narration.id)).toBe(true);
-    expect(screen.queryByTestId('reflection-content')).not.toBeInTheDocument();
-  });
-
-  it('queues reflection behind compact Safety even while desktop mode remains overview', () => {
-    runtime.compact = true;
-    useUIStore.setState({ hasSeenIntro: true });
-    const narration: NarrationEntry = {
-      id: 'queued-mobile',
-      trigger: 'first-play',
-      content: 'Review production when ready.',
-    };
-    renderInterface();
-    act(() => runtime.narrate?.(narration));
-    expect(screen.getByText(narration.content)).toBeVisible();
-    expect(screen.getByRole('complementary', { name: 'AI reflection' })).toHaveClass(
-      'max-h-[calc(100dvh-13rem)]',
-      'overflow-y-auto'
-    );
-    act(() => useMobileControlStore.getState().openMobilePanel('safety'));
-    expect(screen.getByTestId('game-interface')).toHaveAttribute('data-active-mode', 'overview');
-    expect(screen.queryByTestId('reflection-content')).not.toBeInTheDocument();
-    expect(useAINarrationStore.getState().hasBeenShown(narration.id)).toBe(false);
-    act(() => useMobileControlStore.getState().closeMobilePanel());
-    expect(screen.getByText(narration.content)).toBeVisible();
   });
 });

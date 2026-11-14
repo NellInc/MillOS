@@ -3,6 +3,7 @@ import { useWorkplaceStore } from '../stores/workplaceStore';
 import { createWorkplace } from './bilateralWorkplace';
 import { useWorkplaceAutoplay } from './workplaceAutoplay';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 import { endReplayClock } from './workplaceReplayRuntime';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
@@ -23,6 +24,8 @@ beforeEach(() => {
   });
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
 });
 afterEach(() => {
   useWorkplaceAutoplay.getState().pause();

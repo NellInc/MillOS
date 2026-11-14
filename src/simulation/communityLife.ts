@@ -17,6 +17,8 @@ import type { BusRoadUse } from './vehicles/southRoadTraffic';
 import { FORKLIFT_CREW_SITES } from '../constants/forkliftCrewLayout';
 import type { WorkplaceState } from '../types/workplace';
 import { improvementArrangement } from './workplaceImprovement';
+import { mondayHolds } from './workplaceCampaign';
+import { FACILITY_DOOR_APPROACHES } from '../components/facilities/facilityLayout';
 import { translate } from '../i18n';
 import { communityAgreementMessages } from './communityLife.messages';
 import { STANDARD_GAME_SPEED } from './pace';
@@ -177,6 +179,90 @@ export interface CommunityAgreementCue {
   label: string;
   task: string;
   offDuty: boolean;
+  /**
+   * 5.11: where the season puts this person for a moment, over their routine
+   * (placeCommunityAgreement): the team gathered at the staff block as an
+   * agreement starts, or Quality at the packer with Monday's sample. Absent
+   * otherwise. Their own hour runs on meanwhile, so their routine is unchanged.
+   */
+  placement?: { position: Vec3Tuple; rotation: number; task: string };
+}
+
+/** 5.11: game minutes the four mapped people stand together at the staff block once an agreement starts. */
+export const AGREEMENT_GATHER_MINUTES = 3;
+const STAFF_DOOR = FACILITY_DOOR_APPROACHES.find((a) => a.door === 'staff-room-door')!.outside;
+/**
+ * 5.11: the gathering, on the open hall floor a metre north of the staff
+ * room's door (D-057), one place each, 0.9 m apart, facing the door.
+ */
+export const AGREEMENT_GATHER_SPOTS: Readonly<Record<string, Vec3Tuple>> = Object.fromEntries(
+  ['packing', 'quality', 'maintenance', 'coordinator'].map((id, i) => [
+    id,
+    [STAFF_DOOR[0] + (i - 1.5) * 0.9, 0, STAFF_DOOR[2] + 1] as Vec3Tuple,
+  ])
+);
+
+/**
+ * 5.11: the season's moment for one mapped member now, if any. The gathering:
+ * the first AGREEMENT_GATHER_MINUTES of an agreement just activated (from its
+ * `activated` receipt), for a member at work in it, not resting, recovering,
+ * briefed or covering. Monday: Quality at the packer while its sample holds
+ * the line and the inspection runs. Derived from saved state; nothing saved.
+ */
+function agreementPlacement(
+  workplace: WorkplaceState,
+  memberId: string,
+  state: CommunityAgreementCue['state']
+): CommunityAgreementCue['placement'] {
+  if (workplace.phase !== 'active' || state !== 'duty') return undefined;
+  const c = workplace.campaign;
+  if (
+    memberId === 'quality' &&
+    c?.shift === 1 &&
+    c.decision === 'inspect' &&
+    mondayHolds(workplace)
+  )
+    return {
+      position: [...A.millInspection.position] as Vec3Tuple,
+      rotation: A.millInspection.rotation,
+      // A task the world card already words in both languages.
+      task: 'Taking a flour sample',
+    };
+  let activatedAt: number | null = null;
+  for (let i = workplace.events.length - 1; i >= 0; i--)
+    if (workplace.events[i].kind === 'activated') {
+      activatedAt = workplace.events[i].minute;
+      break;
+    }
+  const spot = AGREEMENT_GATHER_SPOTS[memberId];
+  return spot &&
+    activatedAt !== null &&
+    workplace.minute >= activatedAt &&
+    workplace.minute < activatedAt + AGREEMENT_GATHER_MINUTES
+    ? { position: [...spot] as Vec3Tuple, rotation: Math.PI, task: 'Reviewing the shift' }
+    : undefined;
+}
+
+/**
+ * 5.11: put a person where the season's moment has them, over their routine
+ * pose. A person's own time comes first (D-058): nobody on a break, seated, or
+ * away from the floor is moved. Working if the gathering and the Monday
+ * position show in a placement test and a break is never interrupted.
+ */
+export function placeCommunityAgreement(
+  cue: CommunityAgreementCue | null,
+  pose: CommunityPose
+): void {
+  const placement = cue?.placement;
+  if (!placement || !pose.visible || pose.seated || pose.activity === 'break') return;
+  pose.position[0] = placement.position[0];
+  pose.position[1] = placement.position[1];
+  pose.position[2] = placement.position[2];
+  pose.rotation = placement.rotation;
+  pose.activity = 'idle';
+  pose.task = placement.task;
+  pose.departingDuty = undefined;
+  pose.seat = undefined;
 }
 
 /** Fictional agreement presentation, never evidence of a repair or QC release.
@@ -243,7 +329,9 @@ export function communityAgreementCue(
             ? translate(communityAgreementMessages, 'paidBriefing')
             : translate(communityAgreementMessages, 'agreed', { task: displayTask });
   const displayRole = translate(communityAgreementMessages, 'role', { value: member.role });
+  const placement = agreementPlacement(workplace, member.id, state);
   return {
+    ...(placement ? { placement } : {}),
     memberId: member.id,
     state,
     label: `${displayRole}\n${displayLabel}`,
@@ -640,7 +728,8 @@ const QUIET_ROOM_PHASE = (() => {
 })();
 
 /** The two town hall clerks' lunch: out of the front door, along the landing,
- * down the ramp on the east side, through the privet gap and up the street.
+ * down the ramp on the east side, off its foot landing behind the hall and up
+ * the street.
  * Village frame: village (x, z) is world (-190 + x, z). */
 const villagePoint = (x: number, y: number, z: number): Vec3Tuple => [-190 + x, y, z];
 const hallStreet = (z: number) => villagePoint(10.5, 0, z);
@@ -655,10 +744,15 @@ const HALL_DOOR_WHEELCHAIR = townHallToWorld(
 );
 // Round the front of the east column on the ramp's apron: the column base
 // stands 0.12 m off the wall, so the way along the landing behind it was
-// through the column (TOWN_HALL_STEP_FREE_ROUTE, 2026-11-07).
+// through the column (TOWN_HALL_STEP_FREE_ROUTE, 2026-11-07). The street is
+// joined straight across from the end of the route, past the foot landing
+// (2026-11-13: the ramp's foot moved 4 m back to meet Approved Document M).
+const HALL_RAMP_STEPS: readonly Vec3Tuple[] = TOWN_HALL_STEP_FREE_ROUTE.map(([x, y, z]) =>
+  townHallToWorld(x, y, z)
+);
 const HALL_RAMP_APPROACH: readonly Vec3Tuple[] = [
-  ...TOWN_HALL_STEP_FREE_ROUTE.map(([x, y, z]) => townHallToWorld(x, y, z)),
-  hallStreet(27),
+  ...HALL_RAMP_STEPS,
+  hallStreet(HALL_RAMP_STEPS[HALL_RAMP_STEPS.length - 1][2]),
 ];
 const HALL_POSTBOX_STOP = villagePoint(10.6, 0, 25);
 const HALL_OFFICER_TO_FOUNTAIN: readonly Vec3Tuple[] = [

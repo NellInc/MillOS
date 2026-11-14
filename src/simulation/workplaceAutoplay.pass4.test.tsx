@@ -4,11 +4,13 @@ import { useWorkplaceStore } from '../stores/workplaceStore';
 import { createWorkplace } from './bilateralWorkplace';
 import { useWorkplaceAutoplay } from './workplaceAutoplay';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 import { endReplayClock } from './workplaceReplayRuntime';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
 import { WorkplaceAutomaticDemo } from '../components/ui-new/widgets/WorkplaceParticipation';
 import { setLocale } from '../i18n';
+import { shiftResumable } from './workplaceCampaign';
 
 beforeEach(() => {
   useWorkplaceAutoplay.getState().pause();
@@ -22,6 +24,8 @@ beforeEach(() => {
   });
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
 });
 afterEach(() => {
   act(() => useWorkplaceAutoplay.getState().pause());
@@ -78,11 +82,14 @@ describe('automatic season status, fourth pass', () => {
     );
   });
 
-  it('a season that stops by itself says where to run it again', () => {
+  // D14: the notice is the stop's reason alone; the hand-back control sits
+  // beside the same reason in Autonomy's facilitator tools.
+  it('a season that stops by itself names its reason, with no restart hint', () => {
     vi.useFakeTimers();
     useWorkplaceAutoplay.getState().start('team');
     vi.advanceTimersByTime(1200);
-    useWorkplaceStore.getState().object('quality', 'privacy');
+    // Packing's own voice (5b: in a solo season the player raises only Packing's).
+    useWorkplaceStore.getState().object('packing', 'privacy');
     // The objection interrupt paused it; a fresh run then stops on the objection.
     useWorkplaceAutoplay.getState().start('team');
     vi.advanceTimersByTime(500);
@@ -90,11 +97,12 @@ describe('automatic season status, fourth pass', () => {
     const alert = useUIStore
       .getState()
       .alerts.find((a) => a.title === 'Automatic cooperative season stopped');
-    expect(alert?.message).toContain('Autonomy');
-    expect(alert?.message).toContain('Skip guide and run fictional demo');
+    expect(alert?.message).toBe(
+      'An open objection remains with its original raiser. Automatic demonstration paused.'
+    );
   });
 
-  it('an E-stop mid-shift settles that shift, and the season goes on to the next one', () => {
+  it('an E-stop mid-shift pauses that shift; it resumes, runs its full ninety minutes, and the season goes on', () => {
     vi.useFakeTimers();
     useGameSimulationStore.getState().setGameSpeed(30);
     useWorkplaceAutoplay.getState().start('team');
@@ -102,20 +110,29 @@ describe('automatic season status, fourth pass', () => {
       vi.advanceTimersByTime(400);
     expect(useWorkplaceStore.getState().workplace.phase).toBe('active');
     expect(useWorkplaceStore.getState().workplace.campaign?.shift).toBe(0);
-    // The plant tick under an E-stop settles the active shift (UnifiedGameTick).
+    useWorkplaceStore.getState().tick(30, 0, false);
+    // The plant tick under an E-stop pauses the active shift (UnifiedGameTick).
     useGameSimulationStore.setState({ emergencyActive: true });
     useWorkplaceStore.getState().tick(5, 0, true);
     expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
+    expect(shiftResumable(useWorkplaceStore.getState().workplace)).toBe(true);
     vi.advanceTimersByTime(2000);
     expect(useWorkplaceAutoplay.getState().running).toBe(true);
     useGameSimulationStore.setState({ emergencyActive: false });
-    for (let i = 0; i < 200 && useWorkplaceStore.getState().workplace.campaign?.shift === 0; i++) {
+    let resumed = false;
+    for (let i = 0; i < 400 && useWorkplaceStore.getState().workplace.campaign?.shift === 0; i++) {
       vi.advanceTimersByTime(400);
-      // Owed recovery is delivered by ordinary plant ticks in review.
-      if (useWorkplaceStore.getState().workplace.phase === 'review')
+      const s = useWorkplaceStore.getState().workplace;
+      if (s.events.some((e) => e.kind === 'shift-resumed')) resumed = true;
+      // The plant's own ticks run the resumed shift and deliver owed recovery.
+      if (s.phase === 'active' || s.phase === 'review')
         useWorkplaceStore.getState().tick(5, 0, false);
     }
+    expect(resumed).toBe(true);
     expect(useWorkplaceAutoplay.getState().running).toBe(true);
-    expect(useWorkplaceStore.getState().workplace.campaign?.shift).toBe(1);
+    const next = useWorkplaceStore.getState().workplace;
+    expect(next.campaign?.shift).toBe(1);
+    expect(next.campaign?.history[0].minute).toBe(90);
+    expect(next.campaign?.history[0].members.every((m) => m.restMinutes === 15)).toBe(true);
   });
 });

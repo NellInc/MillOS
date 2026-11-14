@@ -1,14 +1,15 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MachineInspector } from '../sidebar/MachineInspector';
 import { PredictiveMaintenancePanel } from '../../ui/PredictiveMaintenancePanel';
 import { MachineType, type MachineData } from '../../../types';
-import { useProductionStore } from '../../../stores/productionStore';
+import { getWearConfig, useProductionStore } from '../../../stores/productionStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useUIStore } from '../../../stores/uiStore';
+import { resetUnitWork, stepUnitWork, unitInService } from '../../../systems/unitService';
 
 // PLAYTEST-6: Perform Maintenance and Restart are the player's decisions, so
 // the shift review lists them instead of "No choices were recorded this shift".
@@ -34,20 +35,26 @@ const operatorLines = () =>
     .map((entry) => entry.message);
 
 const machines = useProductionStore.getState().machines;
+// A service runs its minutes on the game clock (D7); stepUnitWork is the tick's call.
+const SERVICE_SECONDS = getWearConfig(MachineType.ROLLER_MILL).serviceMinutes * 60;
+const MAINTAIN = /^Perform Maintenance/;
 
 beforeEach(() => {
   useOperationsCampaignStore.getState().resetCampaign();
   useBreakdownStore.getState().resetBreakdownStore();
   useUIStore.setState({ alerts: [] });
   useMaterialFlowStore.setState({ machineBuffers: new Map() });
-  useGameSimulationStore.setState({ emergencyActive: false });
+  useGameSimulationStore.setState({
+    emergencyActive: false,
+    preEmergencyMachineStatuses: new Map(),
+  });
   useProductionStore.setState({ machines: [worn] });
 });
 
 afterEach(() => {
   cleanup();
-  vi.useRealTimers();
   act(() => {
+    resetUnitWork();
     useProductionStore.setState({ machines });
     useBreakdownStore.getState().resetBreakdownStore();
     useUIStore.setState({ alerts: [] });
@@ -56,27 +63,48 @@ afterEach(() => {
 });
 
 describe('MachineInspector records the service it performs', () => {
-  it('logs Perform Maintenance once the service is done', async () => {
-    vi.useFakeTimers();
+  // The press is the decision and is logged when the service starts; the
+  // service finishing on the game clock does not log it a second time.
+  it('logs Perform Maintenance once, and the service is done when its minutes run', () => {
     render(<MachineInspector machine={worn} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1300);
-    });
+    fireEvent.click(screen.getByRole('button', { name: MAINTAIN }));
+    expect(operatorLines()).toEqual(['Performed maintenance on Decision mill.']);
+    act(() => stepUnitWork(SERVICE_SECONDS));
     expect(useProductionStore.getState().machines[0].metrics.wear).toBe(0);
     expect(operatorLines()).toEqual(['Performed maintenance on Decision mill.']);
   });
 
-  it('logs nothing when a stop during the delay refuses the service', async () => {
-    vi.useFakeTimers();
+  // There is no wall-clock delay for a stop to land in any more: a press the
+  // guards refuse (a stop holds, or no part is free) logs nothing.
+  it('logs nothing when a stop or a missing part refuses the service', () => {
+    useGameSimulationStore.setState({ emergencyActive: true });
     render(<MachineInspector machine={worn} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
-    act(() => useGameSimulationStore.setState({ emergencyActive: true }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1300);
-    });
+    fireEvent.click(screen.getByRole('button', { name: MAINTAIN }));
+    act(() => useGameSimulationStore.setState({ emergencyActive: false }));
+    act(() =>
+      useBreakdownStore.setState({
+        partsInventory: { bearings: 0, belts: 0, filters: 0, motors: 0, sensors: 0 },
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: MAINTAIN }));
+    act(() => stepUnitWork(SERVICE_SECONDS));
     expect(useProductionStore.getState().machines[0].metrics.wear).toBe(40);
     expect(operatorLines()).toEqual([]);
+  });
+
+  // A stop that lands during the service minutes holds the unit offline; the
+  // press stays one decision, logged once.
+  it('keeps one log line when a stop lands during the service', () => {
+    render(<MachineInspector machine={worn} />);
+    fireEvent.click(screen.getByRole('button', { name: MAINTAIN }));
+    act(() => useGameSimulationStore.setState({ emergencyActive: true }));
+    act(() => stepUnitWork(SERVICE_SECONDS));
+    expect(unitInService(worn.id)).toBe(true);
+    expect(useProductionStore.getState().machines[0].metrics.wear).toBe(40);
+    act(() => useGameSimulationStore.setState({ emergencyActive: false }));
+    act(() => stepUnitWork(1));
+    expect(useProductionStore.getState().machines[0].metrics.wear).toBe(0);
+    expect(operatorLines()).toEqual(['Performed maintenance on Decision mill.']);
   });
 
   it('logs Restart Unit on the press', () => {
@@ -89,7 +117,8 @@ describe('MachineInspector records the service it performs', () => {
 });
 
 describe('PredictiveMaintenancePanel records the service it performs', () => {
-  it('logs a completed scheduled task as maintenance', () => {
+  // Start begins the service and logs it; the task completes when its minutes run.
+  it('logs a started scheduled task as maintenance, once', () => {
     useBreakdownStore.getState().scheduleMaintenanceTask({
       machineId: worn.id,
       machineName: worn.name,
@@ -99,7 +128,9 @@ describe('PredictiveMaintenancePanel records the service it performs', () => {
       partsNeeded: ['bearings'],
     });
     render(<PredictiveMaintenancePanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Complete maintenance on Decision mill' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start maintenance on Decision mill' }));
+    expect(operatorLines()).toEqual(['Performed maintenance on Decision mill.']);
+    act(() => stepUnitWork(SERVICE_SECONDS));
     expect(useBreakdownStore.getState().maintenanceSchedule[0].completed).toBe(true);
     expect(operatorLines()).toEqual(['Performed maintenance on Decision mill.']);
   });
@@ -117,7 +148,7 @@ describe('PredictiveMaintenancePanel records the service it performs', () => {
       partsNeeded: ['bearings'],
     });
     render(<PredictiveMaintenancePanel />);
-    const complete = screen.getByRole('button', { name: 'Complete maintenance on Decision mill' });
+    const complete = screen.getByRole('button', { name: 'Start maintenance on Decision mill' });
     fireEvent.click(complete);
     expect(operatorLines()).toEqual([]);
   });

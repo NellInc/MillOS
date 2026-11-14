@@ -30,6 +30,8 @@ import {
   TOWN_HALL_FRAME,
   TOWN_HALL_LOOP_SIGN,
   TOWN_HALL_RAMP,
+  TOWN_HALL_RAMP_FINISH,
+  TOWN_HALL_RAMP_KERBS,
   TOWN_HALL_RAMP_RAILS,
   TOWN_HALL_STEP_TACTILE,
   WORKPOST_ALERT_LAMP,
@@ -45,6 +47,7 @@ import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { SceneText } from '../shared/SceneText';
 import { isAlarmSignalling, strobeOn } from './alarmSignal';
 import { StepFreeExits } from './StepFreeExits';
+import { quietRoomBookingSign } from '../../simulation/agreedAdjustments';
 
 // ---------------------------------------------------------------------------
 // Shared materials
@@ -62,7 +65,9 @@ const M = {
   felt: lit('quiet-room-felt', '#3f5d5e', 0.95),
   frame: lit('quiet-room-frame', '#2e3236', 0.5, 0.4),
   upholstery: lit('quiet-room-chair', '#8a6f55', 0.9),
-  stone: lit('town-hall-ramp-stone', '#b9b2a6', 0.9),
+  stone: lit('town-hall-ramp-stone', TOWN_HALL_RAMP_FINISH.landing, 0.9),
+  flight: lit('town-hall-ramp-flight', TOWN_HALL_RAMP_FINISH.flight, 0.92),
+  kerb: lit('town-hall-ramp-kerb', TOWN_HALL_RAMP_FINISH.kerb, 0.85),
   rail: lit('town-hall-ramp-rail', '#26292c', 0.45, 0.6),
   tactile: lit('step-hazard-paving', '#d4c9a8', 0.85),
   signBlue: lit('loop-sign-blue', '#1f4f9c', 0.6),
@@ -324,6 +329,18 @@ function HallFittings() {
         >
           QUIET ROOM
         </SceneText>
+        {/* The room's own bookings, from the register: its schedule, not a person's. */}
+        <SceneText
+          surface="painted"
+          position={[0, 2.17, -QUIET_ROOM.depth / 2 - 0.012]}
+          rotation={[0, Math.PI, 0]}
+          fontSize={0.06}
+          color="#f1efe9"
+          anchorX="center"
+          anchorY="middle"
+        >
+          {quietRoomBookingSign()}
+        </SceneText>
       </group>
     </group>
   );
@@ -431,42 +448,108 @@ function VisualAlarms() {
 // The town hall ramp, step paving and loop sign
 // ---------------------------------------------------------------------------
 
-function createTownHallRamp() {
+/**
+ * A solid under a side profile in (z, y), extruded across x in [minX, maxX].
+ * The profile runs from `fromZ` to `toZ` along `top(z)`, through every z in
+ * `breaks` between them, and closes on the ground.
+ */
+function sideSolid(
+  minX: number,
+  maxX: number,
+  fromZ: number,
+  toZ: number,
+  breaks: readonly number[],
+  top: (z: number) => number
+) {
+  const zs = [fromZ, ...breaks.filter((z) => z < fromZ && z > toZ), toZ];
+  const profile = new THREE.Shape();
+  profile.moveTo(fromZ, 0);
+  for (const z of zs) profile.lineTo(z, top(z));
+  profile.lineTo(toZ, 0);
+  profile.closePath();
+  const solid = new THREE.ExtrudeGeometry(profile, { depth: maxX - minX, bevelEnabled: false });
+  // Shape x -> world z, extrusion -> world -x.
+  solid.rotateY(-Math.PI / 2).translate(maxX, 0, 0);
+  const flat = solid.toNonIndexed();
+  solid.dispose();
+  return flat;
+}
+
+/**
+ * The town hall ramp as three surfaces that contrast (TOWN_HALL_RAMP_FINISH):
+ * the level landings (head landing and apron as one slab, and the mid
+ * landing), the two flights, and the kerbs on every open side. Each surface
+ * stops at the kerb's inner face, so no two faces share a plane. Exported for
+ * the Approved Document M tests, which raycast it.
+ */
+export function createTownHallRamp() {
   const r = TOWN_HALL_RAMP;
   const [f1, f2] = r.flights;
-  // Side profile in (z, y), extruded across the ramp's width.
-  const profile = new THREE.Shape();
-  profile.moveTo(f1.fromZ, 0);
-  profile.lineTo(f1.fromZ, f1.fromY);
-  profile.lineTo(f1.toZ, f1.toY);
-  profile.lineTo(f2.fromZ, f2.fromY);
-  profile.lineTo(f2.toZ, f2.toY);
-  profile.lineTo(f2.toZ, 0);
-  profile.closePath();
-  const width = r.maxX - r.minX;
-  const flight = new THREE.ExtrudeGeometry(profile, { depth: width, bevelEnabled: false });
-  // Shape x -> world z, extrusion -> world -x.
-  flight.rotateY(-Math.PI / 2).translate(r.maxX, 0, 0);
-  // The top landing and the apron in front of the east column, one level.
-  const levels = [r.top, r.apron].map((level) =>
-    box(
-      level.maxX - level.minX,
-      r.landingY,
-      level.maxZ - level.minZ,
-      (level.minX + level.maxX) / 2,
-      r.landingY / 2,
-      (level.minZ + level.maxZ) / 2
+  const w = r.kerb.width;
+  const breaks = [f1.fromZ, f1.toZ, f2.fromZ, f2.toZ];
+  const surfaceAt = (x: number, z: number) => townHallRampHeight(x, z) ?? 0;
+  // The flights, between the outer kerb and the wall (or the inner kerb).
+  const flights = merge(
+    r.flights.map((f) =>
+      sideSolid(r.clearMinX, r.maxX, f.fromZ, f.toZ, [], (z) =>
+        surfaceAt((r.clearMinX + r.clearMaxX) / 2, z)
+      )
     )
   );
-  const surface = merge([flight.toNonIndexed(), ...levels]);
-  flight.dispose();
+  // The head landing and the apron in front of the east column as one slab
+  // (their union outline in plan; shape y is -z), and the mid landing.
+  const outline = new THREE.Shape();
+  const top = r.top.maxZ - w,
+    apronFront = r.apron.maxZ - w,
+    jog = r.apron.minX + w,
+    edge = r.apron.maxX - w;
+  outline.moveTo(r.clearMinX, -r.top.minZ);
+  for (const [x, z] of [
+    [r.top.maxX, r.top.minZ],
+    [r.top.maxX, r.apron.minZ],
+    [edge, r.apron.minZ],
+    [edge, apronFront],
+    [jog, apronFront],
+    [jog, top],
+    [r.clearMinX, top],
+  ])
+    outline.lineTo(x, -z);
+  outline.closePath();
+  const slab = new THREE.ExtrudeGeometry(outline, { depth: r.landingY, bevelEnabled: false });
+  slab.rotateX(-Math.PI / 2);
+  const mid = r.midLanding;
+  const landings = merge([
+    slab.toNonIndexed(),
+    box(
+      r.maxX - r.clearMinX,
+      mid.y,
+      mid.fromZ - mid.toZ,
+      (r.maxX + r.clearMinX) / 2,
+      mid.y / 2,
+      (mid.fromZ + mid.toZ) / 2
+    ),
+  ]);
+  slab.dispose();
+  // Kerbs: the side ones follow the surface beside them, the rest are level.
+  const kerbs = merge(
+    TOWN_HALL_RAMP_KERBS.map((k) =>
+      k.minZ < r.top.minZ
+        ? sideSolid(k.minX, k.maxX, k.maxZ, k.minZ, breaks, (z) => surfaceAt(r.clearMinX, z) + w)
+        : box(
+            k.maxX - k.minX,
+            r.landingY + r.kerb.height,
+            k.maxZ - k.minZ,
+            (k.minX + k.maxX) / 2,
+            (r.landingY + r.kerb.height) / 2,
+            (k.minZ + k.maxZ) / 2
+          )
+    )
+  );
 
   // Handrails 0.9 m and 0.6 m above the surface along every rail line
   // (TOWN_HALL_RAMP_RAILS, which the walker also stops at): pieces break where
   // the pitch changes, so each piece is straight; posts about every 1.2 m.
   const rails: THREE.BufferGeometry[] = [];
-  const breaks = [f1.fromZ, f1.toZ, f2.fromZ, f2.toZ];
-  const surfaceAt = (x: number, z: number) => townHallRampHeight(x, z) ?? 0;
   for (const { from, to } of TOWN_HALL_RAMP_RAILS) {
     const cuts = [0, 1];
     if (from[0] === to[0])
@@ -485,14 +568,14 @@ function createTownHallRamp() {
       const y0 = surfaceAt(x0, z0),
         y1 = surfaceAt(x1, z1);
       for (const h of [r.railHeight, 0.6])
-        rails.push(rod([x0, y0 + h, z0], [x1, y1 + h, z1], 0.022));
+        rails.push(rod([x0, y0 + h, z0], [x1, y1 + h, z1], r.railRadius));
     }
     for (const [x, z] of townHallRailPosts({ from, to })) {
       const y = surfaceAt(x, z);
       rails.push(rod([x, y, z], [x, y + r.railHeight, z], 0.02));
     }
   }
-  return { surface, rails: merge(rails) };
+  return { landings, flights, kerbs, rails: merge(rails) };
 }
 
 /** Corduroy: 6 mm bars, 20 mm wide at 50 mm centres, across the direction of travel. */
@@ -560,8 +643,22 @@ function TownHallAccess() {
     >
       <mesh
         name="town-hall-ramp"
-        geometry={ramp.surface}
+        geometry={ramp.landings}
         material={M.stone}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="town-hall-ramp-flights"
+        geometry={ramp.flights}
+        material={M.flight}
+        castShadow
+        receiveShadow
+      />
+      <mesh
+        name="town-hall-ramp-kerbs"
+        geometry={ramp.kerbs}
+        material={M.kerb}
         castShadow
         receiveShadow
       />

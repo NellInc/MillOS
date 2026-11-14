@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import * as THREE from 'three';
 import { sampleWalkingGroundHeight } from '../../utils/castleNavigation';
+import { walkingPace } from '../../utils/walkingPace';
 import { positionRegistry } from '../../utils/positionRegistry';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
@@ -53,6 +54,19 @@ afterEach(() => {
   useForkliftDriveStore.setState({ drivenId: null, inReachId: null });
   useMobileControlStore.getState().setDpadDirection(null);
   useUIStore.getState().setFpsMode(false);
+});
+
+// Seen on a landscape phone: the crosshair dot drew on top of an open sheet,
+// between its tabs. A z-index alone cannot settle it (the crosshair's layer
+// and the sheet's sit in different stacking contexts; a z-[35] build still
+// showed the dot), so the crosshair steps aside while a sheet is open.
+it('hides the crosshair while a phone sheet is open', () => {
+  useMobileControlStore.setState({ mobilePanelVisible: true });
+  const { rerender } = render(<FPSCrosshair touch />);
+  expect(document.querySelector('.bg-white\\/80.rounded-full')).toBeNull();
+  act(() => useMobileControlStore.setState({ mobilePanelVisible: false }));
+  rerender(<FPSCrosshair touch />);
+  expect(document.querySelector('.bg-white\\/80.rounded-full')).not.toBeNull();
 });
 
 it('boards from a Drive button, drives on the D-pad, and turns the view with the cab', () => {
@@ -116,11 +130,12 @@ it('steps down on the driver’s side at standing height', () => {
   expect(z).toBeCloseTo(FORKLIFT.z - 0.9, 5);
   expect(y).toBeCloseTo(sampleWalkingGroundHeight(x, z, 64) + 1.7, 5);
   expect(manualForkliftInput).toEqual({ throttle: 0, steer: 0, lift: 0 });
-  // Back on foot the D-pad walks again.
+  // Back on foot the D-pad walks again, at the walking pace where they stand
+  // (utils/walkingPace.ts, D16): 0.1 m a frame was the old 12 m/s.
   useMobileControlStore.getState().setDpadDirection({ x: 0, y: -1 });
   act(() => harness.frame({}, 1 / 30));
   expect(Math.hypot(harness.camera.position.x - x, harness.camera.position.z - z)).toBeGreaterThan(
-    0.1
+    (0.5 * walkingPace(x, z, false)) / 30
   );
 });
 

@@ -130,11 +130,11 @@ export const EPILOGUE_SECTIONS: readonly EpilogueSection[] = [
     slides: [
       {
         when: { marks: { all: ['granary-village', 'promise-kept'] } },
-        text: 'The village bakery kept the old granary and the pasta works got its east bin. Both still carry the mill’s lease plates.',
+        text: 'The village bakery kept the old granary and the polenta kitchen got its east bin. Both still carry the mill’s lease plates.',
       },
       {
         when: { marks: { all: ['granary-village', 'promise-broken'] } },
-        text: 'The village bakery kept the old granary. The pasta works told the federation that the mill’s promises were worth less than its deeds.',
+        text: 'The village bakery kept the old granary. The polenta kitchen told the federation that the mill’s promises were worth less than its deeds.',
       },
       {
         when: { marks: { all: ['granary-village'] } },
@@ -142,7 +142,7 @@ export const EPILOGUE_SECTIONS: readonly EpilogueSection[] = [
       },
       {
         when: { marks: { all: ['granary-pasta'] } },
-        text: 'The pasta works filled the old granary with semolina. The village bakery moved into a barn and later closed.',
+        text: 'The polenta kitchen filled the old granary with cornmeal. The village bakery moved into a barn and later closed.',
       },
       {
         when: { marks: { all: ['granary-kept'] } },
@@ -308,6 +308,10 @@ export const GOVERNANCE_EPILOGUE_SECTIONS: readonly EpilogueSection[] = [
         when: { marks: { all: ['administered'] } },
         text: 'For a few shifts the federation’s administrator ran the mill. The report it left praised the crew and said nothing about the steward.',
       },
+      {
+        when: { marks: { all: ['administration-refused'] } },
+        text: 'The assembly refused the federation’s administrator and steered the mill through its bad year alone. The federation remembered it, and so did the members.',
+      },
     ],
   },
   {
@@ -325,6 +329,32 @@ export const GOVERNANCE_EPILOGUE_SECTIONS: readonly EpilogueSection[] = [
       {
         when: { marks: { all: ['reserve-drawn'] } },
         text: 'The co-op reserve was spent keeping the plant maintained when the fund ran dry.',
+      },
+    ],
+  },
+];
+
+/**
+ * Cooperative seasons worked on the floor while the charter ran (item 5.10).
+ * The engine files their marks from the close's evidence; the slides say what
+ * the seasons kept, never what anyone in them did.
+ */
+export const SEASON_EPILOGUE_SECTIONS: readonly EpilogueSection[] = [
+  {
+    id: 'seasons',
+    title: 'The cooperative seasons',
+    slides: [
+      {
+        when: { marks: { all: ['season-kept'], none: ['season-short'] } },
+        text: 'Every cooperative season the floor worked kept both its delivery and its agreement. The agreement was renewed each year without a change.',
+      },
+      {
+        when: { marks: { all: ['season-kept', 'season-short'] } },
+        text: 'Some cooperative seasons kept their delivery and their agreement and some fell short. The members read the short ones first at the next assembly.',
+      },
+      {
+        when: { marks: { all: ['season-short'] } },
+        text: 'The cooperative seasons the floor worked fell short of their delivery or their agreement. The agreement was rewritten before the next one.',
       },
     ],
   },
@@ -373,7 +403,11 @@ export function epilogue(
           : `The AI partner made ${partner} of the ${decisions.length} decisions in the record.`) +
         briefText,
     });
-  for (const section of [...EPILOGUE_SECTIONS, ...GOVERNANCE_EPILOGUE_SECTIONS]) {
+  for (const section of [
+    ...EPILOGUE_SECTIONS,
+    ...GOVERNANCE_EPILOGUE_SECTIONS,
+    ...SEASON_EPILOGUE_SECTIONS,
+  ]) {
     const slide = section.slides.find((candidate) => conditionMet(context, candidate.when));
     if (slide) entries.push({ id: section.id, title: section.title, text: slide.text });
   }
@@ -430,7 +464,11 @@ export function localizedEpilogue(
               total: formatFixed(decisions.length),
             })) + briefText,
     });
-  for (const section of [...EPILOGUE_SECTIONS, ...GOVERNANCE_EPILOGUE_SECTIONS]) {
+  for (const section of [
+    ...EPILOGUE_SECTIONS,
+    ...GOVERNANCE_EPILOGUE_SECTIONS,
+    ...SEASON_EPILOGUE_SECTIONS,
+  ]) {
     const slide = section.slides.find((candidate) => conditionMet(context, candidate.when));
     if (slide) entries.push({ id: section.id, title: copy(section.title), text: copy(slide.text) });
   }

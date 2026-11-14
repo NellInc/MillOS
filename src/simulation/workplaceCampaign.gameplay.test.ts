@@ -13,6 +13,7 @@ import {
   shiftResumable,
   WORKPLACE_CHECKS,
   CAMPAIGN_PRESSURES,
+  mondayMinute,
 } from './workplaceCampaign';
 
 function campaign() {
@@ -48,7 +49,11 @@ function campaign() {
   };
   const finish = () => {
     while (state.phase === 'active') {
-      if (state.campaign?.shift === 1 && state.minute >= 25 && state.campaign.decision === null)
+      if (
+        state.campaign?.shift === 1 &&
+        state.minute >= mondayMinute(state) &&
+        state.campaign.decision === null
+      )
         run({ type: 'campaignDecision', args: ['inspect', 'quality'] });
       run({ type: 'tick', args: [5, 0, false] });
     }

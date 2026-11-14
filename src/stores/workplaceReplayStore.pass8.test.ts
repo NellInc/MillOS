@@ -12,6 +12,7 @@ import {
   isWorkplaceReplayActive,
   registerReplayParticipant,
 } from '../simulation/workplaceReplayRuntime';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 const KEY = 'millos-workplace-laboratory';
 let unregister: Array<() => void> = [];
@@ -20,6 +21,8 @@ beforeEach(async () => {
   useWorkplaceReplayStore.setState(useWorkplaceReplayStore.getInitialState());
   useSafetyStore.setState(useSafetyStore.getInitialState());
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
   useGameSimulationStore.getState().setGameSpeed(0);
   await safeJSONStorage.removeItem(KEY);
   useWorkplaceStore.setState({

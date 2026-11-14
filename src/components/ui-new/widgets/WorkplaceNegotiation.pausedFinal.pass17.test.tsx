@@ -9,7 +9,8 @@ import {
   type WorkplaceCommand,
 } from '../../../simulation/bilateralWorkplace';
 import {
-  CAMPAIGN_PRESSURES,
+  campaignPressure,
+  mondayMinute,
   requiredChecks,
   WORKPLACE_CHECKS,
 } from '../../../simulation/workplaceCampaign';
@@ -28,7 +29,7 @@ function finalShift(stopAt: number) {
         type: 'campaignDecision',
         args: [shift === 0 ? 'keep-target' : 'protect-refusal', 'coordinator'],
       });
-    run({ type: 'respondToPressure', args: [CAMPAIGN_PRESSURES[shift].id, 'protect-boundary'] });
+    run({ type: 'respondToPressure', args: [campaignPressure(state)!.id, 'protect-boundary'] });
     for (const actor of ['packing', 'mind']) {
       for (const id of requiredChecks(actor))
         run({
@@ -42,7 +43,11 @@ function finalShift(stopAt: number) {
     run({ type: 'activate', args: [state.revision] });
     const end = shift === 2 ? stopAt : 90;
     while (state.phase === 'active' && state.minute < end) {
-      if (state.campaign?.shift === 1 && state.minute >= 25 && state.campaign.decision === null)
+      if (
+        state.campaign?.shift === 1 &&
+        state.minute >= mondayMinute(state) &&
+        state.campaign.decision === null
+      )
         run({ type: 'campaignDecision', args: ['inspect', 'quality'] });
       run({ type: 'tick', args: [5, 0, false] });
     }
@@ -69,7 +74,7 @@ describe('Thursday card on a final shift a reload paused (pass seventeen)', () =
   it('still asks for the review once the final shift has ended', () => {
     setLocale('en');
     render(<WorkplaceNegotiation state={finalShift(90)} />);
-    expect(screen.getByText(/Review the actual shortfall/)).toBeTruthy();
+    // D14 cut the "Review the actual shortfall" caption; the chapter line asks.
     expect(screen.getByText(/Compare actual work with the agreement/)).toBeTruthy();
   });
 });

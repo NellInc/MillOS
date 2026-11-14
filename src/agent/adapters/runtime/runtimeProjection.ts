@@ -7,11 +7,16 @@ import type {
 import type { AgentDomainId, AgentRuntimeMode } from '../../contracts/systemManifest';
 import { predictionMinutesLeft, useBreakdownStore } from '../../../stores/breakdownStore';
 import { readPlantClock } from '../../../utils/timeFormatting';
-import { selectChosenPace, useGameSimulationStore } from '../../../stores/gameSimulationStore';
+import {
+  selectChosenPace,
+  selectRestartPending,
+  useGameSimulationStore,
+} from '../../../stores/gameSimulationStore';
 import { useHistoricalPlaybackStore } from '../../../stores/historicalPlaybackStore';
 import { useIncidentReplayStore } from '../../../stores/incidentReplayStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { openProgramme } from '../../../stores/programmeCommitment';
 import { getDispatchQualityStatus, useQCLabStore } from '../../../stores/qcLabStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useSafetyStore } from '../../../stores/safetyStore';
@@ -19,6 +24,8 @@ import { useTruckScheduleStore } from '../../../stores/truckScheduleStore';
 import { peekSCADAService } from '../../../scada/SCADAService';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { projectWorkplace } from '../../../simulation/bilateralWorkplace';
+import { usePartnerProposalStore } from '../../../stores/partnerProposalStore';
+import { proposalDecisionView } from '../../../simulation/partnerProposalDecision';
 
 const BUILD_ID = typeof __MILLOS_BUILD_ID__ === 'string' ? __MILLOS_BUILD_ID__ : 'development';
 
@@ -45,6 +52,7 @@ export function captureMillOSAgentState(now = new Date()): AgentDomainCapture {
   const mode: AgentRuntimeMode =
     replay.replayMode || historical.isReplaying ? 'replay' : 'simulation';
   const warnings: AgentStructuredProblem[] = [];
+  const restartPending = selectRestartPending(simulation);
 
   if (production.scadaLive) {
     warnings.push({
@@ -91,6 +99,12 @@ export function captureMillOSAgentState(now = new Date()): AgentDomainCapture {
       emergencyActive: simulation.emergencyActive,
       emergencyMachineId: simulation.emergencyMachineId,
       emergencyDrillMode: simulation.emergencyDrillMode,
+      // D-096: CLEAR and the drill's end leave the line idle until a person
+      // presses RESTART LINE; no agent command restarts it.
+      restartPending,
+      restartPendingReason: restartPending
+        ? 'The stop or drill has cleared and the line is idle. A person must press RESTART LINE in Safety; no agent command restarts it.'
+        : null,
       activeSafetyEventId: simulation.activeSafetyEventId,
       safetyEvents: simulation.safetyEvents.map((event) => ({ ...event })),
       drillMetrics: {
@@ -113,7 +127,6 @@ export function captureMillOSAgentState(now = new Date()): AgentDomainCapture {
         maintenanceCountdown: machine.maintenanceCountdown ?? null,
       })),
       metrics: { ...production.metrics },
-      productionTarget: production.productionTarget ? { ...production.productionTarget } : null,
       totalBagsProduced: finite(production.totalBagsProduced),
       dailyBagsProduced: finite(production.dailyBagsProduced),
       dockStatus: {
@@ -121,19 +134,25 @@ export function captureMillOSAgentState(now = new Date()): AgentDomainCapture {
         shipping: { ...production.dockStatus.shipping },
       },
       scadaLive: production.scadaLive,
-      aiDecisions: production.aiDecisions.slice(-100).map((decision) => ({
-        id: decision.id,
-        timestamp: toIso(decision.timestamp),
-        type: decision.type,
-        action: decision.action,
-        confidence: finite(decision.confidence),
-        impact: decision.impact,
-        machineId: decision.machineId ?? null,
-        status: decision.status,
-        priority: decision.priority,
-        response: decision.response ? { ...decision.response } : null,
-        measuredOutcome: decision.measuredOutcome ? { ...decision.measuredOutcome } : null,
-      })),
+      aiDecisions: [
+        ...production.aiDecisions.slice(-100).map((decision) => ({
+          id: decision.id,
+          timestamp: toIso(decision.timestamp),
+          type: decision.type,
+          action: decision.action,
+          confidence: finite(decision.confidence),
+          impact: decision.impact,
+          machineId: decision.machineId ?? null,
+          status: decision.status,
+          priority: decision.priority,
+          response: decision.response ? { ...decision.response } : null,
+          measuredOutcome: decision.measuredOutcome ? { ...decision.measuredOutcome } : null,
+        })),
+        // The partner's proposals (plan 3.0) read as decisions, so decision.respond
+        // answers them: 'accepted' runs the partner's choice, 'rejected' the other
+        // answer of two, 'modified' the option named in modifiedAction.
+        ...usePartnerProposalStore.getState().proposals.map(proposalDecisionView),
+      ],
     }),
     material: asJson({
       totals: {
@@ -222,6 +241,7 @@ export function captureMillOSAgentState(now = new Date()): AgentDomainCapture {
       initialized: campaign.initialized,
       elapsedMinutes: finite(campaign.elapsedMinutes),
       activeOrderId: campaign.activeOrderId,
+      programme: projectProgramme(campaign.orders),
       orders: campaign.orders.map((order) => ({
         ...order,
         recipe: { ...order.recipe },
@@ -329,6 +349,25 @@ export function captureMillOSAgentState(now = new Date()): AgentDomainCapture {
 
 function finite(value: number, fallback = 0): number {
   return Number.isFinite(value) ? value : fallback;
+}
+
+/**
+ * The plant's goal as the HUD shows it (D11): the running programme's committed
+ * and shipped kilograms, its next due minute and whether an order of it is
+ * late. Null with no programme open; the retired daily bag target is not
+ * projected.
+ */
+function projectProgramme(orders: Parameters<typeof openProgramme>[0]) {
+  const programme = openProgramme(orders);
+  return programme
+    ? {
+        key: programme.key,
+        committedKg: finite(programme.committedKg),
+        shippedKg: finite(programme.shippedKg),
+        nextDueAtMinute: finite(programme.nextDueAtMinute),
+        late: programme.late,
+      }
+    : null;
 }
 
 function normalizeHour(value: number): number {

@@ -36,6 +36,9 @@ function thursday(profile: WorkplaceProfile = 'cooperative') {
     run({ type: 'simulateResponses', args: [] });
   };
   run({ type: 'startCampaign', args: [profile, 17] });
+  // The repeat-cover pressure on Thursday: a season in the fixed order a
+  // season begun before seeded draws keeps (5.10).
+  delete state.campaign!.draw;
   for (let shift = 0; shift < 2; shift++) {
     if (shift === 0) {
       run({ type: 'campaignDecision', args: ['keep-target', 'coordinator'] });
@@ -83,8 +86,8 @@ describe('Thursday shop-floor negotiation', () => {
     expect(deriveWorkplaceGuidance(c.state).destination).toBe('Shift');
     render(<WorkplaceNegotiation state={c.state} />);
     expect(screen.getByText(/Your policy no holds/)).toBeInTheDocument();
-    expect(screen.getByText(/Dispatch remains uncertain/)).toBeInTheDocument();
-    expect(screen.getByText(/You can challenge my authority/)).toBeInTheDocument();
+    // D14: the adviser's uncertainty and challenge captions are cut.
+    expect(screen.queryByText(/Dispatch remains uncertain/)).toBeNull();
   });
 
   it('makes the adviser hold an open worker challenge and shows actual costs separately', () => {
@@ -123,7 +126,7 @@ describe('Thursday shop-floor negotiation', () => {
       expect(screen.getAllByText('yes')).toHaveLength(2);
       fireEvent.click(screen.getByText('Offer, choices and receipts'));
       expect(c.state).toBe(before);
-      expect(screen.getByText(/This receipt grants no new permission/)).toBeInTheDocument();
+      expect(screen.getByText('The adviser corrected reused consent.')).toBeInTheDocument();
       expect(screen.getByText(/credits paid; recovery/)).toHaveTextContent('8.00 credits paid');
     }
   );

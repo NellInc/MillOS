@@ -6,9 +6,8 @@ export const emergencyOverlayMessages = defineMessages({
     forkliftStopTitle: 'Forklift emergency stop',
     facilityStopTitle: 'Facility emergency stop',
     drillGuidance:
-      'Drill in progress. Production and forklifts hold while each service egress verifies itself; it ends once every egress checks in, or from the Safety panel.',
-    forkliftStopGuidance:
-      'Every forklift is holding position; the mill keeps running. Press X or release it from the Safety panel.',
+      'Drill in progress. Production and forklifts hold while each egress route is checked clear of stopped forklifts; it ends when every route is clear, or from the Safety panel.',
+    forkliftStopGuidance: 'Every forklift is holding position; the mill keeps running.',
     facilityStopGuidance:
       'Everything is stopped. Find the cause, fix it, then clear the interlock from the Safety panel.',
     deliberateStopGuidance:
@@ -18,15 +17,16 @@ export const emergencyOverlayMessages = defineMessages({
     chronicleFireCleaningGuidance:
       'Everything is stopped while the duct is cleaned. Production restarts when it is clean.',
     liveRegion: '{title}. {guidance}',
+    releaseForkliftStop: 'Release forklift stop',
   },
   'pt-BR': {
     drillTitle: 'Simulado de verificação das rotas de saída',
     forkliftStopTitle: 'Parada de emergência das empilhadeiras',
     facilityStopTitle: 'Parada de emergência da unidade',
     drillGuidance:
-      'Simulado em andamento. A produção e as empilhadeiras ficam paradas enquanto cada rota de saída de serviço é verificada; o simulado termina quando todas as rotas de saída forem confirmadas ou quando for encerrado pelo painel de Segurança.',
+      'Simulado em andamento. A produção e as empilhadeiras ficam paradas enquanto se verifica se cada rota de saída está livre de empilhadeiras paradas; o simulado termina quando todas as rotas estiverem livres ou quando for encerrado pelo painel de Segurança.',
     forkliftStopGuidance:
-      'Todas as empilhadeiras estão paradas na posição; o moinho continua funcionando. Pressione X ou libere a parada pelo painel de Segurança.',
+      'Todas as empilhadeiras estão paradas na posição; o moinho continua funcionando.',
     facilityStopGuidance:
       'Tudo está parado. Encontre a causa, corrija-a e depois libere o intertravamento pelo painel de Segurança.',
     deliberateStopGuidance:
@@ -36,5 +36,6 @@ export const emergencyOverlayMessages = defineMessages({
     chronicleFireCleaningGuidance:
       'Tudo está parado enquanto o duto é limpo. A produção recomeça quando ele estiver limpo.',
     liveRegion: '{title}. {guidance}',
+    releaseForkliftStop: 'Liberar parada das empilhadeiras',
   },
 });

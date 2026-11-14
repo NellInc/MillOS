@@ -16,6 +16,8 @@ import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useTruckScheduleStore } from '../../stores/truckScheduleStore';
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { useQCLabStore } from '../../stores/qcLabStore';
+import { usePartnerProposalStore } from '../../stores/partnerProposalStore';
+import { answerPartnerProposal } from '../../systems/partnerProposalRuntime';
 import { toSimulationMinutes } from '../../simulation/simulationClock';
 import {
   createTruckController,
@@ -113,6 +115,7 @@ beforeEach(() => {
   useTruckScheduleStore.getState().resetTruckSchedule();
   useBreakdownStore.getState().resetBreakdownStore();
   useQCLabStore.getState().resetQCLab();
+  usePartnerProposalStore.getState().reset();
   useProductionStore.setState({
     ...useProductionStore.getInitialState(),
     machines: makeRoster(SITE_LAYOUT, MachineType),
@@ -198,6 +201,12 @@ function play(gameDays: number, acceptProgrammes: boolean) {
       useOperationsCampaignStore.getState().orders.every((o) => o.status === 'fulfilled')
     )
       useOperationsCampaignStore.getState().acceptNextProgramme();
+    // Re-pinned for plan item 3.0: left unanswered, the partner accepts the
+    // next programme, so the idle pattern is an operator who holds it.
+    if (!acceptProgrammes)
+      for (const proposal of usePartnerProposalStore.getState().proposals)
+        if (proposal.status === 'open' && proposal.kind === 'programme')
+          answerPartnerProposal(proposal.id, 'hold');
     for (let frame = 0; frame < framesPerTick; frame++) {
       for (const lane of ['receiving', 'shipping'] as const) {
         const clock = advanceTruckClock(
@@ -302,8 +311,9 @@ function report(label: string, samples: ReturnType<typeof play>) {
 // days of either play pattern encode through the real gate at a quarter of it,
 // with every retained window at its pinned cap.
 it('pins the retained history windows', () => {
-  expect(MAX_PRODUCTION_BATCHES).toBe(32);
-  expect(MAX_MATERIAL_MANIFESTS).toBe(32);
+  // 32 each until plan item 3.4 brought a delivering plant's save under budget.
+  expect(MAX_PRODUCTION_BATCHES).toBe(4);
+  expect(MAX_MATERIAL_MANIFESTS).toBe(8);
 });
 
 it.each([

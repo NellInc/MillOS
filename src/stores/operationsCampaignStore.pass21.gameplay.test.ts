@@ -66,7 +66,7 @@ describe('each overdue order is named once in the carried risks', () => {
     expect(shiftRiskLabels(soFar.gradeBasis!, 'en')).toEqual(
       expect.arrayContaining([
         "Commitment overdue (Riverside Bakers' Cooperative)",
-        'Commitment overdue (Community Pasta Works)',
+        'Commitment overdue (Community Polenta Kitchen)',
       ])
     );
 
@@ -77,13 +77,13 @@ describe('each overdue order is named once in the carried risks', () => {
     expect(basis.risks.filter((label) => label.startsWith('Commitment overdue'))).toHaveLength(2);
     const en = shiftRiskLabels(basis, 'en');
     expect(en).toContain("Commitment overdue (Riverside Bakers' Cooperative)");
-    expect(en).toContain('Commitment overdue (Community Pasta Works)');
+    expect(en).toContain('Commitment overdue (Community Polenta Kitchen)');
     expect(en).not.toContain('Commitment overdue');
     // The saved text names them too (a reader without the basis).
-    expect(report.openRisks).toContain('Commitment overdue (Community Pasta Works)');
+    expect(report.openRisks).toContain('Commitment overdue (Community Polenta Kitchen)');
     const pt = shiftRiskLabels(basis, 'pt-BR');
     expect(pt).toContain("Compromisso atrasado (Riverside Bakers' Cooperative)");
-    expect(pt).toContain('Compromisso atrasado (Community Pasta Works)');
+    expect(pt).toContain('Compromisso atrasado (Community Polenta Kitchen)');
   });
 
   it('a saved review without names reads one counted line, not the label twice', () => {

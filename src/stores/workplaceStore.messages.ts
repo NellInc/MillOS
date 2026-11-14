@@ -31,13 +31,21 @@ export const workplaceStoreMessages = defineMessages({
     completeThreeShifts: 'Complete all three shifts before archiving a review.',
     resumePausedBeforeArchive:
       'A reload paused the final shift before its end. Resume it, then finish or end it, before archiving.',
+    resumeStoppedBeforeArchive:
+      'A safety stop or an objection paused the final shift. Resume it, then finish or end it, before archiving.',
     settleBeforeArchive:
       'Deliver owed recovery and settle objections and reserved pay before archiving.',
+    // Review 2: an archived season never loses its pool.
+    settleSurplusBeforeArchive: 'Share the season’s surplus first.',
     reviewNotValidated: 'This review could not be validated for the archive.',
     openCommitmentRequired:
       'Choose an open, quality-qualified customer commitment with no active recovery challenge.',
+    firstDeliveryFirst: 'The cooperative season starts after the first delivery.',
+    authoredRoleAnswers:
+      'You are Packing. The other roles answer for themselves: hear their responses.',
     safetyStopHolds:
       'The safety stop holds this agreement. No new work during an emergency or drill.',
+    restartLineFirst: 'The line is still stopped. Press RESTART LINE in Safety first.',
     endTurnBeforeActivation: 'End the participant turn before facilitator activation.',
     materialSessionChanged:
       'The physical material session changed. Historical receipts cannot authorise a new agreement.',
@@ -79,13 +87,20 @@ export const workplaceStoreMessages = defineMessages({
     completeThreeShifts: 'Conclua os três turnos antes de arquivar uma revisão.',
     resumePausedBeforeArchive:
       'Uma recarga pausou o turno final antes do fim. Retome-o e depois conclua-o ou encerre-o antes de arquivar.',
+    resumeStoppedBeforeArchive:
+      'Uma parada de segurança ou uma objeção pausou o turno final. Retome-o e depois conclua-o ou encerre-o antes de arquivar.',
     settleBeforeArchive:
       'Conceda o tempo de recuperação devido e resolva as objeções e a remuneração reservada antes de arquivar.',
+    settleSurplusBeforeArchive: 'Faça primeiro o rateio das sobras da temporada.',
     reviewNotValidated: 'Não foi possível validar esta revisão para o arquivo.',
     openCommitmentRequired:
       'Escolha um compromisso de cliente em aberto, qualificado pela qualidade e sem desafio de recuperação ativo.',
+    firstDeliveryFirst: 'A temporada cooperativa começa depois da primeira entrega.',
+    authoredRoleAnswers:
+      'Você é o Ensaque. As outras funções respondem por si: ouça as respostas delas.',
     safetyStopHolds:
       'A parada de segurança retém este acordo. Nenhum trabalho novo durante uma emergência ou simulado.',
+    restartLineFirst: 'A linha continua parada. Pressione REINICIAR LINHA em Segurança primeiro.',
     endTurnBeforeActivation: 'Encerre a vez do participante antes da ativação pelo facilitador.',
     materialSessionChanged:
       'A sessão física de material mudou. Comprovantes históricos não podem autorizar um novo acordo.',

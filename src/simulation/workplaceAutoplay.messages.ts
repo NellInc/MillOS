@@ -11,16 +11,16 @@ export const workplaceAutoplayMessages = defineMessages({
       'An open objection remains with its original raiser. Automatic demonstration paused.',
     missionEvidence:
       'The season’s customer commitment no longer has current, quality-qualified dispatch evidence, so no further shift can be approved. To start another season, open Autonomy and choose Leave this season.',
-    seasonComplete:
-      'Automatic three-shift season complete. Read the individual receipts and rehearse safe reload.',
+    seasonComplete: 'Automatic season finished: review and archive it in Autonomy.',
     separateTurnsManual: 'Separate participant turns stay manual.',
+    firstDeliveryFirst: 'The cooperative season starts after the first delivery.',
     running: 'Fictional solo role decisions are running. Pause whenever you want.',
     paused: 'Automatic decisions paused. Your choices take priority.',
     stoppedTitle: 'Automatic cooperative season stopped',
     heldTitle: 'Automatic cooperative season held',
-    restartHint: 'To run it again, open Autonomy and choose Skip guide and run fictional demo.',
-    readinessHint:
-      'To continue, open Autonomy and change the agreement yourself, or choose Leave this season.',
+    // Part of the readiness refusal: its ways on are in the closed facilitator tools.
+    readinessRefusedWayOut:
+      'Change the agreement in Autonomy, or choose Leave this season in Facilitator tools.',
   },
   'pt-BR': {
     soloOnly:
@@ -32,17 +32,15 @@ export const workplaceAutoplayMessages = defineMessages({
       'Uma objeção em aberto continua com quem a levantou originalmente. Demonstração automática pausada.',
     missionEvidence:
       'O compromisso com o cliente desta temporada não tem mais evidência de expedição atual e aprovada na qualidade, então nenhum outro turno pode ser aprovado. Para começar outra temporada, abra Autonomia e escolha Sair desta temporada.',
-    seasonComplete:
-      'Temporada automática de três turnos concluída. Leia os comprovantes individuais e ensaie um recarregamento seguro.',
+    seasonComplete: 'Temporada automática concluída: revise-a e arquive-a em Autonomia.',
     separateTurnsManual: 'Nas vezes separadas de cada participante, as decisões continuam manuais.',
+    firstDeliveryFirst: 'A temporada cooperativa começa depois da primeira entrega.',
     running:
       'As decisões fictícias das funções no modo solo estão em andamento. Pause quando quiser.',
     paused: 'Decisões automáticas pausadas. Suas escolhas têm prioridade.',
     stoppedTitle: 'Temporada cooperativa automática interrompida',
     heldTitle: 'Temporada cooperativa automática retida',
-    restartHint:
-      'Para rodá-la de novo, abra Autonomia e escolha Pular o guia e rodar a demonstração fictícia.',
-    readinessHint:
-      'Para continuar, abra Autonomia e mude o acordo você mesmo, ou escolha Sair desta temporada.',
+    readinessRefusedWayOut:
+      'Mude o acordo em Autonomia, ou escolha Sair desta temporada em Ferramentas do facilitador.',
   },
 });

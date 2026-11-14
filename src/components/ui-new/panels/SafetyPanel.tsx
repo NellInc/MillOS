@@ -1,7 +1,14 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
-import { Shield, Cloud, AlertTriangle, Activity, CheckCircle2 } from 'lucide-react';
+import React, { Suspense, useEffect, useId, useRef, useState } from 'react';
+import { Shield, AlertTriangle, Activity, CheckCircle2, Forklift, Play } from 'lucide-react';
 import { useGameSimulationStore, useSafetyStore } from '../../../stores';
-import { safetyEventCopy } from '../../../stores/gameSimulationStore';
+import {
+  SERVICE_EGRESS_POINTS,
+  safetyEventCopy,
+  selectRestartPending,
+  type DrillZoneRecord,
+} from '../../../stores/gameSimulationStore';
+import { formatPlantStamp } from '../../../utils/timeFormatting';
+import { showEgressRoutes } from '../../../systems/egressPreview';
 import { recordOperatorAction } from '../../../stores/operationsCampaignStore';
 import { useShallow } from 'zustand/react/shallow';
 import { audioManager } from '../../../utils/audioManager';
@@ -10,6 +17,7 @@ import { recoverableLazy } from '../../../utils/recoverableLazy';
 import { RecoverableFeatureBoundary } from '../../ErrorBoundary';
 import { formatFixed, translate, useT } from '../../../i18n';
 import { safetyPanelMessages } from './SafetyPanel.messages';
+import { engageForkliftStop, releaseForkliftStop } from './forkliftStop';
 
 // Re-homed safety widgets (formerly orphaned in ui/ after the UIOverlay removal)
 const SafetyMetricsDisplay = recoverableLazy(() =>
@@ -71,12 +79,22 @@ export const SafetyPanel: React.FC = () => {
     responseHeadingRef.current?.focus();
   });
   const forkliftEmergencyStop = useSafetyStore((state) => state.forkliftEmergencyStop);
+  // A cleared stop or an ended drill leaves the line idle (D13); the Restart
+  // takes focus where CLEAR or END DRILL was pressed, as the next action.
+  const restartPending = useGameSimulationStore(selectRestartPending);
+  const restartRef = useRef<HTMLButtonElement>(null);
+  const [focusRestart, setFocusRestart] = useState(false);
+  useEffect(() => {
+    if (!focusRestart || !restartPending) return;
+    setFocusRestart(false);
+    restartRef.current?.focus();
+  }, [focusRestart, restartPending]);
+  // The routes and refuges draw on the floor while these controls are open.
+  useEffect(() => (tab === 'controls' ? showEgressRoutes() : undefined), [tab]);
   const {
     emergencyActive,
     emergencyDrillMode,
     crisisActive,
-    weather,
-    setWeather,
     safetyEvents,
     activeSafetyEventId,
     acknowledgeSafetyEvent,
@@ -88,8 +106,6 @@ export const SafetyPanel: React.FC = () => {
       emergencyActive: state.emergencyActive,
       emergencyDrillMode: state.emergencyDrillMode,
       crisisActive: state.crisisState.active,
-      weather: state.weather,
-      setWeather: state.setWeather,
       safetyEvents: state.safetyEvents,
       activeSafetyEventId: state.activeSafetyEventId,
       acknowledgeSafetyEvent: state.acknowledgeSafetyEvent,
@@ -101,6 +117,10 @@ export const SafetyPanel: React.FC = () => {
   // Working if a click on END DRILL that lands after the drill ended itself
   // never starts another one.
   const [drillJustEnded, setDrillJustEnded] = useState(false);
+  // Why a held control is held, printed at it (D14): a title tooltip never
+  // shows on a phone. Working if each held button names its reason.
+  const drillHeldId = useId();
+  const stopHeldId = useId();
   const wasDrillRef = useRef(emergencyDrillMode);
   useEffect(() => {
     const wasDrill = wasDrillRef.current;
@@ -115,21 +135,46 @@ export const SafetyPanel: React.FC = () => {
     .reverse()
     .find((event) => event.stage === 'cleared');
 
-  const weatherOptions: Array<{
-    value: 'clear' | 'cloudy' | 'rain' | 'storm';
-    label: string;
-  }> = [
-    { value: 'clear', label: t('weatherClear') },
-    { value: 'cloudy', label: t('weatherCloudy') },
-    { value: 'rain', label: t('weatherRain') },
-    { value: 'storm', label: t('weatherStorm') },
-  ];
+  const zoneLabel = (zoneId: string | undefined) =>
+    SERVICE_EGRESS_POINTS.find((point) => point.id === zoneId)?.label ?? zoneId ?? '';
+  const drillRecordLine = (zone: DrillZoneRecord) => {
+    const params = {
+      zone: zoneLabel(zone.zoneId),
+      alternative: zoneLabel(zone.alternative),
+      forklifts: (zone.blockedBy ?? []).join(', '),
+      time: formatPlantStamp(zone.clock) ?? '',
+    };
+    switch (zone.result) {
+      case 'clear':
+        return t('drillRecordClear', params);
+      case 'alternative':
+        return t('drillRecordAlternative', params);
+      case 'blocked':
+        return t('drillRecordBlocked', params);
+      default:
+        return t('drillRecordUnverified', params);
+    }
+  };
 
   const tabs: Array<{ id: SafetyTab; label: string }> = [
     { id: 'controls', label: t('tabControls') },
     { id: 'analytics', label: t('tabAnalytics') },
     { id: 'config', label: t('tabConfig') },
   ];
+
+  const drillHeldReason =
+    emergencyActive || crisisActive
+      ? t('clearEmergencyBeforeDrill')
+      : drillJustEnded
+        ? t('drillJustEnded')
+        : null;
+  const stopHeldReason = crisisActive
+    ? useGameSimulationStore.getState().crisisState.metadata?.source === 'chronicle'
+      ? t('chronicleFireInterlock')
+      : t('resolveCrisisFirst')
+    : emergencyDrillMode
+      ? t('endDrillFirst')
+      : null;
 
   return (
     <div className="p-4 space-y-6 h-full overflow-y-auto custom-scrollbar">
@@ -248,9 +293,6 @@ export const SafetyPanel: React.FC = () => {
                     <p className="mt-2 text-xs text-slate-200">
                       {safetyEventCopy(activeSafetyEvent, 'cause')}
                     </p>
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      {safetyEventCopy(activeSafetyEvent, 'response')}
-                    </p>
                     {activeSafetyEvent.stage === 'active' && (
                       <button
                         type="button"
@@ -291,6 +333,25 @@ export const SafetyPanel: React.FC = () => {
                     <p className="mt-1 text-[11px] text-emerald-100/80">
                       {safetyEventCopy(latestClearedSafetyEvent, 'recovery')}
                     </p>
+                    {latestClearedSafetyEvent.kind === 'fire_drill' &&
+                      (latestClearedSafetyEvent.drillZones?.length ?? 0) > 0 && (
+                        <ul className="mt-2 space-y-1" aria-label={t('drillRecordLabel')}>
+                          {latestClearedSafetyEvent.drillZones!.map((zone) => (
+                            <li
+                              key={zone.zoneId}
+                              className={`text-[11px] ${
+                                zone.result === 'clear'
+                                  ? 'text-slate-200'
+                                  : zone.result === 'alternative'
+                                    ? 'text-amber-200'
+                                    : 'text-red-200'
+                              }`}
+                            >
+                              {drillRecordLine(zone)}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                   </div>
                 )}
 
@@ -321,7 +382,6 @@ export const SafetyPanel: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-[11px] text-slate-400">{t('drillDescription')}</p>
                   {emergencyDrillMode ? (
                     <button
                       type="button"
@@ -329,44 +389,48 @@ export const SafetyPanel: React.FC = () => {
                         // The drill may have ended itself since this rendered.
                         if (!useGameSimulationStore.getState().emergencyDrillMode) return;
                         endEmergencyDrill();
-                        if (!useGameSimulationStore.getState().emergencyDrillMode)
+                        if (!useGameSimulationStore.getState().emergencyDrillMode) {
                           recordOperatorAction({ kind: 'drillEnded' });
+                          setFocusRestart(true);
+                        }
                       }}
                       className="mt-3 min-h-9 rounded-lg bg-amber-600 px-3 text-xs font-semibold text-white hover:bg-amber-500"
                     >
                       {t('endDrill')}
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      disabled={emergencyActive || crisisActive || drillJustEnded}
-                      title={
-                        emergencyActive || crisisActive
-                          ? t('clearEmergencyBeforeDrill')
-                          : drillJustEnded
-                            ? t('drillJustEnded')
-                            : undefined
-                      }
-                      onClick={() => {
-                        startEmergencyDrill();
-                        if (useGameSimulationStore.getState().emergencyDrillMode)
-                          recordOperatorAction({ kind: 'drillStarted' });
-                      }}
-                      className="mt-3 min-h-9 rounded-lg bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {t('startDrill')}
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        disabled={emergencyActive || crisisActive || drillJustEnded}
+                        aria-describedby={drillHeldReason ? drillHeldId : undefined}
+                        onClick={() => {
+                          startEmergencyDrill();
+                          if (useGameSimulationStore.getState().emergencyDrillMode)
+                            recordOperatorAction({ kind: 'drillStarted' });
+                        }}
+                        className="mt-3 min-h-9 rounded-lg bg-slate-700 px-3 text-xs font-semibold text-white hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {t('startDrill')}
+                      </button>
+                      {drillHeldReason && (
+                        <p id={drillHeldId} className="mt-1 text-xs text-amber-200">
+                          {drillHeldReason}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
 
-                {/* The X-key stop holds only the forklifts, so the facility
-                  E-Stop below cannot release it. */}
+                {/* The forklift-only stop, as X sets it: a phone has no X key.
+                  It holds only the forklifts, so the facility E-Stop below
+                  cannot release it. A drill holds them already, and a facility
+                  stop owns the release of one set before it. */}
                 {forkliftEmergencyStop && !emergencyActive && (
                   <button
                     type="button"
                     onClick={() => {
-                      useSafetyStore.getState().setForkliftEmergencyStop(false);
-                      audioManager.stopEmergencyStopAlarm();
+                      releaseForkliftStop();
                       responseHeadingRef.current?.focus();
                     }}
                     className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-500/50 bg-amber-900/30 text-sm font-bold text-amber-100 transition-colors hover:bg-amber-900/50"
@@ -375,30 +439,53 @@ export const SafetyPanel: React.FC = () => {
                     {t('releaseForkliftStop')}
                   </button>
                 )}
+                {!forkliftEmergencyStop && !emergencyDrillMode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      engageForkliftStop('panel');
+                      responseHeadingRef.current?.focus();
+                    }}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-500/50 bg-slate-800/50 text-sm font-bold text-amber-200 transition-colors hover:bg-amber-900/30"
+                  >
+                    <Forklift size={16} aria-hidden="true" />
+                    {t('stopForklifts')}
+                  </button>
+                )}
+
+                {/* The deliberate restart after a cleared stop or an ended
+                  drill (D13): releasing the interlock left every unit idle. */}
+                {restartPending && !emergencyActive && (
+                  <button
+                    ref={restartRef}
+                    type="button"
+                    onClick={() => {
+                      useGameSimulationStore.getState().restartLine();
+                      responseHeadingRef.current?.focus();
+                    }}
+                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-green-600 text-sm font-bold text-white transition-colors hover:bg-green-500"
+                  >
+                    <Play size={16} aria-hidden="true" />
+                    {t('restartLine')}
+                  </button>
+                )}
 
                 {/* E-Stop Button */}
                 <button
                   type="button"
                   disabled={crisisActive || emergencyDrillMode}
                   aria-disabled={crisisActive || emergencyDrillMode}
-                  title={
-                    crisisActive
-                      ? useGameSimulationStore.getState().crisisState.metadata?.source ===
-                        'chronicle'
-                        ? t('chronicleFireInterlock')
-                        : t('resolveCrisisFirst')
-                      : emergencyDrillMode
-                        ? t('endDrillFirst')
-                        : undefined
-                  }
+                  aria-describedby={stopHeldReason ? stopHeldId : undefined}
                   onClick={() => {
                     if (emergencyActive && !emergencyDrillMode && !crisisActive) {
                       // If already in emergency, resolve it
                       // The store silences the alarm unless a forklift stop the
                       // player set before outlives the facility stop.
                       useGameSimulationStore.getState().resolveEmergency();
-                      if (!useGameSimulationStore.getState().emergencyActive)
+                      if (!useGameSimulationStore.getState().emergencyActive) {
                         recordOperatorAction({ kind: 'emergencyCleared' });
+                        setFocusRestart(true);
+                      }
                     } else if (!emergencyActive) {
                       setConfirmEmergencyStop(true);
                     }
@@ -420,40 +507,11 @@ export const SafetyPanel: React.FC = () => {
                         ? t('clearEmergency')
                         : t('triggerEmergencyStop')}
                 </button>
-              </div>
-            </section>
-
-            {/* Environment Controls */}
-            <section>
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Cloud size={14} className="text-blue-400" />
-                {t('environment')}
-              </h3>
-
-              <div className="bg-slate-800/50 p-3 rounded-xl border border-white/5 space-y-4">
-                {/* Weather */}
-                <div role="group" aria-label={t('weatherConditionsLabel')}>
-                  <span className="text-xs text-slate-500 block mb-2">
-                    {t('weatherConditions')}
-                  </span>
-                  <div className="grid grid-cols-2 gap-2">
-                    {weatherOptions.map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setWeather(opt.value)}
-                        aria-pressed={weather === opt.value}
-                        aria-label={t('setWeatherTo', { label: opt.label })}
-                        className={`px-2 py-1.5 rounded text-xs font-medium transition-colors ${
-                          weather === opt.value
-                            ? 'bg-blue-700 text-white'
-                            : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {stopHeldReason && (
+                  <p id={stopHeldId} className="text-xs text-amber-200">
+                    {stopHeldReason}
+                  </p>
+                )}
               </div>
             </section>
           </>

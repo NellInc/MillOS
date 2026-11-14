@@ -7,6 +7,11 @@ import { sampleWalkingGroundHeight, walkingBlocks } from '../../utils/castleNavi
 import { getTerrainGridSegments } from '../terrain/terrainTypes';
 import { SITE_LAYOUT, WORLD_RADIUS } from '../../constants/siteLayout';
 import { MobileFirstPersonController } from './MobileFirstPersonController';
+import { HALL_WALK_SPEED, SITE_RUN_SPEED, SITE_WALK_SPEED } from '../../utils/walkingPace';
+/** Half a 1/30 s step at a pace: proof the D-pad walks (D16 paces, utils/walkingPace.ts). */
+const halfStep = (pace: number) => (0.5 * pace) / 30;
+/** Frames at 60 Hz that cover what `frames` covered at the old 12 m/s walk. */
+const OUTDOOR_FRAMES = (frames: number) => Math.ceil((frames * 12) / SITE_WALK_SPEED);
 
 const harness = vi.hoisted(() => ({
   camera: null as unknown as THREE.PerspectiveCamera,
@@ -42,7 +47,7 @@ it('spawns and walks at eye height above the current terrain triangles', () => {
   const before = harness.camera.position.clone();
   useMobileControlStore.getState().setDpadDirection({ x: 0, y: -1 });
   harness.frame({}, 1 / 30);
-  expect(harness.camera.position.distanceTo(before)).toBeGreaterThan(0.1);
+  expect(harness.camera.position.distanceTo(before)).toBeGreaterThan(halfStep(SITE_WALK_SPEED));
   expect(harness.camera.position.y).toBeCloseTo(floor() + 1.7, 6);
   useMobileControlStore.getState().setDpadDirection(null);
   harness.frame({}, 1 / 30);
@@ -76,7 +81,8 @@ it('relocates a spawn that lands inside a conveyor footprint so the player can w
     useMobileControlStore.getState().setDpadDirection(dir);
     harness.frame({}, 1 / 30);
     return (
-      Math.hypot(harness.camera.position.x - before.x, harness.camera.position.z - before.z) > 0.1
+      Math.hypot(harness.camera.position.x - before.x, harness.camera.position.z - before.z) >
+      halfStep(HALL_WALK_SPEED)
     );
   });
   expect(moved).toBe(true);
@@ -91,8 +97,8 @@ it('clamps a long frame so a hitch cannot tunnel the player', () => {
     harness.camera.position.x - before.x,
     harness.camera.position.z - before.z
   );
-  // 12 m/s walking speed, capped at a 0.1 s step.
-  expect(step).toBeLessThanOrEqual(1.2 + 1e-6);
+  // The fastest pace (a run outside the hall), capped at a 0.1 s step.
+  expect(step).toBeLessThanOrEqual(SITE_RUN_SPEED * 0.1 + 1e-6);
 });
 
 it('restores the orbit FOV and position when leaving first-person', () => {
@@ -124,13 +130,13 @@ it('walks the castle stairs and returns using the touch-look and D-pad controls'
   touch('touchmove', (initial.y - end.y) / 0.006, (initial.x - end.x) / 0.006);
   for (let i = 0; i < 100; i++) harness.frame({}, 1 / 60);
   useMobileControlStore.getState().setDpadDirection({ x: 0, y: -1 });
-  for (let i = 0; i < 150; i++) harness.frame({}, 1 / 60);
+  for (let i = 0; i < OUTDOOR_FRAMES(150); i++) harness.frame({}, 1 / 60);
   expect(castleLocalPosition(harness.camera.position.x, harness.camera.position.z)[1]).toBeLessThan(
     8
   );
   expect(harness.camera.position.y).toBeCloseTo(castleWorldPosition(7.2, 3.2, 0)[1] + 1.7, 4);
   useMobileControlStore.getState().setDpadDirection({ x: 0, y: 1 });
-  for (let i = 0; i < 170; i++) harness.frame({}, 1 / 60);
+  for (let i = 0; i < OUTDOOR_FRAMES(170); i++) harness.frame({}, 1 / 60);
   expect(
     castleLocalPosition(harness.camera.position.x, harness.camera.position.z)[1]
   ).toBeGreaterThan(25);

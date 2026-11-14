@@ -23,6 +23,16 @@ afterEach(cleanup);
 const mount = () =>
   render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
 
+// Seen by a first-time player on a landscape phone: Inspect a roller mill
+// opened the compact Inspector (the context sidebar) under this card, which
+// covered its title, Close and readings. The card stays mounted (it records
+// the inspection) but is hidden while the compact layout shows the sidebar.
+it('steps aside for the compact Inspector without unmounting', () => {
+  mount();
+  const card = screen.getByRole('region', { name: /delivery/i });
+  expect(card.className).toContain('[[data-compact-layout][data-sidebar-visible=true]_&]:hidden');
+});
+
 // The host unmounts the card for the compact inspector, the phone sheet, walk
 // mode, safety states and the shortcuts modal. A compact choice kept in the
 // card's own state came back expanded over the scene after every visit.

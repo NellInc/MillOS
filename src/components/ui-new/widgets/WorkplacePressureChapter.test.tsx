@@ -9,11 +9,16 @@ import {
   WORKPLACE_CHECKS,
 } from '../../../simulation/workplaceCampaign';
 import type { WorkplaceProfile } from '../../../types/workplace';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 const thirdShift = (profile: WorkplaceProfile = 'cooperative') => {
   const store = useWorkplaceStore.getState();
+  fulfilFirstDelivery();
   store.startCampaign(profile, 17);
-  const state = useWorkplaceStore.getState().workplace;
+  // The fixed order (and Monday at minute 25) a season begun before seeded
+  // draws keeps (5.10), for a named pressure on a named day.
+  const { draw: _draw, ...fixed } = useWorkplaceStore.getState().workplace.campaign!;
+  const state = { ...useWorkplaceStore.getState().workplace, campaign: fixed };
   const previous = campaignRecord({
     ...state,
     members: state.members.map((member) => ({
@@ -24,7 +29,9 @@ const thirdShift = (profile: WorkplaceProfile = 'cooperative') => {
   useWorkplaceStore.setState({
     workplace: {
       ...state,
-      campaign: { ...state.campaign!, shift: 2, history: [previous] },
+      // Thursday's call not yet made (5b: the Coordinator makes it as the
+      // shift opens; this chapter is rendered from the state alone).
+      campaign: { ...state.campaign!, shift: 2, history: [previous], decision: null },
     },
   });
   return useWorkplaceStore.getState().workplace;
@@ -43,6 +50,7 @@ afterEach(cleanup);
 describe('Authored pressure chapter', () => {
   it('takes a ready agreement to its actual approval controls without granting consent', () => {
     const store = useWorkplaceStore.getState();
+    fulfilFirstDelivery();
     store.startCampaign('cooperative', 17);
     store.campaignDecision('keep-target', 'coordinator');
     for (const actor of ['packing', 'mind'])
@@ -102,7 +110,7 @@ describe('Authored pressure chapter', () => {
     const navigate = show();
     expect(screen.getByText('Thursday: a fresh offer')).toBeInTheDocument();
     expect(screen.getByText(/Packing: retained extra duty 12.0 min/)).toBeInTheDocument();
-    expect(screen.getByText(/pressure card is optional/)).toBeInTheDocument();
+    expect(screen.getByText('No retained pressure response.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Go to Shift controls' }));
     expect(navigate).toHaveBeenCalledWith('Shift');
     expect(useWorkplaceStore.getState().workplace).toBe(state);
@@ -180,7 +188,7 @@ describe('Authored pressure chapter', () => {
     expect(screen.getByText(/Role understanding 0\/4; ballots recorded 0\/4/)).toBeInTheDocument();
   });
 
-  it('keeps recovery debt and same-shift review honest after an in-flight objection', () => {
+  it('keeps recovery debt honest and the shift resumable after an in-flight objection', () => {
     const state = thirdShift();
     useWorkplaceStore.setState({
       workplace: {
@@ -193,18 +201,41 @@ describe('Authored pressure chapter', () => {
       },
     });
     show();
-    expect(screen.getByText(/Use the plant clock controls/)).toBeInTheDocument();
+    // D14: the running step is the action alone.
+    expect(
+      screen.getByText('Use the plant clock controls to run or pause real production.')
+    ).toBeInTheDocument();
     cleanup();
     useWorkplaceStore.getState().object('packing', 'burden');
     expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
     show();
-    expect(
-      screen.getByText(/Resolving the objection cannot restart this same shift/)
-    ).toBeInTheDocument();
+    // The objection pauses the campaign shift: it resumes once its raiser
+    // resolves it, so neither delivery nor agreement is final yet.
+    // D14 cut the remedy caption; the shift stays resumable (the next step says so).
+    expect(screen.queryByText(/Repair belongs to review/)).not.toBeInTheDocument();
     expect(
       screen.getByText(/Packing:.*recovery delivered 0.0 min; recovery owed 10.0 min/)
     ).toBeInTheDocument();
-    expect(screen.getByText(/Delivery shortfall:/)).toBeInTheDocument();
+    expect(screen.getByText(/Delivery pending:/)).toBeInTheDocument();
+    cleanup();
+    const id = useWorkplaceStore.getState().workplace.objections[0].id;
+    expect(useWorkplaceStore.getState().resolveObjection(id, 'packing').changed).toBe(true);
+    show();
+    expect(
+      screen.getByText('Its objection is resolved; resume this shift in Review.')
+    ).toBeInTheDocument();
+  });
+
+  it('says an emergency stop or drill paused the shift, not a reload', () => {
+    const state = thirdShift();
+    useWorkplaceStore.setState({ workplace: { ...state, phase: 'active' } });
+    useWorkplaceStore.getState().tick(5, 0, true);
+    expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
+    show();
+    expect(
+      screen.getByText(/An emergency stop or drill paused this shift before its end/)
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/A reload paused this shift/)).toBeNull();
   });
 
   it('reports stale mission evidence and deferral directly from the bound commitment', () => {
@@ -244,11 +275,12 @@ describe('Authored pressure chapter', () => {
     thirdShift(profile);
     show();
     expect(screen.getByText(new RegExp(rule.replace(/[.;]/g, '\\$&')))).toBeInTheDocument();
-    expect(screen.getByText(/a no-extra-duty plan remains valid/)).toBeInTheDocument();
+    expect(screen.queryByText(/a no-extra-duty plan remains valid/)).not.toBeInTheDocument();
   });
 });
 
 it('review guidance follows actual recovery and fresh-shift gates without granting consent', () => {
+  fulfilFirstDelivery();
   useWorkplaceStore.getState().startCampaign('cooperative', 81);
   const current = useWorkplaceStore.getState().workplace;
   useWorkplaceStore.setState({

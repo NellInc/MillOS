@@ -5,6 +5,7 @@ import { autoplayWorkplaceStep, useWorkplaceAutoplay } from './workplaceAutoplay
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { endReplayClock } from './workplaceReplayRuntime';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 beforeEach(() => {
   useWorkplaceAutoplay.getState().pause();
@@ -17,6 +18,8 @@ beforeEach(() => {
   });
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
 });
 
 it('a reload during the first deliberation resumes that shift instead of skipping it', () => {

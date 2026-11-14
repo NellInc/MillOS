@@ -6,6 +6,7 @@
  */
 
 import { MachineType, MachineData } from '../types';
+import { lineOverdrive, OVERDRIVE_ENERGY_SLOPE } from '../simulation/machineLoad';
 import { translate } from '../i18n';
 import { energyCalculationsMessages as messages } from './energyCalculations.messages';
 
@@ -44,6 +45,33 @@ for (const type of Object.values(MachineType)) {
   });
 }
 
+/**
+ * The tariff the operations campaign bills energy at (tickCampaign): peak from
+ * 09:00 to 21:00 inclusive of the minute 21:00, off-peak otherwise. Game
+ * prices, unsourced. Every panel that prints a rate reads it here.
+ */
+export const PEAK_TARIFF_PER_KWH = 0.15;
+export const OFF_PEAK_TARIFF_PER_KWH = 0.08;
+const PEAK_START_MINUTE = 9 * 60;
+const PEAK_END_MINUTE = 21 * 60;
+
+export const isPeakTariffMinute = (minuteOfDay: number): boolean =>
+  minuteOfDay >= PEAK_START_MINUTE && minuteOfDay <= PEAK_END_MINUTE;
+
+/** The rate per kWh billed at this minute of the day. */
+export const energyTariffPerKwh = (minuteOfDay: number): number =>
+  isPeakTariffMinute(minuteOfDay) ? PEAK_TARIFF_PER_KWH : OFF_PEAK_TARIFF_PER_KWH;
+
+/**
+ * The line rate above which a working unit's demand rises (machineLoad
+ * lineOverdrive): the one above-100% penalty the bill applies.
+ */
+export const OVERDRIVE_THRESHOLD_RATE = 1;
+
+/** The multiplier the line rate puts on a working unit's demand; 1 at or below 100%. */
+export const lineEnergyFactor = (lineRate: number): number =>
+  lineOverdrive(lineRate, OVERDRIVE_ENERGY_SLOPE);
+
 /** Lowest load of a unit that is working (machineLoad.ts targets 50 + line rate * 30). */
 const WORKING_LOAD_FLOOR = 50;
 
@@ -59,14 +87,18 @@ export interface MachineEnergyBreakdown {
  * Calculate instantaneous power demand for a machine based on its current state.
  * Includes load factor, warning status, and maintenance penalties.
  */
-export function getMachineEnergy(machine: MachineData): number {
-  return getMachineEnergyDetailed(machine).finalEnergy;
+export function getMachineEnergy(machine: MachineData, lineRate = 1): number {
+  return getMachineEnergyDetailed(machine, lineRate).finalEnergy;
 }
 
 /**
  * Get a detailed demand breakdown for a machine including all modifiers.
  */
-export function getMachineEnergyDetailed(machine: MachineData): MachineEnergyBreakdown {
+export function getMachineEnergyDetailed(
+  machine: MachineData,
+  /** The line rate: above 1 a working unit runs past its rating (machineLoad lineOverdrive). */
+  lineRate = 1
+): MachineEnergyBreakdown {
   const consumption = MACHINE_ENERGY_CONSUMPTION[machine.type] || { running: 20, idle: 1 };
 
   // Maintenance penalty calculation
@@ -116,7 +148,9 @@ export function getMachineEnergyDetailed(machine: MachineData): MachineEnergyBre
 
   // Apply maintenance penalty (only affects machines that are running)
   const onLoadCurve = machine.status === 'running' || machine.status === 'warning';
-  let finalEnergy = onLoadCurve ? baseEnergy * maintenancePenalty : baseEnergy;
+  let finalEnergy = onLoadCurve
+    ? baseEnergy * maintenancePenalty * lineEnergyFactor(lineRate)
+    : baseEnergy;
   // A working unit's load is at least 50 (machineLoad.ts: 50 + line rate * 30).
   // Below that it is easing toward the idle level because it has no feed (or
   // from idle as it starts), so its demand blends from the working curve to
@@ -245,11 +279,15 @@ export function getEmergencyLoad(baseLoad: FacilityBaseLoad): EmergencyLoad {
 export function getSiteDemandKw(
   machines: MachineData[],
   gameTime: number,
-  emergencyActive: boolean
+  emergencyActive: boolean,
+  /** The line rate the campaign bills at (machineLoad lineOverdrive); 1 reads as rated. */
+  lineRate = 1
 ): number {
   const facility = getFacilityBaseLoad(gameTime);
   if (emergencyActive) return getEmergencyLoad(facility).total;
-  return machines.reduce((sum, machine) => sum + getMachineEnergy(machine), 0) + facility.total;
+  return (
+    machines.reduce((sum, machine) => sum + getMachineEnergy(machine, lineRate), 0) + facility.total
+  );
 }
 
 export interface MachineTypeEnergyStats {
@@ -267,7 +305,11 @@ export interface MachineTypeEnergyStats {
 /**
  * Aggregate instantaneous demand statistics by machine type.
  */
-export function getMachineEnergyByType(machines: MachineData[]): MachineTypeEnergyStats[] {
+export function getMachineEnergyByType(
+  machines: MachineData[],
+  /** The line rate, so the rows bill the above-100% penalty the site figure does. */
+  lineRate = 1
+): MachineTypeEnergyStats[] {
   const stats: Map<MachineType, MachineTypeEnergyStats> = new Map();
 
   // Initialize stats for all machine types
@@ -292,7 +334,7 @@ export function getMachineEnergyByType(machines: MachineData[]): MachineTypeEner
   for (const machine of machines) {
     const stat = stats.get(machine.type);
     if (stat) {
-      stat.totalEnergy += getMachineEnergy(machine);
+      stat.totalEnergy += getMachineEnergy(machine, lineRate);
 
       if (machine.status === 'running') {
         stat.runningCount++;

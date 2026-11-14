@@ -11,8 +11,9 @@ import {
   Heart,
   Database,
   MoreHorizontal,
-  ChartColumn,
+  Route,
   ScrollText,
+  Trophy,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUIStore } from '../../../stores/uiStore';
@@ -47,6 +48,7 @@ export const Dock: React.FC<DockProps> = ({
   const t = useT(dockMessages);
   const fpsMode = useUIStore((state) => state.fpsMode);
   const toggleFpsMode = useUIStore((state) => state.toggleFpsMode);
+  const setShowAchievements = useUIStore((state) => state.setShowAchievements);
   const { isMobile, isCompactLayout } = useMobileDetection();
   const openMobilePanel = useMobileControlStore((state) => state.openMobilePanel);
   // The compact layout opens sheets and never changes the sidebar's
@@ -233,14 +235,9 @@ export const Dock: React.FC<DockProps> = ({
         onClick={(trigger) => handleModeChange('overview', trigger)}
         isMobile={isCompactLayout}
       />
-      <DockItem
-        mode="production"
-        icon={<ChartColumn size={26} />}
-        label={t('itemProduction')}
-        isActive={shownMode === 'production'}
-        onClick={(trigger) => handleModeChange('production', trigger)}
-        isMobile={isCompactLayout}
-      />
+      {/* Overview and Production opened one panel and differed only in the
+          camera (report 09 F7), so Overview is the one entry. 'production'
+          stays a DockMode for the sheets and routes that still name it. */}
       {!isCompactLayout && (
         <DockItem
           mode="management"
@@ -304,7 +301,9 @@ export const Dock: React.FC<DockProps> = ({
           <div
             role="menu"
             aria-label={t('moreLabel')}
-            className="absolute bottom-full right-0 mb-2 w-60 overflow-hidden rounded-xl border border-white/10 bg-slate-950/98 p-1.5 shadow-2xl"
+            // Capped and scrolling: on a landscape phone the menu was taller
+            // than the room above the dock and its first item ran off the top.
+            className="absolute bottom-full right-0 mb-2 max-h-[calc(100dvh-6rem)] w-60 overflow-y-auto rounded-xl border border-white/10 bg-slate-950/98 p-1.5 shadow-2xl"
           >
             <button
               role="menuitem"
@@ -341,6 +340,21 @@ export const Dock: React.FC<DockProps> = ({
                   <ScrollText size={18} aria-hidden="true" />
                   {t('itemChronicle')}
                 </button>
+                {/* On a desktop the list is in Overview's quick actions; a
+                    phone's Overview sheet has none (report 09 F3). */}
+                <button
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    moreMenuTriggerRef.current?.focus();
+                    setShowAchievements(true);
+                    setMoreOpen(false);
+                  }}
+                  className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
+                >
+                  <Trophy size={18} aria-hidden="true" />
+                  {t('menuAchievements')}
+                </button>
               </>
             )}
             {onDatalinksOpen && (
@@ -358,6 +372,21 @@ export const Dock: React.FC<DockProps> = ({
                 {t('menuDatalinks')}
               </button>
             )}
+            {/* The layout planner is an engineering tool (plan 7.8, owner's
+                choice): it opens from here, on a phone as on a desktop. */}
+            <button
+              role="menuitem"
+              type="button"
+              onClick={() => {
+                moreMenuTriggerRef.current?.focus();
+                window.dispatchEvent(new Event('millos:open-layout-planner'));
+                setMoreOpen(false);
+              }}
+              className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-slate-200 transition-colors hover:bg-white/10"
+            >
+              <Route size={18} aria-hidden="true" />
+              {t('menuLogistics')}
+            </button>
             <button
               role="menuitemcheckbox"
               type="button"

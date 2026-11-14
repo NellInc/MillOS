@@ -13,6 +13,7 @@ import { useWorkplaceStore } from '../../../stores/workplaceStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { campaignRecord } from '../../../simulation/workplaceCampaign';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 beforeEach(() => {
@@ -87,6 +88,7 @@ describe('onboarding kilograms are grouped in English', () => {
   });
 
   it('groups the linked working agreement outcome', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startMission('team');
     const state = useWorkplaceStore.getState().workplace;
     const record = campaignRecord({ ...state, minute: 90 });

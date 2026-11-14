@@ -5,7 +5,7 @@ authority engine, causal ledger, and runtime command handlers added on 2026-08-3
 slice and parts of Phases 4 and 6). Their Phase 2 tests and generated manifest were reconciled on
 2026-09-02.
 
-**Behavioural authority:** scoped simulation command execution. Thirteen implemented capabilities
+**Behavioural authority:** scoped simulation command execution. Fourteen implemented capabilities
 run behind draft, preview, grant check, receipt, causal event, and verifier in the installed
 runtime (`window.__MILLOS_AGENT__`, version 2). External writes remain denied, and the standalone
 read service still reports itself as observation only because it installs no kernel.
@@ -96,13 +96,26 @@ presented as a complete causal chain.
 
 ## Current authority boundary
 
-The manifest describes owners, identities, invariants, query budgets, and thirteen implemented
+The manifest describes owners, identities, invariants, query budgets, and fourteen implemented
 simulation-scoped capabilities. The installed browser runtime executes them through
 `draft → preview → (approve) → commit`, each step checked against actor grants, observed
 revision, idempotency key, and invariants, and each commit produces a receipt and causal events.
 It does not contact an external endpoint or write to live SCADA; `scada.write-setpoint` runs in
 simulation and shadow modes only. SCADA connection state is marked uncertain when the
 compatibility live flag is set because the projection does not directly observe adapter health.
+
+### After a stop or a drill, only a person restarts the line
+
+Clearing a facility stop, or the end of a drill started with `simulation.start-fire-drill`,
+releases the interlock and the forklifts but leaves every unit idle (D-096). The line stays
+idle until a person presses RESTART LINE in the Safety panel. No agent capability restarts it,
+on purpose: restart after a stop is a human action.
+
+The simulation projection shows the state as `restartPending: true` with a
+`restartPendingReason`, and the brief lists it as the blocking exception
+`simulation-restart-pending`. While it holds, `workplace.activate-plan` is refused at preview
+(`PRE.WORKPLACE.LINE_RESTARTED`), and a restart queued by `maintenance.request-restart`
+verifies but waits for RESTART LINE before the unit runs.
 
 **Working if:** a cold engineering agent can find the current owner, contract, evidence, and
 next implementation gate from this page, while a runtime agent can obtain the current goal,

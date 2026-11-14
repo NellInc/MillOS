@@ -39,8 +39,11 @@ export const PT_MATERIAL: Record<string, string> = {
   flour: 'farinha',
   bran: 'farelo',
   middlings: 'farelinho',
-  semolina: 'semolina',
+  semolina: 'fubá',
 };
+// The 'semolina' stream is milled from corn: maize meal, fubá (D17; sources in
+// src/stores/customerNames.messages.ts). The id stays 'semolina'.
+const EN_MATERIAL: Record<string, string> = { semolina: 'cornmeal' };
 
 export const overviewPanelMessages = defineMessages({
   en: {
@@ -54,7 +57,7 @@ export const overviewPanelMessages = defineMessages({
     awaitingFirstTransfer: 'Awaiting first dock transfer',
     latestManifests: 'Latest material manifests',
     manifestKind: (p: { value: string }) => p.value,
-    material: (p: { value: string }) => p.value.replaceAll('_', ' '),
+    material: (p: { value: string }) => EN_MATERIAL[p.value] ?? p.value.replaceAll('_', ' '),
 
     batchGenealogy: 'Batch genealogy and quality',
     lotSummary: (p: { lots: string; lotCount: number; batches: string; batchCount: number }) =>
@@ -81,13 +84,26 @@ export const overviewPanelMessages = defineMessages({
     traceFor: 'Trace for {id}',
     upstreamProvenance: 'Upstream provenance',
     pathJoiner: ' to ',
+    labResult: 'Lab result {id}',
+    labGrade: 'Grade {grade}',
+    labQuality: 'Quality {quality}',
+    labOrderMinimum: '{recipe} minimum {minimum}',
+    labNotLoadedFor: 'Not loaded for {recipe}',
+    labOfferedTo: 'Offered to {recipe}',
+    benchAwaiting: 'Awaiting test',
+    benchAwaitingCrew: 'Awaiting test · Quality away, back at {time}',
+    benchRunning: 'On the bench: {minutes} min left',
+    testFirst: 'Test first',
+    readingMoisture: 'Moisture {value}%',
+    readingProtein: 'Protein {value}%',
+    readingFallingNumber: 'Falling number {value} s',
 
     noteRetest: 'Conforming retest completed after corrective investigation',
     noteRoutineTest: 'Routine batch release test completed',
     noteRetestReleased: 'Conforming retest released the investigated scope',
     noteRecallInvestigation: 'Targeted batch recall investigation',
     noteRecalled: 'Affected batch recalled and isolated from dispatch',
-    noteHold: 'Automated targeted quality hold initiated',
+    noteHold: 'Targeted quality hold placed by hand',
 
     productionSummary: 'Production Summary',
     throughput: 'Throughput',
@@ -95,7 +111,8 @@ export const overviewPanelMessages = defineMessages({
     efficiency: 'Efficiency',
     uptime: 'Uptime',
     quality: 'Quality',
-    dailyTarget: 'Daily Target',
+    programme: 'Programme',
+    programmeTonnes: '{shipped} / {committed} t',
     percentComplete: '{value}% complete',
 
     machineStatus: 'Machine Status',
@@ -122,7 +139,6 @@ export const overviewPanelMessages = defineMessages({
     nextTruck: 'Next truck in {minutes} min',
     eta: 'ETA: {minutes} min',
 
-    planLogistics: 'Plan logistics',
     predictiveMaintenance: 'Predictive maintenance',
     maintenanceSection: 'Maintenance and repairs',
     loadingMaintenance: 'Loading maintenance panel...',
@@ -175,13 +191,26 @@ export const overviewPanelMessages = defineMessages({
     traceFor: 'Rastreio de {id}',
     upstreamProvenance: 'Procedência a montante',
     pathJoiner: ' para ',
+    labResult: 'Resultado de laboratório {id}',
+    labGrade: 'Classe {grade}',
+    labQuality: 'Qualidade {quality}',
+    labOrderMinimum: '{recipe}: mínimo {minimum}',
+    labNotLoadedFor: 'Não carregado para {recipe}',
+    labOfferedTo: 'Oferecido para {recipe}',
+    benchAwaiting: 'Aguardando teste',
+    benchAwaitingCrew: 'Aguardando teste · Qualidade ausente, volta em {time}',
+    benchRunning: 'Na bancada: faltam {minutes} min',
+    testFirst: 'Testar primeiro',
+    readingMoisture: 'Umidade {value}%',
+    readingProtein: 'Proteína {value}%',
+    readingFallingNumber: 'Número de queda {value} s',
 
     noteRetest: 'Reteste conforme concluído após investigação corretiva',
     noteRoutineTest: 'Teste de rotina para liberação do lote concluído',
     noteRetestReleased: 'O reteste conforme liberou o escopo investigado',
     noteRecallInvestigation: 'Investigação para recolhimento direcionado do lote',
     noteRecalled: 'Lote afetado recolhido e isolado da expedição',
-    noteHold: 'Retenção de qualidade direcionada iniciada automaticamente',
+    noteHold: 'Retenção de qualidade direcionada aplicada manualmente',
 
     productionSummary: 'Resumo da produção',
     throughput: 'Vazão',
@@ -189,7 +218,8 @@ export const overviewPanelMessages = defineMessages({
     efficiency: 'Eficiência',
     uptime: 'Disponibilidade',
     quality: 'Qualidade',
-    dailyTarget: 'Meta diária',
+    programme: 'Programa',
+    programmeTonnes: '{shipped} / {committed} t',
     percentComplete: '{value}% concluído',
 
     machineStatus: 'Status das máquinas',
@@ -216,7 +246,6 @@ export const overviewPanelMessages = defineMessages({
     nextTruck: 'Próximo caminhão em {minutes} min',
     eta: 'Previsão: {minutes} min',
 
-    planLogistics: 'Planejar logística',
     predictiveMaintenance: 'Manutenção preditiva',
     maintenanceSection: 'Manutenção e reparos',
     loadingMaintenance: 'Carregando o painel de manutenção...',

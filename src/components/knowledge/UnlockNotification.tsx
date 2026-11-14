@@ -30,6 +30,10 @@ import {
   Sprout,
   Users,
   Library,
+  Wheat,
+  Wind,
+  Flame,
+  Croissant,
   LucideIcon,
 } from 'lucide-react';
 import { KnowledgeEntry, KnowledgeIcon, useKnowledgeStore } from '../../stores/knowledgeStore';
@@ -59,6 +63,10 @@ const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
   users: Users,
   cog: Settings,
   library: Library,
+  wheat: Wheat,
+  wind: Wind,
+  flame: Flame,
+  croissant: Croissant,
 };
 
 // Render a Lucide icon from its identifier

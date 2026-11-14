@@ -286,6 +286,9 @@ This app has a service worker (`public/sw.js`) that can serve cached CSS/JS in p
 | `src/store.ts` | Backwards-compatible re-export layer over `src/stores/*` plus SCADA bridge init (`initializeSCADASync`); new code imports from `src/stores/` directly |
 | `src/types.ts` | TypeScript interfaces and machine/enum types |
 | `src/components/MillScene.tsx` | Main 3D scene composition, machine placement by zones |
+| `src/systems/UnifiedGameTick.ts` | The central tick: plant, campaign, trucks, the partner's proposals, the Chronicle's effects |
+| `src/simulation/partnerProposals.ts` | Floor decisions as the partner's priced proposals (see "Partner Proposals and the Plant's Measures") |
+| `src/simulation/shipmentPlan.ts` | Which order a truck loads and how much |
 
 ### Scene Architecture (MillScene.tsx)
 
@@ -300,7 +303,7 @@ The factory is organized into 4 production zones:
 **3D Systems** (inside MillScene):
 - `machines/CompactMachines.tsx` (`CompactMachinesContainer`) - Renders silos, mills, sifters, packers with status indicators (`Machines.tsx` is dead code)
 - `ConveyorSystem.tsx` - Animated conveyor belts and product flow
-- `ForkliftSystem.tsx` - Autonomous forklifts
+- `ForkliftSystem.tsx` - Crewed forklifts on autopilot or driven by the player
 - `SpoutingSystem.tsx` - Grain flow pipes between machines
 - `DustParticles.tsx` - Atmospheric particle effects
 - `environment/OptimizedFactoryEnvironment.tsx` plus the rigs in `environment/` (`SceneEnvironmentIBL`, `SunShadowRig`, `OptimizedSkySystem`, `InteriorLightRig`, `NearHorizonCity`) - Lighting and factory environment
@@ -308,7 +311,7 @@ The factory is organized into 4 production zones:
 **UI Overlays** (React DOM):
 - `ui-new/GameInterface.tsx` - Main HUD, dock, and panel host (production controls, machine info)
 - `ui-new/panels/` - Individual panels (overview, safety, settings, build-cache diagnostics)
-- `AICommandCenter.tsx` - AI decision slide-out panel
+- `AICommandCenter.tsx` - AI decision slide-out panel; the partner's proposal cards (`PartnerProposalCards.tsx`) head its Decisions tab
 - `AlertSystem.tsx` - Toast notifications
 - `ProductionMetrics.tsx` - Charts and KPIs
 - `HolographicDisplays.tsx` - In-scene 3D UI elements
@@ -317,7 +320,7 @@ The factory is organized into 4 production zones:
 
 The app uses both React local state (App.tsx) and Zustand global state (store.ts):
 - Local: `productionSpeed`, `showZones`, `showAIPanel`, selection states
-- Global: machines, alerts, AI decisions, metrics, campaign and material flow
+- Global: machines, alerts, AI decisions, partner proposals, metrics, campaign and material flow
 
 ## Emergency Egress Verification Drill
 
@@ -331,15 +334,17 @@ evacuation. Working if the drill stops movement and reports only verified egress
 
 ### How It Works
 
-When triggered via "START DRILL":
+Before "START DRILL", while the Safety panel's controls are open, each zone's step-free route
+and refuge draw on the floor (`accessibility/EgressRouteFloor.tsx`), red where a stopped
+forklift stands on it. When triggered via "START DRILL":
 
 1. **Production stops** - `startEmergencyDrill()` calls `stopProduction()` and records a simulated `fire_drill` safety event
-2. **Mobile equipment stops** - `setForkliftEmergencyStop(true)` halts every forklift
+2. **Mobile equipment stops** - every forklift is held for the stop
 3. **Egress markers appear** - `ServiceEgressMarkers` in `MillScene.tsx` draws one marker per service egress point
-4. **Zones are verified in sequence** - `src/systems/egressDrillSequencer.ts`, on game time (one zone per 120 game seconds, so P holds it and pace scales it), marks each zone through `markZoneVerified(zoneId)`; the Safety panel shows "X/Y zones verified"
-5. **Drill ends** - automatically when every zone is verified, or on "END DRILL"
+4. **Zones are verified in sequence** - `src/systems/egressDrillSequencer.ts`, on game time (one zone per 120 game seconds, so P holds it and pace scales it), marks each zone through `markZoneVerified(zoneId)`; the Safety panel shows "X/Y zones verified". `recordDrillZoneCheck` writes each zone's result (`clear`, `alternative`, `blocked`, `unverified`), the forklifts that blocked it and the plant-clock time into the drill's safety event
+5. **Drill ends** - automatically when every zone is verified, or on "END DRILL". The forklifts are released but the line stays idle until RESTART LINE (`restartLine`), as after CLEAR EMERGENCY (D-096: releasing a stop must not restart the machinery)
 
-No alarm is started by the drill; `endEmergencyDrill()` calls `stopEmergencyStopAlarm()` defensively.
+No alarm is started by the drill; `endEmergencyDrill()` silences the stop alarm unless the forklift-only stop holds it.
 
 ### Service Egress Points (`SERVICE_EGRESS_POINTS`)
 
@@ -363,9 +368,10 @@ agreed alternative; with both blocked it waits and says why (D-062).
 |------|----------------|
 | `src/stores/gameSimulationStore.ts` | Drill state, metrics, `SERVICE_EGRESS_POINTS`, `markZoneVerified()` |
 | `src/components/MillScene.tsx` | `ServiceEgressMarkers` (markers) |
+| `src/components/accessibility/EgressRouteFloor.tsx` | Routes and refuges on the floor, red where a forklift blocks one |
 | `src/systems/egressDrillSequencer.ts` | Game-time verification sequencer |
 | `src/components/ForkliftSystem.tsx` | Emergency stop enforcement (drill mode forces stop) |
-| `src/components/ui-new/panels/SafetyPanel.tsx` | START/END DRILL controls with zone progress |
+| `src/components/ui-new/panels/SafetyPanel.tsx` | START/END DRILL and RESTART LINE controls with zone progress |
 | `src/agent/adapters/runtime/runtimeCommandHandlers.ts` | `simulation.start-fire-drill` agent capability |
 
 ### Drill Metrics Interface
@@ -384,7 +390,9 @@ interface DrillMetrics {
 ### Store Functions
 
 - `startEmergencyDrill(totalZones?)` - Begins the drill, stops production and forklifts, initialises metrics (defaults to `SERVICE_EGRESS_POINTS.length`)
-- `endEmergencyDrill()` - Ends the drill, restores production, resets metrics, stops any active alarm
+- `endEmergencyDrill()` - Ends the drill, releases the forklifts, resets metrics, records any zone never reached as `unverified`; the line stays idle
+- `resolveEmergency()` - Clears a facility stop the same way: interlock and forklifts released, machines idle
+- `restartLine()` - The separate, deliberate restart: returns every unit the stop idled to its recorded status (refused while a stop or drill holds; `selectRestartPending` says whether one is owed)
 - `markZoneVerified(zoneId)` - Records one verified zone; sets `verificationComplete` and `finalTimeSeconds` on the last one
 
 ### Path Aliases
@@ -414,6 +422,15 @@ requires it. The retired seated-operator components stay banned by name.
   with the fork and Step down buttons) and the D-pad drives (`MobileFirstPersonController.tsx`); the forklift turns the camera with the cab, so a controller that
   writes the camera's rotation each frame must fold that turn in. A crewed forklift's operator
   steps off and waits; on leaving, the forklift steers back to its lane and returns to them.
+- Driven, a forklift gives way as the autopilot does (slows within 6 m of anyone on foot, stops
+  within 3.5 m, forward and in reverse) and logs a near miss once per approach
+  (`forkliftManualDrive.ts`). Lined up at one of its stations, E or a click in the cab (the
+  phone's work button) runs the autopilot's own pick or drop, so the pallet counts as a trip;
+  forks wrong or above a crawl, it is refused with an error line (`requestWork`,
+  `forkliftWork.ts`). Elsewhere the press steps the driver down. The hall's walls stop a driven
+  forklift, which passes only the two service doors (`forkliftManualWorld.ts`); fences, hedges
+  and staff-facility walls do not yet (D-095). There is no per-forklift efficiency figure:
+  it read as a number about the operator (D-100).
 - CommunityLife steps the crew and places people; the forklift writes a seated operator's root
   after it moves (`forkliftCrewStore.ts`). If CommunityLife stops stepping (heartbeat), forklifts
   stand for 2.5 s, then work as if crewed, so nothing waits on an operator who is not there.
@@ -444,11 +461,17 @@ Phonon 40M models running on the device (`phonon-webgpu`, pinned to a commit tar
   one fact, or a fact and its consequence, worded as a person on the tannoy would say it (no
   menu names or colons). The caption is the spoken text. `shared.messages.ts` is the main corpus.
 - The PA speaks only problems and pertinent updates (D-054): faults and recoveries, drills and
-  stops, shift ends, the day's target, the on-device AI's incident notices. Nothing is said on a
-  timer; `shared.test.ts` pins a nominal hour at zero lines.
+  stops, shift ends, the running programme delivered (D-094; the old daily target is gone), the
+  on-device AI's incident notices. Nothing is said on a timer; `shared.test.ts` pins a nominal
+  hour at zero lines.
 - `PAAnnouncementSystem.tsx` speaks each new line once, holds the caption until the voice ends,
   and stops the voice when the line leaves or audio is muted. Playback goes through
   `audioManager.playPAVoice` (tannoy band-pass, under master volume).
+- Mute silences sound only (D-098). A muted line is still filed, captioned, kept in the
+  transcript and read to screen readers. A paused or muted plant builds no urgency (D-061): a
+  muted fault is captioned once and is not repeated in rising terms until the sound is back.
+  The voice neither loads nor speaks, a line speaking when mute is pressed stops at once and
+  keeps its caption for its reading time (`captionShowMs`), and unmuting replays nothing.
 - **The weights are CC BY-NC 4.0.** MillOS may use them only while non-commercial. The About
   dialog carries the credit; keep it.
 
@@ -457,13 +480,18 @@ Phonon 40M models running on the device (`phonon-webgpu`, pinned to a commit tar
 A long-arc campaign layer borrowed from Clarus Victoria's *Predynastic Egypt*
 and *Egypt: Old Kingdom*. Design and fit rules: `docs/CHRONICLE.md`. It is inert
 until the player signs a charter in the Chronicle workspace, so benchmarks,
-captures and pre-existing tests see the plant unchanged.
+captures and pre-existing tests see the plant unchanged. A charter runs 27 or 63
+shifts (D-084); at pace 30 that is about 7.2 or 16.8 real hours at 1x.
 
 | File | Responsibility |
 |------|----------------|
 | `src/chronicle/engine.ts` | Pure reducers: shift close, events, forecasts, trials, plans, delegation, fire |
 | `src/chronicle/*.ts` | Data and rules per system (charter, plans, crop years, contractors, trials, ledger, scoring) |
-| `src/chronicle/eventDeck.ts`, `history.ts`, `quiz.ts` | Authored content; history notes are source-checked |
+| `src/chronicle/schedule.ts` | The two lengths: the short form places everything at floor(shift x 27/63) |
+| `src/chronicle/measuredPlant.ts` | The plant as the probe measured it; every figure that rests on the plant's output (fund share, trial tonnage) reads it |
+| `src/chronicle/avoided.ts`, `grainStamp.ts`, `temper.ts` | Costs plans avoided (D-091); the crop penalty read from the grain being milled; the tempering answer the partner's card sets (D-117) |
+| `src/chronicle/eventDeck.ts`, `history.ts`, `quiz.ts` | Authored content; history notes are source-checked; the quiz leads with questions from the player's own record, first attempt only, options in seeded order (D-104) |
+| `src/systems/__tests__/chronicleProbe.playtest.test.ts` | The probe: whole chronicles on the real tick (idle, attentive and skilled styles, both lengths) and the tuning gates. `npm run playtest:chronicle`; `npm test` skips it |
 | `src/stores/chronicleStore.ts` | Persisted store; performs engine commands on other stores |
 | `src/chronicle/funnel.ts` | Local-only playtest funnel (`localStorage['millos-chronicle-funnel']`): per charter, shifts closed, outcome, sessions, own vs delegated decisions. It only observes, and is not installed in benchmark runtime |
 | `src/components/chronicle/` | Workspace tabs and the decision dialog host |
@@ -472,21 +500,25 @@ Rules that keep it honest:
 
 1. **It never creates goods, revenue or orders.** It reads closed shift reports
    and answers with bounded modifiers (`ChronicleEffect`) that the central tick
-   multiplies in. New effects go through that one type.
+   multiplies in. New effects go through that one type. Its fund is kept in
+   the plant's own currency (`CURRENCY_TO_FUND` 1) and fed a share of measured
+   net (D-083); a tempering choice is the partner's floor card, not a Chronicle
+   payment.
 2. **All chance is seeded** through `src/chronicle/rng.ts`, keyed by
    `(seed, stream, index)`. Never `Math.random` in the engine.
 3. **Detect a new shift by report id, not by count**: `reports` is capped at 12.
 4. **Anything the Chronicle raises, it can recover.** Incidents it raises are
    owned and restorable; a duct fire can always be cleaned by hand. A state with
    no way out is a bug.
-5. **Recipe thresholds are tight** (strong white 95, community 92, semolina 90).
-   Check any new quality penalty against them; `modules.test.ts` pins the crop
-   years.
+5. **Recipe thresholds are tight** (strong white 95, community 92, semolina 90;
+   semolina is shown as cornmeal, D-102). Check any new quality penalty against
+   them; `modules.test.ts` pins the crop years (the wet year costs 5).
 6. **Every mark must be read.** A choice's `marks` go into the record; register
    each in `src/chronicle/record.ts` and give it a reader beyond its leaning (an
    event or choice condition, a variant, an echo, an epilogue slide or the long
    night). `steward.test.ts` fails on a mark that is set and never read, and on
-   a default choice that costs anything, including a desk point.
+   a default choice that costs anything. Choices cost fund or know-how only:
+   the desks of attention are cut (D-093).
 7. **Presentation supports English and Brazilian Portuguese.** Workspace,
    event, history and quiz copy uses `src/i18n` catalogues and read-time getters.
    Canonical engine values and saved English records stay unchanged; the guarded
@@ -498,7 +530,71 @@ Rules that keep it honest:
    value, a preference and a need. Their votes and objections follow from
    those, and the record says when a need was met or outvoted; no score, meter
    or loyalty value of a person may be added. Every standing condition prints
-   its way out ("To clear:"), so rule 4 holds by construction.
+   its way out ("To clear:"), so rule 4 holds by construction, and a tie in the
+   assembly carries a move off a red line or off a condition's step (D-107).
+9. **Tuning is measured, not assumed.** A number that rests on what the plant
+   ships comes from `measuredPlant.ts`. After a plant change, run the probe,
+   copy its `measured` line there and run the gates again
+   (`docs/CHRONICLE.md`, "Measured tuning (2026-11-13, item 4.1)"). A gate that passes
+   on fixed inputs proves nothing: the probe runs the real tick.
+
+## Partner Proposals and the Plant's Measures
+
+The plant floor is played through the AI partner (D-080). A floor decision
+arrives as a proposal card (`PartnerProposalCards.tsx`, at the top of the AI
+panel's Decisions tab and in the phone panel): every answer priced, the
+partner's choice marked, a window on the game clock. Unanswered, the partner's
+choice runs; a game hour later the record prices every answer again, and the
+shift review lists the comparison.
+
+| File | Responsibility |
+|------|----------------|
+| `src/simulation/partnerProposals.ts` | Pure core: `PROPOSAL_KINDS` (programme, commitment, service, dispatch, forfeit, intake, incident, temper; a kind is one entry), pricing, defaults, the hour-later comparison, `DELEGATION_EVIDENCE` |
+| `src/simulation/dispatchProposal.ts`, `intakeProposal.ts`, `incidentProposal.ts`, `temperProposal.ts` | Kinds with modules of their own |
+| `src/stores/partnerProposalStore.ts` | Open and settled proposals; each kind's "Ask me" or "Decide and tell me" |
+| `src/systems/partnerProposalRuntime.ts` | `stepPartnerProposals`, the tick's one call: raises, expires, carries out answers, writes comparisons |
+| `src/simulation/shipmentPlan.ts` | `planShipment`: which order a truck loads and how much (pure; trucks fill to capacity, `fill`) |
+| `src/stores/programmeCommitment.ts` | The running programme: the HUD's goal, in committed tonnes (D-094) |
+
+**The ask rule (D-082).** The dock sets this plant's tonnes. A kind is asked
+only if the ten-shift harness has an arm where the other answer wins and one
+where it loses; otherwise the partner decides and says what the other answer
+would have cost. Today `commitment` and `intake` are asked. A new kind decides
+until `DELEGATION_EVIDENCE` names both arms, and the harness checks every
+claim written there, a null claim ("no arm found it") included; incidents are
+read per incident kind (`INCIDENT_DELEGATION_EVIDENCE`), whose null claims the
+kind-level check skips. The record
+judges each kind by the partner's own rule (the early programme: nothing late
+first, then net). Where a record's comparison is fixed by arithmetic
+(programme hold, service run on, forfeit keep) it states what each answer cost
+and names no better one; those kinds are measured on arm totals instead
+(`armWorse`).
+
+**The three instruments** (`docs/development.md`, "Playtest instruments").
+`npm test` skips all of them.
+
+| Command | What it runs |
+|---------|--------------|
+| `npm run playtest:plant` | The real tick and stores for whole shifts at pace 30, no browser: per shift and per arm, what the plant made, shipped, earned and spent (`src/systems/__tests__/plantMeasure.playtest.test.ts`). Plain, it runs the older arms a, b and c; the no-input figures quoted here and in the decision log come from `-- --suite=partner` (arm p) |
+| `npm run playtest:chronicle` | Whole chronicles on that plant, and the tuning gates (the Chronicle probe) |
+| `npm run playtest:surfaces` | A built app in headless Chromium, played as a player; takes the capture lock |
+
+Rules that keep it honest:
+
+1. **Prices come from one function.** The button and the hour-later record
+   call the same pricing, so the record never disagrees with what the player
+   was shown.
+2. **Nothing is priced in line tonnes.** Measured, a mill or packer outage or
+   the line rate moves no shipped kilogram: about 52 t of stock sits between
+   the mills and the packers. Price in truck slots, grade against the order's
+   minimum, lateness and money, and re-measure before claiming otherwise.
+3. **Inert in benchmarks.** The tick skips `stepPartnerProposals` in benchmark
+   runtime and replays, and benchmarks keep the old truck rule, no bench and
+   open silo valves, so frames and budgets do not move.
+4. **A run with no input delivers every order on time.** The harness pins it
+   (`npm run playtest:plant -- --suite=partner`, arm p: 52 on time, none late,
+   net 42,593.2, ten A); a kind whose default breaks it is a bug.
+5. **Chance is seeded** (`seededUnit`); the core reads no store and no clock.
 
 ## Interface Language (English and Brazilian Portuguese)
 
@@ -1263,7 +1359,7 @@ light-configuration-dependent.
 
 ### useSyncExternalStore Race Conditions (Fixed 2025-12-30)
 
-**Symptom:** UI elements flash briefly despite state checks. Example: PA announcements appearing momentarily when muted.
+**Symptom:** UI elements flash briefly, or a side effect fires, despite state checks. Original example (2025-12-30): PA announcements appearing momentarily when muted. Since D-098 mute silences sound only, so a muted PA line is meant to show; the pattern now guards the PA voice, which must never start while muted.
 
 **Root Cause:** `useSyncExternalStore` notifications can lag behind direct property changes. When external state changes:
 
@@ -1278,34 +1374,34 @@ light-configuration-dependent.
 When a React hook wraps external state and timing matters, use belt-and-suspenders:
 
 ```tsx
-// Layer 1: PREVENTION - Don't create events when condition is true
-// In scheduler/producer code:
-if (audioManager.muted) return; // Skip creation entirely
+// Layer 1: PREVENTION - the producer refuses when the condition holds
+// (src/audio/paVoice.ts loads no model and speaks nothing while muted)
 
-// Layer 2: RENDER GATE - Check BOTH hook AND direct property
+// Layer 2: DERIVED GATE - Check BOTH hook AND direct property
 const isMuted = useAudioMuted(); // Reactive hook
-if (isMuted || audioManager.muted) return null; // Synchronous backup
+const voiceActive = voiceEnabled && !isMuted && !audioManager.muted; // Synchronous backup
 
-// Layer 3: EFFECT GATE - Same dual check in effects
+// Layer 3: EFFECT GATE - Same dual check where the effect starts, and again
+// when async work returns (the hook may have changed meanwhile)
 useEffect(() => {
-  if (isMuted || audioManager.muted) return;
-  // ... effect logic
-}, [isMuted, /* other deps */]);
+  if (!voiceActiveRef.current || isMutedRef.current || audioManager.muted) return;
+  void speakPAVoice(text).then(() => {
+    if (isMutedRef.current || audioManager.muted) stopPAVoice();
+  });
+}, [currentAnnouncement?.id]);
 
-// Layer 4: CLEANUP - Dismiss/clear anything that slips through
+// Layer 4: CLEANUP - stop anything that slipped through
 useEffect(() => {
-  if (isMuted && currentItem) {
-    dismissItem(currentItem.id);
-  }
-}, [isMuted, currentItem]);
+  if (isMuted) stopPAVoice(); // the caption stays for its own reading time
+}, [isMuted]);
 ```
 
 **Key Files Using This Pattern:**
 
 | File | Purpose |
 |------|---------|
-| `src/components/game/PAAnnouncementSystem.tsx` | Multi-layer muted checks |
-| `src/components/game/shared.tsx` | Scheduler muted prevention |
+| `src/components/game/PAAnnouncementSystem.tsx` | Multi-layer muted checks on the voice; captions are never gated on mute |
+| `src/audio/paVoice.ts` | Producer-side refusal: no model load or speech while muted |
 
 **When to Apply This Pattern:**
 

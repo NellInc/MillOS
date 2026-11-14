@@ -3,6 +3,10 @@ import { defineMessages } from '../i18n';
 /**
  * Decision cards written by the autonomous plant decision engine.
  *
+ * Each card's action and impact say what accepting it does in
+ * applyDecisionEffects, and no more (review 10, F3). Prediction and
+ * coordination cards change nothing when accepted, and say so.
+ *
  * aiEngine.ts classifies decisions by matching words in this copy (prevented
  * shutdowns, audio cues). Its patterns list the pt-BR words beside the English
  * ones, so keep "manutenção", "estado seguro" and "anomalia" in the pt-BR
@@ -10,28 +14,27 @@ import { defineMessages } from '../i18n';
  */
 export const aiEngineMessages = defineMessages({
   en: {
-    coordinationAction: 'Allocate autonomous service route to {machine}',
+    coordinationAction: 'Service route demand at {machine}',
     coordinationReasoning:
       'The route planner detected equipment demand at {machineId} with {load} percent load.',
-    coordinationImpact: 'Keeps service traffic deterministic and clears shared aisles.',
-    maintenanceAction: 'Queue condition-based maintenance for {machine}',
+    coordinationImpact: 'A notice only: accepting changes nothing on the plant.',
+    maintenanceAction: 'Return {machine} to warning if it is critical',
     maintenanceReasoning:
       'Telemetry reports {temperature} C, {vibration} mm/s vibration, and {wear} percent wear.',
-    maintenanceImpact: 'Reduces breakdown risk while preserving the controlled production path.',
-    safetyAction: 'Engage interlocked safe state around {machine}',
+    maintenanceImpact:
+      'Books no maintenance. A worn-out or broken-down unit stays stopped; in an emergency the return waits for the release.',
+    safetyAction: 'Put {machine} in a safe state',
     safetyReasoning:
       'The autonomous safety layer detected a limit or test condition requiring isolation.',
-    safetyImpact:
-      'Stops hazardous motion, closes affected routes, and preserves diagnostic evidence.',
+    safetyImpact: 'Idles the unit if it is running; one already stopped stays as it is.',
     predictionAction: 'Statistical anomaly detected on {machine}',
     predictionReasoning:
       'Trend analysis combines {temperature} C, {vibration} mm/s vibration, {load} percent load, and {wear} percent wear.',
-    predictionImpact: 'Provides lead time for an automatic derate or maintenance queue entry.',
-    optimizationAction: 'Balance process load through {machine}',
+    predictionImpact: 'A notice only: accepting changes nothing on the plant.',
+    optimizationAction: 'Lower the line rate by 2% for the load on {machine}',
     optimizationReasoning:
       'The line is carrying {load} percent load at {efficiency} percent local efficiency.',
-    optimizationImpact:
-      'Lowers the line rate by 2% (never below 55%) to smooth material flow, limit recirculation and protect downstream capacity.',
+    optimizationImpact: 'Lowers the whole line rate by 2%, never below 55%.',
     completedAutomatic: 'Completed by autonomous control layer',
     completedConfirmed: 'Completed after control confirmation',
     deferralReturned:
@@ -39,6 +42,7 @@ export const aiEngineMessages = defineMessages({
     deferralLapsed:
       'Deferred and not taken up within {hours} plant hours; superseded. A fresh card follows if the condition holds.',
     completedModified: 'Completed after operator modification',
+    cardRetired: 'Withdrawn: cards of this kind changed nothing when accepted.',
     strategicReasoningFallback: 'Strategic analysis complete.',
     strategicAction: 'Strategic: {priority}',
     strategicAdditionalPriorities: 'Additional priorities: {priorities}',
@@ -87,30 +91,27 @@ export const aiEngineMessages = defineMessages({
     accessQuietImpact: 'The break stays quiet, and the purge still runs today.',
   },
   'pt-BR': {
-    coordinationAction: 'Alocar rota de serviço autônoma para {machine}',
+    coordinationAction: 'Demanda de rota de serviço em {machine}',
     coordinationReasoning:
       'O planejador de rotas detectou demanda de equipamento em {machineId} com {load}% de carga.',
-    coordinationImpact:
-      'Mantém o tráfego de serviço determinístico e libera os corredores compartilhados.',
-    maintenanceAction: 'Programar manutenção baseada em condição para {machine}',
+    coordinationImpact: 'Só um aviso: aceitar não muda nada na planta.',
+    maintenanceAction: 'Voltar {machine} para alerta se estiver em estado crítico',
     maintenanceReasoning:
       'A telemetria indica {temperature} °C, vibração de {vibration} mm/s e {wear}% de desgaste.',
-    maintenanceImpact: 'Reduz o risco de pane e preserva o caminho de produção controlado.',
-    safetyAction: 'Acionar estado seguro intertravado em torno de {machine}',
+    maintenanceImpact:
+      'Não programa manutenção. Uma unidade desgastada ou em pane continua parada; numa emergência, o retorno espera a liberação.',
+    safetyAction: 'Colocar {machine} em estado seguro',
     safetyReasoning:
       'A camada de segurança autônoma detectou uma condição de limite ou de teste que exige isolamento.',
-    safetyImpact:
-      'Interrompe movimentos perigosos, fecha as rotas afetadas e preserva as evidências de diagnóstico.',
+    safetyImpact: 'Para a unidade se estiver operando; uma já parada continua como está.',
     predictionAction: 'Anomalia estatística detectada em {machine}',
     predictionReasoning:
       'A análise de tendência combina {temperature} °C, vibração de {vibration} mm/s, {load}% de carga e {wear}% de desgaste.',
-    predictionImpact:
-      'Dá antecedência para uma redução automática de carga ou uma entrada na fila de manutenção.',
-    optimizationAction: 'Equilibrar a carga do processo em {machine}',
+    predictionImpact: 'Só um aviso: aceitar não muda nada na planta.',
+    optimizationAction: 'Reduzir a taxa da linha em 2% pela carga em {machine}',
     optimizationReasoning:
       'A linha opera com {load}% de carga e {efficiency}% de eficiência local.',
-    optimizationImpact:
-      'Reduz a taxa da linha em 2% (nunca abaixo de 55%) para suavizar o fluxo de material, limitar a recirculação e proteger a capacidade a jusante.',
+    optimizationImpact: 'Reduz a taxa de toda a linha em 2%, nunca abaixo de 55%.',
     completedAutomatic: 'Concluída pela camada de controle autônoma',
     completedConfirmed: 'Concluída após confirmação do controle',
     deferralReturned:
@@ -118,6 +119,7 @@ export const aiEngineMessages = defineMessages({
     deferralLapsed:
       'Adiada e não retomada em {hours} horas de planta; substituída. Um novo cartão vem se a condição continuar.',
     completedModified: 'Concluída após modificação do operador',
+    cardRetired: 'Retirado: cartões deste tipo não mudavam nada quando aceitos.',
     strategicReasoningFallback: 'Análise estratégica concluída.',
     strategicAction: 'Estratégia: {priority}',
     strategicAdditionalPriorities: 'Prioridades adicionais: {priorities}',

@@ -4,6 +4,7 @@ import { useWorkplaceStore } from '../stores/workplaceStore';
 import { createWorkplace } from './bilateralWorkplace';
 import { useWorkplaceAutoplay } from './workplaceAutoplay';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 import { endReplayClock } from './workplaceReplayRuntime';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
@@ -25,6 +26,8 @@ beforeEach(() => {
   });
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
 });
 afterEach(() => {
   act(() => useWorkplaceAutoplay.getState().pause());
@@ -60,15 +63,21 @@ describe('automatic season notices follow a language switch (pass ten)', () => {
     vi.useFakeTimers();
     useWorkplaceAutoplay.getState().start('team');
     vi.advanceTimersByTime(1200);
-    useWorkplaceStore.getState().object('quality', 'privacy');
+    // Packing's own voice (5b: in a solo season the player raises only Packing's).
+    useWorkplaceStore.getState().object('packing', 'privacy');
     useWorkplaceAutoplay.getState().start('team');
     vi.advanceTimersByTime(500);
     const stopped = notice('Automatic cooperative season stopped');
-    expect(stopped.message).toMatch(/^An open objection remains.*To run it again/);
+    // D14: the reason alone, with no restart hint.
+    expect(stopped.message).toBe(
+      'An open objection remains with its original raiser. Automatic demonstration paused.'
+    );
     setLocale('pt-BR');
     const text = alertText(stopped);
     expect(text.title).toBe('Temporada cooperativa automática interrompida');
-    expect(text.message).toMatch(/^Uma objeção em aberto continua.*Para rodá-la de novo/);
+    expect(text.message).toBe(
+      'Uma objeção em aberto continua com quem a levantou originalmente. Demonstração automática pausada.'
+    );
   });
 
   it('a stop on a workplace store refusal, in the bell and the panel', () => {
@@ -84,9 +93,8 @@ describe('automatic season notices follow a language switch (pass ten)', () => {
     expect(stopped.message).toMatch(/^Choose an open, quality-qualified customer commitment/);
     expect(screen.getByRole('status')).toHaveTextContent(/^Choose an open/);
     act(() => setLocale('pt-BR'));
-    expect(alertText(stopped).message).toMatch(
-      /^Escolha um compromisso de cliente em aberto.*Para rodá-la de novo/
-    );
+    expect(alertText(stopped).message).toMatch(/^Escolha um compromisso de cliente em aberto/);
+    expect(alertText(stopped).message).not.toMatch(/Para rodá-la de novo/);
     expect(screen.getByRole('status')).toHaveTextContent(/^Escolha um compromisso de cliente/);
   });
 });

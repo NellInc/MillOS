@@ -54,14 +54,16 @@ describe('Batch Genealogy reasons across a language switch', () => {
   it('renders a hold placed in English in Portuguese after the switch', () => {
     render(<BatchGenealogySection />);
     fireEvent.click(row('batch-a').getByRole('button', { name: 'Place hold' }));
+    // The player pressed it, so it never reads as automated.
     expect(
-      row('batch-a').getByText('contamination-00001: Automated targeted quality hold initiated')
+      row('batch-a').getByText('contamination-00001: Targeted quality hold placed by hand')
     ).toBeInTheDocument();
+    expect(row('batch-a').queryByText(/Automated/)).toBeNull();
 
     act(() => setLocale('pt-BR'));
     expect(
       row('batch-a').getByText(
-        'contamination-00001: Retenção de qualidade direcionada iniciada automaticamente'
+        'contamination-00001: Retenção de qualidade direcionada aplicada manualmente'
       )
     ).toBeInTheDocument();
   });

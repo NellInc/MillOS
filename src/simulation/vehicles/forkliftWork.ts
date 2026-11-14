@@ -166,3 +166,52 @@ export function nearestPedestrianAhead(
   }
   return Infinity;
 }
+
+/**
+ * A driver lined up for a pick or a drop (D-060, mechanics 6.2): within this of
+ * where the insert begins (a metre short of the marker, on the forks' line)
+ * and this far off the line's heading. Close enough that the pick or drop the
+ * autopilot runs from that pose eases the difference out over the creep in.
+ */
+export const MANUAL_WORK_REACH_METRES = 0.4;
+export const MANUAL_WORK_HEADING_RADIANS = 0.2;
+/**
+ * How far the forks may stand from the work surface's height (the floor, or
+ * the dock deck) and still go in. The driver's lever stops at the floor and at
+ * the deck height, so either is a stop the driver holds the lever to.
+ */
+export const MANUAL_WORK_FORK_TOLERANCE = 0.06;
+
+/** Whether a driven forklift at (x, z, heading) is lined up at a work start. */
+export function manualWorkLinedUp(
+  x: number,
+  z: number,
+  heading: number,
+  start: { readonly x: number; readonly z: number; readonly heading: number }
+): boolean {
+  return (
+    Math.hypot(x - start.x, z - start.z) <= MANUAL_WORK_REACH_METRES &&
+    Math.abs(shortestVehicleAngle(heading, start.heading)) <= MANUAL_WORK_HEADING_RADIANS
+  );
+}
+
+export type ManualWorkRefusal = 'forksRaised' | 'forksLow' | 'tooFast';
+
+/**
+ * Why a driver's pick or drop cannot start, or null. Moving faster than the
+ * creep, the forks cannot go in safely, whoever is about. For a pick the tines
+ * must be at the load's height: raised, they pass over it; at the deck, below
+ * it, they meet its edge. For a drop the load must clear the surface it goes on.
+ */
+export function manualWorkRefusal(
+  action: 'pickup' | 'dropoff',
+  forkHeight: number,
+  surface: number,
+  speed: number
+): ManualWorkRefusal | null {
+  if (Math.abs(speed) > FORKLIFT_WORK_SPEED) return 'tooFast';
+  if (action === 'pickup' && forkHeight > surface + MANUAL_WORK_FORK_TOLERANCE)
+    return 'forksRaised';
+  if (forkHeight < surface - MANUAL_WORK_FORK_TOLERANCE) return 'forksLow';
+  return null;
+}

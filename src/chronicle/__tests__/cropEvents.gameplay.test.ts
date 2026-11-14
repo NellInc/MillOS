@@ -18,6 +18,7 @@ import {
 } from '../engine';
 import { EVENT_DECK } from '../eventDeck';
 import { SHIFTS_PER_CROP_YEAR } from '../cropYears';
+import { REFERENCE_DRYING_COST } from '../temper';
 import type { CropKind, ImprovementProgress } from '../types';
 
 const baseline = { reportId: null, qcTestIds: [], challengeIds: [], orders: [] };
@@ -118,8 +119,10 @@ describe('crop-year events the crop has overtaken', () => {
     expect(drawn(inYear('wet', true), ['evt-wet-intake'])).toEqual([]);
   });
 
-  it('retires the other crop event once one treats the grain, so nobody pays twice', () => {
-    const state = pend(inYear('wet', false), 'evt-wet-intake', 'evt-low-falling-number');
+  // Plan item 7.7: a wet year is dried on the temper card a shift at a time,
+  // so its event's answers treat nothing; the dryer makes that drying free.
+  it('treats nothing with a wet-year answer: the hired dryer makes the card’s drying free', () => {
+    const state = pend(inYear('wet', false), 'evt-wet-intake');
     const after = chooseEventOption(
       state,
       'pending-evt-wet-intake',
@@ -127,27 +130,24 @@ describe('crop-year events the crop has overtaken', () => {
       'player',
       EVENT_DECK
     ).state;
-    expect(after.crop?.treated).toBe(true);
-    expect(after.pendingEvents.map((p) => p.eventId)).toEqual([]);
+    expect(after.crop?.treated).toBe(false);
+    expect(after.modifiers.find((m) => m.label === 'Mobile dryer')).toMatchObject({
+      dryingEnergy: 0,
+    });
+    // One shift of drying for three (review 2, finding 2).
+    expect(fundOf(state) - fundOf(after)).toBe(Math.round(REFERENCE_DRYING_COST));
+    expect(after.pendingEvents).toEqual([]);
   });
 
-  it('lets the AI partner pay for one treatment, not two', () => {
-    const wet = pend(inYear('wet', false), 'evt-wet-intake', 'evt-low-falling-number');
-    // A fund deep enough that the shift budget would cover both payments.
-    const state = {
-      ...wet,
-      ledger: { ...wet.ledger, fund: { ...wet.ledger.fund, charter: 20000 } },
-      delegation: 1 as const,
-    };
-    const before = fundOf(state);
+  it('retires a falling-number decision left from a wet year, which it no longer answers', () => {
+    const state = pend(inYear('wet', false), 'evt-low-falling-number');
     const after = closeShift(state, evidence(SHIFTS_PER_CROP_YEAR + 1), [
-      eventById('evt-wet-intake'),
       eventById('evt-low-falling-number'),
     ]).state;
-    expect(after.crop?.treated).toBe(true);
-    // The dryer (160) and nothing for a blend that would change nothing.
-    expect(before - fundOf(after)).toBeLessThan(160 + 120);
     expect(after.pendingEvents.map((p) => p.eventId)).toEqual([]);
+    expect(after.crop?.treated).toBe(false);
+    // Nothing paid for a blend: the close's own upkeep is all that left the fund.
+    expect(after.ledger.fund.events).toBe(state.ledger.fund.events);
   });
 
   it('retires a wet-year decision when the year turns, rather than lapsing it into damp stock', () => {
@@ -164,15 +164,15 @@ describe('crop-year events the crop has overtaken', () => {
     expect(after.modifiers.some((m) => m.label === 'Damp stock')).toBe(false);
   });
 
-  it('takes a crop decision off the desk when the grain is conditioned from the Overview', () => {
-    const state = pend(inYear('wet', false), 'evt-wet-intake');
+  it('takes a crop decision off the desk when the grain is blended from the Overview', () => {
+    const state = pend(inYear('sprouted', false), 'evt-low-falling-number');
     const after = treatCropDirectly(state, EVENT_DECK).state;
     expect(after.crop?.treated).toBe(true);
     // At once, as when an event treats it, not as a stale notice at the next close.
     expect(after.pendingEvents).toEqual([]);
     expect(after.notices.at(-1)?.title).toMatch(/no longer needed/);
     const closed = closeShift(after, evidence(SHIFTS_PER_CROP_YEAR + 1), [
-      eventById('evt-wet-intake'),
+      eventById('evt-low-falling-number'),
     ]).state;
     expect(closed.notices.filter((n) => /no longer needed/.test(n.title))).toHaveLength(1);
   });

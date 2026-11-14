@@ -66,6 +66,8 @@ import {
   currentBusRoadUse,
 } from '../simulation/vehicles/southRoadTraffic';
 import { advanceTruckClock, TRUCK_CONTROLLER_STEP_SECONDS } from './truckbay/truckClock';
+import { forkliftHoldingTruck, syncTruckForkliftHoldNotice } from './truckbay/truckForkliftHold';
+import { useSafetyStore } from '../stores/safetyStore';
 import {
   vehicleTelemetryRegistry,
   type VehicleTelemetrySnapshot,
@@ -3354,6 +3356,27 @@ export const TruckBay: React.FC = () => {
       );
       if (!allowAdvance) truckState.speed = 0;
       truckStateRef.current = truckState;
+      // Say which forklift holds the truck, on the bell (truckForkliftHold.ts).
+      // A paused clock leaves the notice as it was.
+      if (allowAdvance) {
+        syncTruckForkliftHoldNotice(
+          dock,
+          forkliftHoldingTruck(
+            dock,
+            truckState.x,
+            truckState.z,
+            forkliftInPath,
+            controller.phase === 'docked' &&
+              controller.servicePhase === 'transfer' &&
+              (dock === 'receiving' || shippingServiceComplete),
+            safetyHoldActive,
+            useSafetyStore.getState().forkliftEmergencyStop,
+            vehicleTelemetryRegistry.get(DOCK_FORKLIFT_ID[dock])?.stopReason
+          ),
+          truckState.speed,
+          truckState.active
+        );
+      }
       wheelRotationRef.current = displayController.wheelTravel / TRUCK_WHEEL_RADIUS;
 
       if (truckRef.current) {

@@ -3,12 +3,17 @@ import { copy } from './cropYears.messages';
  * Crop years: harvest variation stamped on every receiving lot.
  *
  * The penalties are chosen against the recipe thresholds in
- * operationsCampaignStore (strong white 95, community flour 92, semolina 90,
- * with a released QC grade A reading 100). A wet year's 6 points fails strong
- * white (94 < 95) but leaves community flour (94 >= 92) and corn semolina
- * viable, so switching recipe or paying to condition are both real responses;
- * moisture meters take one point back. A sprouted year's 9 points fails every
- * wheat recipe (91 < 92) until the grain is blended.
+ * operationsCampaignStore (strong white 95, community flour 92, semolina 90)
+ * and the plant's stamp, which is at most 99.5 (`productPathQuality`) and about
+ * 99.2 on a serviced line. A wet year's 5 points fails strong white even on a
+ * pristine line (94.5 < 95) but leaves community flour (94.5 >= 92); moisture
+ * meters take one point back, so a serviced mill with meters makes strong white
+ * (99.2 - 5 + 1 = 95.2), and drying the grain or a dryer removes the penalty.
+ * Drying is the temper card's "dry first" (plan item 7.7, temper.ts), answered
+ * a shift at a time; there is no flat payment that dries a whole year.
+ * It was 6, under which meters could not save strong white (item 4.6). A
+ * sprouted year's 9 points fails every wheat recipe (90.5 < 92) until the grain
+ * is blended. `wetYearMargin.gameplay.test.ts` pins the wet year.
  */
 import { cropWeights } from './charter';
 import { chronicleChance, chronicleStream, weightedPick } from './rng';
@@ -56,7 +61,7 @@ export const CROP_YEARS: Record<CropKind, CropYearDefinition> = {
     moisture: { mean: 15.6, spread: 0.5 },
     protein: { mean: 11.2, spread: 0.4 },
     fallingNumber: { mean: 260, spread: 30 },
-    wheatPenalty: 6,
+    wheatPenalty: 5,
     treatedPenalty: 0,
     noteId: 'history-grain-moisture',
   },
@@ -122,7 +127,11 @@ export function stampDelivery(
   };
 }
 
-/** Quality points the current crop year takes off wheat recipes. */
+/**
+ * Quality points the current crop year takes off wheat recipes. A wet year's
+ * wheat dried before it is tempered (the temper in force, temper.ts) carries
+ * the treated figure, as treated grain does.
+ */
 export function cropWheatPenalty(
   crop: CropYearState | null,
   relieved: readonly CropKind[]
@@ -130,6 +139,7 @@ export function cropWheatPenalty(
   if (!crop) return 0;
   const definition = CROP_YEARS[crop.kind];
   if (crop.treated || relieved.includes(crop.kind)) return definition.treatedPenalty;
+  if (crop.kind === 'wet' && crop.temper?.inForce === 'dry-first') return definition.treatedPenalty;
   return definition.wheatPenalty;
 }
 
@@ -185,10 +195,14 @@ export function qcReadingsForLots(
   };
 }
 
-/** Fund cost to condition, dry or blend a crop year in place (base units). */
+/**
+ * Fund cost to blend a sprouted year in place (base units). A wet year is
+ * dried on the temper card a shift at a time (plan item 7.7), not paid off
+ * from the fund; a save that paid before keeps its treated year.
+ */
 export function cropTreatmentCost(kind: CropKind): number {
   // Treating in place is the dearest route: events and plans do it cheaper.
-  return kind === 'sprouted' || kind === 'wet' ? 200 : 0;
+  return kind === 'sprouted' ? 200 : 0;
 }
 
 export function getCropYears(): Record<CropKind, CropYearDefinition> {

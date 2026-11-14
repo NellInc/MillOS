@@ -6,12 +6,23 @@ import {
   RESERVE_AUTOFILL_SHARE,
   RESERVE_DEPOSIT,
 } from '../../chronicle/governance';
-import { SHIFTS_PER_CROP_YEAR } from '../../chronicle/cropYears';
+import { cropYearShifts } from '../../chronicle/schedule';
 import type { CropYearReturn } from '../../chronicle/types';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { formatFixed, formatGrouped, useT, type Translator } from '../../i18n';
 import { messages } from './ReturnsTab.messages';
-import { amount, BUTTON, CostTag, FundAmount, ProgressBar, Section, whole } from './shared';
+import {
+  amount,
+  BUTTON,
+  CostTag,
+  FundAmount,
+  HeldReason,
+  ProgressBar,
+  Section,
+  useStoppedReason,
+  whole,
+} from './shared';
+import { useId } from 'react';
 
 type T = Translator<typeof messages.en>;
 
@@ -110,6 +121,8 @@ function ReturnRow({ filed, previous }: { filed: CropYearReturn; previous?: Crop
  */
 export function ReturnsTab({ state }: { state: ChronicleState }) {
   const t = useT(messages);
+  const stopped = useStoppedReason();
+  const heldId = useId();
   const actions = useChronicleStore(
     useShallow((s) => ({
       setReserveAutofill: s.setReserveAutofill,
@@ -120,7 +133,8 @@ export function ReturnsTab({ state }: { state: ChronicleState }) {
   const tally = gov.tally;
   const quota = gov.quotaKg;
   // An even pace: the share of the year's shifts already closed.
-  const paceShare = tally.shifts / SHIFTS_PER_CROP_YEAR;
+  const yearShifts = cropYearShifts(state.charter, tally.year);
+  const paceShare = tally.shifts / yearShifts;
   // Judged on the kilograms the tab prints, as the return itself is filed.
   const onPace = quota === null || Math.round(tally.dispatchedKg) >= quota * paceShare;
   const active = state.status === 'active';
@@ -149,7 +163,7 @@ export function ReturnsTab({ state }: { state: ChronicleState }) {
             <span className="whitespace-nowrap text-slate-300">
               {t('p21', {
                 shift: formatGrouped(tally.shifts),
-                total: formatGrouped(SHIFTS_PER_CROP_YEAR),
+                total: formatGrouped(yearShifts),
               })}
             </span>
           </div>
@@ -178,6 +192,7 @@ export function ReturnsTab({ state }: { state: ChronicleState }) {
             role="switch"
             aria-checked={gov.reserve.autofill}
             disabled={!active}
+            aria-describedby={active ? undefined : heldId}
             onClick={() => actions.setReserveAutofill(!gov.reserve.autofill)}
           >
             {t('p25', {
@@ -188,12 +203,14 @@ export function ReturnsTab({ state }: { state: ChronicleState }) {
           <button
             className={BUTTON}
             disabled={!active || fundOf(state) < RESERVE_DEPOSIT}
+            aria-describedby={active ? undefined : heldId}
             onClick={actions.depositReserve}
           >
             {t('m28')}
             <CostTag state={state} cost={{ fund: RESERVE_DEPOSIT }} transfer />
           </button>
         </div>
+        {!active && <HeldReason id={heldId}>{stopped}</HeldReason>}
       </Section>
 
       <Section title={t('m29')}>

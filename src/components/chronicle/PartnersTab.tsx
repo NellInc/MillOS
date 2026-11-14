@@ -1,5 +1,6 @@
-import { formatFixed } from '../../i18n';
+import { formatFixed, formatGrouped } from '../../i18n';
 import { getDelegationLevels } from '../../chronicle/delegation';
+import { customerDisplayName } from '../../stores/customerNames';
 import {
   localizedStakeholderName,
   localizedStakeholderStanding,
@@ -15,12 +16,15 @@ import {
   answerablePending,
   canReverse,
   partnerChoice,
+  recentPartyChanges,
   type ChronicleState,
 } from '../../chronicle/engine';
-import { EVENT_DECK, localizedEventText } from '../../chronicle/eventDeck';
-import { getBriefs } from '../../chronicle/governance';
+import { EVENT_DECK, getEventDeck, localizedEventText } from '../../chronicle/eventDeck';
+import { getBriefs, getPolicyLadders } from '../../chronicle/governance';
+import type { PartyChangeCause } from '../../chronicle/types';
 import { useChronicleStore } from '../../stores/chronicleStore';
-import { BUTTON, ProgressBar, rovingNext, Section } from './shared';
+import { BUTTON, HeldReason, ProgressBar, rovingNext, Section, useStoppedReason } from './shared';
+import { useId } from 'react';
 
 const TIER_CLASS = {
   cool: 'text-sky-300',
@@ -28,8 +32,44 @@ const TIER_CLASS = {
   warm: 'text-amber-300',
 } as const;
 
+/** Where neutral and warm begin, read from `relationshipTier` so the marks cannot drift. */
+const TIER_LINES = (['neutral', 'warm'] as const).map(
+  (tier) =>
+    Array.from({ length: 101 }, (_, value) => value).find(
+      (value) => relationshipTier(value) === tier
+    )!
+);
+
+/** A relationship bar with the cool and warm lines drawn and numbered on it. */
+function TierBar({ value, label }: { value: number; label: string }) {
+  return (
+    <div>
+      <div className="relative">
+        <ProgressBar value={value / 100} label={label} />
+        {TIER_LINES.map((line) => (
+          <span
+            key={line}
+            aria-hidden="true"
+            className="absolute inset-y-0 w-px bg-slate-300/70"
+            style={{ left: `${line}%` }}
+          />
+        ))}
+      </div>
+      <div aria-hidden="true" className="relative h-3 text-[10px] leading-3 text-slate-400">
+        {TIER_LINES.map((line) => (
+          <span key={line} className="absolute -translate-x-1/2" style={{ left: `${line}%` }}>
+            {line}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PartnersTab({ state }: { state: ChronicleState }) {
   const t = useT(messages);
+  const stopped = useStoppedReason();
+  const heldId = useId();
   const actions = useChronicleStore(
     useShallow((s) => ({
       setDelegation: s.setDelegation,
@@ -41,6 +81,18 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
   // The federation's administrator keeps the partner at Forecasts or above, and the
   // engine refuses anything lower: those levels are not offered while it stays.
   const lowestLevel = state.governance.administration ? 2 : 0;
+  const ladders = getPolicyLadders();
+  /** A change made outside a ruling, named by what made it. */
+  const causeText = (cause: PartyChangeCause): string => {
+    if (cause.kind === 'quota')
+      return t(cause.met ? 'c0' : 'c1', { year: formatGrouped(cause.year + 1) });
+    const ladder = ladders.find((entry) => entry.id === cause.ladder);
+    const rung = ladder?.rungs[cause.rung]?.label ?? '';
+    const name = ladder?.label ?? cause.ladder;
+    return cause.kind === 'policy'
+      ? t('c2', { ladder: name, rung })
+      : t('c3', { ladder: name, rung: rung.toLowerCase() });
+  };
   const openLevels = getDelegationLevels()
     .map((entry) => entry.level)
     .filter((level) => level >= lowestLevel);
@@ -52,12 +104,15 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
           return (
             <div key={customer.id} className="space-y-1">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-white">{customer.name}</span>
+                <span className="text-white">{customerDisplayName(customer.name)}</span>
                 <span className={`text-xs capitalize ${TIER_CLASS[tier]}`}>
                   {{ cool: t('p16'), neutral: t('p17'), warm: t('p18') }[tier]} {customer.value}
                 </span>
               </div>
-              <ProgressBar value={customer.value / 100} label={t('p13', { name: customer.name })} />
+              <ProgressBar
+                value={customer.value / 100}
+                label={t('p13', { name: customerDisplayName(customer.name) })}
+              />
             </div>
           );
         })}
@@ -67,8 +122,14 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
         {state.stakeholders.map((party) => {
           const tier = relationshipTier(party.value);
           const standing = localizedStakeholderStanding(state.stakeholders, party.id);
+          const changes = recentPartyChanges(state, party.id, EVENT_DECK);
           return (
-            <div key={party.id} className="space-y-1">
+            <div
+              key={party.id}
+              role="group"
+              aria-label={localizedStakeholderName(party.id)}
+              className="space-y-1"
+            >
               <div className="flex flex-wrap items-baseline justify-between gap-x-2">
                 <span className="shrink-0 text-white">{localizedStakeholderName(party.id)}</span>
                 <span className={`text-xs capitalize ${TIER_CLASS[tier]}`}>
@@ -76,10 +137,38 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
                   {standing ? <span className="normal-case"> · {standing}</span> : null}
                 </span>
               </div>
-              <ProgressBar
-                value={party.value / 100}
+              <TierBar
+                value={party.value}
                 label={t('p13', { name: localizedStakeholderName(party.id) })}
               />
+              {changes.length > 0 && (
+                <ul className="space-y-0.5 text-xs text-slate-300">
+                  {changes.map((change, index) => {
+                    let key: string;
+                    let cause: string;
+                    if ('cause' in change) {
+                      key = `${index}-${change.cause.kind}-${change.shift}`;
+                      cause = causeText(change.cause);
+                    } else {
+                      const event = getEventDeck().find((item) => item.id === change.eventId);
+                      const choice = event?.choices.find((item) => item.id === change.choiceId);
+                      key = `${index}-${change.eventId}-${change.choiceId}-${change.shift}`;
+                      cause = `${event?.title ?? ''}${choice ? `: ${choice.label}` : ''}`;
+                    }
+                    return (
+                      <li key={key} className="flex items-baseline justify-between gap-2">
+                        <span>{cause}</span>
+                        <span
+                          className={`shrink-0 tabular-nums ${change.delta > 0 ? 'text-amber-300' : 'text-sky-300'}`}
+                        >
+                          {change.delta > 0 ? '+' : ''}
+                          {formatGrouped(change.delta)}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           );
         })}
@@ -129,6 +218,13 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
               id={`delegation-level-${level.level}`}
               aria-checked={state.delegation === level.level}
               disabled={state.status !== 'active' || level.level < lowestLevel}
+              aria-describedby={
+                state.status !== 'active'
+                  ? `${heldId}-level`
+                  : level.level < lowestLevel
+                    ? `${heldId}-admin`
+                    : undefined
+              }
               tabIndex={state.delegation === level.level ? 0 : -1}
               onClick={() => actions.setDelegation(level.level)}
               className={`min-h-11 rounded-lg border px-2 py-2 text-left text-xs ${
@@ -144,6 +240,13 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
             </button>
           ))}
         </div>
+        {state.status !== 'active' ? (
+          <HeldReason id={`${heldId}-level`}>{stopped}</HeldReason>
+        ) : (
+          lowestLevel > 0 && (
+            <HeldReason id={`${heldId}-admin`}>{t('heldAdministrator')}</HeldReason>
+          )
+        )}
       </Section>
 
       <Section title={t('b0')}>
@@ -170,6 +273,7 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
               id={`partner-brief-${brief.id}`}
               aria-checked={state.governance.brief === brief.id}
               disabled={state.status !== 'active'}
+              aria-describedby={state.status !== 'active' ? `${heldId}-brief` : undefined}
               tabIndex={state.governance.brief === brief.id ? 0 : -1}
               onClick={() => actions.setBrief(brief.id)}
               className={`min-h-11 rounded-lg border px-2 py-2 text-left text-xs ${
@@ -182,6 +286,7 @@ export function PartnersTab({ state }: { state: ChronicleState }) {
             </button>
           ))}
         </div>
+        {state.status !== 'active' && <HeldReason id={`${heldId}-brief`}>{stopped}</HeldReason>}
         {routine.length > 0 && (
           <ul className="space-y-1 text-xs" aria-label={t('b1')}>
             {routine.map(({ pending, event }) => {

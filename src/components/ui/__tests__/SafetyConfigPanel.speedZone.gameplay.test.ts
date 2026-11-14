@@ -1,24 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { safetyConfigPanelMessages } from '../SafetyConfigPanel.messages';
 
-// Speed zones now cap the forklifts inside them (speedZoneLimit, ForkliftSystem),
-// so the Safety Config note must not tell the player the rate does nothing.
-describe('Safety Config speed-zone note', () => {
-  it('no longer says the speed zone rate is not enforced, in either language', () => {
-    expect(safetyConfigPanelMessages.en.enforcementNote).not.toMatch(
-      /not enforced|planning value/i
-    );
-    expect(safetyConfigPanelMessages['pt-BR'].enforcementNote).not.toMatch(
-      /ainda não é aplicada|valor de planejamento/i
-    );
-    expect(safetyConfigPanelMessages.en.enforcementNote).toMatch(/speed zone/i);
-    expect(safetyConfigPanelMessages['pt-BR'].enforcementNote).toMatch(/zona de velocidade/i);
-  });
-
-  // A forklift the player drives obeys the zone too, so the note must not
-  // limit it to a forklift on its route.
-  it('says a driven forklift obeys the zone as well, in either language', () => {
-    expect(safetyConfigPanelMessages.en.enforcementNote).toMatch(/driven/i);
-    expect(safetyConfigPanelMessages['pt-BR'].enforcementNote).toMatch(/conduzida/i);
+// The panel carried four "Help" lines and a note on what the sliders drive
+// (the speed-zone note once said the rate was not enforced, then that it was).
+// D-012 cut them: each control is its label, its value and its slider.
+// Working if neither language keeps a help line or the note
+// (SafetyPanel.forkliftStop.gameplay.test.tsx renders the panel).
+describe('Safety Config carries no help lines', () => {
+  it('has no help line or enforcement note in either language', () => {
+    for (const table of [safetyConfigPanelMessages.en, safetyConfigPanelMessages['pt-BR']]) {
+      const keys = Object.keys(table);
+      expect(keys.filter((key) => /Help$|Label$|Note$/.test(key))).toEqual([]);
+    }
   });
 });

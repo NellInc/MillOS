@@ -14,6 +14,7 @@ import {
   registerReplayParticipant,
 } from '../../../simulation/workplaceReplayRuntime';
 import { setLocale } from '../../../i18n';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
 
@@ -26,6 +27,8 @@ beforeEach(() => {
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
   useGameSimulationStore.getState().setGameSpeed(0);
   useWorkplaceStore.setState({
     workplace: createWorkplace('game', 17),
@@ -63,9 +66,10 @@ describe('Workplace lane, pass twenty: replay copy says runs last until the page
     render(<WorkplaceLab />);
     fireEvent.click(screen.getAllByRole('button', { name: /Experiment|Experimento/ })[0]);
     const panel = screen.getByRole('region', { name: /Matched plant replay|Reprodução pareada/ });
-    // The capture rules and the replay note each say how long runs last.
+    // D14 cut the capture-rules and replay-note captions; how long a run
+    // lasts is now on the Keep button and in the status it answers with.
     const notes = [...panel.querySelectorAll('p')].filter((p) => lasts.test(p.textContent ?? ''));
-    expect(notes.length).toBeGreaterThanOrEqual(2);
+    expect(notes).toHaveLength(0);
     const keep = [...panel.querySelectorAll('button')].find((b) =>
       /revis|review/i.test(b.textContent ?? '')
     )!;

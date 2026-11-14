@@ -577,6 +577,19 @@ function collectHealthExceptions(input) {
       )
     );
   }
+  // D-096: the line is idle after a cleared stop or drill until a person
+  // presses RESTART LINE. Nothing runs, and no agent command can change that.
+  if (input.simulation.restartPending === true) {
+    items.push(
+      exception(
+        'simulation-restart-pending',
+        'simulation',
+        'blocking',
+        'Line idle until a person presses RESTART LINE; no agent command restarts it.',
+        null
+      )
+    );
+  }
   if (asRecord(input.simulation.crisis).active === true) {
     const crisis = asRecord(input.simulation.crisis);
     items.push(

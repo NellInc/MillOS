@@ -14,7 +14,7 @@ import { operationsPlayMessages } from './operationsPlay.messages';
 /** Shared fulfilment tolerance; cosmetic consequences must agree with credit. */
 export const CAMPAIGN_MASS_EPSILON_KG = 1e-6;
 
-// At standard pace this gives two real minutes for cold-start production,
+// At standard pace (30) this gives twelve real minutes for cold-start production,
 // controller recovery and a real truck load. Customer deadlines stay separate.
 export const RECOVERY_CHALLENGE_WINDOW_MINUTES = 360;
 export const RECOVERY_CHALLENGE_TARGET_KG = 1000;
@@ -142,11 +142,19 @@ export interface OperationsNextAction {
     | 'receiving'
     | 'dispatch'
     | 'production'
-    | 'programme';
+    | 'programme'
+    | 'chronicle';
   targetId: string | null;
   label: string;
   consequence: string;
 }
+
+/** A layer a completed programme offers beside the next one, and the workspace it opens. */
+export type NextLayer = 'season' | 'chronicle';
+const NEXT_LAYERS: readonly NextLayer[] = ['season', 'chronicle'];
+const NO_LAYERS: readonly NextLayer[] = [];
+export const nextLayerWorkspace = (layer: NextLayer) =>
+  layer === 'season' ? ('autonomy' as const) : ('chronicle' as const);
 
 export function challengeBlockReason(state: OperationsPlaySnapshot): string | null {
   const order = state.orders.find((candidate) => candidate.id === state.activeOrderId);
@@ -217,7 +225,15 @@ function feedStillNeeded(state: OperationsPlaySnapshot, activeOrder: CustomerOrd
   );
 }
 
-export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
+/**
+ * `chronicleIncidentIds` are the incidents the Chronicle raised and restores
+ * (its ownedIncidents). Ownership lives in the Chronicle store, so the caller
+ * passes it in; without it every incident keeps the SCADA route.
+ */
+export function deriveOperationsPlay(
+  state: OperationsPlaySnapshot,
+  chronicleIncidentIds: readonly string[] = []
+) {
   const activeOrder = state.orders.find((order) => order.id === state.activeOrderId) ?? null;
   const blockers = state.constraints.filter((constraint) => constraint.severity !== 'info');
   // The incident that most needs the operator: a raised one, then one awaiting
@@ -340,6 +356,22 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
       label: translate(operationsPlayMessages, 'dispatchLabel'),
       consequence: translate(operationsPlayMessages, 'dispatchConsequence'),
     };
+  } else if (incident && chronicleIncidentIds.includes(incident.id)) {
+    // Its restore is the Chronicle's Restore controls, not anything in SCADA.
+    // Working if a Chronicle incident left open beside a ready programme
+    // names, and opens, the Chronicle workspace.
+    nextAction = {
+      kind: 'chronicle',
+      targetId: incident.id,
+      label: translate(operationsPlayMessages, 'chronicleRestoreLabel'),
+      consequence: translate(
+        operationsPlayMessages,
+        incident.effectApplied
+          ? 'chronicleRestoreConsequence'
+          : 'chronicleRestorePendingConsequence',
+        { title: incidentTitle(incident) }
+      ),
+    };
   } else {
     nextAction = {
       kind: 'production',
@@ -388,6 +420,10 @@ export function deriveOperationsPlay(state: OperationsPlaySnapshot) {
     activeOrder,
     blockers,
     nextAction,
+    // A completed programme hands over the layers beside the next one: the
+    // cooperative season and the Chronicle charter. Every card that offers the
+    // programme reads this, so they cannot drift apart.
+    nextLayers: nextAction.kind === 'programme' ? NEXT_LAYERS : NO_LAYERS,
     canAcceptNextProgramme,
     challenges: OPERATIONS_CHALLENGES.map(({ id }) => ({
       id,

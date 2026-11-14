@@ -62,7 +62,8 @@ describe('worker-led handoff experiment', () => {
         expect(workplaceReadiness(e.state).allowed).toBe(true);
         expect(e.run({ type: 'activate', args: [e.state.revision] }).changed).toBe(true);
         expect(e.state.finance.improvementSpend).toBe(32);
-        expect(workplaceCapacity(e.state)).toBe(1.02);
+        // 5.4 (D4): no arrangement runs the line above or below its rate.
+        expect(workplaceCapacity(e.state)).toBe(1);
         e.run({ type: 'tick', args: [90, 500, false] });
         expect(e.state.phase).toBe('review');
         const forecast = improvementForecast(e.state).kg;
@@ -121,12 +122,13 @@ describe('worker-led handoff experiment', () => {
     e.run({ type: 'vote', args: ['quality', false] });
     expect(e.run({ type: 'activate', args: [e.state.revision] }).changed).toBe(true);
     expect(workplaceCapacity(e.state)).toBe(0);
-    expect(workplaceTickCapacity(e.state, 10)).toBeCloseTo(0.45);
+    // Five paid briefing minutes, then the line's own rate (5.4).
+    expect(workplaceTickCapacity(e.state, 10)).toBeCloseTo(0.5);
     e.run({ type: 'tick', args: [10, 40, false] });
     const wages = e.state.finance.wagesPaid;
     expect(e.run({ type: 'stopImprovement', args: ['quality'] }).changed).toBe(true);
     expect(e.state.phase).toBe('active');
-    expect(workplaceCapacity(e.state)).toBe(0.78);
+    expect(workplaceCapacity(e.state)).toBe(1);
     expect(e.state.finance.wagesPaid).toBe(wages);
     expect(e.state.finance.improvementSpend).toBe(8);
     e.run({ type: 'tick', args: [80, 400, false] });
@@ -335,7 +337,8 @@ describe('handoff learning from public receipts', () => {
     expect(review.evidence.join(' ')).toContain('Ended after 12.0 of 90 minutes');
     expect(review.evidence.join(' ')).toContain('arrangement was stopped');
     expect(review.evidence.join(' ')).toContain('Any remaining work uses ordinary pacing');
-    expect(review.limitation).toContain('shortened trial');
+    // D14: no caveat line; the shortened horizon is the evidence's first line.
+    expect(review).not.toHaveProperty('limitation');
     expect(JSON.stringify(e.state)).toBe(before);
     e.state = { ...e.state, minute: 90, improvement: { ...e.state.improvement!, stopped: false } };
     expect(improvementLearningReview(e.state)?.focus).toBe('comparison');

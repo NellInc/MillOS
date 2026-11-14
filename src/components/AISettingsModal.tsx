@@ -184,7 +184,6 @@ const VisualizationToggles: React.FC = () => {
           </button>
         ))}
       </div>
-      <p className="text-[10px] text-slate-500 mt-1">{t('overlaysHint')}</p>
     </div>
   );
 };
@@ -394,11 +393,17 @@ const WebGPUModelPanel: React.FC = () => {
               className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-emerald-600/20 border border-emerald-600/50 rounded-lg text-emerald-400 text-sm font-medium hover:bg-emerald-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Download className="w-4 h-4" aria-hidden="true" />
+              {/* The download's size is its cost, so it sits on the button (D14). */}
               {webgpuError
                 ? t('tryAgain')
                 : cacheInfo.cached
                   ? t('loadModel')
-                  : t('downloadAndLoad')}
+                  : t('downloadAndLoad', {
+                      size: formatFixed(
+                        DEFAULT_WEBGPU_MODEL_SIZE.downloadGb + (fastLane ? laneDownloadGb : 0),
+                        1
+                      ),
+                    })}
             </button>
           )}
 
@@ -471,16 +476,6 @@ const WebGPUModelPanel: React.FC = () => {
           </p>
         </div>
       )}
-
-      <p className="text-[10px] text-slate-500 leading-relaxed">
-        {t('modelDownloadNote', {
-          model: DEFAULT_WEBGPU_MODEL_LABEL,
-          size: formatFixed(
-            DEFAULT_WEBGPU_MODEL_SIZE.downloadGb + (fastLane ? laneDownloadGb : 0),
-            1
-          ),
-        })}
-      </p>
     </div>
   );
 };
@@ -1197,7 +1192,6 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   >
                     <Brain className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
                     <div className="text-xs font-medium">{t('heuristic')}</div>
-                    <div className="text-[9px] opacity-70">{t('fastRules')}</div>
                   </button>
                   <button
                     ref={hybridModeRef}
@@ -1212,7 +1206,6 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                   >
                     <Zap className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
                     <div className="text-xs font-medium">{t('hybrid')}</div>
-                    <div className="text-[9px] opacity-70">{t('bestOfBoth')}</div>
                   </button>
                   <button
                     ref={modelOnlyModeRef}
@@ -1230,21 +1223,12 @@ export function AISettingsModal({ isOpen, onClose }: AISettingsModalProps) {
                     }`}
                   >
                     <Zap className="w-4 h-4 mx-auto mb-1" aria-hidden="true" />
-                    <div className="text-xs font-medium">{modelLabel}</div>
-                    <div className="text-[9px] opacity-70">{t('llmOnly')}</div>
+                    {/* One label per mode, no caption under it (D14). */}
+                    <div className="text-xs font-medium">
+                      {isLocal ? t('localOnly') : t('modelOnly', { model: modelLabel })}
+                    </div>
                   </button>
                 </div>
-                <p className="text-xs text-slate-500">
-                  {aiMode === 'heuristic' && t('modeHeuristicDesc')}
-                  {aiMode === 'gemini' &&
-                    (isLocal
-                      ? t('modeLocalOnlyDesc')
-                      : t('modeModelOnlyDesc', { model: modelLabel }))}
-                  {aiMode === 'hybrid' &&
-                    (isLocal
-                      ? t('modeLocalHybridDesc')
-                      : t('modeModelHybridDesc', { model: modelLabel }))}
-                </p>
               </div>
             )}
 

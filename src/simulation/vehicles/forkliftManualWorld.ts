@@ -1,10 +1,14 @@
 /**
  * What a driven forklift collides with: the same machine, belt and dock boxes
- * the walking player does, the world edge, water, the castle and shelter
- * solids, any ground step a forklift could not climb, and the other vehicles.
+ * the walking player does, the hall's walls, the world edge, water, the castle
+ * and shelter solids, any ground step a forklift could not climb, and the
+ * other vehicles.
  *
- * Factory walls are not here because no navigation mode has wall geometry:
- * the walking player passes through them as well.
+ * The hall walls are the walker's (`hallWallBlocks`, walkingObstacles.ts),
+ * tested against each footprint circle's own radius, with every door open.
+ * The only openings a forklift's 1.2 m body fits are the two 4 m service
+ * portals: each dock portal is filled by its platforms and bay, and a
+ * personnel door is 1.0 m clear (report 04 P6, plan 6.6).
  */
 import {
   createConveyorObstacles,
@@ -19,6 +23,7 @@ import {
   walkingBlocks,
 } from '../../utils/castleNavigation';
 import { positionRegistry } from '../../utils/positionRegistry';
+import { hallWallBlocks } from '../../utils/walkingObstacles';
 import {
   truckPhaseDirection,
   truckSweepAheadMeets,
@@ -98,6 +103,7 @@ export function manualStaticBlocked(
 ): boolean {
   if (Math.hypot(x, z) > WORLD_RADIUS - radius) return true;
   for (const box of BOXES) if (circleMeetsBox(x, z, radius, box)) return true;
+  if (hallWallBlocks(x, z, radius)) return true;
   if (!isDryWalkingGround(x, z, segments)) return true;
   const ground = sampleWalkingGroundHeight(x, z, segments);
   if (Math.abs(ground - originGround) > FORKLIFT_GROUND_STEP_METRES) return true;
@@ -267,6 +273,95 @@ const legMeetsTruck = (ax: number, az: number, bx: number, bz: number): boolean 
   return false;
 };
 
+const HALL = SITE_LAYOUT.factory.bounds;
+/** Past this far beyond a wall's line, the forklift's origin is outside the hall. */
+const OUTSIDE_HALL_METRES = 0.3;
+/** The ring it drives round the hall's outside: clear of the walls and the dock platforms. */
+const RING_X = HALL.maxX + 5.5;
+const RING_Z = Math.max(...DOCK_BLOCKS.map((block) => block.uOut)) + DETOUR_MARGIN_METRES;
+/** The service doors: the only hall openings its body fits. Outside and inside aims. */
+const DOOR_Z = SITE_LAYOUT.portals.eastService.centre[2];
+const DOOR_HALF_WIDTH = SITE_LAYOUT.portals.eastService.halfWidth;
+const DOOR_INSIDE_X = HALL.maxX - 3.5;
+/** Within this of the door's outside aim, or in the doorway, it turns in. */
+const DOOR_TURN_IN_METRES = 1.5;
+
+/**
+ * The way back into the hall from outside it, for lane return (plan 6.6). The
+ * walls are solid and every door is open, but the only openings a forklift
+ * fits are the two service doors (x +/-40, z -20): it drives round the hall on
+ * a ring clear of the walls and the dock platforms to the nearer one, the
+ * shorter way and never past a truck, and in through it. Sets `out` and returns
+ * the distance on from there to the lane, or null when it is in the hall.
+ */
+function outsideHallDetour(
+  x: number,
+  z: number,
+  laneAim: { readonly x: number; readonly z: number },
+  out: { x: number; z: number }
+): number | null {
+  const beyondSide = Math.abs(x) > HALL.maxX + OUTSIDE_HALL_METRES;
+  const beyondEnd = Math.abs(z) > HALL.maxZ + OUTSIDE_HALL_METRES;
+  if (!beyondSide && !beyondEnd) return null;
+  const inRest = (side: number) => Math.hypot(laneAim.x - side * DOOR_INSIDE_X, laneAim.z - DOOR_Z);
+  const doorLeg = RING_X - DOOR_INSIDE_X;
+  if (beyondSide) {
+    const side = Math.sign(x);
+    const turnIn =
+      Math.abs(z - DOOR_Z) < DOOR_HALF_WIDTH - 0.6 && Math.abs(x) < RING_X + DOOR_TURN_IN_METRES;
+    if (turnIn || Math.hypot(x - side * RING_X, z - DOOR_Z) < DOOR_TURN_IN_METRES) {
+      out.x = side * DOOR_INSIDE_X;
+      out.z = DOOR_Z;
+      return inRest(side);
+    }
+    out.x = side * RING_X;
+    out.z = DOOR_Z;
+    return doorLeg + inRest(side);
+  }
+  // Beyond a gable: to the ring's corner on the shorter side, then down the side.
+  const end = Math.sign(z);
+  let best = Infinity;
+  let bestRest = 0;
+  for (const side of SIDES) {
+    const cx = side * RING_X;
+    const cz = end * RING_Z;
+    if (legMeetsTruck(x, z, cx, cz)) continue;
+    const rest = Math.abs(cz - DOOR_Z) + doorLeg + inRest(side);
+    const total = Math.hypot(cx - x, cz - z) + rest;
+    if (total < best) {
+      best = total;
+      bestRest = rest;
+      out.x = cx;
+      out.z = cz;
+    }
+  }
+  return best === Infinity ? null : bestRest;
+}
+
+/** In a side aisle this near a side wall, a lane further in is reached along the aisle first. */
+const SIDE_AISLE_X = HALL.maxX - 7;
+/** Within this of the lane's z, it turns off the aisle for the lane. */
+const SIDE_AISLE_TURN_METRES = 3;
+
+/**
+ * Just in by a service door, or anywhere along a side aisle, with its lane
+ * further into the hall and well up or down it: along the aisle (x
+ * +/-DOOR_INSIDE_X) to the lane's z first, and only then across, rather than
+ * straight over the milling floor's machines. Null otherwise.
+ */
+function sideAisleDetour(
+  x: number,
+  z: number,
+  laneAim: { readonly x: number; readonly z: number },
+  out: { x: number; z: number }
+): number | null {
+  if (Math.abs(x) < SIDE_AISLE_X || Math.abs(laneAim.x) > Math.abs(x) - 3) return null;
+  if (Math.abs(laneAim.z - z) <= SIDE_AISLE_TURN_METRES) return null;
+  out.x = Math.sign(x) * DOOR_INSIDE_X;
+  out.z = laneAim.z;
+  return Math.abs(laneAim.x - out.x);
+}
+
 /**
  * The way back to the hall from a dock apron or beside a dock's end, for lane
  * return. The platforms wall the apron off from the hall, and pursuit straight
@@ -280,6 +375,8 @@ const legMeetsTruck = (ax: number, az: number, bx: number, bz: number): boolean 
  * from there to the lane, or null when nothing is in the way.
  */
 export const dockPlatformDetour: LaneDetour = (x, z, heading, plan, laneAim, out) => {
+  const outside = outsideHallDetour(x, z, laneAim, out) ?? sideAisleDetour(x, z, laneAim, out);
+  if (outside !== null) return outside;
   const lanes = cornerLane(plan);
   for (let index = 0; index < DOCK_BLOCKS.length; index += 1) {
     const block = DOCK_BLOCKS[index];

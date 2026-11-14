@@ -48,7 +48,11 @@ describe('event deck presentation locale', () => {
     const presentation = getEventDeck();
     const english = copyEntries(EVENT_DECK);
     const portuguese = copyEntries(presentation);
-    expect(english).toHaveLength(342);
+    // 342, less "Cover the roller floor" (4.4), plus the federation’s offer (4.11).
+    // 347 since plan item 7.7 gave the wet-intake dryer a modifier label.
+    // 349 since the long night's partner holds the weaker front (a variant's
+    // because and result, 13 November).
+    expect(english).toHaveLength(349);
     expect(portuguese.map(([path]) => path)).toEqual(english.map(([path]) => path));
     for (const [index, [path, copy]] of portuguese.entries()) {
       expect(copy, path).toBeTruthy();
@@ -97,10 +101,6 @@ describe('event deck presentation locale', () => {
       expect(defaultChoice.requires, event.id).toBeUndefined();
       expect(defaultChoice.cost?.fund ?? 0, event.id).toBe(0);
       expect(defaultChoice.cost?.knowHow ?? 0, event.id).toBe(0);
-      expect(
-        Object.values(defaultChoice.cost?.attention ?? {}).every((value) => !value),
-        event.id
-      ).toBe(true);
     }
     const cover = portuguese.find((event) => event.id === 'evt-standby-cover')!;
     expect(cover.defaultChoiceId).toBe('partner');

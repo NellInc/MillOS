@@ -6,12 +6,15 @@ import { useAnnouncementsStore } from '../../stores/announcementsStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useProductionStore } from '../../stores/productionStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { createWorkplace } from '../../simulation/bilateralWorkplace';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
 import { useMobileControlStore } from '../../stores/mobileControlStore';
 
 describe('ProductionTargetWidget', () => {
   beforeEach(() => {
+    // The guided programme is open: the tracker's target (D11).
+    useOperationsCampaignStore.getState().resetCampaign();
     useWorkplaceStore.setState({ workplace: createWorkplace() });
     useMobileControlStore.getState().closeMobilePanel();
     // Deterministic starting point: widget visible (store default is ON).
@@ -73,32 +76,23 @@ describe('ProductionTargetWidget', () => {
     expect(screen.queryByRole('region', { name: 'Production target tracker' })).toBeNull();
   });
 
-  // One time model: the plant speeds up with the clock, so the forecast rate
-  // per game hour is the same at every pace.
-  it.each([15, 30, 60, 120])('compares forecast and remaining clock time at pace %i', (pace) => {
+  // One time model: the plant speeds up with the clock, so the rate per game
+  // hour is the same at every pace.
+  it.each([15, 30, 60, 120])('shows the same rate per game hour at pace %i', (pace) => {
     useGameSimulationStore.setState({ gameSpeed: pace });
     useProductionStore.setState({
       metrics: { ...useProductionStore.getState().metrics, throughput: 288 },
     });
     render(<ProductionTargetWidget />);
     expect(screen.getByText('7.2 t/game h')).toBeInTheDocument();
-    expect(screen.getByText('2.5 t/game h')).toBeInTheDocument();
     expect(screen.getByText('ON TRACK')).toBeInTheDocument();
   });
 
-  it('reports a slow line as behind schedule', () => {
+  it('keeps the rate on its own full-width row at larger text sizes', () => {
     render(<ProductionTargetWidget />);
-    expect(screen.getByText('1.2 t/game h')).toBeInTheDocument();
-    expect(screen.getByText('BEHIND SCHEDULE')).toBeInTheDocument();
-  });
-
-  it('keeps each complete rate on its own full-width row at larger text sizes', () => {
-    render(<ProductionTargetWidget />);
-    for (const rate of ['1.2 t/game h', '2.5 t/game h']) {
-      const value = screen.getByText(rate);
-      expect(value).toHaveClass('whitespace-nowrap');
-      expect(value.parentElement).toHaveClass('col-span-2');
-    }
+    const value = screen.getByText('1.2 t/game h');
+    expect(value).toHaveClass('whitespace-nowrap');
+    expect(value.parentElement).toHaveClass('col-span-2');
   });
 
   it('shows a paused shift without treating the last physical rate as ongoing production', () => {
@@ -109,21 +103,10 @@ describe('ProductionTargetWidget', () => {
     expect(screen.queryByText('ON TRACK')).toBeNull();
   });
 
-  it('uses the actual last minute instead of inventing fifteen minutes of grace', () => {
-    useGameSimulationStore.setState({ gameTime: 23 + 59 / 60 });
-    useProductionStore.setState({ dailyBagsProduced: 1199 });
+  it('uses the actual last minute before the next order is due', () => {
+    useOperationsCampaignStore.setState({ elapsedMinutes: 239 });
     render(<ProductionTargetWidget />);
-    expect(screen.getByText('1m left')).toBeInTheDocument();
-    expect(screen.getByText('1.5 t/game h')).toBeInTheDocument();
-    expect(screen.getByText('AT RISK')).toBeInTheDocument();
-  });
-
-  it('retains a met daily target when paused and hides its zero required rate', () => {
-    useGameSimulationStore.setState({ gameSpeed: 0 });
-    useProductionStore.setState({ dailyBagsProduced: 1200 });
-    render(<ProductionTargetWidget />);
-    expect(screen.getByText('TARGET MET')).toBeInTheDocument();
-    expect(screen.queryByText('Req:')).toBeNull();
+    expect(screen.getByText('Due in 1m')).toBeInTheDocument();
   });
 
   it.each([true, false])(
@@ -143,6 +126,16 @@ describe('ProductionTargetWidget', () => {
       ).toBeInTheDocument();
     }
   );
+
+  // Seen on a landscape phone (844 x 390): at 30dvh from the bottom the
+  // launcher sat on the walk D-pad (MobileControlsOverlay, bottom-24 left-4)
+  // and covered its down arrow. On a short screen it drops to the corner below.
+  it('drops below the walk D-pad on a short screen', () => {
+    useAIConfigStore.getState().setShowProductionTarget(false);
+    render(<ProductionTargetWidget />);
+    const launcher = screen.getByRole('button', { name: 'Show production target tracker' });
+    expect(launcher).toHaveClass('[@media(max-height:480px)]:bottom-4');
+  });
 
   it.each([true, false])(
     'rests expanded=%s clear of header and music at every width',

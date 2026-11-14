@@ -13,6 +13,7 @@ import {
 import { autoplayWorkplaceStep } from '../../../simulation/workplaceAutoplay';
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { setLocale } from '../../../i18n';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
 
@@ -22,6 +23,8 @@ beforeEach(() => {
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
   useGameSimulationStore.getState().setGameSpeed(0);
   useWorkplaceStore.setState({
     participationMode: 'solo',
@@ -36,11 +39,16 @@ function press(button: HTMLElement) {
   expect(document.activeElement).toBe(button);
   fireEvent.click(button);
 }
-// With focus on <body>, Space is the forklift emergency stop.
+// With focus on <body>, Space is the forklift emergency stop. In a solo
+// season (5.1) the tabs sit behind a closed disclosure, so focus lands on the
+// step's heading instead of the open section's tab.
 const focusKept = () =>
   waitFor(() => {
     expect(document.activeElement).not.toBe(document.body);
-    expect(document.activeElement).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      document.activeElement?.getAttribute('aria-pressed') === 'true' ||
+        document.activeElement?.hasAttribute('data-step-focus')
+    ).toBe(true);
   });
 
 // Review controls that remove themselves leave focus on <body>.
@@ -86,7 +94,7 @@ describe('Review controls that remove themselves keep focus (pass eleven)', () =
 
   it('Start Living Cooperative campaign (the idle form it sits in closes)', async () => {
     render(<WorkplaceLab />);
-    press(screen.getByRole('button', { name: 'Start Living Cooperative campaign' }));
+    press(screen.getByRole('button', { name: 'Start 3-shift cooperative season (1x)' }));
     expect(useWorkplaceStore.getState().workplace.campaign).toBeTruthy();
     await focusKept();
   });

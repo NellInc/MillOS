@@ -103,7 +103,7 @@ describe('live working agreement companion', () => {
       },
     });
     show();
-    expect(screen.getByText('8.00 illustrative credits.')).toBeInTheDocument();
+    expect(screen.getByText('8.00 credits.')).toBeInTheDocument();
     expect(screen.getByText('10.0 min delivered; 4.0 min owed.')).toBeInTheDocument();
     expect(screen.getByText(/Future authority has ended/)).toBeInTheDocument();
   });
@@ -114,7 +114,7 @@ describe('live working agreement companion', () => {
     const before = useWorkplaceStore.getState().workplace;
     show();
     expect(screen.getByText('An objection needs its raiser')).toBeInTheDocument();
-    expect(screen.getByText(/Only its raiser can confirm resolution/)).toHaveTextContent(
+    expect(screen.getByText(/: open objection\.$/)).toHaveTextContent(
       actor === 'mind' ? 'Adviser' : 'Packing'
     );
     expect(useWorkplaceStore.getState().workplace).toBe(before);
@@ -156,11 +156,12 @@ describe('live working agreement companion', () => {
     });
     show();
     expect(screen.getByText('800 / 800 kg; evidence blocked.')).toBeInTheDocument();
-    expect(screen.getByText('200 kg.')).toBeInTheDocument();
+    // Remaining and deferred both read 200 kg; D14 cut the deferral's caption.
+    expect(screen.getAllByText('200 kg.')).toHaveLength(2);
     // The renegotiated installment is named as such beside the full commitment.
     expect(screen.getByText('Agreed installment receipts:')).toBeInTheDocument();
     expect(screen.queryByText('Customer dispatch receipts:')).toBeNull();
-    expect(screen.getByText('200 kg, still part of the full commitment.')).toBeInTheDocument();
+    expect(screen.queryByText(/still part of the full commitment/)).toBeNull();
   });
 });
 
@@ -211,7 +212,7 @@ it('retains handoff compensation and delivered recovery while current debt remai
   state.members[0].recoveryOwedMinutes = 4;
   useWorkplaceStore.setState({ workplace: state });
   show();
-  expect(screen.getByText('10.00 illustrative credits.')).toBeInTheDocument();
+  expect(screen.getByText('10.00 credits.')).toBeInTheDocument();
   expect(screen.getByText('13.0 min delivered; 4.0 min owed.')).toBeInTheDocument();
   expect(screen.getByText('Retained compensation paid:')).toBeInTheDocument();
   expect(screen.getByText('Teaching output:')).toBeInTheDocument();

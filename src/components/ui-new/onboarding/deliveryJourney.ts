@@ -7,12 +7,23 @@ import { CAMPAIGN_MASS_EPSILON_KG } from '../../../simulation/operationsPlay';
 import { formatFixed, formatGrouped, translate } from '../../../i18n';
 import { dispatchBlockText } from '../../../stores/dispatchBlockText';
 import { deliveryJourneyMessages as m } from './deliveryJourney.messages';
+import { customerDisplayName } from '../../../stores/customerNames';
+
+type MillingEntryId =
+  | 'milling-cleaning-tempering'
+  | 'milling-break-reduction'
+  | 'milling-purifiers'
+  | 'milling-extraction-ash'
+  | 'milling-baker-needs'
+  | 'milling-dust-explosions';
 
 interface DeliveryJourney {
   title: string;
   detail: string;
   workspace: 'overview' | 'scada' | null;
   entryId: string;
+  /** The Datalinks entry on the milling this stage depends on (report 10 P3). */
+  millingEntryId: MillingEntryId;
   view?: 'Milling' | 'Packing' | 'Shipping';
   loading?: Pick<DispatchLoadSnapshot, 'loadedKg' | 'capacityKg'>;
   /** Overview should land on this section when the guide opens it. */
@@ -114,7 +125,9 @@ export function deriveDeliveryJourney(
   execution: OrderExecutionState,
   inspected: boolean,
   truck?: ShippingTruckView,
-  fault?: MachineFaultView | null
+  fault?: MachineFaultView | null,
+  /** The player's production speed (Settings), the one line rate (plan item 3.6). */
+  productionSpeed = 1
 ): DeliveryJourney {
   if (!order)
     return {
@@ -122,6 +135,7 @@ export function deriveDeliveryJourney(
       detail: translate(m, 'chooseDetail'),
       workspace: 'overview' as const,
       entryId: 'community-commitments',
+      millingEntryId: 'milling-baker-needs',
     };
   const product = order.recipe.label;
   const qualityTarget = translate(m, 'qualityTarget', {
@@ -136,10 +150,11 @@ export function deriveDeliveryJourney(
       detail: translate(m, 'fulfilledDetail', {
         kg: formatGrouped(Math.round(order.shippedKg)),
         product,
-        customer: order.customer,
+        customer: customerDisplayName(order.customer),
       }),
       workspace: 'overview' as const,
       entryId: 'community-commitments',
+      millingEntryId: 'milling-baker-needs',
     };
   // A stopped machine stops its part of the line, so the guide turns to the
   // repair before any delivery step. Working if a breakdown during the first
@@ -154,6 +169,8 @@ export function deriveDeliveryJourney(
       workspace: 'overview' as const,
       focus: 'maintenance' as const,
       entryId: 'predictive-maintenance',
+      // A failing machine's hot surface is an ignition source for flour dust.
+      millingEntryId: 'milling-dust-explosions',
     };
   // Inspection is the opening lesson, never a gate on the delivery itself: once
   // stock is moving toward a truck the guide narrates that instead. Working if
@@ -167,6 +184,7 @@ export function deriveDeliveryJourney(
       workspace: null,
       inspect: true,
       entryId: 'bottlenecks-and-buffers',
+      millingEntryId: 'milling-break-reduction',
     };
   if (execution.orderId !== order.id)
     return {
@@ -174,6 +192,7 @@ export function deriveDeliveryJourney(
       detail: translate(m, 'returnDetail'),
       workspace: 'overview' as const,
       entryId: 'community-commitments',
+      millingEntryId: 'milling-baker-needs',
     };
   if (execution.stage === 'quality_hold')
     return {
@@ -186,15 +205,15 @@ export function deriveDeliveryJourney(
       workspace: 'overview' as const,
       quality: true,
       entryId: 'batch-quality',
+      millingEntryId: 'milling-extraction-ash',
     };
   const load = execution.dispatchLoad;
-  const departureRule = translate(m, 'departureRule', { product });
   // The feed budget stops the line once the rest of the order is packed, so the
   // header reads 0 bags/h. Working if that idle line is explained, not a freeze.
   const packedRest =
     execution.remainingKg > 0 && execution.finishedAvailableKg >= execution.remainingKg - 1
       ? execution.lineCustomer
-        ? translate(m, 'packedRestNext', { customer: execution.lineCustomer })
+        ? translate(m, 'packedRestNext', { customer: customerDisplayName(execution.lineCustomer) })
         : translate(m, 'packedRest')
       : '';
   const tripStatus = deriveTripStatus(order, load, truck);
@@ -208,9 +227,10 @@ export function deriveDeliveryJourney(
     return {
       title: translate(m, 'readyToLoadTitle'),
       view: 'Shipping',
-      detail: `${waiting} ${qualityTarget} ${departureRule}${tripStatus}`,
+      detail: `${waiting} ${qualityTarget}${tripStatus}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
+      millingEntryId: 'milling-baker-needs',
     };
   }
   if (execution.stage === 'loading' || execution.stage === 'ready_to_dispatch') {
@@ -220,9 +240,10 @@ export function deriveDeliveryJourney(
     return {
       title: translate(m, execution.stage === 'loading' ? 'loadingTitle' : 'readyToDepartTitle'),
       view: 'Shipping',
-      detail: `${step} ${qualityTarget} ${departureRule}${tripStatus}${packedRest}`,
+      detail: `${step} ${qualityTarget}${tripStatus}${packedRest}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
+      millingEntryId: 'milling-baker-needs',
       // Truck capacity is distinct from the customer's full commitment.
       // This projection never credits cargo, changes the load or dispatches it.
       loading: { loadedKg: load.loadedKg, capacityKg: load.capacityKg },
@@ -235,23 +256,25 @@ export function deriveDeliveryJourney(
       // read as the full commitment received.
       shippedKg: formatGrouped(shownShippedKg(order)),
       requiredKg: formatGrouped(Math.round(order.requiredKg)),
-      customer: order.customer,
+      customer: customerDisplayName(order.customer),
     });
     return {
       title: translate(m, 'departedTitle'),
       view: 'Shipping',
-      detail: `${receipt}${tripStatus}${packedRest} ${qualityTarget} ${departureRule}`,
+      detail: `${receipt}${tripStatus}${packedRest} ${qualityTarget}`,
       workspace: 'scada',
       entryId: 'autonomous-logistics',
+      millingEntryId: 'milling-baker-needs',
     };
   }
   // Explain this customer's real preparation and flow; never equate the
-  // setpoint with measured output. Working if both recipes show their own grain,
+  // production speed with measured output. Working if both recipes show their own grain,
   // target and released stock without advancing production or customer credit.
   const grain = translate(m, 'grain', { material: order.recipe.sourceMaterial });
   // This is the campaign recipe's quality score, never a physical assay or yield.
   // Working if each selected recipe names its own release threshold read-only.
-  const quality = translate(m, 'qualityRule', { qualityTarget });
+  // The target is the readout; the rule restated after it was cut (D14).
+  const quality = qualityTarget;
   // Customer switching retains the previous execution snapshot until a tick.
   // Working if paused preparation names the recipe without claiming stale stock.
   if (execution.stage === 'planning')
@@ -261,6 +284,7 @@ export function deriveDeliveryJourney(
       detail: translate(m, 'planningDetail', { grain, quality }),
       workspace: 'scada' as const,
       entryId: 'autonomous-material-flow',
+      millingEntryId: 'milling-cleaning-tempering',
     };
   return {
     title: translate(m, 'followTitle'),
@@ -268,12 +292,13 @@ export function deriveDeliveryJourney(
     detail: translate(m, 'followDetail', {
       sourceKg: formatGrouped(Math.round(execution.sourceInventoryKg)),
       grain,
-      setpoint: formatFixed(execution.lineSetpointPercent, 0),
+      speed: formatFixed(productionSpeed * 100, 0),
       product,
       releasedKg: formatGrouped(Math.round(execution.releasedFinishedKg)),
       quality,
     }),
     workspace: 'scada' as const,
     entryId: 'autonomous-material-flow',
+    millingEntryId: 'milling-purifiers',
   };
 }

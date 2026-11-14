@@ -4,7 +4,7 @@
  * Tests cover:
  * - Component rendering and initial state
  * - Decision management (generation, intervals, cleanup)
- * - System status calculations (CPU, memory, success rate)
+ * - System status display (decision count; no CPU or MEM tile)
  * - UI interactions (tab switching, expand/collapse)
  * - Memory management (cleanup on unmount)
  * - Alert reactions
@@ -28,8 +28,6 @@ const staticAIConfigState = {
   costTracking: { requestCount: 0, sessionCost: 0 },
   isTacticalThinking: false,
   systemStatus: {
-    cpu: 45,
-    memory: 62,
     decisions: 0,
     successRate: 95,
   },
@@ -43,7 +41,6 @@ const aiEngineMock = {
   getImpactStats: vi.fn(() => null as any),
   getSparklineData: vi.fn(() => [0.2, 0.4, 0.6, 0.5, 0.7]),
   shouldTriggerAudioCue: vi.fn(() => false),
-  getConfidenceAdjustmentForType: vi.fn(() => 0),
   isTacticalLayerActive: vi.fn(() => true),
   isDeferralReturned: vi.fn((_id: string) => false),
   // The stored text: AICommandCenter.language.gameplay.test.tsx covers the keyed copy.
@@ -113,6 +110,9 @@ vi.mock('../../stores/gameSimulationStore', () => ({
 
 // Mock large UI subcomponents imported by AICommandCenter to avoid pulling the
 // entire UI layer (charts, overlays, etc.) into this unit test.
+// The partner's proposal cards read the campaign store, which this file's
+// mocked stores cannot load; PartnerProposalCards.test.tsx renders them.
+vi.mock('../PartnerProposalCards', () => ({ PartnerProposalCards: () => null }));
 vi.mock('../AISettingsModal', () => ({
   AISettingsModal: () => null,
 }));
@@ -648,21 +648,18 @@ describe('AICommandCenter', () => {
   });
 
   describe('System Status Display', () => {
-    // Note: System status (CPU, memory, decision count) is now synced from aiConfigStore
-    // rather than calculated locally. These tests verify the display of store-provided values.
-
-    it('should display system status values from store', () => {
+    // The CPU and MEM tiles showed numbers made from the card count (review 10,
+    // F3). Working if neither renders, even when the store still holds values.
+    it('shows the decision count and no CPU or MEM tile', () => {
       render(<AICommandCenter isOpen={true} onClose={vi.fn()} embedded />);
 
-      // Verify system status labels are displayed
-      expect(screen.getByText('CPU')).toBeInTheDocument();
-      expect(screen.getByText('MEM')).toBeInTheDocument();
       expect(screen.getByText('DEC')).toBeInTheDocument();
+      expect(screen.getByTestId('ai-decisions-count')).toHaveTextContent('0');
 
-      // The values come from staticAIConfigState.systemStatus in the mock (cpu: 45, memory: 62, decisions: 0)
-      expect(screen.getByText('45%')).toBeInTheDocument();
-      expect(screen.getByText('62%')).toBeInTheDocument();
-      expect(screen.getByText('0')).toBeInTheDocument();
+      expect(screen.queryByText('CPU')).not.toBeInTheDocument();
+      expect(screen.queryByText('MEM')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('ai-cpu-value')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('ai-memory-value')).not.toBeInTheDocument();
     });
 
     it('should display efficiency from production metrics', () => {

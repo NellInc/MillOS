@@ -57,7 +57,31 @@ export interface WorkplaceMissionObservation {
   qualityFailureKg: number;
   manifestIds: string[];
   cancelled: boolean;
+  /**
+   * 5.7: a batch of the order the season works awaiting its bench test now,
+   * null when none does. Absent when the caller does not read the bench.
+   */
+  pendingSampleBatchId?: string | null;
+  /** 5.7: what the bench made of Monday's held sample, once it has left the queue. */
+  sampleReading?: WorkplaceSampleReading | null;
 }
+
+/** 5.7: the lab's reading of Monday's sample: its real stamp against the order's minimum. */
+export interface WorkplaceSampleReading {
+  batchId: string;
+  /** False when the batch left the bench untested (shipped, recalled or held). */
+  tested: boolean;
+  passed: boolean;
+  quality: number | null;
+  minimum: number | null;
+}
+
+/**
+ * 5.7: Monday's real sample. Null once the bench is read and no sample has
+ * held the line; absent in a season that has not read the bench (older saves,
+ * engine-only callers), which keep the scripted minute.
+ */
+export type WorkplaceMondaySample = { batchId: string; heldAtMinute: number } | null;
 
 export interface WorkplaceShiftRecord {
   shift: number;
@@ -92,6 +116,8 @@ export interface WorkplaceShiftRecord {
   agreementProved: boolean;
   /** Public, bounded receipts only. Absent in older version-one saves. */
   relationshipEvents?: WorkplaceEvent[];
+  /** 5.7: Monday's sample as the shift ended; absent on other shifts and older saves. */
+  mondaySample?: WorkplaceMondaySample;
 }
 
 export interface WorkplaceCampaign {
@@ -113,6 +139,63 @@ export interface WorkplaceCampaign {
    * the season's delivery outcome stays the commitment's.
    */
   followOn?: WorkplaceMission;
+  /**
+   * What the season's seed drew when it started (5.10). Absent in a season
+   * begun before draws existed, which keeps the fixed order (legacy draw).
+   */
+  draw?: WorkplaceSeasonDraw;
+  /**
+   * The Fundo de Reserva brought forward from the previous season (Lei
+   * 5.764/71, art. 28 I). Opening cash includes it. Absent means none.
+   */
+  reserveBrought?: number;
+  /**
+   * 5.2: the checks each role has answered correctly under the current terms.
+   * They are put back whenever consent expires and forgotten when the terms
+   * change, so a check is asked again only then. Absent in older saves.
+   */
+  understoodChecks?: Partial<Record<string, WorkplaceCheckId[]>>;
+  /** 5.7: Monday's real sample (see WorkplaceMondaySample); Monday's shift only. */
+  mondaySample?: WorkplaceMondaySample;
+  /**
+   * Review 2: the season's place in the order seasons began (1, 2, 3 ...), so
+   * the Reserve Fund is carried from the season before, once. Absent in older saves.
+   */
+  season?: number;
+  /**
+   * Review 2: the order a resequenced shift made active, linked from its
+   * shipped weight at activation, when the season does not link it already.
+   * Its fresh receipts credit the season; it lasts the shift.
+   */
+  sequenced?: WorkplaceMission;
+}
+
+/** A season's seeded variation: the order of pressures, who declines cover, Monday's minute. */
+export interface WorkplaceSeasonDraw {
+  pressures: WorkplacePressureId[];
+  /** The authored cover-qualified member who will not cover this season. */
+  decliner: 'maintenance' | 'coordinator';
+  /** The minute of Monday's disputed sample. */
+  mondayMinute: number;
+}
+
+/**
+ * Sobras settled at a season's end (Lei 5.764/71, arts. 4 VII, 28, 44 II):
+ * the statutory funds first, then the assembly's destination for the rest,
+ * returned to members in proportion to minutes worked. Amounts, never a rating.
+ */
+export interface WorkplaceSobras {
+  /** The season's net result after every cost and loss, never below zero. */
+  pool: number;
+  /** Fundo de Reserva, 10% of the pool. */
+  reserve: number;
+  /** Fundo de Assistência Técnica, Educacional e Social, 5% of the pool. */
+  fates: number;
+  destination: SurplusDestination;
+  /** What the assembly sent to its destination: the pool less both funds. */
+  remainder: number;
+  /** Each member's return, in member order; zero unless the destination is members. */
+  shares: Record<string, number>;
 }
 
 export interface WorkplaceMember {
@@ -214,6 +297,14 @@ export interface WorkplaceState {
   campaign: WorkplaceCampaign | null;
   /** Optional continuation. Legacy version-one campaign saves remain valid. */
   improvement?: WorkplaceImprovement;
+  /**
+   * 5.9: handoff arrangements adopted in an experiment since closed. They
+   * stay in place, bought once, until a later cycle that runs one ends with
+   * another verdict. Absent means none (and in every save before 5b).
+   */
+  arrangementsInPlace?: ImprovementId[];
+  /** The season's settled sobras; absent until they are settled. */
+  sobras?: WorkplaceSobras;
 }
 
 export type ImprovementId = 'briefing' | 'buffer';
@@ -339,7 +430,11 @@ export interface WorkplaceActions {
   startCampaign: (
     profile: WorkplaceProfile,
     seed?: number,
-    mission?: WorkplaceMission
+    mission?: WorkplaceMission,
+    /** A reserve brought forward from the previous season; opening cash includes it. */
+    reserveBrought?: number,
+    /** The season's place in the order seasons began (review 2). */
+    season?: number
   ) => WorkplaceTransitionResult;
   nextCampaignShift: (followOn?: WorkplaceMission) => WorkplaceTransitionResult;
   /**
@@ -375,10 +470,18 @@ export interface WorkplaceActions {
   consentToCover: (memberId: string, accept: boolean) => WorkplaceTransitionResult;
   sharePreference: (memberId: string, share: boolean) => WorkplaceTransitionResult;
   chooseTask: (memberId: string, task: string) => WorkplaceTransitionResult;
-  simulateResponses: () => WorkplaceTransitionResult;
+  /**
+   * The authored roles answer from their stated values. `plant` carries what
+   * they read from the plant (a quality investigation open on the line).
+   */
+  simulateResponses: (plant?: { inspectionOpen?: boolean }) => WorkplaceTransitionResult;
   object: (actorId: string, kind: ObjectionKind) => WorkplaceTransitionResult;
   resolveObjection: (id: string, actorId: string) => WorkplaceTransitionResult;
-  activate: (expectedRevision: number) => WorkplaceTransitionResult;
+  activate: (
+    expectedRevision: number,
+    /** Review 2: the order a resequenced shift makes active, linked by the store. */
+    sequenced?: WorkplaceMission
+  ) => WorkplaceTransitionResult;
   withdraw: (memberId: string) => WorkplaceTransitionResult;
   stop: () => WorkplaceTransitionResult;
   tick: (
@@ -386,9 +489,15 @@ export interface WorkplaceActions {
     shippedKg: number,
     emergency: boolean,
     missionObservation?: WorkplaceMissionObservation,
-    followOnObservation?: WorkplaceMissionObservation
+    followOnObservation?: WorkplaceMissionObservation,
+    sequencedObservation?: WorkplaceMissionObservation
   ) => void;
   elect: (voterId: string, candidateId: string) => WorkplaceTransitionResult;
   voteSurplus: (voterId: string, destination: SurplusDestination) => WorkplaceTransitionResult;
-  distributeSurplus: () => WorkplaceTransitionResult;
+  /**
+   * `'left'` (review 2): a season left early settles what it earned by the
+   * statutory default, the Reserve Fund and the Assistance Fund first, the rest
+   * kept in the Reserve Fund.
+   */
+  distributeSurplus: (settle?: 'left') => WorkplaceTransitionResult;
 }

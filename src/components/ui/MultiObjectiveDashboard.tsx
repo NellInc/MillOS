@@ -1,47 +1,62 @@
 /**
  * MultiObjectiveDashboard Component
  *
- * Displays competing production objectives as a radar-style visualization.
- * Tracks production rate, quality %, energy consumption, and carbon footprint.
+ * The running programme's shipped kilograms, the stamp packed now against the
+ * line order's minimum, and site demand against the tariff and the line rate
+ * the bill penalises above (plan item 7.9).
  * Toggle: Y key (default OFF)
  */
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, Gauge, Zap, Leaf, Target, TrendingUp, TrendingDown } from 'lucide-react';
-import { DAILY_TARGET_BAGS, useProductionStore } from '../../stores/productionStore';
+import { useShallow } from 'zustand/react/shallow';
+import { Activity, Gauge, Zap, Target, TrendingUp, TrendingDown } from 'lucide-react';
+import { useProductionStore } from '../../stores/productionStore';
 import { useAIConfigStore } from '../../stores/aiConfigStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
+import { openProgramme } from '../../stores/programmeCommitment';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import {
+  energyTariffPerKwh,
   getSiteDemandKw,
-  SIMULATED_GRID_INTENSITY_KG_PER_KWH,
+  isPeakTariffMinute,
+  lineEnergyFactor,
+  OVERDRIVE_THRESHOLD_RATE,
 } from '../../utils/energyCalculations';
 
-import { BAG_WEIGHT_KG } from '../../types';
-import { formatGrouped, useT } from '../../i18n';
+import { formatFixed, formatGrouped, useT } from '../../i18n';
 import { multiObjectiveDashboardMessages } from './MultiObjectiveDashboard.messages';
 
 // `label` is the objective's identity (compared below); the visible name comes from the catalog.
-type ObjectiveLabel = 'Production' | 'Quality' | 'Energy' | 'Carbon';
+type ObjectiveLabel = 'Production' | 'Quality' | 'Energy';
 const OBJECTIVE_LABEL_KEYS = {
   Production: 'labelProduction',
   Quality: 'labelQuality',
   Energy: 'labelEnergy',
-  Carbon: 'labelCarbon',
 } as const satisfies Record<ObjectiveLabel, string>;
 
+/**
+ * Each objective's target is one a rule reads (plan item 7.9, owner's choice):
+ * the programme's committed kilograms, the minimum of the order the line works
+ * (dispatch reads it, meetsMinimum), and for energy the tariff the bill charges
+ * now with the line rate above which it bills the overdrive penalty. The
+ * 250 kW, carbon and 98% targets, and the blended score, were read by nothing.
+ * Working if every objective named off target is one a rule would act on.
+ */
 interface ObjectiveMetric {
   label: ObjectiveLabel;
   value: number;
-  target: number;
   unit: string;
-  /** Unit printed beside the target, when it runs on a different clock. */
-  targetUnit?: string;
   icon: React.ReactNode;
   color: string;
   trend: 'up' | 'down' | 'stable';
+  /** Whether the rule behind the target is satisfied. */
+  met: boolean;
+  /** Bar fill, 0-100. */
+  progress: number;
+  /** The target, worded from the rule's own figures. */
+  targetLines: string[];
 }
 
 // Static class lookup so Tailwind's JIT scanner sees full literal class strings.
@@ -50,23 +65,31 @@ const OBJECTIVE_COLORS: Record<string, { text: string; bar: string }> = {
   cyan: { text: 'text-cyan-400', bar: 'bg-cyan-500' },
   green: { text: 'text-green-400', bar: 'bg-green-500' },
   amber: { text: 'text-amber-400', bar: 'bg-amber-500' },
-  emerald: { text: 'text-emerald-400', bar: 'bg-emerald-500' },
 };
 const DEFAULT_OBJECTIVE_COLOR = { text: 'text-cyan-400', bar: 'bg-cyan-500' };
 
-// Site demand, facility load included. Every unit running at its nominal load
-// draws about 340-395 kW through the day, which reads balanced (the score
-// needs target/demand >= 0.6); much past 415 kW, an incident or alarmed
-// units on top of a flat-out evening, it reads as a trade-off.
-const ENERGY_TARGET_KW = 250;
+const clampPercent = (value: number) => Math.max(0, Math.min(100, value));
 
 export const MultiObjectiveDashboard: React.FC = () => {
   const showMultiObjective = useAIConfigStore((state) => state.showMultiObjective);
+  // Open together, the two dashboards sit side by side right of the left column.
+  const energyOpen = useAIConfigStore((state) => state.showEnergyDashboard);
   const metrics = useProductionStore((state) => state.metrics);
   const machines = useProductionStore((state) => state.machines);
-  const dailyBagsProduced = useProductionStore((state) => state.dailyBagsProduced);
+  const lineRate = useProductionStore((state) => state.productionSpeed);
+  // The production goal is the running programme's committed kilograms (D11).
+  const programme = useOperationsCampaignStore(useShallow((state) => openProgramme(state.orders)));
+  // The minimum of the order the line works: the figure dispatch holds flour to.
+  const orderMinimum = useOperationsCampaignStore((state) => {
+    const order = state.orders.find(
+      (candidate) =>
+        candidate.id === (state.execution.lineOrderId ?? state.activeOrderId) &&
+        candidate.status !== 'fulfilled' &&
+        candidate.status !== 'cancelled'
+    );
+    return order ? order.recipe.minimumQuality : null;
+  });
   const gameTime = useGameSimulationStore((state) => state.gameTime);
-  const paused = useGameSimulationStore((state) => state.gameSpeed <= 0);
   const emergencyActive = useGameSimulationStore((state) => state.emergencyActive);
   // The multipliers the campaign bills at and the Energy dashboard shows.
   const incidentEnergy = useOperationsCampaignStore(
@@ -79,112 +102,127 @@ export const MultiObjectiveDashboard: React.FC = () => {
     (state) => state.getEffect(wheatRecipe).energyMultiplier
   );
   const t = useT(multiObjectiveDashboardMessages);
-  const perDayUnit = t('perDayUnit');
 
-  // Calculate metrics
+  // Side by side with the sidebar open, the two dashboards reach under it at
+  // 1280 px. So one closes: the sidebar opening closes this one, and opening
+  // this one with the sidebar open closes the energy dashboard.
+  // Working if the sidebar and two open dashboards never overlap.
+  useEffect(() => {
+    if (!showMultiObjective) return;
+    const root = document.querySelector('[data-sidebar-visible]');
+    if (!root) return;
+    const sidebarOpen = () => root.getAttribute('data-sidebar-visible') === 'true';
+    if (sidebarOpen() && useAIConfigStore.getState().showEnergyDashboard)
+      useAIConfigStore.getState().setShowEnergyDashboard(false);
+    const observer = new MutationObserver(() => {
+      if (sidebarOpen() && useAIConfigStore.getState().showEnergyDashboard)
+        useAIConfigStore.getState().setShowMultiObjective(false);
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['data-sidebar-visible'] });
+    return () => observer.disconnect();
+  }, [showMultiObjective]);
+
   const objectives = useMemo<ObjectiveMetric[]>(() => {
-    // The plant's production goal is a mass per game DAY (DAILY_TARGET_BAGS,
-    // the same goal ProductionTargetWidget counts down), so the objective is
-    // today's packed mass against it. Comparing the hourly rate with 30,000
-    // read every running line as about a quarter of the way there.
-    const productionTarget = DAILY_TARGET_BAGS * BAG_WEIGHT_KG; // kg per day
-    const producedToday = Math.max(0, dailyBagsProduced || 0) * BAG_WEIGHT_KG;
-    // On pace when the current rate (bags per game hour) covers what is left
-    // before the midnight rollover, as the target widget judges it; a held
-    // clock produces nothing, so it is not on pace.
-    const productionRate = paused ? 0 : Math.max(0, metrics.throughput || 0) * BAG_WEIGHT_KG; // kg/hr
-    const hoursLeft = Math.max(1 / 3600, 24 - (Number.isFinite(gameTime) ? gameTime : 0));
-    const requiredRate = Math.max(0, productionTarget - producedToday) / hoursLeft;
-    const productionOnPace =
-      producedToday >= productionTarget || productionRate >= requiredRate * 0.95;
-
-    // Quality is the latest QC grade, and a FAIL scores 0: only a missing
-    // reading falls back, never a failed one.
+    // Quality is the stamp packed now (metrics.quality), and a FAIL scores 0:
+    // only a missing reading falls back, never a failed one.
     const quality = Number.isFinite(metrics.quality) ? metrics.quality : 95;
-    const qualityTarget = 98;
+    const hour = Number.isFinite(gameTime) ? ((gameTime % 24) + 24) % 24 : 0;
 
     // The site's instantaneous demand (kW), the figure the Energy dashboard
-    // shows and the campaign bills: machines, standby and facility load, times
-    // the incident and Chronicle energy multipliers. A private estimate here
-    // put two different readings of the same plant side by side.
-    const energyKwh =
-      getSiteDemandKw(machines, Number.isFinite(gameTime) ? gameTime : 0, emergencyActive) *
+    // shows and the campaign bills: machines at the line rate, standby and
+    // facility load, times the incident and Chronicle energy multipliers.
+    const energyKw =
+      getSiteDemandKw(
+        machines,
+        Number.isFinite(gameTime) ? gameTime : 0,
+        emergencyActive,
+        lineRate
+      ) *
       incidentEnergy *
       chronicleEnergy;
-    const energyTarget = ENERGY_TARGET_KW;
+    const overdrive = lineEnergyFactor(lineRate);
+    const energyMet = overdrive <= 1;
 
-    // Carbon (derived from energy), on the Energy dashboard's grid factor.
-    const carbonKg = energyKwh * SIMULATED_GRID_INTENSITY_KG_PER_KWH;
-    const carbonTarget = ENERGY_TARGET_KW * SIMULATED_GRID_INTENSITY_KG_PER_KWH; // kg CO₂/h
+    // The production goal is the running programme: kilograms shipped of the
+    // kilograms its customers committed (D11). On pace while no order of it is
+    // late, the campaign's own word. With no programme open it is not shown.
+    const production: ObjectiveMetric[] = programme
+      ? [
+          {
+            label: 'Production',
+            // Whole kilograms, rounded down: a part-shipped kilogram is not in.
+            value: Math.floor(programme.shippedKg),
+            unit: 'kg',
+            icon: <Activity className="w-4 h-4" />,
+            color: 'cyan',
+            trend: programme.late ? 'down' : 'up',
+            met: !programme.late,
+            progress: clampPercent(
+              (programme.shippedKg / Math.max(1, programme.committedKg)) * 100
+            ),
+            targetLines: [
+              t('target', { target: formatGrouped(programme.committedKg), unit: 'kg' }),
+            ],
+          },
+        ]
+      : [];
+    // With no order on the line there is no minimum to meet.
+    const qualityObjective: ObjectiveMetric[] =
+      orderMinimum !== null
+        ? [
+            {
+              label: 'Quality',
+              value: quality,
+              unit: '',
+              icon: <Gauge className="w-4 h-4" />,
+              color: 'green',
+              trend: quality >= orderMinimum ? 'up' : 'down',
+              met: quality >= orderMinimum,
+              progress: clampPercent((quality / Math.max(1, orderMinimum)) * 100),
+              targetLines: [t('orderMinimum', { minimum: formatFixed(orderMinimum, 0) })],
+            },
+          ]
+        : [];
 
     return [
-      {
-        label: 'Production',
-        value: producedToday,
-        target: productionTarget,
-        unit: 'kg',
-        targetUnit: perDayUnit,
-        icon: <Activity className="w-4 h-4" />,
-        color: 'cyan',
-        trend: productionOnPace ? 'up' : 'down',
-      },
-      {
-        label: 'Quality',
-        value: quality,
-        target: qualityTarget,
-        unit: '%',
-        icon: <Gauge className="w-4 h-4" />,
-        color: 'green',
-        trend: quality >= qualityTarget ? 'up' : quality >= 90 ? 'stable' : 'down',
-      },
+      ...production,
+      ...qualityObjective,
       {
         label: 'Energy',
-        value: Math.round(energyKwh * 10) / 10,
-        target: energyTarget,
+        value: Math.round(energyKw * 10) / 10,
         unit: 'kW',
         icon: <Zap className="w-4 h-4" />,
         color: 'amber',
-        trend: energyKwh <= energyTarget ? 'up' : 'down',
-      },
-      {
-        label: 'Carbon',
-        value: Math.round(carbonKg * 10) / 10,
-        target: carbonTarget,
-        unit: 'kg CO₂/h',
-        icon: <Leaf className="w-4 h-4" />,
-        color: 'emerald',
-        trend: carbonKg <= carbonTarget ? 'up' : 'down',
+        trend: energyMet ? 'up' : 'down',
+        met: energyMet,
+        progress: clampPercent(100 / overdrive),
+        targetLines: [
+          t(isPeakTariffMinute(hour * 60) ? 'tariffPeak' : 'tariffOffPeak', {
+            rate: formatFixed(energyTariffPerKwh(hour * 60), 2),
+          }),
+          t('overdriveLine', {
+            threshold: formatFixed(OVERDRIVE_THRESHOLD_RATE * 100, 0),
+            rate: formatFixed(lineRate * 100, 0),
+            factor: formatFixed(overdrive, 2),
+          }),
+        ],
       },
     ];
   }, [
     metrics,
     machines,
-    dailyBagsProduced,
+    programme,
+    orderMinimum,
     gameTime,
-    paused,
-    perDayUnit,
     emergencyActive,
     incidentEnergy,
     chronicleEnergy,
+    lineRate,
+    t,
   ]);
 
-  // Calculate overall score (weighted average)
-  const overallScore = useMemo(() => {
-    let score = 0;
-    objectives.forEach((obj) => {
-      // The Production bar is the day's progress, but a line on pace for the
-      // day's target is meeting that objective: early in the day the progress
-      // ratio alone read every on-pace start as a trade-off.
-      const ratio =
-        obj.label === 'Energy' || obj.label === 'Carbon'
-          ? obj.target / Math.max(obj.value, 1) // Lower is better
-          : obj.label === 'Production' && obj.trend === 'up'
-            ? 1
-            : obj.value / obj.target; // Higher is better
-      score += Math.min(1, ratio) * 25; // 25% each
-    });
-    return Math.round(score);
-  }, [objectives]);
+  // The summary names the objectives whose rule is not met, and only those.
+  const offTarget = objectives.filter((obj) => !obj.met);
 
   if (!showMultiObjective) return null;
 
@@ -197,7 +235,13 @@ export const MultiObjectiveDashboard: React.FC = () => {
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className="fixed left-4 top-20 w-64 millos-glass millos-glass-thick rounded-xl border-purple-500/30 z-40"
+      // At 1280 x 720 it sat over the production tracker and the soundtrack
+      // bar. Right of that column, below the HUD and any banner under it, and
+      // above the dock, scrolling in itself; right of the energy dashboard
+      // when that is open too. Working if it overlaps neither at 1280 x 720.
+      className={`fixed left-4 top-20 z-40 max-h-[calc(100dvh-12.5rem)] w-64 overflow-y-auto rounded-xl border-purple-500/30 millos-glass millos-glass-thick millos-glass-scroll lg:top-28 lg:max-h-[calc(100dvh-14.5rem)] ${
+        energyOpen ? 'lg:left-[43.5rem]' : 'lg:left-[22rem]'
+      }`}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-700/50">
@@ -207,37 +251,17 @@ export const MultiObjectiveDashboard: React.FC = () => {
           </div>
           <span className="text-sm font-medium text-white">{t('title')}</span>
         </div>
-        {/* Not a live region: the score moves every metrics tick, and the
-            trade-off banner below already announces the changes that matter. */}
-        <div
-          className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-            overallScore >= 80
-              ? 'bg-green-500/20 text-green-400'
-              : overallScore >= 60
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'bg-red-500/20 text-red-400'
-          }`}
-        >
-          <span className="sr-only">{t('overallScore')}</span>
-          {overallScore}%
-        </div>
       </div>
 
       {/* Objectives Grid */}
       <div className="p-3 grid grid-cols-2 gap-2">
         {objectives.map((obj) => {
-          const percentage =
-            obj.label === 'Energy' || obj.label === 'Carbon'
-              ? Math.max(0, Math.min(100, 100 - ((obj.value - obj.target) / obj.target) * 100))
-              : Math.min(100, (obj.value / obj.target) * 100);
-
           const colorClasses = OBJECTIVE_COLORS[obj.color] ?? DEFAULT_OBJECTIVE_COLOR;
-
           return (
             <div
               key={obj.label}
               className="bg-slate-800/50 rounded-lg p-2"
-              data-progress={Math.round(percentage)}
+              data-progress={Math.round(obj.progress)}
             >
               <div className="flex items-center justify-between mb-1.5">
                 <div className={colorClasses.text}>{obj.icon}</div>
@@ -252,23 +276,24 @@ export const MultiObjectiveDashboard: React.FC = () => {
               </p>
               <p className={`text-sm font-mono font-bold ${colorClasses.text}`}>
                 {formatGrouped(obj.value)}
-                <span className="text-[9px] font-normal text-slate-500 ml-0.5">{obj.unit}</span>
+                {obj.unit && (
+                  <span className="text-[9px] font-normal text-slate-500 ml-0.5">{obj.unit}</span>
+                )}
               </p>
               {/* Progress bar */}
               <div className="mt-1.5 h-1 bg-slate-700/50 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${percentage}%` }}
+                  animate={{ width: `${obj.progress}%` }}
                   transition={{ duration: 0.5 }}
                   className={`h-full ${colorClasses.bar} rounded-full`}
                 />
               </div>
-              <p className="text-[8px] text-slate-500 mt-0.5">
-                {t('target', {
-                  target: formatGrouped(obj.target),
-                  unit: obj.targetUnit ?? obj.unit,
-                })}
-              </p>
+              {obj.targetLines.map((line) => (
+                <p key={line} className="text-[8px] text-slate-500 mt-0.5">
+                  {line}
+                </p>
+              ))}
             </div>
           );
         })}
@@ -279,12 +304,16 @@ export const MultiObjectiveDashboard: React.FC = () => {
         <div
           aria-live="polite"
           className={`p-2 rounded-lg text-[10px] ${
-            overallScore >= 80
+            offTarget.length === 0
               ? 'bg-green-500/10 text-green-300 border border-green-500/20'
               : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
           }`}
         >
-          {overallScore >= 80 ? t('balanced') : t('tradeOff')}
+          {offTarget.length === 0
+            ? t('onTarget')
+            : t('offTarget', {
+                objectives: offTarget.map((obj) => t(OBJECTIVE_LABEL_KEYS[obj.label])).join(', '),
+              })}
         </div>
       </div>
     </motion.div>

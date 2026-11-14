@@ -2,6 +2,7 @@
  * Pass 16, chronicle lane: defects a player meets in part three.
  */
 import { describe, expect, it } from 'vitest';
+import { acceptOffer, OFFER_DECK } from './administratorOffer';
 import { DEFAULT_CHARTER } from '../charter';
 import {
   closeShift,
@@ -60,7 +61,7 @@ function evidence(): ShiftCloseEvidence {
 function run(state: ChronicleState, shifts: number): ChronicleState {
   let next = state;
   for (let i = 0; i < shifts && next.status === 'active'; i++)
-    next = closeShift(next, evidence(), []).state;
+    next = acceptOffer(closeShift(next, evidence(), OFFER_DECK).state);
   return next;
 }
 

@@ -6,8 +6,6 @@ export const jevAdvisoryPanelMessages = defineMessages({
     regionLabel: 'Jev advisory',
     title: 'Jev incident routing',
     titleOpenAI: 'OpenAI Decisions incident routing',
-    intro:
-      'Get a suggested queue for incident text. Alerts, machine controls and your selected AI backend stay unchanged.',
     apiKeyLabel: 'Your OpenRouter API key',
     apiKeyLabelOpenAI: 'Your OpenAI API key',
     providerLabel: 'Decision model',
@@ -48,8 +46,6 @@ export const jevAdvisoryPanelMessages = defineMessages({
     regionLabel: 'Recomendação do Jev',
     title: 'Encaminhamento de ocorrências do Jev',
     titleOpenAI: 'Encaminhamento de ocorrências pelo OpenAI Decisions',
-    intro:
-      'Receba uma fila sugerida para o texto de uma ocorrência. Os alertas, os controles das máquinas e o backend de IA selecionado não são alterados.',
     apiKeyLabel: 'Sua chave de API do OpenRouter',
     apiKeyLabelOpenAI: 'Sua chave de API da OpenAI',
     providerLabel: 'Modelo de decisão',

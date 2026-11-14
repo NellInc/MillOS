@@ -10,6 +10,17 @@ import { useUIStore } from '../../stores/uiStore';
 import { mockMachines } from '../../test/fixtures/mockMachines';
 import type { TickContext } from '../CentralTickSystem';
 import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
+import { usePartnerProposalStore } from '../../stores/partnerProposalStore';
+import { PROPOSAL_KIND_IDS } from '../../simulation/partnerProposals';
+
+// Written with every proposal kind asking (a service waits its card's window);
+// a kind's default now follows the delegation rule, so "ask me" is set here,
+// as the card's toggle sets it.
+beforeEach(() => {
+  usePartnerProposalStore.getState().reset();
+  for (const kind of PROPOSAL_KIND_IDS)
+    usePartnerProposalStore.getState().setDelegation(kind, 'ask');
+});
 
 const context: TickContext = {
   deltaSeconds: 0.5,

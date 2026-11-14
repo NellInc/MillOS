@@ -58,7 +58,7 @@ it('keeps Shift pace on the fulfilled card, outside the collapsed receipt', () =
   expect(pace.closest('details')).toBeNull();
   expect(pace).toBeVisible();
   // It sits with the current order it is read against, ahead of the next step.
-  const now = screen.getByText(/^Now: Community Pasta Works/);
+  const now = screen.getByText(/^Now: Community Polenta Kitchen/);
   const next = screen.getByText(/ in SCADA$/);
   expect(now.compareDocumentPosition(pace) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(pace.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -66,9 +66,22 @@ it('keeps Shift pace on the fulfilled card, outside the collapsed receipt', () =
   expect(screen.getAllByRole('combobox', { name: 'Shift pace' })).toHaveLength(1);
 });
 
+// Seen by a first-time Portuguese player at 1280x720: the pace label and its
+// select took two rows, and the next-step line ("Verificar a expedição no
+// SCADA") went wholly under the pinned action bar. The line is pinned with the
+// button it names, in both languages.
+it.each(['en', 'pt-BR'] as const)('pins the next-step line with its action (%s)', (locale) => {
+  setLocale(locale);
+  const { first } = fulfilFirstAndRunSecond();
+  useUIStore.getState().startDeliveryJourney(first.id);
+  render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
+  const next = screen.getByText(/SCADA$/, { selector: 'p' });
+  expect(next.parentElement!.className).toContain('sticky');
+});
+
 it.each([
-  ['en', 'Your first delivery', 'Delivery for Community Pasta Works'],
-  ['pt-BR', 'Sua primeira entrega', 'Entrega para Community Pasta Works'],
+  ['en', 'Your first delivery', 'Delivery for Community Polenta Kitchen'],
+  ['pt-BR', 'Sua primeira entrega', 'Entrega para Community Polenta Kitchen'],
 ] as const)(
   'titles a replayed guide with its customer, not "first delivery" (%s)',
   (locale, firstTitle, laterTitle) => {
@@ -118,11 +131,11 @@ it('reads the live order when the guided order has been trimmed from the list', 
 it.each([
   [
     'en',
-    'Rush: Community Pasta Works pays 30% more for 2,500 kg Fine corn semolina. Due in 2h 5m (simulated). The controller runs it first, so it leaves on the first truck. Put a commitment for another product first and it waits for a later truck, past its due time, at double the usual late penalty. It is the only order on corn grain, so running it first changes the line over to it and back.',
+    'Rush: Community Polenta Kitchen pays 30% more for 2,500 kg Cornmeal. Due in 2h 5m (simulated). The controller runs it first, so it leaves on the first truck. Put a commitment for another product first and it waits for a later truck, past its due time, at double the usual late penalty. It is the only order on corn grain, so running it first changes the line over to it and back.',
   ],
   [
     'pt-BR',
-    'Urgente: Community Pasta Works paga 30% a mais por 2.500 kg de Semolina fina de milho. Vence em 2h 5min (tempo simulado). O controlador o executa primeiro, então ele sai no primeiro caminhão. Se um compromisso de outro produto vier antes, ele espera um caminhão seguinte e passa do prazo, com o dobro da multa usual por atraso. É o único pedido de grão de milho, então executá-lo primeiro troca a linha para ele e de volta.',
+    'Urgente: Community Polenta Kitchen paga 30% a mais por 2.500 kg de Fubá. Vence em 2h 5min (tempo simulado). O controlador o executa primeiro, então ele sai no primeiro caminhão. Se um compromisso de outro produto vier antes, ele espera um caminhão seguinte e passa do prazo, com o dobro da multa usual por atraso. É o único pedido de grão de milho, então executá-lo primeiro troca a linha para ele e de volta.',
   ],
 ] as const)("names the programme's choice on the shift card (%s)", (locale, copy) => {
   setLocale(locale);

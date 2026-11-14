@@ -79,7 +79,6 @@ export function HandoffEpisodes({
   return (
     <section aria-label={t('handoffLabel')} className="space-y-3 border-b border-slate-700 pb-4">
       <h5 className="font-semibold text-white">{t('handoffHeading')}</h5>
-      <p className="text-xs text-slate-300">{t('handoffIntro')}</p>
       <label className="block">
         {t('pressureEpisode')}
         <select
@@ -152,7 +151,6 @@ export function HandoffEpisodes({
               {outcome}
             </p>
           )}
-          <p className="text-xs text-slate-300">{t('actInPlant')}</p>
         </>
       )}
     </section>
@@ -169,9 +167,7 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
         {advice.reasonToAbstain ? t('adviserAbstains') : t('conditionalBounds')}
       </p>
       {advice.reasonToAbstain ? (
-        <p className="text-amber-100">
-          {t('abstainReason', { reason: displayAdviceText(advice.reasonToAbstain) })}
-        </p>
+        <p className="text-amber-100">{displayAdviceText(advice.reasonToAbstain)}</p>
       ) : (
         <>
           <p className="tabular-nums">
@@ -187,7 +183,6 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
               upper: formatKg(advice.dispatchUpperKg),
             })}
           </p>
-          <p className="text-xs text-slate-300">{t('scenarioBounds')}</p>
         </>
       )}
       <details>
@@ -229,7 +224,6 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
           </dl>
         )}
         <div role="group" aria-label={t('inspectTogether')} className="space-y-3 pt-2">
-          <p className="text-xs text-slate-300">{t('frozenFacts')}</p>
           {inspections.map((item) => (
             <div key={item.role} className="space-y-2 border-t border-slate-800 pt-3">
               <h6 className="font-semibold text-white">{item.role}</h6>
@@ -254,11 +248,7 @@ export function FrozenPackingAdvice({ advice }: { advice: PackingAdvice }) {
             </div>
           ))}
         </div>
-        <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-slate-300">
-          {advice.assumptions.map((a) => (
-            <li key={a}>{displayAdviceText(a)}</li>
-          ))}
-        </ul>
+        {/* D14: the assumption captions are cut; saved advice may still hold them. */}
         <p className="mt-2 break-all text-xs text-slate-300">
           {t('inputReceipt', { fingerprint: advice.fingerprint, session: e.materialSessionId })}
         </p>
@@ -415,7 +405,6 @@ export function MatchedPackingRehearsal({
       <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
         {t('compareSummary')}
       </summary>
-      <p className="text-xs text-slate-300">{t('isolatedCopies')}</p>
       <label className="block space-y-1">
         <span className="font-medium text-white">{t('packingPrediction')}</span>
         <select
@@ -434,7 +423,6 @@ export function MatchedPackingRehearsal({
           ))}
         </select>
       </label>
-      <p className="text-xs text-slate-300">{t('compareIdeas')}</p>
       <button
         ref={runRef}
         type="button"
@@ -493,7 +481,6 @@ export function MatchedPackingRehearsal({
                 <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
                   {t('firstPackingSummary')}
                 </summary>
-                <p className="text-xs text-slate-300">{t('firstPackingExplain')}</p>
                 {result.firstPacking.length ? (
                   <div role="group" aria-label={t('timingLabel')} className="space-y-3">
                     <dl className="space-y-3 text-xs tabular-nums">
@@ -529,7 +516,6 @@ export function MatchedPackingRehearsal({
                         </div>
                       ))}
                     </dl>
-                    <p className="text-xs text-slate-300">{t('briefingRetains')}</p>
                     <p className="text-cyan-100">{t('timingQuestion')}</p>
                   </div>
                 ) : (
@@ -540,7 +526,6 @@ export function MatchedPackingRehearsal({
                 <summary className="min-h-11 cursor-pointer py-2 font-medium text-cyan-100">
                   {t('releaseSummary')}
                 </summary>
-                <p className="text-xs text-slate-300">{t('assumeWithheld')}</p>
                 <label className="block space-y-1">
                   <span className="font-medium text-white">{t('qualityPrediction')}</span>
                   <select
@@ -585,9 +570,7 @@ export function MatchedPackingRehearsal({
                     </p>
                     {qualityResult.reasonToAbstain ? (
                       <p className="text-amber-100">
-                        {t('keepOpen', {
-                          reason: displayAdviceText(qualityResult.reasonToAbstain),
-                        })}
+                        {displayAdviceText(qualityResult.reasonToAbstain)}
                       </p>
                     ) : (
                       <>
@@ -648,7 +631,6 @@ export function MatchedPackingRehearsal({
                   <p>{learning.evidence}</p>
                   {learning.reflection && <p>{learning.reflection}</p>}
                   <p className="text-cyan-100">{learning.question}</p>
-                  <p className="text-xs text-slate-300">{t('moreStock')}</p>
                 </section>
               )}
             </div>
@@ -693,7 +675,6 @@ export function HandoffConduct({ state }: { state: WorkplaceState }) {
           countText: formatFixed(conduct.declined.length, 0),
         })}
       </p>
-      <p className="text-xs text-slate-300">{t('declinedNoPermission')}</p>
       {conduct.roles.map((m) => (
         <p key={m.id} className="text-xs tabular-nums">
           <strong className="text-white">{m.role}</strong>

@@ -6,7 +6,9 @@ This directory contains the focused simulation interface modules re-exported by
 The notification system captions every line and speaks it with the on-device
 PA voice (`src/audio/paVoice.ts`, D-025). It speaks only problems and pertinent
 updates (D-054): machine faults and recoveries, drills and emergency stops, the
-end of a shift, the day's target made and the on-device AI's incident notices.
+end of a shift, a programme's orders all delivered (D11: the goal is the
+running programme's committed tonnes, not a daily bag count) and the on-device
+AI's incident notices.
 Nothing is said on a timer, and a plant running as it should is not announced.
 No embodied characters, workforce rankings, or host voice services are part of
 the runtime.

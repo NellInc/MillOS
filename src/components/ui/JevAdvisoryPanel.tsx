@@ -142,13 +142,10 @@ export function JevAdvisoryPanel({ latestAlert }: { latestAlert?: string }) {
 
   return (
     <section aria-label={t('regionLabel')} className="space-y-4 text-xs text-slate-300">
-      <div className="space-y-2">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-cyan-300">
-          <Shield className="h-4 w-4" aria-hidden="true" />
-          {copy('title')}
-        </h3>
-        <p>{t('intro')}</p>
-      </div>
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-cyan-300">
+        <Shield className="h-4 w-4" aria-hidden="true" />
+        {copy('title')}
+      </h3>
       {providers.length > 1 && (
         <div
           role="radiogroup"

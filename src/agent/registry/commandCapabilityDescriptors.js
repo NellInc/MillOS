@@ -104,6 +104,7 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     sideEffects: [
       'Reserves funded compensation and the approved improvement budget.',
       'The central tick applies the agreed line-capacity envelope in Game mode only.',
+      'Refused in Game mode during a stop or drill, and while simulation.restartPending shows the line idle after one; only a person restarts the line (RESTART LINE).',
     ],
     verifier: 'The exact consensual plan enters active state with its obligations funded.',
     sourcePath: 'src/stores/workplaceStore.ts',
@@ -126,7 +127,12 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     // player's response preview stale.
     reads: ['production.aiDecisions[target]'],
     writes: ['production.aiDecisions[target].response', 'production.aiDecisions[target].status'],
-    sideEffects: ['Records a bounded response to the recommendation.'],
+    sideEffects: [
+      'Records a bounded response to the recommendation.',
+      "A partner proposal (type 'proposal') runs the answer chosen through the owning store: a service takes one spare part and lowers the unit's wear; accepting a programme opens its three orders; a forfeit closes an order with its fee.",
+      'An intake answer receives the lot into a silo or refuses it with its fee, and a refusal may delay the next grain truck.',
+      'An incident answer may send a relief lorry (the shipping delay shortens, its cost is booked), take a filter from stores, or recall the stock a supplier notice holds.',
+    ],
     verifier:
       'The target decision records the requested disposition and a current response timestamp.',
     sourcePath: 'src/stores/productionStore.ts',
@@ -166,7 +172,10 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     properties: { breakdownUri: { type: 'string', pattern: '^millos://breakdown/' } },
     reads: ['maintenance.workOrders[].breakdownId', 'maintenance.workOrders[].phase'],
     writes: ['maintenance.workOrders[].phase', 'maintenance.workOrders[].audit'],
-    sideEffects: ['Queues the far-side central tick restart confirmation.'],
+    sideEffects: [
+      'Queues the far-side central tick restart confirmation.',
+      'The tick holds it during a stop, and while simulation.restartPending is true until a person presses RESTART LINE.',
+    ],
     verifier: 'Only a verified repair enters restart_requested.',
     sourcePath: 'src/stores/breakdownStore.ts',
     sourceSymbol: 'requestMachineRestart',
@@ -270,7 +279,10 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
       'simulation.drillMetrics',
       'simulation.safetyEvents[]',
     ],
-    sideEffects: ['Stops simulated equipment and starts the egress verification sequence.'],
+    sideEffects: [
+      'Stops simulated equipment and the forklifts and starts the egress verification sequence.',
+      'When the drill ends the line stays idle until a person presses RESTART LINE, and simulation.restartPending is true until then; no agent command restarts it.',
+    ],
     verifier: 'The drill interlock and metrics become active only from a non-emergency state.',
     sourcePath: 'src/stores/gameSimulationStore.ts',
     sourceSymbol: 'startEmergencyDrill',
@@ -309,7 +321,10 @@ export const COMMAND_CAPABILITY_DESCRIPTORS = [
     },
     reads: ['scada.mode', 'scada.connection', 'scada.tags[]'],
     writes: ['scada.tags[].value'],
-    sideEffects: ['Writes only through the local SimulationAdapter or shadow evaluator.'],
+    sideEffects: [
+      'Writes only through the local SimulationAdapter or shadow evaluator.',
+      'A mill roll-speed setpoint sets the line rate (1,000 RPM = 100%).',
+    ],
     verifier:
       'The simulated writable tag reads back the requested value with explicit mode evidence.',
     sourcePath: 'src/scada/SCADAService.ts',

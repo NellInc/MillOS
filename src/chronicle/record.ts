@@ -18,7 +18,7 @@ import { recordMessages } from './record.messages';
 import { relationshipTier } from './customers';
 import { improvementById } from './plans';
 import { stakeholderName, stakeholderPhrase } from './stakeholders';
-import { CUSTOMERS } from './customers';
+import { CUSTOMERS, customerDisplayNameOf } from './customers';
 import { HISTORY_NOTES } from './history';
 import { standingOf } from './certifier';
 import { GOVERNANCE_MARKS } from './governance';
@@ -103,7 +103,7 @@ export const MARKS: Record<MarkId, MarkDefinition> = {
     leaning: 'valley',
   },
   'granary-pasta': {
-    label: 'Gave the old granary to the pasta works',
+    label: 'Gave the old granary to the polenta kitchen',
     leaning: 'customers',
   },
   'granary-village': {
@@ -111,13 +111,13 @@ export const MARKS: Record<MarkId, MarkDefinition> = {
     leaning: 'valley',
   },
   'granary-kept': { label: 'Kept the old granary for the mill', leaning: 'ledger' },
-  'owed-pasta': { label: 'Promised the pasta works compensation for the granary' },
+  'owed-pasta': { label: 'Promised the polenta kitchen compensation for the granary' },
   'promise-kept': {
-    label: 'Kept the promise to the pasta works',
+    label: 'Kept the promise to the polenta kitchen',
     leaning: 'customers',
   },
   'promise-broken': {
-    label: 'Broke the promise to the pasta works',
+    label: 'Broke the promise to the polenta kitchen',
     leaning: 'ledger',
   },
   'sacks-blacklisted': { label: 'Dropped the sack supplier without proof' },
@@ -184,8 +184,13 @@ export const MARKS: Record<MarkId, MarkDefinition> = {
   'quota-raised': { label: 'Beat the federation’s quota, which was raised' },
   'quota-missed': { label: 'Missed the federation’s quota' },
   administered: { label: 'Ran for a time under the federation’s administrator' },
+  'administration-refused': { label: 'Refused the federation’s administrator' },
   'reserve-drawn': { label: 'Drew on the co-op reserve' },
   'reserve-kept': { label: 'Closed the chronicle with the co-op reserve in hand' },
+
+  // Cooperative seasons on the floor (set by the engine from the close's evidence, item 5.10)
+  'season-kept': { label: 'Closed a cooperative season with its delivery and agreement kept' },
+  'season-short': { label: 'Closed a cooperative season short of its delivery or agreement' },
 };
 
 /** Marks the engine sets itself rather than an authored effect. */
@@ -194,6 +199,8 @@ export const ENGINE_MARKS: readonly MarkId[] = [
   'held-floor',
   'fell-intake',
   'fell-floor',
+  'season-kept',
+  'season-short',
 ];
 
 /**
@@ -221,6 +228,8 @@ export interface RecordContext {
   customers: readonly CustomerRelationship[];
   stakeholders: readonly StakeholderRelationship[];
   certifier: CertifierState;
+  /** The co-op reserve counts for the long night (report 08, F10). Absent reads as empty. */
+  governance?: { reserve: { balance: number } };
 }
 
 export function hasMark(context: Pick<RecordContext, 'marks'>, id: MarkId): boolean {
@@ -266,7 +275,7 @@ export function conditionMet(context: RecordContext, condition: ChronicleConditi
 
 export function partyName(id: PartyId): string {
   return (
-    CUSTOMERS.find((c) => c.id === id)?.name ??
+    customerDisplayNameOf(id) ??
     (['growers', 'haulier', 'village', 'federation'].includes(id)
       ? stakeholderName(id as StakeholderId)
       : id)
@@ -383,7 +392,7 @@ export function localizedMillCharacter(context: Pick<RecordContext, 'marks'>) {
 
 export function localizedPartyName(id: PartyId): string {
   return (
-    CUSTOMERS.find((c) => c.id === id)?.name ??
+    customerDisplayNameOf(id) ??
     (['growers', 'haulier', 'village', 'federation'].includes(id)
       ? localizedStakeholderName(id as StakeholderId)
       : id)

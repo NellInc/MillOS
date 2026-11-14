@@ -5,7 +5,7 @@
  * Working if a notice filed in English reads in Portuguese through alertText.
  */
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MachineInspector } from '../sidebar/MachineInspector';
 import { MachineType, type MachineData } from '../../../types';
 import { useProductionStore } from '../../../stores/productionStore';
@@ -15,6 +15,7 @@ import { useOperationsCampaignStore } from '../../../stores/operationsCampaignSt
 import { useUIStore } from '../../../stores/uiStore';
 import { setLocale } from '../../../i18n';
 import { alertText } from '../../../i18n/alertCopy';
+import { RESTART_GAME_SECONDS, resetUnitWork, stepUnitWork } from '../../../systems/unitService';
 
 const mill = (wear: number, status: MachineData['status'] = 'running'): MachineData => ({
   id: 'rm-lang',
@@ -33,7 +34,7 @@ let savedMachines: MachineData[];
 let savedIncidents: ReturnType<typeof useOperationsCampaignStore.getState>['incidents'];
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  resetUnitWork();
   setLocale('en');
   savedMachines = useProductionStore.getState().machines;
   savedIncidents = useOperationsCampaignStore.getState().incidents;
@@ -43,7 +44,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.useRealTimers();
+  resetUnitWork();
   setLocale('en');
   const game = useGameSimulationStore.getState();
   if (game.emergencyActive) game.resolveEmergency();
@@ -52,20 +53,19 @@ afterEach(() => {
   useUIStore.setState({ alerts: [] });
 });
 
-const restart = async (machine: MachineData) => {
+// The Restart finishes on the game clock, and the tick files its notice.
+const restart = (machine: MachineData) => {
   useProductionStore.setState({ machines: [machine] });
   render(<MachineInspector machine={machine} />);
   fireEvent.click(screen.getByText('Inspect'));
   fireEvent.click(screen.getByRole('button', { name: 'Restart Unit' }));
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(3000);
-  });
+  act(() => stepUnitWork(RESTART_GAME_SECONDS));
   return useUIStore.getState().alerts.find((alert) => alert.id.startsWith('restart-rm-lang'))!;
 };
 
 describe('MachineInspector notices follow the language', () => {
-  it('reads a restart notice in pt-BR after a switch', async () => {
-    const notice = await restart(mill(10));
+  it('reads a restart notice in pt-BR after a switch', () => {
+    const notice = restart(mill(10));
     expect(alertText(notice).title).toBe('Machine Restarted');
 
     setLocale('pt-BR');
@@ -75,17 +75,17 @@ describe('MachineInspector notices follow the language', () => {
     });
   });
 
-  it('reads a still-worn restart notice in pt-BR, decimal comma included', async () => {
-    const notice = await restart(mill(62.3, 'warning'));
+  it('reads a still-worn restart notice in pt-BR, decimal comma included', () => {
+    const notice = restart(mill(62.3, 'warning'));
     expect(alertText(notice).message).toMatch(/wear is still 62\.3% \(it warns from 60%\)/);
 
     setLocale('pt-BR');
     const text = alertText(notice);
-    expect(text.title).toBe('Reiniciada, ainda desgastada');
+    expect(text.title).toBe('Reinício concluído, desgaste ainda alto');
     expect(text.message).toMatch(/o desgaste continua em 62,3% \(o alerta começa em 60%\)/);
   });
 
-  it('reads an incident-held restart notice in pt-BR', async () => {
+  it('reads an incident-held restart notice in pt-BR', () => {
     useOperationsCampaignStore.setState({
       incidents: [
         {
@@ -97,11 +97,11 @@ describe('MachineInspector notices follow the language', () => {
         } as (typeof savedIncidents)[number],
       ],
     });
-    const notice = await restart(mill(10, 'warning'));
+    const notice = restart(mill(10, 'warning'));
     expect(alertText(notice).title).toBe('Restarted, Still Warning');
 
     setLocale('pt-BR');
-    expect(alertText(notice).title).toBe('Reiniciada, ainda em alerta');
+    expect(alertText(notice).title).toBe('Reinício concluído, ainda em alerta');
   });
 
   it('reads a no-spare-parts notice in pt-BR', () => {
@@ -111,7 +111,7 @@ describe('MachineInspector notices follow the language', () => {
     const machine = mill(62.3, 'warning');
     useProductionStore.setState({ machines: [machine] });
     render(<MachineInspector machine={machine} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Perform Maintenance/ }));
     const notice = useUIStore
       .getState()
       .alerts.find((alert) => alert.id.startsWith('maintenance-noparts-rm-lang'))!;

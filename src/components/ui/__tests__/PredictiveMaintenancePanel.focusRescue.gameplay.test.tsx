@@ -71,7 +71,7 @@ describe('PredictiveMaintenancePanel focus when the plant removes the focused co
       partsNeeded: ['filters'],
     });
     render(<PredictiveMaintenancePanel />);
-    screen.getByRole('button', { name: 'Complete maintenance on Rescue mill' }).focus();
+    screen.getByRole('button', { name: 'Start maintenance on Rescue mill' }).focus();
 
     // The unit is serviced elsewhere (the Inspector), which closes the booking.
     act(() => {

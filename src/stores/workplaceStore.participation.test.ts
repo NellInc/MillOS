@@ -10,7 +10,8 @@ import {
 import { ROLE_COMMANDS, turnChecks, type RoleCommand } from '../simulation/workplaceParticipation';
 import { beginReplayClock, endReplayClock } from '../simulation/workplaceReplayRuntime';
 import { fairnessReceipt } from '../simulation/workplaceFairness';
-import { WORKPLACE_CHECKS, requiredChecks } from '../simulation/workplaceCampaign';
+import { WORKPLACE_CHECKS, mondayMinute, requiredChecks } from '../simulation/workplaceCampaign';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 const get = () => useWorkplaceStore.getState();
 function turn(actor = 'packing') {
@@ -188,6 +189,7 @@ describe('separate local participant turns', () => {
   });
   it('never scripts a participant objection in separate turns', () => {
     get().setParticipationMode('separate-turns');
+    fulfilFirstDelivery();
     get().startCampaign('team');
     const token = turn('coordinator');
     expect(run(token, 'respondToPressure', ['disclosure', 'accept-demand']).changed).toBe(false);
@@ -197,6 +199,7 @@ describe('separate local participant turns', () => {
     'completes three %s shifts with fresh roles and retained accounting',
     (profile) => {
       get().setParticipationMode('separate-turns');
+      fulfilFirstDelivery();
       get().startCampaign(profile, 17);
       for (let shift = 0; shift < 3; shift++) {
         if (shift !== 1) {
@@ -210,7 +213,12 @@ describe('separate local participant turns', () => {
         }
         for (const actor of ['packing', 'quality', 'maintenance', 'coordinator', 'mind']) {
           const token = checked(actor);
-          for (const q of requiredChecks(actor))
+          // 5.2: a check answered under unchanged terms is not asked again.
+          for (const q of requiredChecks(actor).filter(
+            (id) =>
+              get().workplace.campaign?.checks[actor]?.[id] !==
+              WORKPLACE_CHECKS.find((c) => c.id === id)!.correct
+          ))
             expect(
               run(token, 'answerCheck', [
                 actor,
@@ -226,7 +234,8 @@ describe('separate local participant turns', () => {
         }
         expect(get().activate(get().workplace.revision).changed).toBe(true);
         if (shift === 1) {
-          get().tick(25, 0, false);
+          // The season's draw sets Monday's minute (5.10).
+          get().tick(mondayMinute(get().workplace), 0, false);
           const token = turn('quality');
           expect(run(token, 'campaignDecision', ['inspect', 'quality']).changed).toBe(true);
           get().endTurn();

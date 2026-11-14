@@ -73,11 +73,11 @@ export const workplaceCampaignMessages = defineMessages({
     fridayRenegotiate: 'Negotiate a 480 kg delivery',
     mondayTitle: 'Monday: the disputed sample',
     mondayBriefing:
-      'The team returns with its previous earnings and workload history intact. At minute 25 a disputed sample pauses line pacing. Qualified Quality input must initiate five modeled minutes of inspection. Existing batch certification and dispatch checks still apply.',
+      'The team returns with its previous earnings and workload history intact. When a batch of the order awaits its lab test, the line holds for that sample. Qualified Quality puts it first on the bench, and the hold ends when the bench has read it against the order’s minimum.',
     mondayPrompt:
-      'At the hold, decide whether to inspect. Deadline pressure gives nobody authority to skip the check. Inspection resolves this fictional pacing hold; it never releases an actual production batch.',
-    mondayInspect: 'Quality initiates five-minute inspection',
-    mondaySkip: 'Try to skip inspection (blocked)',
+      'At the hold, decide whether to inspect. Deadline pressure gives nobody authority to skip the check. The inspection is the lab’s own test of that batch.',
+    mondayInspect: 'Quality puts the sample first on the bench',
+    mondaySkip: 'Try to skip inspection',
     thursdayTitle: 'Thursday: who carries the pressure?',
     thursdayBriefing:
       "A manager wants the previous volunteer to cover again and proposes cutting a refuser's pay. The adviser initially treats earlier consent as reusable. Challenge that assumption, protect the refusal, and compare the cumulative burden before making a fresh offer.",
@@ -85,7 +85,7 @@ export const workplaceCampaignMessages = defineMessages({
       'Earlier consent has expired. Keep pay intact and offer any new burden first to the least-burdened qualified current volunteer. The team can still choose a plan with no extra duty.',
     thursdayProtect: 'Protect pay and correct the adviser',
     thursdayRenegotiate: 'Negotiate a 480 kg delivery and protect pay',
-    thursdayPenalize: "Try the manager's pay penalty (blocked)",
+    thursdayPenalize: "Try the manager's pay penalty",
 
     // Understanding checks
     refusalPrompt: "Who can agree to a role's optional extra duty?",
@@ -115,22 +115,16 @@ export const workplaceCampaignMessages = defineMessages({
     // Learning review
     reviewDelivery: (p: { delivered: string; evidence: string; remaining: string }) =>
       `Delivery record: ${p.delivered} kg credited; source evidence ${p.evidence === 'quality-failed' ? 'failed quality' : p.evidence}. Full customer commitment still open: ${p.remaining} kg.`,
-    reviewTeaching:
-      'Teaching output: {delivered} kg against {target} kg agreed. This exercise counter is separate from customer shipment receipts.',
-    reviewRecovery:
-      'Team recovery: {recovered} minutes delivered; {owed} minutes still owed. Earlier volunteering grants no new duty.',
-    reviewDeferred:
-      'These terms defer {deferred} kg beyond this agreement. The full customer commitment remains recorded.',
-    reviewInspected:
-      'Quality completed the modeled inspection. Actual batch certification still controls shipment.',
-    reviewNotInspected:
-      'Quality has no completed modeled inspection for the held shift. Actual batch certification still controls shipment.',
-    reviewOneObjection:
-      'One unresolved objection remains with its raiser. A team discussion cannot close it on someone else’s behalf.',
-    reviewManyObjections:
-      '{count} unresolved objections remain with their raisers. A team discussion cannot close them on someone else’s behalf.',
-    reviewCorrection:
-      'The adviser recorded a correction. Fresh terms still need fresh understanding.',
+    reviewTeaching: 'Teaching output: {delivered} kg against {target} kg agreed.',
+    reviewRecovery: 'Team recovery: {recovered} minutes delivered; {owed} minutes still owed.',
+    reviewDeferred: 'These terms defer {deferred} kg beyond this agreement.',
+    reviewInspected: 'Quality completed the modeled inspection.',
+    reviewNotInspected: 'Quality has no completed modeled inspection for the held shift.',
+    reviewNoSample:
+      'Monday’s bench held no sample of this order, so Quality had nothing to inspect.',
+    reviewOneObjection: 'One unresolved objection remains with its raiser.',
+    reviewManyObjections: '{count} unresolved objections remain with their raisers.',
+    reviewCorrection: 'The adviser recorded a correction.',
     questionRemedy:
       'Ask each raiser which part of the proposed remedy addresses their objection. What remains unresolved?',
     questionRecovery:
@@ -147,47 +141,40 @@ export const workplaceCampaignMessages = defineMessages({
       'Meet the agreed delivery together while honouring qualified work, protected rest and recovery promises.',
 
     // Campaign story
-    storyMission:
-      'Remaining customer commitment: {remaining} kg for {customer}. Deadline pressure never changes refusal rights or earned pay.',
-    storyDelivered:
-      'The previous shift recorded delivery credit. Compare the next promise with the remaining customer commitment.',
-    storyOpen:
-      'The previous shift left delivery work open. Deadline pressure carries forward; refusal and earned pay stay protected.',
-    storyRememberedDuty:
-      'Remembered extra duty: {list}. Fresh offers prioritise eligible volunteers with less accumulated duty.',
+    storyMission: 'Remaining customer commitment: {remaining} kg for {customer}.',
+    storyDelivered: 'The previous shift recorded delivery credit.',
+    storyOpen: 'The previous shift left delivery work open.',
+    storyRememberedDuty: 'Remembered extra duty: {list}.',
     storyDutyEntry: (p: { role: string; minutes: string }) => `${p.role} ${p.minutes} min`,
-    storyChallenged:
-      'A challenged demand remains in the previous shift’s public record. Restated terms and raiser-owned resolution carry forward; private explanations do not.',
-    storyInspected:
-      'Quality completed the modeled inspection. Actual batch certification remains the authority for shipment.',
-    storyNotInspected:
-      'The previous inspection remained incomplete. The agreement outcome records that unresolved promise.',
-    storyCorrection:
-      'The adviser corrected its reuse of old consent. New duties require a new agreement, even after a successful delivery.',
+    storyChallenged: 'A challenged demand remains in the previous shift’s public record.',
+    storyInspected: 'Quality completed the modeled inspection.',
+    storyNotInspected: 'The previous inspection remained incomplete.',
+    storyNoSample:
+      'Monday’s bench held no sample of this order, so the line was never held for one.',
+    storyCorrection: 'The adviser corrected its reuse of old consent.',
 
     // Thursday negotiation: next step
-    nextPackingReviews: 'Packing reviews the remedy. A restatement cannot close your objection.',
-    nextRestate: 'Restate protected terms. The challenge remains yours.',
-    nextReview:
-      'Compare actual work with the agreement. Paid compensation and delivered recovery have separate receipts.',
+    nextPackingReviews: 'Packing reviews the remedy.',
+    nextRestate: 'Restate protected terms.',
+    nextReview: 'Compare actual work with the agreement.',
     nextResume:
       'A reload paused this shift before its end. Resume it in Review; Packing decides again on fresh terms.',
-    nextActive: 'Run or pause the plant. Cover can be withdrawn; earned obligations remain.',
+    nextResumeAfterStop:
+      'A safety stop or an objection paused this shift before its end. Resume it in Review; Packing decides again on fresh terms.',
+    nextActive: 'Run or pause the plant.',
     nextCorrect: 'Correct the adviser and protect refusal before making a fresh offer.',
-    nextUnderstand:
-      'Packing: answer the checks, then explicitly confirm understanding. This grants no vote or cover consent.',
-    nextVote: 'Packing: choose your policy vote. Approval cannot volunteer you for cover.',
+    nextUnderstand: 'Packing: answer the checks, then explicitly confirm understanding.',
+    nextVote: 'Packing: choose your policy vote.',
     nextPolicyNo:
       'Your policy no holds the team agreement. Return to Shift to revise the offer; every role then decides afresh.',
-    nextCoverPending:
-      'Packing: accept or decline optional cover separately. Silence gives no consent.',
+    nextCoverPending: 'Packing: accept or decline optional cover separately.',
     nextCoverDeclined:
       'Your cover decline stands. Compare protected pacing, funded handoffs or another current qualified volunteer in Shift.',
     nextReviewRoles:
       'Review the other roles and current terms before explicitly starting the agreement.',
   },
   'pt-BR': {
-    toeDipTitle: 'Conduzido pela coordenação',
+    toeDipTitle: 'Liderado pela coordenação',
     toeDipDetail:
       'A coordenação atribui o trabalho qualificado depois de ouvir cada função. O consentimento individual para trabalho extra continua sendo dessa função, e os cooperados votam a destinação das sobras depois das obrigações.',
     teamTitle: 'Acordo da equipe',
@@ -195,7 +182,7 @@ export const workplaceCampaignMessages = defineMessages({
       'A equipe escolhe o trabalho qualificado e usa um orçamento delimitado de melhorias. Cada cooperado precisa aprovar o plano compartilhado.',
     cooperativeTitle: 'Governança dos cooperados',
     cooperativeDetail:
-      'Os cooperados controlam o trabalho qualificado, elegem a coordenação e votam a destinação das sobras depois das obrigações. Uma maioria não pode oferecer um indivíduo como voluntário.',
+      'Os cooperados controlam o trabalho qualificado, elegem a presidência e votam a destinação das sobras depois das obrigações. Uma maioria não pode oferecer um indivíduo como voluntário.',
 
     disclosureTitle: 'Um motivo particular para a recusa?',
     disclosureDemand:
@@ -242,11 +229,11 @@ export const workplaceCampaignMessages = defineMessages({
     fridayRenegotiate: 'Negociar uma entrega de 480 kg',
     mondayTitle: 'Segunda-feira: a amostra contestada',
     mondayBriefing:
-      'A equipe volta com seu histórico de ganhos e de carga de trabalho intacto. No minuto 25, uma amostra contestada pausa o ritmo da linha. Uma ação qualificada da Qualidade precisa iniciar cinco minutos de inspeção modelada. A certificação de lote e as verificações de expedição existentes continuam valendo.',
+      'A equipe volta com seu histórico de ganhos e de carga de trabalho intacto. Quando um lote do pedido aguarda o teste de laboratório, a linha fica retida por essa amostra. A Qualidade, qualificada para isso, coloca a amostra em primeiro lugar na bancada, e a retenção termina quando a bancada a lê contra o mínimo do pedido.',
     mondayPrompt:
-      'Na retenção, decida se vai inspecionar. A pressão do prazo não dá a ninguém autoridade para pular a verificação. A inspeção resolve esta retenção fictícia de ritmo; ela nunca libera um lote de produção real.',
-    mondayInspect: 'A Qualidade inicia a inspeção de cinco minutos',
-    mondaySkip: 'Tentar pular a inspeção (bloqueado)',
+      'Na retenção, decida se vai inspecionar. A pressão do prazo não dá a ninguém autoridade para pular a verificação. A inspeção é o próprio teste do laboratório sobre esse lote.',
+    mondayInspect: 'A Qualidade coloca a amostra em primeiro lugar na bancada',
+    mondaySkip: 'Tentar pular a inspeção',
     thursdayTitle: 'Quinta-feira: quem carrega a pressão?',
     thursdayBriefing:
       'Um gerente quer que o voluntário anterior cubra de novo e propõe cortar a remuneração de quem recusou. O conselheiro inicialmente trata o consentimento anterior como reutilizável. Conteste essa suposição, proteja a recusa e compare a carga acumulada antes de fazer uma nova oferta.',
@@ -254,7 +241,7 @@ export const workplaceCampaignMessages = defineMessages({
       'O consentimento anterior expirou. Mantenha a remuneração intacta e ofereça qualquer carga nova primeiro ao voluntário qualificado atual com menos carga. A equipe ainda pode escolher um plano sem trabalho extra.',
     thursdayProtect: 'Proteger a remuneração e corrigir o conselheiro',
     thursdayRenegotiate: 'Negociar uma entrega de 480 kg e proteger a remuneração',
-    thursdayPenalize: 'Tentar o corte de remuneração do gerente (bloqueado)',
+    thursdayPenalize: 'Tentar o corte de remuneração do gerente',
 
     refusalPrompt: 'Quem pode aceitar o trabalho extra opcional de uma função?',
     refusalMajority: 'Uma maioria da equipe pode oferecer alguém como voluntário',
@@ -283,22 +270,17 @@ export const workplaceCampaignMessages = defineMessages({
 
     reviewDelivery: (p: { delivered: string; evidence: string; remaining: string }) =>
       `Registro de entrega: ${p.delivered} kg creditados; evidência de origem ${PT_EVIDENCE[p.evidence] ?? p.evidence}. Compromisso total com o cliente ainda em aberto: ${p.remaining} kg.`,
-    reviewTeaching:
-      'Produção de ensino: {delivered} kg de {target} kg acordados. Este contador do exercício é separado dos comprovantes de expedição ao cliente.',
+    reviewTeaching: 'Produção de ensino: {delivered} kg de {target} kg acordados.',
     reviewRecovery:
-      'Recuperação da equipe: {recovered} minutos entregues; {owed} minutos ainda devidos. Ter se oferecido antes não cria nenhum dever novo.',
-    reviewDeferred:
-      'Estes termos adiam {deferred} kg para além deste acordo. O compromisso total com o cliente continua registrado.',
-    reviewInspected:
-      'A Qualidade concluiu a inspeção modelada. A certificação real do lote ainda controla a expedição.',
-    reviewNotInspected:
-      'A Qualidade não tem inspeção modelada concluída para o turno retido. A certificação real do lote ainda controla a expedição.',
-    reviewOneObjection:
-      'Uma objeção não resolvida continua com quem a levantou. Uma discussão da equipe não pode encerrá-la em nome de outra pessoa.',
-    reviewManyObjections:
-      '{count} objeções não resolvidas continuam com quem as levantou. Uma discussão da equipe não pode encerrá-las em nome de outras pessoas.',
-    reviewCorrection:
-      'O conselheiro registrou uma correção. Termos novos ainda precisam de um novo entendimento.',
+      'Recuperação da equipe: {recovered} minutos entregues; {owed} minutos ainda devidos.',
+    reviewDeferred: 'Estes termos adiam {deferred} kg para além deste acordo.',
+    reviewInspected: 'A Qualidade concluiu a inspeção modelada.',
+    reviewNotInspected: 'A Qualidade não tem inspeção modelada concluída para o turno retido.',
+    reviewNoSample:
+      'A bancada de segunda-feira não teve amostra deste pedido, então a Qualidade não tinha o que inspecionar.',
+    reviewOneObjection: 'Uma objeção não resolvida continua com quem a levantou.',
+    reviewManyObjections: '{count} objeções não resolvidas continuam com quem as levantou.',
+    reviewCorrection: 'O conselheiro registrou uma correção.',
     questionRemedy:
       'Pergunte a cada pessoa que levantou uma objeção qual parte da reparação proposta responde a ela. O que continua sem solução?',
     questionRecovery:
@@ -314,46 +296,51 @@ export const workplaceCampaignMessages = defineMessages({
     reviewGoal:
       'Cumprir juntos a entrega acordada, respeitando o trabalho qualificado, o descanso protegido e as promessas de recuperação.',
 
-    storyMission:
-      'Compromisso restante com o cliente: {remaining} kg para {customer}. A pressão do prazo nunca muda o direito de recusa nem a remuneração conquistada.',
-    storyDelivered:
-      'O turno anterior registrou crédito de entrega. Compare a próxima promessa com o compromisso restante com o cliente.',
-    storyOpen:
-      'O turno anterior deixou trabalho de entrega em aberto. A pressão do prazo continua; a recusa e a remuneração conquistada seguem protegidas.',
-    storyRememberedDuty:
-      'Trabalho extra registrado: {list}. Novas ofertas dão prioridade a voluntários elegíveis com menos trabalho acumulado.',
+    storyMission: 'Compromisso restante com o cliente: {remaining} kg para {customer}.',
+    storyDelivered: 'O turno anterior registrou crédito de entrega.',
+    storyOpen: 'O turno anterior deixou trabalho de entrega em aberto.',
+    storyRememberedDuty: 'Trabalho extra registrado: {list}.',
     storyDutyEntry: (p: { role: string; minutes: string }) =>
       `${PT_ROLES[p.role] ?? p.role} ${p.minutes} min`,
-    storyChallenged:
-      'Uma exigência contestada continua no registro público do turno anterior. Os termos reafirmados e a resolução de quem levantou a objeção seguem adiante; as explicações particulares, não.',
-    storyInspected:
-      'A Qualidade concluiu a inspeção modelada. A certificação real do lote continua sendo a autoridade para a expedição.',
-    storyNotInspected:
-      'A inspeção anterior ficou incompleta. O resultado do acordo registra essa promessa pendente.',
-    storyCorrection:
-      'O conselheiro corrigiu o reaproveitamento de um consentimento antigo. Deveres novos exigem um novo acordo, mesmo depois de uma entrega bem-sucedida.',
+    storyChallenged: 'Uma exigência contestada continua no registro público do turno anterior.',
+    storyInspected: 'A Qualidade concluiu a inspeção modelada.',
+    storyNotInspected: 'A inspeção anterior ficou incompleta.',
+    storyNoSample:
+      'A bancada de segunda-feira não teve amostra deste pedido, então a linha nunca parou por uma.',
+    storyCorrection: 'O conselheiro corrigiu o reaproveitamento de um consentimento antigo.',
 
-    nextPackingReviews:
-      'O Ensaque revisa a reparação. Uma reafirmação não pode encerrar a sua objeção.',
-    nextRestate: 'Reafirme os termos protegidos. A contestação continua sendo sua.',
-    nextReview:
-      'Compare o trabalho real com o acordo. A compensação paga e a recuperação entregue têm comprovantes separados.',
+    nextPackingReviews: 'O Ensaque revisa a reparação.',
+    nextRestate: 'Reafirme os termos protegidos.',
+    nextReview: 'Compare o trabalho real com o acordo.',
     nextResume:
       'Uma recarga pausou este turno antes do fim. Retome-o em Revisão; o Ensaque decide de novo com termos novos.',
-    nextActive:
-      'Ponha a planta para funcionar ou pause-a. A cobertura pode ser retirada; as obrigações já adquiridas permanecem.',
+    nextResumeAfterStop:
+      'Uma parada de segurança ou uma objeção pausou este turno antes do fim. Retome-o em Revisão; o Ensaque decide de novo com termos novos.',
+    nextActive: 'Ponha a planta para funcionar ou pause-a.',
     nextCorrect: 'Corrija o conselheiro e proteja a recusa antes de fazer uma nova oferta.',
     nextUnderstand:
-      'Ensaque: responda às verificações e depois confirme explicitamente o entendimento. Isso não concede voto nem consentimento para cobertura.',
-    nextVote:
-      'Ensaque: escolha o seu voto de política. A aprovação não pode oferecer você como voluntário para cobertura.',
+      'Ensaque: responda às verificações e depois confirme explicitamente o entendimento.',
+    nextVote: 'Ensaque: escolha o seu voto de política.',
     nextPolicyNo:
       'O seu voto contrário na política deixa o acordo da equipe em suspenso. Volte para Turno para revisar a oferta; depois, cada função decide de novo.',
-    nextCoverPending:
-      'Ensaque: aceite ou recuse a cobertura opcional separadamente. Silêncio não é consentimento.',
+    nextCoverPending: 'Ensaque: aceite ou recuse a cobertura opcional separadamente.',
     nextCoverDeclined:
       'A sua recusa da cobertura continua valendo. Compare ritmo protegido, passagens de turno financiadas ou outro voluntário qualificado atual em Turno.',
     nextReviewRoles:
       'Revise as outras funções e os termos atuais antes de iniciar explicitamente o acordo.',
   },
 });
+
+/**
+ * 5.8: one name per charter, in each language. Every catalogue that names a
+ * charter reads it here, so a grep finds one string per charter.
+ */
+const CHARTER_TITLE_KEYS = {
+  'toe-dip': 'toeDipTitle',
+  team: 'teamTitle',
+  cooperative: 'cooperativeTitle',
+} as const;
+export function charterTitle(locale: 'en' | 'pt-BR', profile: string): string {
+  const key = CHARTER_TITLE_KEYS[profile as keyof typeof CHARTER_TITLE_KEYS];
+  return key ? workplaceCampaignMessages[locale][key] : profile;
+}

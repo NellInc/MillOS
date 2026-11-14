@@ -13,6 +13,17 @@ import { MachineType, type MachineData } from '../../types';
 import { STANDARD_GAME_SPEED } from '../../simulation/pace';
 import type { TickContext } from '../CentralTickSystem';
 import { resetUnifiedTickState, unifiedGameTick } from '../UnifiedGameTick';
+import { usePartnerProposalStore } from '../../stores/partnerProposalStore';
+import { answerPartnerProposal } from '../partnerProposalRuntime';
+
+// Re-pinned for plan item 3.0: left unanswered, the partner services a unit on
+// its wear prediction. These tests measure the wear itself, so the operator
+// answers each service proposal "run on", as leaving a unit was before.
+function runOnEveryService() {
+  for (const proposal of usePartnerProposalStore.getState().proposals)
+    if (proposal.status === 'open' && proposal.kind === 'service')
+      answerPartnerProposal(proposal.id, 'run-on');
+}
 
 // Six and up to twenty-two game hours of real ticks: the run is the assertion,
 // and the two tests need different horizons from the same fresh start.
@@ -62,6 +73,9 @@ describe('the first standard-pace shift meets one wear warning', () => {
     useOperationsCampaignStore.getState().resetCampaign();
     useQCLabStore.getState().resetQCLab();
     useUIStore.setState({ alerts: [] });
+    usePartnerProposalStore.getState().reset();
+    // The player answers each service "run on" (below), so the card must ask.
+    usePartnerProposalStore.getState().setDelegation('service', 'ask');
     useGameSimulationStore.setState({ gameTime: 10, gameDay: 1 });
     useProductionStore.setState({ machines: sceneRoster(), productionSpeed: 1 });
   });
@@ -79,6 +93,7 @@ describe('the first standard-pace shift meets one wear warning', () => {
     let firstWarningHour: number | null = null;
     for (let index = 0; index < 6 * ticksPerGameHour; index += 1) {
       unifiedGameTick({ ...tick, tickCount: index + 1 });
+      runOnEveryService();
       if (
         firstWarningHour === null &&
         useProductionStore.getState().machines.some((m) => m.status === 'warning')
@@ -135,6 +150,7 @@ describe('the first standard-pace shift meets one wear warning', () => {
     let brokeAt: number | null = null;
     for (let index = 0; index < 22 * ticksPerGameHour && brokeAt === null; index += 1) {
       unifiedGameTick({ ...tick, tickCount: index + 1 });
+      runOnEveryService();
       if (warnedAt === null && mill().status === 'warning') warnedAt = clock();
       if (mill().metrics.wear >= 90 || mill().status === 'critical') brokeAt = clock();
     }

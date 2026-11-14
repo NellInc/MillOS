@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAnnouncementsStore, type Announcement } from '../../stores/announcementsStore';
-import { DAILY_TARGET_BAGS, useProductionStore } from '../../stores/productionStore';
+import { useProductionStore } from '../../stores/productionStore';
+import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useUIStore } from '../../stores/uiStore';
 import { setLocale } from '../../i18n';
@@ -85,12 +86,18 @@ describe('the PA lines shared.tsx files are keyed, so a language switch reaches 
     hook.unmount();
   });
 
-  it('daily-target line', () => {
+  it('programme-delivered line', () => {
+    useOperationsCampaignStore.getState().resetCampaign();
     const hook = renderHook(() => useEventAnnouncementScheduler());
-    useProductionStore.setState({ dailyBagsProduced: DAILY_TARGET_BAGS });
+    useOperationsCampaignStore.setState({
+      orders: useOperationsCampaignStore
+        .getState()
+        .orders.map((order) => ({ ...order, shippedKg: order.requiredKg, status: 'fulfilled' })),
+    });
     vi.advanceTimersByTime(5_000);
-    expectPortuguese(lineSaying(en.milestone100 as string), 'milestone100');
+    expectPortuguese(lineSaying(en.programmeDelivered as string), 'programmeDelivered');
     hook.unmount();
+    useOperationsCampaignStore.getState().resetCampaign();
   });
 
   it('drill and facility-stop lines', () => {

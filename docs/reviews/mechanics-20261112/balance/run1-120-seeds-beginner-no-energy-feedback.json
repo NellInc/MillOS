@@ -1,0 +1,985 @@
+{
+ "seeds": 120,
+ "shifts": 63,
+ "deckSize": 39,
+ "plans": [
+  {
+   "id": "moisture-meters",
+   "column": 0,
+   "planCost": 8,
+   "installCost": 110,
+   "installShifts": 2,
+   "upkeep": 3
+  },
+  {
+   "id": "spare-parts-store",
+   "column": 0,
+   "planCost": 8,
+   "installCost": 100,
+   "installShifts": 2,
+   "upkeep": 3
+  },
+  {
+   "id": "drainage-works",
+   "column": 0,
+   "planCost": 10,
+   "installCost": 130,
+   "installShifts": 2,
+   "upkeep": 3
+  },
+  {
+   "id": "members-library",
+   "column": 0,
+   "planCost": 6,
+   "installCost": 70,
+   "installShifts": 1,
+   "upkeep": 2
+  },
+  {
+   "id": "grain-dryer",
+   "column": 1,
+   "planCost": 18,
+   "installCost": 240,
+   "installShifts": 3,
+   "upkeep": 7
+  },
+  {
+   "id": "vibration-monitoring",
+   "column": 1,
+   "planCost": 16,
+   "installCost": 200,
+   "installShifts": 3,
+   "upkeep": 5
+  },
+  {
+   "id": "aspiration-upgrade",
+   "column": 1,
+   "planCost": 16,
+   "installCost": 210,
+   "installShifts": 3,
+   "upkeep": 5
+  },
+  {
+   "id": "standby-generator",
+   "column": 2,
+   "planCost": 24,
+   "installCost": 300,
+   "installShifts": 3,
+   "upkeep": 9
+  },
+  {
+   "id": "blending-bins",
+   "column": 2,
+   "planCost": 22,
+   "installCost": 230,
+   "installShifts": 3,
+   "upkeep": 6
+  },
+  {
+   "id": "sifter-retrofit",
+   "column": 2,
+   "planCost": 26,
+   "installCost": 290,
+   "installShifts": 4,
+   "upkeep": 7
+  },
+  {
+   "id": "haulage-agreement",
+   "column": 2,
+   "planCost": 20,
+   "installCost": 150,
+   "installShifts": 2,
+   "upkeep": 6
+  },
+  {
+   "id": "wind-turbine",
+   "column": 3,
+   "planCost": 32,
+   "installCost": 400,
+   "installShifts": 4,
+   "upkeep": 6
+  },
+  {
+   "id": "roll-regrinding-shop",
+   "column": 3,
+   "planCost": 30,
+   "installCost": 340,
+   "installShifts": 4,
+   "upkeep": 9
+  },
+  {
+   "id": "heat-recovery",
+   "column": 3,
+   "planCost": 28,
+   "installCost": 280,
+   "installShifts": 3,
+   "upkeep": 5
+  },
+  {
+   "id": "federated-purchasing",
+   "column": 4,
+   "planCost": 40,
+   "installCost": 280,
+   "installShifts": 3,
+   "upkeep": 3
+  },
+  {
+   "id": "solar-canopy",
+   "column": 4,
+   "planCost": 40,
+   "installCost": 460,
+   "installShifts": 4,
+   "upkeep": 4
+  }
+ ],
+ "cells": {
+  "beginner/ideal/lapse": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "gold": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "village": 120
+   },
+   "score": {
+    "mean": 26,
+    "min": 26,
+    "max": 26
+   },
+   "rank": {
+    "a master miller": 120
+   },
+   "fundEnd": 6397,
+   "fundMin": 384,
+   "knowHowEnd": 508.5,
+   "upkeepEnd": 6,
+   "installed": 0,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 41.1,
+   "quietShifts": 7.9,
+   "longestQuiet": 2.2,
+   "certifierStanding": null,
+   "trainingOffered": 0
+  },
+  "beginner/ideal/builder": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "gold": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "federated": 120
+   },
+   "score": {
+    "mean": 38,
+    "min": 38,
+    "max": 38
+   },
+   "rank": {
+    "a steward of the cooperative": 120
+   },
+   "fundEnd": 2155.9,
+   "fundMin": 294.1,
+   "knowHowEnd": 223.4,
+   "upkeepEnd": 74.6,
+   "installed": 13.2,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 83.9,
+   "quietShifts": 5.3,
+   "longestQuiet": 1.9,
+   "certifierStanding": null,
+   "trainingOffered": 0
+  },
+  "beginner/ideal/chooser": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "gold": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "federated": 120
+   },
+   "score": {
+    "mean": 41,
+    "min": 41,
+    "max": 41
+   },
+   "rank": {
+    "a founder of the federation": 120
+   },
+   "fundEnd": 1395.3,
+   "fundMin": 188.2,
+   "knowHowEnd": 235.6,
+   "upkeepEnd": 74.3,
+   "installed": 13.2,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.8,
+   "decisionsPerRun": 88.8,
+   "quietShifts": 7.9,
+   "longestQuiet": 2.3,
+   "certifierStanding": null,
+   "trainingOffered": 0
+  },
+  "beginner/measured/lapse": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "silver": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "silver": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "village": 120
+   },
+   "score": {
+    "mean": 16,
+    "min": 16,
+    "max": 16
+   },
+   "rank": {
+    "a journeyman miller": 120
+   },
+   "fundEnd": 3202.4,
+   "fundMin": 294,
+   "knowHowEnd": 266.5,
+   "upkeepEnd": 6,
+   "installed": 0,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 41.1,
+   "quietShifts": 6.9,
+   "longestQuiet": 2.1,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "beginner/measured/builder": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "silver": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "silver": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "regional": 91,
+    "federated": 23,
+    "district": 6
+   },
+   "score": {
+    "mean": 25.4,
+    "min": 22,
+    "max": 28
+   },
+   "rank": {
+    "a master miller": 97,
+    "a millwright of renown": 23
+   },
+   "fundEnd": 270.8,
+   "fundMin": 2.6,
+   "knowHowEnd": 60.9,
+   "upkeepEnd": 31.8,
+   "installed": 10.6,
+   "fundZeroShifts": 1.3,
+   "shortfalls": 0.9,
+   "austerityRuns": 105,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 79.1,
+   "quietShifts": 4.3,
+   "longestQuiet": 1.9,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "beginner/measured/chooser": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "silver": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "silver": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "regional": 102,
+    "federated": 8,
+    "district": 10
+   },
+   "score": {
+    "mean": 28,
+    "min": 25,
+    "max": 31
+   },
+   "rank": {
+    "a millwright of renown": 110,
+    "a master miller": 10
+   },
+   "fundEnd": 293,
+   "fundMin": 0.7,
+   "knowHowEnd": 78.5,
+   "upkeepEnd": 27.3,
+   "installed": 10,
+   "fundZeroShifts": 1.7,
+   "shortfalls": 1,
+   "austerityRuns": 120,
+   "eventsPerRun": 39.8,
+   "decisionsPerRun": 78.3,
+   "quietShifts": 6.7,
+   "longestQuiet": 2.2,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "beginner/strong/lapse": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "gold": 120
+    }
+   },
+   "era": {
+    "village": 120
+   },
+   "score": {
+    "mean": 24,
+    "min": 24,
+    "max": 24
+   },
+   "rank": {
+    "a master miller": 120
+   },
+   "fundEnd": 7199.8,
+   "fundMin": 396,
+   "knowHowEnd": 500.5,
+   "upkeepEnd": 6,
+   "installed": 0,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 41.1,
+   "quietShifts": 8,
+   "longestQuiet": 2.2,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "beginner/strong/builder": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "gold": 120
+    }
+   },
+   "era": {
+    "federated": 120
+   },
+   "score": {
+    "mean": 36,
+    "min": 36,
+    "max": 36
+   },
+   "rank": {
+    "a steward of the cooperative": 120
+   },
+   "fundEnd": 3098.2,
+   "fundMin": 308.7,
+   "knowHowEnd": 215.4,
+   "upkeepEnd": 74.6,
+   "installed": 13.2,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 83.9,
+   "quietShifts": 5.4,
+   "longestQuiet": 1.9,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "beginner/strong/chooser": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "gold": 120
+    }
+   },
+   "era": {
+    "federated": 120
+   },
+   "score": {
+    "mean": 39,
+    "min": 39,
+    "max": 39
+   },
+   "rank": {
+    "a steward of the cooperative": 120
+   },
+   "fundEnd": 2362.1,
+   "fundMin": 245.3,
+   "knowHowEnd": 227.7,
+   "upkeepEnd": 74.6,
+   "installed": 13.2,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.8,
+   "decisionsPerRun": 88.8,
+   "quietShifts": 8.1,
+   "longestQuiet": 2.3,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "historical/ideal/lapse": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "gold": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "village": 120
+   },
+   "score": {
+    "mean": 29,
+    "min": 29,
+    "max": 29
+   },
+   "rank": {
+    "a millwright of renown": 120
+   },
+   "fundEnd": 6134.3,
+   "fundMin": 324,
+   "knowHowEnd": 504.9,
+   "upkeepEnd": 6,
+   "installed": 0,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 40.8,
+   "quietShifts": 7.8,
+   "longestQuiet": 2.2,
+   "certifierStanding": null,
+   "trainingOffered": 0
+  },
+  "historical/ideal/builder": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "gold": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "federated": 120
+   },
+   "score": {
+    "mean": 41,
+    "min": 41,
+    "max": 41
+   },
+   "rank": {
+    "a founder of the federation": 120
+   },
+   "fundEnd": 1822.9,
+   "fundMin": 234.1,
+   "knowHowEnd": 220.3,
+   "upkeepEnd": 74.6,
+   "installed": 13.2,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 85,
+   "quietShifts": 5,
+   "longestQuiet": 1.9,
+   "certifierStanding": null,
+   "trainingOffered": 0
+  },
+  "historical/ideal/chooser": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "gold": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "federated": 120
+   },
+   "score": {
+    "mean": 44,
+    "min": 44,
+    "max": 44
+   },
+   "rank": {
+    "a founder of the federation": 120
+   },
+   "fundEnd": 934.9,
+   "fundMin": 93.1,
+   "knowHowEnd": 230.1,
+   "upkeepEnd": 73.2,
+   "installed": 13.1,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.8,
+   "decisionsPerRun": 89.3,
+   "quietShifts": 7.7,
+   "longestQuiet": 2.2,
+   "certifierStanding": null,
+   "trainingOffered": 0
+  },
+  "historical/measured/lapse": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "silver": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "silver": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "village": 120
+   },
+   "score": {
+    "mean": 19,
+    "min": 19,
+    "max": 19
+   },
+   "rank": {
+    "a journeyman miller": 120
+   },
+   "fundEnd": 2986.4,
+   "fundMin": 234,
+   "knowHowEnd": 262.9,
+   "upkeepEnd": 6,
+   "installed": 0,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 40.8,
+   "quietShifts": 6.8,
+   "longestQuiet": 2.1,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "historical/measured/builder": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "silver": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "silver": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "federated": 23,
+    "district": 9,
+    "regional": 88
+   },
+   "score": {
+    "mean": 28.4,
+    "min": 25,
+    "max": 31
+   },
+   "rank": {
+    "a millwright of renown": 111,
+    "a master miller": 9
+   },
+   "fundEnd": 274.9,
+   "fundMin": 1.9,
+   "knowHowEnd": 58.7,
+   "upkeepEnd": 30.5,
+   "installed": 10.5,
+   "fundZeroShifts": 1.5,
+   "shortfalls": 0.9,
+   "austerityRuns": 110,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 78.2,
+   "quietShifts": 4.3,
+   "longestQuiet": 1.8,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "historical/measured/chooser": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "silver": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "silver": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "silver": 120
+    }
+   },
+   "era": {
+    "regional": 102,
+    "federated": 2,
+    "district": 16
+   },
+   "score": {
+    "mean": 30.7,
+    "min": 28,
+    "max": 34
+   },
+   "rank": {
+    "a millwright of renown": 118,
+    "a steward of the cooperative": 2
+   },
+   "fundEnd": 277.5,
+   "fundMin": 0.4,
+   "knowHowEnd": 75.5,
+   "upkeepEnd": 26.8,
+   "installed": 9.8,
+   "fundZeroShifts": 1.8,
+   "shortfalls": 1,
+   "austerityRuns": 118,
+   "eventsPerRun": 39.8,
+   "decisionsPerRun": 77,
+   "quietShifts": 7.1,
+   "longestQuiet": 2.2,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "historical/strong/lapse": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "gold": 120
+    }
+   },
+   "era": {
+    "village": 120
+   },
+   "score": {
+    "mean": 27,
+    "min": 27,
+    "max": 27
+   },
+   "rank": {
+    "a millwright of renown": 120
+   },
+   "fundEnd": 6925.3,
+   "fundMin": 336,
+   "knowHowEnd": 496.9,
+   "upkeepEnd": 6,
+   "installed": 0,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 40.8,
+   "quietShifts": 8,
+   "longestQuiet": 2.2,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "historical/strong/builder": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "gold": 120
+    }
+   },
+   "era": {
+    "federated": 120
+   },
+   "score": {
+    "mean": 39,
+    "min": 39,
+    "max": 39
+   },
+   "rank": {
+    "a steward of the cooperative": 120
+   },
+   "fundEnd": 2751.1,
+   "fundMin": 248.7,
+   "knowHowEnd": 212.3,
+   "upkeepEnd": 74.6,
+   "installed": 13.2,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.7,
+   "decisionsPerRun": 85,
+   "quietShifts": 5.2,
+   "longestQuiet": 1.8,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  },
+  "historical/strong/chooser": {
+   "ended": 120,
+   "shiftsReached": 63,
+   "trials": {
+    "wet_harvest": {
+     "gold": 120
+    },
+    "inspection": {
+     "gold": 120
+    },
+    "bakers_rush": {
+     "gold": 120
+    },
+    "grid_winter": {
+     "failed": 120
+    },
+    "great_programme": {
+     "gold": 120
+    }
+   },
+   "era": {
+    "federated": 120
+   },
+   "score": {
+    "mean": 42,
+    "min": 42,
+    "max": 42
+   },
+   "rank": {
+    "a founder of the federation": 120
+   },
+   "fundEnd": 1836.6,
+   "fundMin": 159.6,
+   "knowHowEnd": 222,
+   "upkeepEnd": 74.5,
+   "installed": 13.2,
+   "fundZeroShifts": 0,
+   "shortfalls": 0,
+   "austerityRuns": 0,
+   "eventsPerRun": 39.8,
+   "decisionsPerRun": 89.4,
+   "quietShifts": 8,
+   "longestQuiet": 2.2,
+   "certifierStanding": null,
+   "trainingOffered": 120
+  }
+ },
+ "eventsNeverSeen": [
+  "evt-bakers-proving-test",
+  "evt-school-specks",
+  "evt-precedent",
+  "evt-debt-pasta",
+  "evt-reinstatement-audit",
+  "evt-second-haulier"
+ ]
+}

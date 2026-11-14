@@ -124,13 +124,16 @@ describe('campaign incident consequences respect machine state', () => {
     unifiedGameTick(context);
     expect(sifterStatus()).toBe('idle');
     useGameSimulationStore.getState().resolveEmergency();
+    // Clearing the stop leaves the line idle; the restart starts it (D13).
+    expect(sifterStatus()).toBe('idle');
+    useGameSimulationStore.getState().restartLine();
     expect(sifterStatus()).toBe('running');
   });
 
   // A repaired machine's queued restart must wait out a facility stop: the
   // stop idles everything and its release restores only what it idled.
   // Working if the restart stays queued through the stop and applies after it.
-  it('holds a queued repair restart until the facility stop clears', () => {
+  it('holds a queued repair restart until the facility stop clears and the line is restarted', () => {
     setSifter('critical');
     const breakdowns = useBreakdownStore.getState();
     const breakdown = breakdowns.triggerBreakdown('sifter-b', 'Plansifter B', 'vibration_failure')!;
@@ -146,6 +149,10 @@ describe('campaign incident consequences respect machine state', () => {
 
     useGameSimulationStore.getState().resolveEmergency();
     unifiedGameTick({ ...context, tickCount: 2 });
+    // Clearing releases the interlock only; RESTART LINE restarts (D13).
+    expect(sifterStatus()).not.toBe('running');
+    useGameSimulationStore.getState().restartLine();
+    unifiedGameTick({ ...context, tickCount: 3 });
     expect(sifterStatus()).toBe('running');
   });
 

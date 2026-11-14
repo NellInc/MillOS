@@ -174,6 +174,15 @@ describe('SCADAPanel', () => {
     expect(screen.getByText('Dispatch quality: hold')).toBeInTheDocument();
   });
 
+  // D-012: the tab's own name says "Simulation"; the banner under it only
+  // explained the screen.
+  it('opens the Simulation Lab on its fault buttons with no banner above them', () => {
+    render(<SCADAPanel isOpen onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Simulation Lab' }));
+    expect(screen.getByText('Simulate sensor failure (BAD quality)')).toBeInTheDocument();
+    expect(screen.queryByText(/Training simulation only/)).not.toBeInTheDocument();
+  });
+
   it('supports roving keyboard focus across the full workspace tabs', async () => {
     render(<SCADAPanel isOpen onClose={vi.fn()} />);
     const processTab = screen.getByRole('tab', { name: 'Process' });

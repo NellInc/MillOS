@@ -2,10 +2,27 @@
  * Mill Chronicle quiz pool: two questions per history note. Every correct
  * answer is stated in its note's article, so a player who has read the note
  * can answer it. See docs/CHRONICLE.md, section 14.
+ *
+ * Questions from the player's own record come first (D19): what followed a
+ * ruling they made, what a plan they installed changed, why a trial failed.
+ * They are built at display from saved ids, so no copy is saved and both
+ * languages read the same record. Every question's options are dealt in a
+ * seeded order, and only a first attempt earns (engine `answerQuizQuestion`).
  */
-import type { QuizQuestion } from './types';
-import { translate } from '../i18n';
-import { quizMessages } from './quiz.messages';
+import type { ImprovementDefinition, QuizQuestion, TrialDefinition, TrialProgress } from './types';
+import type { ChronicleState } from './engine';
+import { formatFixed, formatGrouped, translate } from '../i18n';
+import { quizMessages, quizRecordMessages } from './quiz.messages';
+import { chronicleStream } from './rng';
+import { EVENT_DECK, getEventDeck } from './eventDeck';
+import { getImprovements } from './plans';
+import { getTrials, GRADE_POINTS } from './trials';
+import { ENERGY_SCALE } from './measuredPlant';
+import { trialsFor } from './schedule';
+import { getForecasts } from './forecasts';
+import { getCropYears } from './cropYears';
+import { localizedDescribeModifier } from './describe';
+import { legacyResults } from './legacyWording';
 
 export const QUIZ_QUESTIONS: QuizQuestion[] = [
   // history-first-grain
@@ -809,4 +826,253 @@ export function getQuizQuestions(): QuizQuestion[] {
       ],
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Questions from the record (D19)
+// ---------------------------------------------------------------------------
+
+/** A question as the Notes tab deals it: from a note or from the record. */
+export interface ShownQuizQuestion {
+  id: string;
+  /** The history note it tests, or null for a record question. */
+  noteId: string | null;
+  prompt: string;
+  options: string[];
+  correctIndex: number;
+}
+
+const recordCopy = (
+  key: keyof typeof quizRecordMessages.en,
+  params?: Record<string, string | number>
+): string => translate(quizRecordMessages, key, params);
+
+/** A question built from options with the right one first; the deal shuffles it. */
+function recordQuestion(
+  id: string,
+  prompt: string,
+  right: string,
+  wrong: string[]
+): ShownQuizQuestion | null {
+  const options = [right, ...wrong.filter((option) => option && option !== right)];
+  return right && options.length >= 2
+    ? { id, noteId: null, prompt, options, correctIndex: 0 }
+    : null;
+}
+
+/** What a plan changes, in the words its plan card uses. */
+function planChange(plan: ImprovementDefinition): string {
+  const parts = localizedDescribeModifier(plan.effect);
+  for (const [kind, relief] of Object.entries(plan.forecastRelief ?? {}))
+    parts.push(
+      recordCopy('planForecast', {
+        forecast: getForecasts()[kind as keyof ReturnType<typeof getForecasts>].title,
+        relief: formatGrouped(Math.round((relief ?? 0) * 100)),
+      })
+    );
+  for (const kind of plan.cropRelief ?? []) {
+    const crop = getCropYears()[kind];
+    parts.push(
+      crop.treatedPenalty > 0
+        ? recordCopy('planCropPartial', {
+            crop: crop.label.toLowerCase(),
+            value: formatGrouped(crop.treatedPenalty),
+          })
+        : recordCopy('planCropNone', { crop: crop.label.toLowerCase() })
+    );
+  }
+  if (plan.knowHowPerShift)
+    parts.push(recordCopy('planKnowHow', { value: formatGrouped(plan.knowHowPerShift) }));
+  return parts.join(', ');
+}
+
+type TrialCause = 'trialQuality' | 'trialTonnage' | 'trialEnergy' | 'trialGrade';
+const TRIAL_CAUSES: TrialCause[] = ['trialQuality', 'trialTonnage', 'trialEnergy', 'trialGrade'];
+
+/** Why a dispatch trial failed, read from its progress against its goal, never its text. */
+function trialCauses(definition: TrialDefinition, progress: TrialProgress): TrialCause[] {
+  const goal = definition.goal;
+  if (goal.kind !== 'dispatch') return [];
+  const causes: TrialCause[] = [];
+  if (goal.noQualityFailure && progress.qualityFailureKg > 0) causes.push('trialQuality');
+  if (Math.round(progress.dispatchedKg) < goal.kg) causes.push('trialTonnage');
+  if (
+    goal.maxEnergyPerKg !== undefined &&
+    progress.dispatchedKg > 0 &&
+    Math.round((progress.energyCost / progress.dispatchedKg) * ENERGY_SCALE) / ENERGY_SCALE >
+      goal.maxEnergyPerKg
+  )
+    causes.push('trialEnergy');
+  const graded = progress.gradedShifts ?? progress.shiftsUsed;
+  if (
+    goal.minAverageGrade !== undefined &&
+    graded > 0 &&
+    progress.gradePoints / graded < GRADE_POINTS[goal.minAverageGrade]
+  )
+    causes.push('trialGrade');
+  return causes;
+}
+
+type EventChoice = (typeof EVENT_DECK)[number]['choices'][number];
+
+/**
+ * A choice whose effect depends on the record (variants) or hands cases on
+ * (resolveChain, delegates) has no single answer to "what followed".
+ */
+const plainChoice = (choice: EventChoice): boolean =>
+  !choice.variants?.length && !choice.effect.resolveChain?.length && !choice.delegates;
+
+/**
+ * Questions about the player's own record, in the language shown now. Ids carry
+ * the charter seed, so a later charter's record never shares a first attempt.
+ */
+export function recordQuizQuestions(state: ChronicleState): ShownQuizQuestion[] {
+  if (state.status === 'unsigned' || !state.charter) return [];
+  const seed = state.charter.seed;
+  const questions: ShownQuizQuestion[] = [];
+  const add = (question: ShownQuizQuestion | null) => {
+    if (question && !questions.some((q) => q.id === question.id)) questions.push(question);
+  };
+
+  // What followed a ruling the player made (not the partner's, not a lapse).
+  const deck = getEventDeck();
+  for (const record of state.eventHistory) {
+    if (record.actor !== 'player') continue;
+    const canonical = EVENT_DECK.find((event) => event.id === record.eventId);
+    const event = deck.find((candidate) => candidate.id === record.eventId);
+    const chosen = canonical?.choices.find((choice) => choice.id === record.choiceId);
+    if (!canonical || !event || !chosen || !plainChoice(chosen)) continue;
+    const shown = (id: string) => event.choices.find((choice) => choice.id === id);
+    // An answer whose effect changed is graded on what its save records it
+    // did (review 2, finding 5); with no notice to say which, it is not asked.
+    let right = shown(chosen.id)?.effect.result ?? '';
+    const legacy = legacyResults(record.eventId, chosen.id);
+    if (legacy.length) {
+      const saved = state.notices.find(
+        (notice) =>
+          notice.shift === record.shift && notice.title === `${canonical.title}: ${chosen.label}`
+      );
+      const old = saved && legacy.find((entry) => saved.body.startsWith(entry.raw));
+      if (old) right = old.local;
+      else if (!saved?.body.startsWith(chosen.effect.result)) continue;
+    }
+    add(
+      recordQuestion(
+        `r:${seed}:event:${record.eventId}:${record.shift}`,
+        recordCopy('eventPrompt', {
+          shift: formatFixed(record.shift, 0),
+          event: event.title,
+          choice: shown(chosen.id)?.label ?? '',
+        }),
+        right,
+        canonical.choices
+          .filter((choice) => choice.id !== chosen.id && plainChoice(choice))
+          .map((choice) => shown(choice.id)?.effect.result ?? '')
+      )
+    );
+  }
+
+  // What a plan the player installed changed.
+  const plans = getImprovements();
+  for (const progress of state.improvements) {
+    if (progress.phase !== 'installed' || progress.initiatedBy !== 'player') continue;
+    const plan = plans.find((candidate) => candidate.id === progress.id);
+    if (!plan) continue;
+    const right = planChange(plan);
+    const draw = chronicleStream(seed, `quiz-plan:${plan.id}`, 0);
+    const wrong = [
+      ...new Set(
+        plans
+          .filter((other) => other.id !== plan.id)
+          .map((other) => ({ text: planChange(other), key: draw() }))
+          .sort((a, b) => a.key - b.key)
+          .map((entry) => entry.text)
+          .filter((text) => text && text !== right)
+      ),
+    ].slice(0, 3);
+    add(
+      recordQuestion(
+        `r:${seed}:plan:${plan.id}`,
+        recordCopy('planPrompt', { plan: plan.label }),
+        right,
+        wrong
+      )
+    );
+  }
+
+  // Why a trial failed, when its progress says why, read against this
+  // charter's own trials: a short chronicle's goals are not the full one's.
+  const trials = getTrials(trialsFor(state.charter));
+  for (const progress of state.trials) {
+    if (progress.phase !== 'failed') continue;
+    const trial = trials.find((candidate) => candidate.id === progress.id);
+    const causes = trial ? trialCauses(trial, progress) : [];
+    if (!trial || causes.length === 0) continue;
+    add(
+      recordQuestion(
+        `r:${seed}:trial:${trial.id}`,
+        recordCopy('trialPrompt', { trial: trial.title }),
+        recordCopy(causes[0]),
+        TRIAL_CAUSES.filter((cause) => !causes.includes(cause)).map((cause) => recordCopy(cause))
+      )
+    );
+  }
+  return questions;
+}
+
+/** Every question the quiz can deal now: the record's, then the unlocked notes'. */
+export function quizPool(state: ChronicleState): ShownQuizQuestion[] {
+  return [
+    ...recordQuizQuestions(state),
+    ...getQuizQuestions()
+      .filter((question) => state.unlockedNotes.includes(question.noteId))
+      .map((question) => ({ ...question, options: [...question.options] })),
+  ];
+}
+
+/**
+ * The question with its options in a seeded order: stable for a seed, different
+ * across seeds. The order permutes indices, so every language deals the same.
+ */
+export function presentQuizQuestion<
+  Q extends { id: string; options: readonly string[]; correctIndex: number },
+>(
+  question: Q,
+  seed: number
+): Omit<Q, 'options' | 'correctIndex'> & {
+  options: string[];
+  correctIndex: number;
+} {
+  const draw = chronicleStream(seed, `quiz-options:${question.id}`, 0);
+  const order = question.options
+    .map((_, index) => ({ index, key: draw() }))
+    .sort((a, b) => a.key - b.key)
+    .map((entry) => entry.index);
+  return {
+    ...question,
+    options: order.map((index) => question.options[index]),
+    correctIndex: order.indexOf(question.correctIndex),
+  };
+}
+
+/**
+ * Up to ten question ids for a round: questions not yet attempted before those
+ * that have been, and within each the record's before the notes', so the notes
+ * fill a round the record is too thin for. The order within each is seeded by
+ * the round and the attempts made so far, so a reload does not deal it again.
+ */
+export function dealQuizRound(state: ChronicleState, round: number, size = 10): string[] {
+  const attempted = new Set([...state.quizAnswered, ...(state.quizAttempted ?? [])]);
+  const next = chronicleStream(
+    state.charter?.seed ?? 1,
+    `quiz:${attempted.size}:${state.sequence}`,
+    round
+  );
+  const rank = (question: ShownQuizQuestion) =>
+    (attempted.has(question.id) ? 2 : 0) + (question.noteId === null ? 0 : 1);
+  return quizPool(state)
+    .map((question) => ({ question, rank: rank(question), key: next() }))
+    .sort((a, b) => a.rank - b.rank || a.key - b.key)
+    .slice(0, size)
+    .map((entry) => entry.question.id);
 }

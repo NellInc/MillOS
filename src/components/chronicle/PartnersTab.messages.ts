@@ -6,6 +6,8 @@ export const messages = defineMessages({
     m2: 'Approval suspended',
     m3: 'Delegation to the AI partner',
     m4: 'Delegation level',
+    // The engine refuses a level under 2 while the administrator stays.
+    heldAdministrator: 'Under the federation administrator, the partner acts at level 2 or above.',
     m5: 'None yet',
     m6: 'Shift',
     m7: '(reversed)',
@@ -23,6 +25,10 @@ export const messages = defineMessages({
     b0: 'The AI partner’s brief',
     b1: 'What the partner would choose',
     b2: 'nothing it can take',
+    c0: 'Crop year {year} return: quota met',
+    c1: 'Crop year {year} return: quota missed',
+    c2: '{ladder}: {rung}',
+    c3: 'Warning acted on: {ladder}, {rung}',
   },
   'pt-BR': {
     m0: 'Clientes',
@@ -30,6 +36,7 @@ export const messages = defineMessages({
     m2: 'Aprovação suspensa',
     m3: 'Delegação ao parceiro de IA',
     m4: 'Nível de delegação',
+    heldAdministrator: 'Sob o administrador da federação, o parceiro age no nível 2 ou acima.',
     m5: 'Nenhuma por enquanto',
     m6: 'Turno',
     m7: '(revertida)',
@@ -47,5 +54,9 @@ export const messages = defineMessages({
     b0: 'A orientação do parceiro de IA',
     b1: 'O que o parceiro escolheria',
     b2: 'nada que ele possa assumir',
+    c0: 'Declaração do ano agrícola {year}: cota cumprida',
+    c1: 'Declaração do ano agrícola {year}: cota não cumprida',
+    c2: '{ladder}: {rung}',
+    c3: 'Aviso cumprido: {ladder}, {rung}',
   },
 });

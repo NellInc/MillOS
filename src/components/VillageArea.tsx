@@ -7,6 +7,7 @@ import {
   inRealmPatch,
 } from '../constants/publicRealmLayout';
 import { communityChimneyLevel } from '../simulation/communityLife';
+import { TOWN_HALL_RAMP } from '../constants/accessibilityLayout';
 import { FORGE_HEAT_LEVEL } from './models/GeneratedOfficeModel';
 import { VillagePublicRealm } from './scenery/WorldPublicRealm';
 import React, { useRef, useEffect, useMemo } from 'react';
@@ -3282,6 +3283,40 @@ export const VILLAGE_STREET_CORRIDORS = [
 ] as const;
 
 /**
+ * The town hall ramp's footprint and its paved foot landing, village frame
+ * (the hall's frame is turned half round at village z 20: (x, z) -> (-x, 20 - z)).
+ * The ramp runs past the hall's own footprint (to x 7.67, z 30.1) since it was
+ * rebuilt to Approved Document M (2026-11-13), so no verge grows through it,
+ * and its foot landing (1.26 h) is paved on to the east street's cobbles.
+ */
+export const VILLAGE_TOWN_HALL_RAMP_FOOTPRINT = (() => {
+  const r = TOWN_HALL_RAMP;
+  const minX = -(r.clearMaxX + r.kerb.width),
+    maxX = -r.minX,
+    minZ = 20 - r.top.maxZ,
+    maxZ = 20 - r.flights[1].toZ;
+  return {
+    x: (minX + maxX) / 2,
+    z: (minZ + maxZ) / 2,
+    halfX: (maxX - minX) / 2,
+    halfZ: (maxZ - minZ) / 2,
+  };
+})();
+export const VILLAGE_TOWN_HALL_RAMP_FOOT_PAVING = (() => {
+  const r = TOWN_HALL_RAMP;
+  const minX = -(r.clearMaxX + r.kerb.width),
+    maxX = VILLAGE_STREET_CORRIDORS[3].x - VILLAGE_STREET_CORRIDORS[3].halfX + 0.9,
+    minZ = 20 - r.flights[1].toZ - 0.2,
+    maxZ = 20 - r.footLanding.toZ + 0.6;
+  return {
+    x: (minX + maxX) / 2,
+    z: (minZ + maxZ) / 2,
+    halfX: (maxX - minX) / 2,
+    halfZ: (maxZ - minZ) / 2,
+  };
+})();
+
+/**
  * One plan controls the existing cobble sheet and verge scatter.
  * Working if the square and entrances remain connected, with clear streets
  * and grass between the plots instead of a single 70 by 130 metre apron.
@@ -3291,6 +3326,7 @@ export const VILLAGE_PAVED_AREAS = [
   { x: 0, z: -40, halfX: 12, halfZ: 12 },
   ...VILLAGE_STREET_CORRIDORS,
   { x: -17.1, z: 9, halfX: 3.2, halfZ: 1.05 }, // allotment gate to the square
+  VILLAGE_TOWN_HALL_RAMP_FOOT_PAVING,
   ...VILLAGE_BUILDING_FOOTPRINTS.filter((building) => Math.abs(building.x) > 10).map(
     ({ x, z, halfX }) => {
       const side = Math.sign(x);
@@ -3437,6 +3473,7 @@ const VILLAGE_BLOCKERS = [
   { x: 0, z: 6, halfX: 3.2, halfZ: 3.2 }, // fountain
   { x: 20, z: 25, halfX: 6, halfZ: 6 }, // duck pond
   { x: 0, z: 6, halfX: 10, halfZ: 10 }, // market square walking space
+  VILLAGE_TOWN_HALL_RAMP_FOOTPRINT,
 ] as const;
 
 /** Wall bases, rims and trunks: the junctions that read as a razor edge with

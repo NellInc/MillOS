@@ -13,6 +13,11 @@ export const messages = defineMessages({
     m8: '{unit} by source',
     m9: 'Fund since the charter was signed',
     m10: 'Net change',
+    m11: 'Plans: upkeep and costs avoided',
+    m12: 'Plan',
+    m13: 'Upkeep a shift',
+    m14: 'Avoided at the last close',
+    m15: 'Avoided since installed',
   },
   'pt-BR': {
     m0: 'Saldo',
@@ -26,5 +31,10 @@ export const messages = defineMessages({
     m8: '{unit} por origem',
     m9: 'Fundo desde a assinatura da carta',
     m10: 'Variação líquida',
+    m11: 'Planos: manutenção e custos evitados',
+    m12: 'Plano',
+    m13: 'Manutenção por turno',
+    m14: 'Evitado no último fechamento',
+    m15: 'Evitado desde a instalação',
   },
 });

@@ -16,6 +16,8 @@ export type PlantCondition = 'overhauled' | 'working' | 'tired';
 export type CustomerTemper = 'loyal' | 'mixed' | 'demanding';
 export type Fortune = 'kind' | 'even' | 'hard';
 export type ChronicleMode = 'historical' | 'no_trials' | 'sandbox';
+/** 63 shifts (full) or 27 (short), D3. See `schedule.ts`. */
+export type ChronicleLength = 'full' | 'short';
 
 export interface Charter {
   grain: GrainSupply;
@@ -23,6 +25,12 @@ export interface Charter {
   customers: CustomerTemper;
   fortune: Fortune;
   mode: ChronicleMode;
+  /**
+   * Stored only for a short chronicle. Absent is the full one: every save from
+   * before lengths existed, and every full chronicle since, so a full chronicle's
+   * state is unchanged by the option (plan item 4.2).
+   */
+  length?: ChronicleLength;
   /** Seed for every Chronicle draw. Fixed at signing. */
   seed: number;
 }
@@ -32,17 +40,12 @@ export interface Charter {
 // ---------------------------------------------------------------------------
 
 export type ChronicleResource = 'fund' | 'knowHow';
-/** Castles II's administrative, military and political points (docs/CHRONICLE.md, system 24). */
-export type Desk = 'works' | 'trade' | 'council';
-export type Cost = Partial<Record<ChronicleResource, number>> & {
-  attention?: Partial<Record<Desk, number>>;
-};
-
-export interface DeskState {
-  points: number;
-  room: number;
-  spent: number;
-}
+/**
+ * What a choice costs. Castles II's desks of attention (works, trade and
+ * council points) were cut on 2026-11-13 (D10): over 63 shifts they never
+ * bound, and a slower refill that made them bind only forced lapses.
+ */
+export type Cost = Partial<Record<ChronicleResource, number>>;
 
 export type FundSource =
   | 'charter'
@@ -58,7 +61,12 @@ export type FundSource =
   | 'treatment'
   | 'federation'
   | 'reserve'
-  | 'concessions';
+  | 'concessions'
+  // Plan item 4.3: plant cost an installed plan avoided, at the full rate.
+  | 'avoided'
+  // Drying a Chronicle answer (the hired dryer, blending) kept off the plant's
+  // books, at the same full rate (review 2, finding 2).
+  | 'drying';
 
 export type KnowHowSource =
   | 'grades'
@@ -95,6 +103,11 @@ export interface ChronicleEffect {
   wearMultiplier: number;
   /** Quality points subtracted from the quality KPI. */
   qualityPenalty: number;
+  /**
+   * Multiplier on the energy the temper card's "dry first" books (plan item
+   * 7.7), 0 to 1: a hired mobile dryer makes it 0, blending halves it.
+   */
+  dryingEnergyMultiplier: number;
 }
 
 export interface ModifierValues {
@@ -108,6 +121,11 @@ export interface ModifierValues {
   forecastChance?: number;
   /** Upkeep multiplier. */
   upkeep?: number;
+  /**
+   * Multiplier on the energy the temper card's "dry first" books (plan item
+   * 7.7): 0 while a hired mobile dryer stands.
+   */
+  dryingEnergy?: number;
   /**
    * A ceiling on the production multiplier (Mao's Legacy: "Industry does not
    * rise above 50.0"). It costs nothing until the plant would run above it.
@@ -243,6 +261,29 @@ export interface CropYearState {
   index: number;
   kind: CropKind;
   treated: boolean;
+  /**
+   * How the line's wet grain is tempered this crop year (plan item 7.7,
+   * chronicle/temper.ts). Absent on a save from before it, and on any year
+   * no temper card has answered: the standard temper.
+   */
+  temper?: TemperState;
+}
+
+/** A temper answer (chronicle/temper.ts): the standard temper, or drying the wheat first. */
+export type TemperOptionId = 'standard' | 'dry-first';
+
+/** One shift's wheat tempered one way, at the rolls from `fromMinute` (campaign game minutes). */
+export interface TemperEntry {
+  option: TemperOptionId;
+  fromMinute: number;
+  untilMinute: number;
+}
+
+export interface TemperState {
+  /** The temper of the grain at the rolls now. */
+  inForce: TemperOptionId;
+  /** Answers given, latest last, until each has passed. */
+  schedule: TemperEntry[];
 }
 
 // ---------------------------------------------------------------------------
@@ -299,6 +340,25 @@ export interface RelationshipDelta {
 // ---------------------------------------------------------------------------
 
 export type MarkId = string;
+
+/**
+ * A finished cooperative season on the floor, as the shift-close evidence
+ * carries it (plan item 5.10): facts only, no kilograms, no credits and
+ * nothing about a person.
+ */
+export interface CooperativeSeasonFact {
+  seasonId: string;
+  profile: 'toe-dip' | 'team' | 'cooperative';
+  delivery: 'met' | 'shortfall' | 'blocked' | 'pending';
+  agreement: 'honoured' | 'incomplete' | 'pending';
+  sobrasDestination: 'members' | 'reserve' | 'community' | null;
+}
+
+/** A season the Chronicle has written into its record, and the shift it closed in. */
+export interface CooperativeSeasonRecord extends CooperativeSeasonFact {
+  shift: number;
+}
+
 export type FrontId = 'intake' | 'floor';
 export type Leaning = 'growers' | 'customers' | 'ledger' | 'standards' | 'valley';
 
@@ -327,6 +387,12 @@ export interface ChronicleCondition {
   minStanding?: number;
   suspended?: boolean;
   anyOf?: ChronicleCondition[];
+  /**
+   * This long-night front has less preparation than the other (a tie is the
+   * roller floor's). Read where the engine picks a choice's variant
+   * (`effectiveChoice`), since preparation lives in longNight.ts.
+   */
+  weakerFront?: FrontId;
 }
 
 export interface FollowUp {
@@ -345,6 +411,12 @@ export interface CertifierState {
   /** Standing in hundredths, 100 to 999; standing is the hundreds digit. */
   score: number;
   suspended: boolean;
+  /**
+   * Batches that passed QC since the certifier last read the record, and the
+   * hundredths they will bring at its review at the crop year's turn. Absent in
+   * saves from before the review; absent reads as none.
+   */
+  review?: { batches: number; hundredths: number };
 }
 
 export interface ChronicleEventEffect {
@@ -372,6 +444,8 @@ export interface ChronicleEventEffect {
   treatCrop?: boolean;
   /** Close an open food-safety inspection. */
   closeInspection?: boolean;
+  /** The assembly accepts the federation's administrator (system 32). */
+  administration?: boolean;
   unlockNote?: string;
   /** Result text shown in the notes feed. */
   result: string;
@@ -474,8 +548,10 @@ export type Medal = 'gold' | 'silver' | 'bronze';
 export interface TrialDefinition {
   id: TrialId;
   title: string;
-  /** Shift index at which the trial starts; it is telegraphed two shifts earlier. */
+  /** Shift index at which the trial starts; it is telegraphed `telegraphShifts` earlier. */
   startShift: number;
+  /** Shifts of warning before the start; absent is TRIAL_TELEGRAPH_SHIFTS (2). */
+  telegraphShifts?: number;
   durationShifts: number;
   goldSpare: number;
   silverSpare: number;
@@ -483,8 +559,23 @@ export interface TrialDefinition {
   introNoteId: string;
   outroNoteId: string;
   briefing: string;
+  /**
+   * The briefing with its goal's figures as `{kg}` and `{cap}` (item 4.1): the
+   * English `briefing` is it filled; the trial in another language fills its
+   * translation. Absent where the briefing names no figure.
+   */
+  briefingTemplate?: string;
+  /**
+   * What the trial tested on the plant floor, as announcements from item 4.5
+   * until D14 cut it as advice carried it after the briefing. Shown nowhere
+   * now; kept so a saved announcement is still recognised and translated.
+   */
+  floor: string;
   pressureBeat: string;
 }
+
+/** A condition of a clean close that a close failed (item 4.5). */
+export type CleanCloseBreak = 'qc' | 'quality' | 'incident';
 
 export type TrialGoal =
   | {
@@ -511,6 +602,11 @@ export interface TrialProgress {
    */
   gradedShifts?: number;
   cleanCloses: number;
+  /**
+   * The last close that broke a run of clean closes, and what it lacked, so the
+   * failure can say so. Absent in saves from before it, and until a run breaks.
+   */
+  brokenAt?: { shift: number; causes: CleanCloseBreak[] };
   medal: Medal | null;
   pressureShown: boolean;
   failureReason: string | null;
@@ -707,13 +803,14 @@ export interface PolicyProposal {
   concessions: CrewRoleId[];
 }
 
-/** A member outvoted on a need. It stands until the need is met or the policy moves off. */
-export interface CrewObjection {
-  memberId: CrewRoleId;
-  ladder: PolicyLadder;
-  rung: PolicyRung;
-  raisedShift: number;
-}
+/**
+ * A member's standing objection, met through their concession. Either they
+ * were outvoted on a need (the step, lifted when the policy moves off), or a
+ * ruling in the record cut against what they value (`ruling`, item 4.10).
+ */
+export type CrewObjection =
+  | { memberId: CrewRoleId; ladder: PolicyLadder; rung: PolicyRung; raisedShift: number }
+  | { memberId: CrewRoleId; ruling: MarkId; raisedShift: number; ladder?: never; rung?: never };
 
 /** One crop year's return to the federation, drawn from recorded evidence only. */
 export interface CropYearReturn {
@@ -773,4 +870,26 @@ export interface GovernanceState {
   administration: { untilShift: number; previousDelegation: DelegationLevel } | null;
   /** The charter's tired machinery has been renewed. */
   machineryRenewed: boolean;
+  /**
+   * Organisations moved outside a ruling, oldest first and bounded. Rulings
+   * are read back from the event history; these have none. Absent in saves
+   * from before it was kept.
+   */
+  partyChanges?: PartyChangeRecord[];
+}
+
+/** What moved an organisation when no ruling did (systems 25, 28, 30). */
+export type PartyChangeCause =
+  /** A standing policy's effect at a crop year's turn. */
+  | { kind: 'policy'; ladder: PolicyLadder; rung: PolicyRung }
+  /** A red line's countdown ran out with the policy still on it. */
+  | { kind: 'red-line'; ladder: PolicyLadder; rung: PolicyRung }
+  /** A crop-year return met or missed its quota; `year` is the return's own. */
+  | { kind: 'quota'; met: boolean; year: number };
+
+export interface PartyChangeRecord {
+  party: StakeholderId;
+  shift: number;
+  delta: number;
+  cause: PartyChangeCause;
 }

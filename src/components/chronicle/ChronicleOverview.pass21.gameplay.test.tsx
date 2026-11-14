@@ -7,8 +7,8 @@ import { DEFAULT_CHARTER } from '../../chronicle/charter';
 import { createInitialState, type ChronicleState } from '../../chronicle/engine';
 import { emptyTrialProgress, trialById } from '../../chronicle/trials';
 
-// The wet-harvest trial runs four shifts: gold for completing within two, silver
-// within three. Two shifts in and not yet complete, gold can no longer be won.
+// The wet-harvest trial runs seven shifts (item 4.1): gold for completing within
+// five, silver within six. Five shifts in and not yet complete, gold is gone.
 describe('Trial card medal targets', () => {
   beforeEach(() => {
     useOperationsCampaignStore.getState().resetCampaign();
@@ -42,13 +42,13 @@ describe('Trial card medal targets', () => {
 
   it('offers gold and silver while both can still be won', () => {
     render(<ChronicleOverview state={activeTrial(1)} />);
-    expect(screen.getByText(/Gold within 2 shifts/)).toBeInTheDocument();
-    expect(screen.getByText(/Silver within 3 shifts/)).toBeInTheDocument();
+    expect(screen.getByText(/Gold within 5 shifts/)).toBeInTheDocument();
+    expect(screen.getByText(/Silver within 6 shifts/)).toBeInTheDocument();
   });
 
   it('stops offering a medal once the shifts it needed have been used', () => {
-    render(<ChronicleOverview state={activeTrial(2)} />);
+    render(<ChronicleOverview state={activeTrial(5)} />);
     expect(screen.queryByText(/Gold within/)).toBeNull();
-    expect(screen.getByText(/Silver within 3 shifts/)).toBeInTheDocument();
+    expect(screen.getByText(/Silver within 6 shifts/)).toBeInTheDocument();
   });
 });

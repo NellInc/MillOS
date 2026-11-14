@@ -14,6 +14,7 @@ import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { setLocale } from '../../../i18n';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
 
@@ -21,6 +22,7 @@ const open = (name: string) => fireEvent.click(screen.getByRole('button', { name
 
 /** A linked season whose 6,000 kg order was renegotiated to 4,800 kg, then shipped in full. */
 function shippedInFull() {
+  fulfilFirstDelivery();
   useWorkplaceStore.getState().startCampaign('cooperative', 17);
   const state = useWorkplaceStore.getState().workplace;
   useWorkplaceStore.setState({

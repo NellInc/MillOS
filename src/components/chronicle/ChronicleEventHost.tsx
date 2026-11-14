@@ -1,7 +1,7 @@
 import { EVENT_DECK, getEventDeck, localizedEventText } from '../../chronicle/eventDeck';
 import { formatGrouped } from '../../i18n';
 import { getFronts } from '../../chronicle/longNight';
-import { localizedConditionText } from '../../chronicle/record';
+import { localizedConditionText, localizedMarkLabel } from '../../chronicle/record';
 import { localizedDescribeEffect } from '../../chronicle/describe';
 import { useT } from '../../i18n';
 import { messages } from './ChronicleEventHost.messages';
@@ -20,7 +20,13 @@ import {
   knowHowOf,
 } from '../../chronicle/engine';
 import { canFundMitigations } from '../../chronicle/delegation';
-import { FRONT_HOLD_THRESHOLD, frontPreparation, otherFront } from '../../chronicle/longNight';
+import {
+  FRONT_HOLD_THRESHOLD,
+  FRONTS,
+  frontPreparation,
+  otherFront,
+} from '../../chronicle/longNight';
+import { INCIDENT_DEFINITIONS } from '../../stores/operationsCampaignStore';
 import { hasMark } from '../../chronicle/record';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -29,6 +35,8 @@ import { useMobileControlStore } from '../../stores/mobileControlStore';
 import { useMobileDetection } from '../../hooks/useMobileDetection';
 import { OPEN_EVENT } from './ChronicleOverview';
 import { BUTTON, BUTTON_PRIMARY, CostTag } from './shared';
+
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
 
 type Prompt = { kind: 'event'; instanceId: string } | { kind: 'fire' } | { kind: 'shortfall' };
 
@@ -222,6 +230,7 @@ export function ChronicleEventHost({
 
   let title = '';
   let body = '';
+  let cause: string | null = null;
   let icon = <ScrollText className="h-5 w-5 text-cyan-300" aria-hidden="true" />;
   let buttons: ReactNode = null;
 
@@ -277,14 +286,22 @@ export function ChronicleEventHost({
     if (!event) return null;
     title = event.title;
     body = pending.echo ? localizedEventText(event.id, pending.echo.text) : event.text;
-    // A choice the record has ruled out (its party is gone) is not offered at all;
-    // one that is only locked stays, and says what it needs.
-    const offered = event.choices.filter(
-      (choice) => !choice.requires?.marks?.none?.some((id) => hasMark(state, id))
-    );
-    buttons = offered.map((choice) => {
+    // The record entry that called this event up, as the notice log has it.
+    cause = pending.echo ? localizedEventText(event.id, pending.echo.because) : null;
+    buttons = event.choices.map((choice) => {
+      // A choice the record has ruled out (its party is gone) shows as gone, with
+      // the ruling that removed it; one that is only locked says what it needs.
+      const ruledOut = (choice.requires?.marks?.none ?? []).filter((id) => hasMark(state, id));
+      if (ruledOut.length)
+        return (
+          <button key={choice.id} className={`${BUTTON} text-left`} disabled>
+            <span className="line-through">{choice.label}</span>
+            {`: ${t('p16', { reason: ruledOut.map((id) => lowerFirst(localizedMarkLabel(id))).join('; ') })}`}
+          </button>
+        );
       const available = choiceAvailable(state, choice);
-      const { effect } = effectiveChoice(state, choice);
+      // The variant's because comes back in the interface language: `event` is from getEventDeck().
+      const { effect, because } = effectiveChoice(state, choice);
       const parts = [localizedDescribeEffect(effect, { suspended: state.certifier.suspended })];
       if (effect.holdFront) {
         const other = otherFront(effect.holdFront);
@@ -300,6 +317,16 @@ export function ChronicleEventHost({
             threshold: formatGrouped(FRONT_HOLD_THRESHOLD),
           })
         );
+        // A front that falls raises its incident (engine.ts, holdTheNight): say which, and its cost.
+        if (prepared < FRONT_HOLD_THRESHOLD) {
+          const stake = INCIDENT_DEFINITIONS[FRONTS[other].hazard];
+          parts.push(
+            t('nightRaises', {
+              incident: stake.title.toLowerCase(),
+              value: formatGrouped(stake.effect.productionMultiplier),
+            })
+          );
+        }
       }
       if (!available && choice.requires)
         parts.push(t('p15', { condition: localizedConditionText(choice.requires) }));
@@ -324,6 +351,7 @@ export function ChronicleEventHost({
           {choice.label}
           {text ? `: ${text}` : ''}
           <CostTag state={state} cost={choice.cost} />
+          {because ? <span className="mt-0.5 block text-violet-200">{because}</span> : null}
         </button>
       );
     });
@@ -354,6 +382,11 @@ export function ChronicleEventHost({
           {icon}
           {title}
         </h2>
+        {cause ? (
+          <p className="mt-2 leading-6 text-violet-200 [@media(max-height:500px)]:leading-5">
+            {cause}.
+          </p>
+        ) : null}
         <p className="mt-2 leading-6 [@media(max-height:500px)]:leading-5">{body}</p>
         <div className="mt-3 flex flex-col gap-2 [@media(max-height:500px)]:grid [@media(max-height:500px)]:grid-cols-2">
           {buttons}

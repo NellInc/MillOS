@@ -54,17 +54,17 @@ export const stewardDeckMessages = defineMessages({
       'The AI partner ends the haulage contract and rules the remaining cases.',
     'evt-court-granary.title': 'The old granary',
     'evt-court-granary.text':
-      'Next at arbitration: the old granary across the lane is claimed twice. The previous manager promised it to Community Pasta Works for semolina storage; the village committee has used it for three years to keep its community bakery’s flour and wants that confirmed. The deeds are the mill’s.',
-    'evt-court-granary.choices.pasta.label': 'Honour the promise to the pasta works',
+      'Next at arbitration: the old granary across the lane is claimed twice. The previous manager promised it to Community Polenta Kitchen for cornmeal storage; the village committee has used it for three years to keep its community bakery’s flour and wants that confirmed. The deeds are the mill’s.',
+    'evt-court-granary.choices.pasta.label': 'Honour the promise to the polenta kitchen',
     'evt-court-granary.choices.pasta.effect.result':
-      'The pasta works takes the granary; the village bakery moves its flour out.',
+      'The polenta kitchen takes the granary; the village bakery moves its flour out.',
     'evt-court-granary.choices.village.label': 'Confirm the village bakery',
     'evt-court-granary.choices.village.effect.result':
-      'The village bakery keeps the granary. The pasta works is not pleased.',
+      'The village bakery keeps the granary. The polenta kitchen is not pleased.',
     'evt-court-granary.choices.compensate.label':
-      'Confirm the village and promise the pasta works compensation',
+      'Confirm the village and promise the polenta kitchen compensation',
     'evt-court-granary.choices.compensate.effect.result':
-      'The village keeps the granary and the pasta works accepts a promise of storage later.',
+      'The village keeps the granary and the polenta kitchen accepts a promise of storage later.',
     'evt-court-granary.choices.keep.label': 'Keep the granary for the mill',
     'evt-court-granary.choices.keep.effect.result':
       'The mill lets the granary to a seed merchant and banks the rent.',
@@ -93,15 +93,15 @@ export const stewardDeckMessages = defineMessages({
     'evt-precedent.choices.refuse.label': 'Hold this firm to its contract',
     'evt-precedent.choices.refuse.effect.result':
       'The firm sends a relief van the same day. The haulier hears the mill has two rules.',
-    'evt-debt-pasta.title': 'The pasta works asks what was promised',
+    'evt-debt-pasta.title': 'The polenta kitchen asks what was promised',
     'evt-debt-pasta.text':
-      'Community Pasta Works writes to ask for the storage it was promised when the old granary went to the village bakery. The east bin would do. Its buyer copies the federation.',
-    'evt-debt-pasta.choices.pay.label': 'Lease the pasta works the east bin as promised',
+      'Community Polenta Kitchen writes to ask for the storage it was promised when the old granary went to the village bakery. The east bin would do. Its buyer copies the federation.',
+    'evt-debt-pasta.choices.pay.label': 'Lease the polenta kitchen the east bin as promised',
     'evt-debt-pasta.choices.pay.effect.result':
-      'The east bin is cleaned out and leased to the pasta works.',
+      'The east bin is cleaned out and leased to the polenta kitchen.',
     'evt-debt-pasta.choices.refuse.label': 'Say the mill cannot spare it',
     'evt-debt-pasta.choices.refuse.effect.result':
-      'The promise is broken. The pasta works says so to the federation.',
+      'The promise is broken. The polenta kitchen says so to the federation.',
     'evt-sacks-short-again.title': 'The bales come up short again',
     'evt-sacks-short-again.text':
       'The packers count a bale by hand for the first time since arbitration day, and it is four sacks short. The supplier has been short-counting for weeks.',
@@ -263,6 +263,20 @@ export const stewardDeckMessages = defineMessages({
       'The mill puts its own hands on the roller floor through the grid emergency.',
     'evt-long-night.choices.partner.label': 'Leave it to the AI partner',
     'evt-long-night.choices.partner.effect.result': 'The AI partner holds the roller floor.',
+    'evt-long-night.choices.partner.variants.0.because':
+      'Because the intake and grain stores were the less prepared',
+    'evt-long-night.choices.partner.variants.0.effect.result':
+      'The AI partner holds the intake and grain stores.',
+    'evt-federation-administrator.title': 'The federation offers an administrator',
+    'evt-federation-administrator.text':
+      'The regional federation offers to send an administrator for four shifts: the policies held where they stand, upkeep x1.1 for its keep, and the AI partner acting at Forecasts or above. The mill is its members’ own, so the assembly can accept the support or refuse it.',
+    'evt-federation-administrator.choices.accept.label':
+      'Accept the federation’s support: it pays the upkeep for 4 shifts',
+    'evt-federation-administrator.choices.accept.effect.result':
+      'The assembly accepts the administrator for four shifts.',
+    'evt-federation-administrator.choices.refuse.label': 'Refuse it and steer the mill alone',
+    'evt-federation-administrator.choices.refuse.effect.result':
+      'The assembly refuses the administrator, and the federation takes it badly.',
   },
   'pt-BR': {
     'evt-standby-cover.title': 'Onde fica a equipe de prontidão',
@@ -317,17 +331,17 @@ export const stewardDeckMessages = defineMessages({
       'O parceiro de IA encerra o contrato de transporte e decide os casos restantes.',
     'evt-court-granary.title': 'O antigo celeiro',
     'evt-court-granary.text':
-      'O próximo caso da arbitragem: há duas reivindicações sobre o antigo celeiro do outro lado da estrada. A gerência anterior o prometeu a Community Pasta Works para armazenar sêmola; o comitê da vila o usa há três anos para guardar a farinha de sua padaria comunitária e quer a confirmação desse uso. A escritura pertence ao moinho.',
-    'evt-court-granary.choices.pasta.label': 'Honrar a promessa à fábrica de massas',
+      'O próximo caso da arbitragem: há duas reivindicações sobre o antigo celeiro do outro lado da estrada. A gerência anterior o prometeu a Community Polenta Kitchen para armazenar fubá; o comitê da vila o usa há três anos para guardar a farinha de sua padaria comunitária e quer a confirmação desse uso. A escritura pertence ao moinho.',
+    'evt-court-granary.choices.pasta.label': 'Honrar a promessa à cozinha de polenta',
     'evt-court-granary.choices.pasta.effect.result':
-      'A fábrica de massas fica com o celeiro; a padaria da vila retira sua farinha.',
+      'A cozinha de polenta fica com o celeiro; a padaria da vila retira sua farinha.',
     'evt-court-granary.choices.village.label': 'Confirmar o uso pela padaria da vila',
     'evt-court-granary.choices.village.effect.result':
-      'A padaria da vila mantém o celeiro. A fábrica de massas não fica satisfeita.',
+      'A padaria da vila mantém o celeiro. A cozinha de polenta não fica satisfeita.',
     'evt-court-granary.choices.compensate.label':
-      'Confirmar o uso pela vila e prometer compensação à fábrica de massas',
+      'Confirmar o uso pela vila e prometer compensação à cozinha de polenta',
     'evt-court-granary.choices.compensate.effect.result':
-      'A vila mantém o celeiro e a fábrica de massas aceita a promessa de armazenamento mais adiante.',
+      'A vila mantém o celeiro e a cozinha de polenta aceita a promessa de armazenamento mais adiante.',
     'evt-court-granary.choices.keep.label': 'Manter o celeiro para o moinho',
     'evt-court-granary.choices.keep.effect.result':
       'O moinho aluga o celeiro a um comerciante de sementes e guarda o aluguel.',
@@ -356,15 +370,15 @@ export const stewardDeckMessages = defineMessages({
     'evt-precedent.choices.refuse.label': 'Exigir que esta empresa cumpra o contrato',
     'evt-precedent.choices.refuse.effect.result':
       'A empresa envia uma van substituta no mesmo dia. A transportadora fica sabendo que o moinho usa dois critérios.',
-    'evt-debt-pasta.title': 'A fábrica de massas cobra a promessa',
+    'evt-debt-pasta.title': 'A cozinha de polenta cobra a promessa',
     'evt-debt-pasta.text':
-      'Community Pasta Works escreve cobrando o espaço de armazenamento prometido quando o antigo celeiro ficou com a padaria da vila. O silo leste serviria. Seu comprador envia cópia à federação.',
-    'evt-debt-pasta.choices.pay.label': 'Alugar o silo leste à fábrica de massas como prometido',
+      'Community Polenta Kitchen escreve cobrando o espaço de armazenamento prometido quando o antigo celeiro ficou com a padaria da vila. O silo leste serviria. Seu comprador envia cópia à federação.',
+    'evt-debt-pasta.choices.pay.label': 'Alugar o silo leste à cozinha de polenta como prometido',
     'evt-debt-pasta.choices.pay.effect.result':
-      'O silo leste é esvaziado, limpo e alugado à fábrica de massas.',
+      'O silo leste é esvaziado, limpo e alugado à cozinha de polenta.',
     'evt-debt-pasta.choices.refuse.label': 'Dizer que o moinho não pode cedê-lo',
     'evt-debt-pasta.choices.refuse.effect.result':
-      'A promessa é quebrada. A fábrica de massas comunica isso à federação.',
+      'A promessa é quebrada. A cozinha de polenta comunica isso à federação.',
     'evt-sacks-short-again.title': 'Voltam a faltar sacos nos fardos',
     'evt-sacks-short-again.text':
       'As ensacadeiras contam um fardo à mão pela primeira vez desde a arbitragem, e faltam quatro sacos. O fornecedor vem entregando sacos a menos há semanas.',
@@ -527,5 +541,19 @@ export const stewardDeckMessages = defineMessages({
       'O moinho emprega sua própria equipe no setor de moagem durante a emergência da rede.',
     'evt-long-night.choices.partner.label': 'Deixar com o parceiro de IA',
     'evt-long-night.choices.partner.effect.result': 'O parceiro de IA defende o setor de moagem.',
+    'evt-long-night.choices.partner.variants.0.because':
+      'Porque a recepção e os armazéns de grãos eram os menos preparados',
+    'evt-long-night.choices.partner.variants.0.effect.result':
+      'O parceiro de IA defende a recepção e os armazéns de grãos.',
+    'evt-federation-administrator.title': 'A federação oferece um administrador',
+    'evt-federation-administrator.text':
+      'A federação regional oferece enviar um administrador por quatro turnos: as políticas ficam onde estão, a manutenção x1,1 para custeá-lo e o parceiro de IA agindo em Previsões ou acima. O moinho pertence aos seus associados, então a assembleia pode aceitar o apoio ou recusá-lo.',
+    'evt-federation-administrator.choices.accept.label':
+      'Aceitar o apoio da federação: ela paga a manutenção por 4 turnos',
+    'evt-federation-administrator.choices.accept.effect.result':
+      'A assembleia aceita o administrador por quatro turnos.',
+    'evt-federation-administrator.choices.refuse.label': 'Recusar e conduzir o moinho sozinho',
+    'evt-federation-administrator.choices.refuse.effect.result':
+      'A assembleia recusa o administrador, e a federação não recebe bem a recusa.',
   },
 });

@@ -26,6 +26,27 @@ import {
   Quality,
 } from './types';
 
+/**
+ * Priority by consequence (plan item 7.4): a trip limit (HIHI/LOLO) on a tag
+ * that endangers people is CRITICAL and its warning band HIGH; on a tag that
+ * stops the plant, HIGH and MEDIUM; on anything else, MEDIUM and LOW. A lost
+ * signal ranks with the warning band. A tag with no authored consequence keeps
+ * the threshold mapping it always had.
+ */
+export function alarmPriorityFor(tag: TagDefinition, type: AlarmType): AlarmPriority {
+  const trip = type === 'HIHI' || type === 'LOLO';
+  switch (tag.consequence) {
+    case 'people':
+      return trip ? 'CRITICAL' : 'HIGH';
+    case 'plant':
+      return trip ? 'HIGH' : 'MEDIUM';
+    case 'process':
+      return trip ? 'MEDIUM' : 'LOW';
+    default:
+      return trip ? 'CRITICAL' : 'HIGH';
+  }
+}
+
 /** Shelved, suppressed and out-of-service alarms stay listed but do not annunciate. */
 const isInService = (alarm: Alarm): boolean => (alarm.disposition ?? 'IN_SERVICE') === 'IN_SERVICE';
 
@@ -226,7 +247,14 @@ export class AlarmManager {
     // one occurrence per sample.
     if (tagValue.quality === 'BAD') {
       if (!lastState?.inAlarm || lastState.type !== 'BAD_QUALITY') {
-        this.raiseAlarm(tag, 'BAD_QUALITY', numValue, 0, 'HIGH', tagValue.quality);
+        this.raiseAlarm(
+          tag,
+          'BAD_QUALITY',
+          numValue,
+          0,
+          alarmPriorityFor(tag, 'BAD_QUALITY'),
+          tagValue.quality
+        );
       }
       this.lastAlarmStates.set(tag.id, { inAlarm: true, type: 'BAD_QUALITY', value: numValue });
       return;
@@ -283,6 +311,21 @@ export class AlarmManager {
         threshold = tag.alarmLo;
         priority = 'HIGH';
       }
+    }
+
+    // The threshold mapping above stands for a tag with no authored consequence.
+    if (alarmType) priority = alarmPriorityFor(tag, alarmType);
+
+    // An UNCERTAIN reading (a stopped process value, or one the degraded
+    // control network is holding) cannot raise or change an alarm: nothing is
+    // known to have crossed a limit. It may still let a standing alarm return.
+    if (
+      alarmType &&
+      tagValue.quality === 'UNCERTAIN' &&
+      (!lastState?.inAlarm || lastState.type !== alarmType)
+    ) {
+      if (lastState) lastState.value = numValue;
+      return;
     }
 
     // Check if alarm state has changed

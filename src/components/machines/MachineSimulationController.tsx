@@ -12,7 +12,7 @@ import { MachineData } from '../../types';
 import { getWearConfig, useProductionStore, wearHoldsWarning } from '../../stores/productionStore';
 import { useBreakdownStore } from '../../stores/breakdownStore';
 import { incidentHoldsMachineWarning } from '../../stores/operationsCampaignStore';
-import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { selectRestartPending, useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { centralTick } from '../../systems/CentralTickSystem';
 import { plantSecondsForRealSeconds } from '../../simulation/pace';
 import {
@@ -68,8 +68,10 @@ export function updateOfflineMachineMetrics(plantSeconds = STANDARD_STEP_PLANT_S
     metrics: Partial<MachineData['metrics']>;
   }[] = [];
   // 'warning' is a running state, so a trip lifted while a facility stop,
-  // drill or interlocked crisis holds would start the unit mid-stop.
-  const stopHolds = useGameSimulationStore.getState().emergencyActive;
+  // drill or interlocked crisis holds would start the unit mid-stop, and one
+  // lifted after the stop clears would start it before RESTART LINE (D13).
+  const gameState = useGameSimulationStore.getState();
+  const stopHolds = gameState.emergencyActive || selectRestartPending(gameState);
   const flow = useMaterialFlowStore.getState();
 
   for (const machine of storeMachines) {

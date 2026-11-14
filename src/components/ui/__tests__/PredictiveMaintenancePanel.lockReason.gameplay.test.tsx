@@ -25,7 +25,7 @@ const worn: MachineData = {
 };
 
 const card = () =>
-  screen.getByRole('button', { name: 'Complete maintenance on Lock mill' }).closest('div.flex')!
+  screen.getByRole('button', { name: 'Start maintenance on Lock mill' }).closest('div.flex')!
     .parentElement!;
 
 describe('PredictiveMaintenancePanel names why a booked Complete is locked', () => {
@@ -58,9 +58,7 @@ describe('PredictiveMaintenancePanel names why a booked Complete is locked', () 
   it('names a facility stop on the card', () => {
     useGameSimulationStore.setState({ emergencyActive: true });
     render(<PredictiveMaintenancePanel />);
-    expect(
-      screen.getByRole('button', { name: 'Complete maintenance on Lock mill' })
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Start maintenance on Lock mill' })).toBeDisabled();
     expect(card()).toHaveTextContent(
       'The facility is stopped. Clear the stop before servicing a unit.'
     );
@@ -71,9 +69,7 @@ describe('PredictiveMaintenancePanel names why a booked Complete is locked', () 
       useBreakdownStore.getState().triggerBreakdown(worn.id, worn.name, 'mechanical');
     });
     render(<PredictiveMaintenancePanel />);
-    expect(
-      screen.getByRole('button', { name: 'Complete maintenance on Lock mill' })
-    ).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Start maintenance on Lock mill' })).toBeDisabled();
     expect(card()).toHaveTextContent('Machine is under repair: complete the work order first');
   });
 });

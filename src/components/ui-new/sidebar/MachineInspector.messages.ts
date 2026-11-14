@@ -21,19 +21,14 @@ const PT_PARTS: Record<string, string> = {
   motors: 'motores',
 };
 
-// 'a, b and c' / 'a, b e c'.
-const joinAnd = (items: readonly string[], and: string): string =>
-  items.length < 2
-    ? (items[0] ?? '')
-    : `${items.slice(0, -1).join(', ')} ${and} ${items[items.length - 1]}`;
-
 export const machineInspectorMessages = defineMessages({
   en: {
     criticalRestartGuidance:
       'Critical fault. Restart is locked until maintenance or a repair clears it.',
-    repairGuidance:
-      'Active repair work order. Use Mill Overview to dispatch service, complete and verify the repair, then request a controlled restart.',
-    warningGuidance: "Something's off. Check the metrics and maintenance log.",
+    // The refusal's own words (beginUnitService 'fault'), at both held buttons.
+    repairGuidance: 'Machine is under repair: complete the work order first.',
+    openWorkOrder: 'Open the work order',
+    // Kept (D14): the way out of an idle unit; Restart sits in a closed disclosure.
     idleRestartGuidance:
       'This unit is stopped. Restart Unit, under Inspect, returns it to service.',
     facilityStopRestartGuidance:
@@ -69,26 +64,26 @@ export const machineInspectorMessages = defineMessages({
     partsAllHeld: 'Every spare part in stock is held for a repair; maintenance needs a free one.',
     wearAndService: 'Wear and service',
     wear: 'Wear',
-    wearThresholds:
-      'Warning at {warning}%, breakdown at {breakdown}%. Efficiency {efficiency}%. Maintenance lowers wear; a restart does not.',
+    wearThresholds: 'Warning at {warning}%, breakdown at {breakdown}%. Efficiency {efficiency}%.',
     maintenanceCost: (p: { part: string; count: string }) =>
-      `Uses 1 spare part: ${p.part} (${p.count} in stock).`,
+      `Uses 1 spare part: ${p.part} (${p.count} in stock), returned if a fault ends the service.`,
     maintenanceCostHeld: (p: { part: string; count: string; held: string }) =>
-      `Uses 1 spare part: ${p.part} (${p.count} in stock, ${p.held} held for repairs).`,
-    maintenanceTitle: (p: { part: string }) =>
-      `Reduces machine wear (consumes 1 spare part: ${p.part})`,
-    maintenanceCostBooked: (p: { parts: readonly string[]; counts: readonly string[] }) =>
-      `Uses the booked service: ${p.parts.join(', ')} (${joinAnd(p.counts, 'and')} in stock).`,
-    maintenanceBookedShort: (p: { parts: readonly string[] }) =>
-      `The booked service waits for parts: ${p.parts.join(', ')}.`,
+      `Uses 1 spare part: ${p.part} (${p.count} in stock, ${p.held} held for repairs), returned if a fault ends the service.`,
     maintenanceBelowMinimum:
-      'Not needed yet: wear {wear}% is below the {minimum}% service minimum, so the unit runs at full efficiency.',
+      'Not needed yet: wear {wear}% is below the {minimum}% service minimum.',
     performingMaintenance: 'Performing Maintenance...',
     performMaintenance: 'Perform Maintenance',
+    performMaintenanceOffline: (p: { part: string; minutes: string }) =>
+      p.part
+        ? `Perform Maintenance · 1 × ${p.part} · ${p.minutes} min offline`
+        : `Perform Maintenance · ${p.minutes} min offline`,
+    servicingMinutesLeft: 'Offline for service · {minutes} min left',
+    servicePausedCrew: 'Service paused · Maintenance away, back at {time}',
+    serviceAwaitingCrew: 'Service waits for Maintenance · back at {time}',
     restarting: 'Restarting...',
     restartUnit: 'Restart Unit',
     recentMaintenance: 'Recent Maintenance',
-    noMaintenance: 'No maintenance on record. Either it is new, or it has been very lucky.',
+    noMaintenance: 'No maintenance on record.',
     serviceUnit: 'Service unit: {unit}',
     focusMachine: 'Focus machine',
 
@@ -97,6 +92,8 @@ export const machineInspectorMessages = defineMessages({
       'Cannot perform maintenance on {name}: parts inventory is empty. Wait for a parts delivery.',
     noPartsHeldMessage:
       'Cannot perform maintenance on {name}: every part in stock is held for a repair. Wait for a parts delivery.',
+    // No longer raised (a booked service costs one part, as Maintain does);
+    // kept so a notice saved in the bell still reads.
     noBookedPartsMessage:
       'Cannot perform maintenance on {name}: its booked service needs parts that are not free in stock. Wait for a parts delivery.',
     maintenanceNotNeededTitle: 'Maintenance Not Needed',
@@ -109,27 +106,29 @@ export const machineInspectorMessages = defineMessages({
     // Raw numbers, formatted here, so a notice kept in the bell reads them in
     // the language active when it is read.
     machineRestartedWornMessage: (p: { name: string; wear: number; threshold: number }) =>
-      `${p.name} restarted, but wear is still ${formatFixed(p.wear, 1, 'en')}% (it warns from ${formatFixed(p.threshold, 0, 'en')}%). A restart does not reduce wear: use Perform Maintenance.`,
+      `${p.name} restarted, but wear is still ${formatFixed(p.wear, 1, 'en')}% (it warns from ${formatFixed(p.threshold, 0, 'en')}%).`,
     machineRestartedIncidentTitle: 'Restarted, Still Warning',
     machineRestartedIncidentMessage:
-      '{name} restarted, but an open incident keeps it in warning until the incident is mitigated. A restart does not clear it.',
+      '{name} restarted, but an open incident keeps it in warning until the incident is mitigated.',
+    // Filed by the tick (unitService) when a fault ends a service under way.
+    serviceEndedByFaultTitle: 'Service ended by a fault',
+    serviceEndedByFaultMessage: (p: { name: string; part: string }) =>
+      `${p.name} faulted during its service. Its spare part (${p.part}) went back to stock; the repair takes over.`,
 
     trendLabel: 'Recorded feed rate trend in {unit}',
-    trendWaiting: 'Waiting for the historian to collect enough to draw a line.',
-    trendCaption: 'Feed rate ({unit}), recorded samples',
+    trendCaption: 'Feed rate ({unit})',
   },
   'pt-BR': {
     criticalRestartGuidance:
       'Falha crítica. O reinício fica bloqueado até que uma manutenção ou um reparo resolva a falha.',
-    repairGuidance:
-      'Ordem de serviço de reparo ativa. Use a Visão geral do moinho para enviar a equipe de manutenção, concluir e verificar o reparo e, depois, solicitar um reinício controlado.',
-    warningGuidance: 'Algo não está certo. Confira as métricas e o registro de manutenção.',
+    repairGuidance: 'A máquina está em reparo: conclua primeiro a ordem de serviço.',
+    openWorkOrder: 'Abrir a ordem de serviço',
     idleRestartGuidance:
       'Esta máquina está parada. Reiniciar unidade, em Inspecionar, a coloca de volta à operação.',
     facilityStopRestartGuidance:
-      'A unidade está parada. Libere a parada antes de reiniciar uma máquina.',
+      'O moinho está parado. Libere a parada antes de reiniciar uma máquina.',
     facilityStopMaintainGuidance:
-      'A unidade está parada. Libere a parada antes de fazer manutenção em uma máquina.',
+      'O moinho está parado. Libere a parada antes de fazer manutenção em uma máquina.',
 
     flowUnavailable: 'Fluxo indisponível',
     storageInventory: 'Estoque armazenado',
@@ -159,26 +158,26 @@ export const machineInspectorMessages = defineMessages({
       'Todas as peças em estoque estão reservadas para reparos; a manutenção precisa de uma livre.',
     wearAndService: 'Desgaste e manutenção',
     wear: 'Desgaste',
-    wearThresholds:
-      'Alerta em {warning}%, pane em {breakdown}%. Eficiência de {efficiency}%. A manutenção reduz o desgaste; o reinício, não.',
+    wearThresholds: 'Alerta em {warning}%, pane em {breakdown}%. Eficiência de {efficiency}%.',
     maintenanceCost: (p: { part: string; count: string }) =>
-      `Usa 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part} (${p.count} em estoque).`,
+      `Usa 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part} (${p.count} em estoque), devolvida se uma falha interromper a manutenção.`,
     maintenanceCostHeld: (p: { part: string; count: string; held: string }) =>
-      `Usa 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part} (${p.count} em estoque, ${p.held} reservadas para reparos).`,
-    maintenanceTitle: (p: { part: string }) =>
-      `Reduz o desgaste da máquina (consome 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part})`,
-    maintenanceCostBooked: (p: { parts: readonly string[]; counts: readonly string[] }) =>
-      `Usa o serviço agendado: ${p.parts.map((part) => PT_PARTS[part] ?? part).join(', ')} (${joinAnd(p.counts, 'e')} em estoque).`,
-    maintenanceBookedShort: (p: { parts: readonly string[] }) =>
-      `O serviço agendado aguarda peças: ${p.parts.map((part) => PT_PARTS[part] ?? part).join(', ')}.`,
+      `Usa 1 peça de reposição: ${PT_PARTS[p.part] ?? p.part} (${p.count} em estoque, ${p.held} reservadas para reparos), devolvida se uma falha interromper a manutenção.`,
     maintenanceBelowMinimum:
-      'Ainda não é necessária: o desgaste de {wear}% está abaixo do mínimo de {minimum}% para manutenção, e a unidade opera com eficiência total.',
+      'Ainda não é necessária: o desgaste de {wear}% está abaixo do mínimo de {minimum}% para manutenção.',
     performingMaintenance: 'Fazendo manutenção...',
     performMaintenance: 'Fazer manutenção',
+    performMaintenanceOffline: (p: { part: string; minutes: string }) =>
+      p.part
+        ? `Fazer manutenção · 1 × ${PT_PARTS[p.part] ?? p.part} · ${p.minutes} min fora de operação`
+        : `Fazer manutenção · ${p.minutes} min fora de operação`,
+    servicingMinutesLeft: 'Fora de operação para manutenção · faltam {minutes} min',
+    servicePausedCrew: 'Manutenção pausada · a equipe de Manutenção volta em {time}',
+    serviceAwaitingCrew: 'Manutenção à espera da equipe · volta em {time}',
     restarting: 'Reiniciando...',
     restartUnit: 'Reiniciar unidade',
     recentMaintenance: 'Manutenções recentes',
-    noMaintenance: 'Nenhuma manutenção registrada. Ou a máquina é nova, ou tem tido muita sorte.',
+    noMaintenance: 'Nenhuma manutenção registrada.',
     serviceUnit: 'Unidade de serviço: {unit}',
     focusMachine: 'Focar na máquina',
 
@@ -196,15 +195,17 @@ export const machineInspectorMessages = defineMessages({
     machineRecoveredMessage:
       '{name}: reinício concluído e métricas redefinidas para valores saudáveis.',
     machineRestartedMessage: '{name}: reinício concluído com sucesso.',
-    machineRestartedWornTitle: 'Reiniciada, ainda desgastada',
+    machineRestartedWornTitle: 'Reinício concluído, desgaste ainda alto',
     machineRestartedWornMessage: (p: { name: string; wear: number; threshold: number }) =>
-      `${p.name} reiniciou, mas o desgaste continua em ${formatFixed(p.wear, 1, 'pt-BR')}% (o alerta começa em ${formatFixed(p.threshold, 0, 'pt-BR')}%). Reiniciar não reduz o desgaste: use Fazer manutenção.`,
-    machineRestartedIncidentTitle: 'Reiniciada, ainda em alerta',
+      `${p.name} reiniciou, mas o desgaste continua em ${formatFixed(p.wear, 1, 'pt-BR')}% (o alerta começa em ${formatFixed(p.threshold, 0, 'pt-BR')}%).`,
+    machineRestartedIncidentTitle: 'Reinício concluído, ainda em alerta',
     machineRestartedIncidentMessage:
-      '{name} reiniciou, mas um incidente aberto a mantém em alerta até ser mitigado. Reiniciar não o resolve.',
+      '{name} reiniciou, mas uma ocorrência aberta mantém a máquina em alerta até ser mitigada.',
+    serviceEndedByFaultTitle: 'Manutenção interrompida por uma falha',
+    serviceEndedByFaultMessage: (p: { name: string; part: string }) =>
+      `${p.name} falhou durante a manutenção. A peça de reposição (${PT_PARTS[p.part] ?? p.part}) voltou ao estoque; o reparo assume.`,
 
     trendLabel: 'Tendência registrada da vazão de alimentação em {unit}',
-    trendWaiting: 'Aguardando o histórico reunir dados suficientes para traçar uma linha.',
-    trendCaption: 'Vazão de alimentação ({unit}), amostras registradas',
+    trendCaption: 'Vazão de alimentação ({unit})',
   },
 });

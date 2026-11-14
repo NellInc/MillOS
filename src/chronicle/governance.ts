@@ -29,6 +29,7 @@ import {
   crewMessages,
   ladderMessages,
   redLineMessages,
+  rulingMessages,
   rungMessages,
   temperamentMessages,
 } from './governance.messages';
@@ -180,7 +181,6 @@ export const MIDDLE_POLICIES: Readonly<Policies> = Object.freeze({
 export const POLICY_LOCK_SHIFTS = 3;
 /** Putting a change to the assembly (CiK: "15 more points to change a doctrine"). */
 export const POLICY_KNOW_HOW = 4;
-export const POLICY_COUNCIL = 1;
 
 export function policyValues(policies: Policies): ModifierValues[] {
   return POLICY_LADDERS.map((ladder) => ladder.rungs[policies[ladder.id]].effect);
@@ -419,6 +419,35 @@ export const TEMPERAMENTS: Record<CrewMember['temperament'], { label: string; ru
   even: { label: 'Even-handed', rule: 'abstains on a change that does not touch them' },
 };
 
+/**
+ * Rulings that cut against what a role values (item 4.10; report 08, P6): a
+ * ruling that leaves this mark raises that member's standing objection, met
+ * through their usual concession. Keyed by role, so a saved crew reads it too;
+ * both profiles of each role hold the value it names.
+ */
+export const RULING_OBJECTIONS: ReadonlyArray<{
+  memberId: CrewRoleId;
+  mark: MarkId;
+  ruling: string;
+}> = [
+  {
+    memberId: 'intake-grader',
+    mark: 'grower-terminated',
+    ruling: 'ending the hail-struck farm’s contract',
+  },
+  { memberId: 'lab', mark: 'log-backdated', ruling: 'backdating the cleaning log' },
+];
+
+/** The ruling a member objects to, in the current interface language. */
+export function localizedRulingObjection(mark: MarkId): string {
+  return translate(rulingMessages(mark, rulingObjectionText(mark)), 'ruling');
+}
+
+/** The ruling a member objects to, as the ballot names it. */
+export function rulingObjectionText(mark: MarkId): string {
+  return RULING_OBJECTIONS.find((entry) => entry.mark === mark)?.ruling ?? mark;
+}
+
 /** How one member votes on a proposal. Their values decide it; nothing is rolled. */
 export function crewBallot(
   member: CrewMember,
@@ -437,16 +466,23 @@ export function crewBallot(
   }
   const standing = objections.find((objection) => objection.memberId === member.id);
   // The objection's step is the ladder's current one, so any move on it lifts it.
-  if (standing && standing.ladder === proposal.ladder && proposal.to !== standing.rung)
+  if (
+    standing?.ladder !== undefined &&
+    standing.ladder === proposal.ladder &&
+    proposal.to !== standing.rung
+  )
     return at(
       `it lifts their objection on ${ladderById(standing.ladder).label.toLowerCase()}`,
       'for'
     );
-  if (standing)
+  if (standing?.ladder !== undefined)
     return at(
       `their objection on ${ladderById(standing.ladder).label.toLowerCase()} still stands`,
       'against'
     );
+  // A ruling's objection is lifted only by meeting it; no step on a ladder answers it.
+  if (standing && 'ruling' in standing)
+    return at(`their objection to ${rulingObjectionText(standing.ruling)} still stands`, 'against');
   if (member.prefers.ladder === proposal.ladder) {
     const before = Math.abs(member.prefers.rung - proposal.from);
     const after = Math.abs(member.prefers.rung - proposal.to);
@@ -460,17 +496,70 @@ export function crewBallot(
 }
 
 export function assemblyBallots(
-  gov: Pick<GovernanceState, 'crew' | 'objections'>,
+  gov: Pick<GovernanceState, 'crew' | 'objections'> & Partial<Pick<GovernanceState, 'conditions'>>,
   proposal: Pick<PolicyProposal, 'ladder' | 'from' | 'to' | 'concessions'>
 ): CrewBallot[] {
-  return gov.crew.map((member) => crewBallot(member, proposal, gov.objections));
+  // Rule 4: a ruling's objection never holds the mill on a red line or on the
+  // step a standing condition needs left; those moves vote as they always did.
+  const protectedMove = tieCarries({ conditions: gov.conditions ?? [] }, proposal);
+  const objections = protectedMove
+    ? gov.objections.filter((objection) => !('ruling' in objection && objection.ruling))
+    : gov.objections;
+  return gov.crew.map((member) => crewBallot(member, proposal, objections));
 }
 
-export function assemblyCount(ballots: readonly CrewBallot[]) {
+/**
+ * One member, one vote; abstentions are not counted and a tie does not carry,
+ * unless `tieCarries` says this move is one a tie must carry. A vote nobody
+ * cast (all abstain, 0-0) is no tie: nothing carries (review 2).
+ */
+export function assemblyCount(ballots: readonly CrewBallot[], tieCarries = false) {
   const count = (vote: CrewBallot['vote']) => ballots.filter((b) => b.vote === vote).length;
   const votes = { for: count('for'), against: count('against'), abstain: count('abstain') };
-  // One member, one vote; abstentions are not counted and a tie does not carry.
-  return { ...votes, carried: votes.for > votes.against };
+  return {
+    ...votes,
+    carried:
+      votes.for > votes.against || (tieCarries && votes.for === votes.against && votes.for > 0),
+  };
+}
+
+/** The step each policy-raised standing condition needs the mill to leave, to clear. */
+export const CONDITION_POLICY_STEPS: Partial<
+  Record<StandingConditionId, { ladder: PolicyLadder; rung: PolicyRung }>
+> = {
+  'worn-rolls': { ladder: 'maintenance', rung: 0 },
+  'thin-stocks': { ladder: 'stock', rung: 0 },
+};
+
+/**
+ * Rule 4: a move off a red line, or off the step a standing condition needs the
+ * mill to leave, carries on a tie. Otherwise one member who prefers that step
+ * could carry the mill onto it and then tie the way back for good (report 08,
+ * defect 1). Every other move still needs more for than against.
+ */
+export function tieCarries(
+  gov: Pick<GovernanceState, 'conditions'>,
+  proposal: Pick<PolicyProposal, 'ladder' | 'from' | 'to'>
+): boolean {
+  return tieCarryReason(gov, proposal) !== null;
+}
+
+/**
+ * Why a tie carries this move, for the notice: it leaves a red line, or the step
+ * a standing condition needs left. Null when a tie does not carry it.
+ */
+export function tieCarryReason(
+  gov: Pick<GovernanceState, 'conditions'>,
+  proposal: Pick<PolicyProposal, 'ladder' | 'from' | 'to'>
+): 'red-line' | 'condition' | null {
+  if (proposal.to === proposal.from) return null;
+  if (RED_LINES.some((line) => line.ladder === proposal.ladder && line.rung === proposal.from))
+    return 'red-line';
+  const clearing = gov.conditions.some((condition) => {
+    const step = CONDITION_POLICY_STEPS[condition.id];
+    return step?.ladder === proposal.ladder && step.rung === proposal.from;
+  });
+  return clearing ? 'condition' : null;
 }
 
 /** Members a proposal's step outvotes on a need: their objection will stand. */
@@ -709,6 +798,66 @@ export function redLinesCrossed(policies: Policies): RedLine[] {
   return RED_LINES.filter((line) => policies[line.ladder] === line.rung);
 }
 
+// What a step sets off, for its button (report 08, P4). Read helpers only: the
+// rules stay in `assessConditions`, the red-line countdown and the assembly.
+
+/** A standing condition a step raises: after a run of shifts on it, or when a forecast strikes. */
+export interface RungCondition {
+  id: StandingConditionId;
+  afterShifts?: number;
+  forecast?: ForecastKind;
+}
+
+/** The ladder steps `assessConditions` raises a condition from, and what prevents it. */
+const RUNG_CONDITIONS: ReadonlyArray<
+  RungCondition & { ladder: PolicyLadder; rung: PolicyRung; preventedBy?: string }
+> = [
+  {
+    id: 'worn-rolls',
+    ladder: 'maintenance',
+    rung: 0,
+    afterShifts: WORN_ROLLS_AFTER,
+    preventedBy: 'roll-regrinding-shop',
+  },
+  { id: 'thin-stocks', ladder: 'stock', rung: 0, forecast: 'delayed_truck' },
+];
+
+/**
+ * The red lines a step would cross (not one its party has already acted on) and
+ * the conditions it would set off (not one already standing, nor one an installed
+ * plan prevents).
+ */
+export function rungConsequences(
+  gov: Pick<GovernanceState, 'brokenOff' | 'conditions'>,
+  ladder: PolicyLadder,
+  rung: PolicyRung,
+  installed: readonly string[]
+): { redLines: RedLine[]; conditions: RungCondition[] } {
+  return {
+    redLines: RED_LINES.filter(
+      (line) =>
+        line.ladder === ladder && line.rung === rung && !gov.brokenOff.includes(redLineKey(line))
+    ),
+    conditions: RUNG_CONDITIONS.filter(
+      (condition) =>
+        condition.ladder === ladder &&
+        condition.rung === rung &&
+        !gov.conditions.some((standing) => standing.id === condition.id) &&
+        !(condition.preventedBy && installed.includes(condition.preventedBy))
+    ).map(({ id, afterShifts, forecast }) => ({ id, afterShifts, forecast })),
+  };
+}
+
+/** How the assembly would vote on moving a ladder to a step now, counted as the engine counts it. */
+export function projectedVote(
+  gov: Pick<GovernanceState, 'crew' | 'objections' | 'conditions' | 'policies'>,
+  ladder: PolicyLadder,
+  to: PolicyRung
+) {
+  const proposal = { ladder, from: gov.policies[ladder], to, concessions: [] as CrewRoleId[] };
+  return assemblyCount(assemblyBallots(gov, proposal), tieCarries(gov, proposal));
+}
+
 // ---------------------------------------------------------------------------
 // 29. The partner's brief (CiK: "views ... help to predict their actions")
 // ---------------------------------------------------------------------------
@@ -911,9 +1060,9 @@ export function briefMitigationThreshold(brief: BriefId, kind: ForecastKind): nu
   }
 }
 
-/** A plan's running cost over a crop year, install included. */
-function yearCost(plan: ImprovementDefinition): number {
-  return plan.installCost + plan.upkeep * SHIFTS_PER_CROP_YEAR;
+/** A plan's running cost over a crop year of `yearShifts`, install included. */
+function yearCost(plan: ImprovementDefinition, yearShifts: number): number {
+  return plan.installCost + plan.upkeep * yearShifts;
 }
 
 /** Whether a plan serves what the brief values. */
@@ -941,8 +1090,12 @@ export function briefServes(brief: BriefId, plan: ImprovementDefinition): boolea
  * Conventional takes the cheapest install; a brief takes the plans that serve
  * it first, then the cheapest (thrift: the cheapest over a crop year).
  */
-export function briefInstallRank(brief: BriefId, plan: ImprovementDefinition): number {
-  const cost = brief === 'thrift' ? yearCost(plan) : plan.installCost;
+export function briefInstallRank(
+  brief: BriefId,
+  plan: ImprovementDefinition,
+  yearShifts = SHIFTS_PER_CROP_YEAR
+): number {
+  const cost = brief === 'thrift' ? yearCost(plan, yearShifts) : plan.installCost;
   return (briefServes(brief, plan) ? 0 : 100_000) + cost;
 }
 

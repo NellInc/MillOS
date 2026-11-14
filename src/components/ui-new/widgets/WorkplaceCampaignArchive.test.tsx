@@ -10,12 +10,18 @@ import { useOperationsCampaignStore } from '../../../stores/operationsCampaignSt
 import { setLocale } from '../../../i18n';
 import type { WorkplaceMission } from '../../../types/workplace';
 import { useWorkplaceReplayStore } from '../../../stores/workplaceReplayStore';
-import { createWorkplace } from '../../../simulation/bilateralWorkplace';
-import { requiredChecks, WORKPLACE_CHECKS } from '../../../simulation/workplaceCampaign';
+import { createWorkplace, transitionWorkplace } from '../../../simulation/bilateralWorkplace';
+import {
+  mondayMinute,
+  requiredChecks,
+  WORKPLACE_CHECKS,
+} from '../../../simulation/workplaceCampaign';
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 function finishCampaign() {
   const store = useWorkplaceStore.getState();
+  fulfilFirstDelivery();
   store.startCampaign('cooperative', 17);
   for (let shift = 0; shift < 3; shift++) {
     if (shift !== 1)
@@ -34,7 +40,7 @@ function finishCampaign() {
     expect(store.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
     while (useWorkplaceStore.getState().workplace.phase === 'active') {
       const state = useWorkplaceStore.getState().workplace;
-      if (shift === 1 && state.minute >= 25 && !state.campaign?.decision)
+      if (shift === 1 && state.minute >= mondayMinute(state) && !state.campaign?.decision)
         store.campaignDecision('inspect', 'quality');
       store.tick(5, 0, false);
     }
@@ -58,7 +64,8 @@ describe('completed campaign review interface', () => {
     finishCampaign();
     const fresh = vi.fn();
     render(<WorkplaceCampaignArchive onFreshExercise={fresh} />);
-    expect(screen.getByText(/400 illustrative credits/)).toBeInTheDocument();
+    // D14: the fresh-exercise caption (400 illustrative credits) is cut.
+    expect(screen.queryByText(/400 illustrative credits/)).toBeNull();
     fireEvent.click(
       screen.getByRole('button', { name: 'Archive review and open a fresh exercise' })
     );
@@ -107,6 +114,7 @@ describe('completed campaign review interface', () => {
   });
 
   it('does not offer a reset during an ordinary active or partial campaign', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startCampaign('team', 17);
     render(<WorkplaceCampaignArchive onFreshExercise={vi.fn()} />);
     expect(
@@ -118,6 +126,7 @@ describe('completed campaign review interface', () => {
 describe('leaving a season from the laboratory', () => {
   it('waits for a running shift, then keeps the left season apart from completed reviews', () => {
     const store = useWorkplaceStore.getState();
+    fulfilFirstDelivery();
     store.startCampaign('cooperative', 17);
     store.campaignDecision('keep-target', 'coordinator');
     for (const actor of ['packing', 'mind']) {
@@ -175,8 +184,13 @@ describe('the season’s earning link after its commitment', () => {
     evidence,
   });
   const season = (shift: number, followOn?: WorkplaceMission, missionKg = 0) => {
-    useWorkplaceStore.getState().startCampaign('cooperative', 17);
-    const state = useWorkplaceStore.getState().workplace;
+    // The notice reads only the state it is given, and the order book must
+    // keep the tour's first order active, so the season is built by the engine
+    // rather than through the store, which holds it for that delivery (D4).
+    const state = transitionWorkplace(useWorkplaceStore.getState().workplace, {
+      type: 'startCampaign',
+      args: ['cooperative', 17],
+    }).state;
     return {
       ...state,
       campaign: {

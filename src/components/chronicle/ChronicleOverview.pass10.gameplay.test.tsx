@@ -141,9 +141,10 @@ describe('crop penalty while active', () => {
   it('still shows the crop penalty the plant applies while the chronicle runs', () => {
     const base = signed();
     const state: ChronicleState = { ...base, crop: { index: 1, kind: 'wet', treated: false } };
-    expect(chronicleEffect(effectInput(state), true).qualityPenalty).toBe(6);
+    // The wet year's penalty, 5 since item 4.6.
+    expect(chronicleEffect(effectInput(state), true).qualityPenalty).toBe(5);
     render(<ChronicleOverview state={state} />);
-    expect(screen.getByText(/Wheat recipes quality -6/)).toBeInTheDocument();
+    expect(screen.getByText(/Wheat recipes quality -5/)).toBeInTheDocument();
     cleanup();
   });
 });

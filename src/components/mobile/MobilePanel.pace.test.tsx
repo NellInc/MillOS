@@ -38,6 +38,20 @@ describe('mobile pace buttons record the pace the player chose', () => {
     expect(useGameSimulationStore.getState().gameSpeed).toBe(60);
     expect(operatorLines()).toEqual(['Set the shift pace to Fast, 2x.']);
   });
+
+  // D21: on P's rule, a feature's hold refuses the button, which names it.
+  it('refuses Fast, 2x under the tour hold, names it, and logs nothing', () => {
+    useGameSimulationStore.setState({
+      gameSpeed: 0,
+      clockHolds: [{ holder: 'tour', resumeSpeed: 30 }],
+    });
+    render(<MobilePanel isVisible content="overview" onClose={vi.fn()} />);
+    const group = screen.getAllByRole('group', { name: /pace/i })[0];
+    fireEvent.click(within(group).getByRole('button', { name: 'Fast, 2x' }));
+    expect(useGameSimulationStore.getState().gameSpeed).toBe(0);
+    expect(screen.getByRole('alert')).toHaveTextContent(/Paused for the tour/);
+    expect(operatorLines()).toEqual([]);
+  });
 });
 
 // simulation.set-speed accepts any pace from 0 to 120. Below 0.1x the phone

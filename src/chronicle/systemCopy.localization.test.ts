@@ -21,7 +21,6 @@ import { FRONTS, frontSources, getFronts, localizedFrontSources } from './longNi
 import { DELEGATION_LEVELS, getDelegationLevels } from './delegation';
 import { CUSTOMERS, getCustomers } from './customers';
 import { traitLabel, localizedTraitLabel } from './contractors';
-import { deskLabel, localizedDeskLabel } from './desks';
 import {
   initialStakeholders,
   stakeholderName,
@@ -60,6 +59,8 @@ const copyKeys = new Set([
   'text',
   'effect',
   'briefing',
+  // What a trial tests on the floor (item 4.5).
+  'floor',
   'pressureBeat',
   'mitigationLabel',
   'subject',
@@ -89,7 +90,6 @@ describe('Chronicle system-copy read models', () => {
       expect(localizedTrialShortfall(raw, progress)).toBe(trialShortfall(raw, progress));
     }
     expect(localizedTraitLabel(trait)).toBe(traitLabel(trait));
-    expect(localizedDeskLabel('works')).toBe(deskLabel('works'));
     for (const party of context.stakeholders) {
       expect(localizedStakeholderName(party.id)).toBe(stakeholderName(party.id));
       expect(localizedStakeholderPhrase(party.id)).toBe(stakeholderPhrase(party.id));
@@ -105,7 +105,6 @@ describe('Chronicle system-copy read models', () => {
     const canonical = [
       trialGoalText(TRIALS[0]),
       traitLabel(trait),
-      deskLabel('works'),
       stakeholderName('growers'),
       stakeholderPhrase('growers'),
       stakeholderStanding(context.stakeholders, 'growers'),
@@ -119,17 +118,21 @@ describe('Chronicle system-copy read models', () => {
     expect(getEras()[0].label).toBe('Moinho da vila');
     expect(getImprovements()[0].label).toBe('Medidores de umidade dos grãos');
     expect(getCropYears().wet.label).toBe('Colheita úmida');
-    expect(getTrials()[0].briefing).toContain('6.000 kg');
-    expect(localizedTrialGoalText(TRIALS[3])).toContain('0,08');
+    // Goals from the measured plant (item 4.1), filled in the language shown.
+    const kgOf = (index: number) => {
+      const goal = TRIALS[index].goal;
+      return goal.kind === 'dispatch' ? goal.kg : 0;
+    };
+    expect(getTrials()[0].briefing).toContain(`${kgOf(0).toLocaleString('de-DE')} kg`);
+    expect(localizedTrialGoalText(TRIALS[3])).toContain('0,008');
     expect(
       localizedTrialShortfall(TRIALS[3], {
         ...emptyTrialProgress('grid_winter'),
         dispatchedKg: 3210,
         energyCost: 123,
       })
-    ).toContain('3.210 de 8.000 kg');
+    ).toContain(`3.210 de ${kgOf(3).toLocaleString('de-DE')} kg`);
     expect(localizedTraitLabel(trait)).toContain('12,5%');
-    expect(localizedDeskLabel('works')).toBe('Obras');
     expect(localizedStakeholderName('growers')).toBe('Cooperativa de produtores');
     expect(
       localizedFrontSources(context, 'intake').find((source) => source.id.startsWith('plan:'))
@@ -140,7 +143,6 @@ describe('Chronicle system-copy read models', () => {
     expect([
       trialGoalText(TRIALS[0]),
       traitLabel(trait),
-      deskLabel('works'),
       stakeholderName('growers'),
       stakeholderPhrase('growers'),
       stakeholderStanding(context.stakeholders, 'growers'),

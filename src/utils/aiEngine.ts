@@ -111,13 +111,6 @@ interface ProductionTargets {
   current: number;
 }
 
-const DECISION_TYPES: DecisionType[] = [
-  'coordination',
-  'optimization',
-  'prediction',
-  'maintenance',
-  'safety',
-];
 const MAX_METRIC_POINTS = 60;
 const MAX_PREDICTED_EVENTS = 10;
 const MAX_ANOMALIES = 100;
@@ -133,9 +126,6 @@ const createTypeStats = (): DecisionImpactStats['byType'] => ({
 });
 
 const metricHistory = new Map<string, TrendData>();
-const confidenceAdjustments = new Map<DecisionType, number>(
-  DECISION_TYPES.map((type) => [type, 0])
-);
 const outcomeHistory = new Map<DecisionType, boolean[]>();
 const machineDecisionCounts = new Map<string, number>();
 const activeCooldowns = new Map<string, number>();
@@ -376,7 +366,8 @@ function decisionForType(type: DecisionType, machine: MachineData): KeyedDecisio
   const vibration = finite(machine.metrics?.vibration);
   const load = finite(machine.metrics?.load);
   const wear = finite(machine.metrics?.wear);
-  const adjustment = confidenceAdjustments.get(type) ?? 0;
+  // A fixed figure per kind of card. It never moves with the player's answers:
+  // agreement with the player is not evidence that the card was right.
   const common = {
     id: makeId(`plant-${type}`),
     timestamp: new Date(),
@@ -395,7 +386,7 @@ function decisionForType(type: DecisionType, machine: MachineData): KeyedDecisio
           reasoning: { key: 'coordinationReasoning', params: { machineId: machine.id, load } },
           impact: { key: 'coordinationImpact' },
         }),
-        confidence: clamp(78 + adjustment, 45, 98),
+        confidence: 78,
         priority: load > 90 ? 'high' : 'medium',
       };
     case 'maintenance':
@@ -406,7 +397,7 @@ function decisionForType(type: DecisionType, machine: MachineData): KeyedDecisio
           reasoning: { key: 'maintenanceReasoning', params: { temperature, vibration, wear } },
           impact: { key: 'maintenanceImpact' },
         }),
-        confidence: clamp(82 + adjustment, 45, 98),
+        confidence: 82,
         priority: temperature >= 80 || vibration >= 4.5 || wear >= 85 ? 'critical' : 'high',
       };
     case 'safety':
@@ -417,7 +408,7 @@ function decisionForType(type: DecisionType, machine: MachineData): KeyedDecisio
           reasoning: { key: 'safetyReasoning' },
           impact: { key: 'safetyImpact' },
         }),
-        confidence: clamp(94 + adjustment, 50, 99),
+        confidence: 94,
         priority: 'critical',
       };
     case 'prediction':
@@ -431,7 +422,7 @@ function decisionForType(type: DecisionType, machine: MachineData): KeyedDecisio
           },
           impact: { key: 'predictionImpact' },
         }),
-        confidence: clamp(76 + adjustment, 40, 96),
+        confidence: 76,
         priority: temperature >= 80 || vibration >= 4.5 ? 'high' : 'medium',
       };
     case 'optimization':
@@ -445,11 +436,22 @@ function decisionForType(type: DecisionType, machine: MachineData): KeyedDecisio
           },
           impact: { key: 'optimizationImpact' },
         }),
-        confidence: clamp(74 + adjustment, 40, 95),
+        confidence: 74,
         priority: load > 90 ? 'high' : 'medium',
       };
   }
 }
+
+/**
+ * The card kinds the rules layer files: each one does something when accepted
+ * (safety idles a running unit, maintenance eases a tripped unit back, an
+ * optimization trims the line rate). 'prediction' and 'coordination' changed
+ * nothing when accepted (review 10, F3) and are no longer filed; the floor
+ * decisions they stood beside are the partner's proposals now
+ * (systems/partnerProposalRuntime.ts). Saved ones still read, and a pending one
+ * is withdrawn (retireRemovedCards).
+ */
+const FILED_TYPES: ReadonlySet<DecisionType> = new Set(['safety', 'maintenance', 'optimization']);
 
 export function generateContextAwareDecision(forceType?: DecisionType): AIDecision | null {
   const machines = getMachines();
@@ -491,9 +493,11 @@ export function generateContextAwareDecision(forceType?: DecisionType): AIDecisi
     finite(machine.metrics?.vibration) >= 3 ||
     finite(machine.metrics?.load) >= 88 ||
     finite(machine.metrics?.wear) >= 65;
+  // A unit in warning is the partner's to propose on (its wear prediction), not a card's.
   const type =
     forceType ??
-    (emergencyTest ? 'safety' : critical ? 'maintenance' : warning ? 'prediction' : 'optimization');
+    (emergencyTest ? 'safety' : critical ? 'maintenance' : warning ? null : 'optimization');
+  if (type === null || !FILED_TYPES.has(type)) return null;
   // Only the player (or the agent) resolves a pending card, and the store
   // refuses every admission once its 50 cards are all unresolved. So file no
   // copy of a card still waiting, and stop filing tactical cards with room
@@ -518,12 +522,10 @@ export function generateContextAwareDecision(forceType?: DecisionType): AIDecisi
 export function reactToAlert(alert: AlertData): AIDecision | null {
   const machine = getMachines().find((candidate) => candidate.id === alert.machineId);
   if (!machine) return null;
+  // Alarms only (scheduleAlertReactions files nothing else): no 'prediction' card.
+  if (alert.type !== 'critical' && alert.type !== 'safety' && alert.type !== 'warning') return null;
   const type: DecisionType =
-    alert.type === 'critical' || alert.type === 'safety'
-      ? 'safety'
-      : alert.type === 'warning'
-        ? 'maintenance'
-        : 'prediction';
+    alert.type === 'critical' || alert.type === 'safety' ? 'safety' : 'maintenance';
   const base = decisionForType(type, machine);
   const reaction: KeyedDecision = {
     ...base,
@@ -603,7 +605,6 @@ function recordDecisionOutcome(decision: AIDecision, success: boolean): void {
   outcomeHistory.set(decision.type, history);
   const successes = history.filter(Boolean).length;
   const rate = history.length > 0 ? successes / history.length : 0;
-  confidenceAdjustments.set(decision.type, clamp((rate - 0.65) * 20, -10, 10));
 
   impactStats.totalDecisions += 1;
   if (success) impactStats.successfulDecisions += 1;
@@ -674,16 +675,6 @@ export function resetShiftStats(): void {
     byType: createTypeStats(),
   };
   productionTargets.current = 0;
-}
-
-export function getConfidenceAdjustments(): Record<DecisionType, number> {
-  return Object.fromEntries(
-    DECISION_TYPES.map((type) => [type, confidenceAdjustments.get(type) ?? 0])
-  ) as Record<DecisionType, number>;
-}
-
-export function getConfidenceAdjustmentForType(type: DecisionType): number {
-  return confidenceAdjustments.get(type) ?? 0;
 }
 
 export function getCrossMachinePatterns(): CrossMachinePattern[] {
@@ -758,8 +749,8 @@ function trackTerminalOutcomeOnce(decision: AIDecision): void {
     if (oldestId === undefined) break;
     trackedOutcomeIds.delete(oldestId);
   }
-  // A deferral that lapsed was never tried, so it teaches the confidence
-  // learning nothing either way.
+  // A deferral that lapsed was never tried, so it counts in the outcome
+  // statistics neither way.
   if (decision.status === 'superseded' && decision.response?.disposition === 'deferred') return;
   trackDecisionOutcome(decision);
 }
@@ -1233,6 +1224,21 @@ export function isDeferralReturned(decisionId: string): boolean {
   );
 }
 
+/**
+ * A saved card of a kind no longer filed, still pending, is withdrawn: its
+ * buttons changed nothing. Answered ones keep their record.
+ */
+function retireRemovedCards(): void {
+  const store = useProductionStore.getState();
+  for (const decision of store.aiDecisions ?? [])
+    if (
+      decision.status === 'pending' &&
+      !decision.id.startsWith('strategic-') &&
+      !FILED_TYPES.has(decision.type)
+    )
+      store.updateDecisionStatus?.(decision.id, 'superseded', translate(msg, 'cardRetired'));
+}
+
 function sweepDeferredDecisions(): void {
   const clock = readPlantClock();
   if (!clock) return;
@@ -1285,26 +1291,15 @@ function aiLoop(): void {
   lastLoopAt = now;
   const config = useAIConfigStore.getState();
   const production = useProductionStore.getState();
-  const alerts = useUIStore.getState().alerts;
 
   if (now - lastMetrics >= AI_ENGINE_TIMING.metricsUpdateInterval) {
     lastMetrics = now;
-    const pending = production.aiDecisions.filter(
-      (decision) => decision.status === 'pending'
-    ).length;
-    const active = production.aiDecisions.filter(
-      (decision) => decision.status === 'in_progress'
-    ).length;
-    const alertLoad = alerts.filter(
-      (alert) => alert.type === 'critical' || alert.type === 'warning'
-    ).length;
-    config.updateSystemStatus({
-      cpu: clamp(12 + pending * 2 + active * 7 + alertLoad * 4, 8, 85),
-      memory: clamp(28 + production.aiDecisions.length * 0.45 + alerts.length, 20, 78),
-      decisions: production.aiDecisions.length,
-    });
+    // The card count only. The rules layer has no CPU or memory reading to
+    // report, so it writes none (review 10, F3).
+    config.updateSystemStatus({ decisions: production.aiDecisions.length });
   }
 
+  retireRemovedCards();
   sweepDeferredDecisions();
   // Agreed adjustments: alarms as light and vibration, quiet-room bookings
   // (aiAccommodation.ts, D-058). Runs while the clock is held, as alarms can.

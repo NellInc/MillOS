@@ -74,8 +74,9 @@ export const eventDeckMessages = defineMessages({
     'evt-wet-intake.text':
       'The moisture meter at the intake reads well above safe storage, load after load. Damp wheat bridges in the bins and mills soft and sticky. A mobile dryer can be hired, or the wet lots blended down with drier stored grain.',
     'evt-wet-intake.choices.dryer.label': 'Hire a mobile dryer',
+    'evt-wet-intake.choices.dryer.effect.modifier.label': 'Mobile dryer',
     'evt-wet-intake.choices.dryer.effect.result':
-      'The dryer brings the intake down to storage moisture and the wet-year penalty lifts.',
+      'A mobile dryer is hired for three shifts: drying the wheat before it is tempered books no energy while it stands.',
     'evt-wet-intake.choices.blend.label': 'Blend with stored grain',
     'evt-wet-intake.choices.blend.effect.modifier.label': 'Blending runs',
     'evt-wet-intake.choices.blend.effect.result':
@@ -189,15 +190,15 @@ export const eventDeckMessages = defineMessages({
       'The inspector signs off with a short list of actions to close.',
     'evt-two-buyers-one-slot.title': 'Two buyers, one slot',
     'evt-two-buyers-one-slot.text':
-      'Riverside Bakers’ Cooperative and Community Pasta Works both want the early collection slot at the loading bay for the coming week. The bakers want strong white for a festival weekend; the pasta works wants semolina before a menu change. Each asks the mill to put them first.',
+      'Riverside Bakers’ Cooperative and Community Polenta Kitchen both want the early collection slot at the loading bay for the coming week. The bakers want strong white for a festival weekend; the polenta kitchen wants cornmeal before a menu change. Each asks the mill to put them first.',
     'evt-two-buyers-one-slot.choices.bakers.label': 'Put the bakers first',
     'evt-two-buyers-one-slot.choices.bakers.effect.modifier.label': 'Strong-wheat conditioning',
     'evt-two-buyers-one-slot.choices.bakers.effect.result':
       'The bakers get the early slot; the longer strong-wheat conditioning draws more power.',
-    'evt-two-buyers-one-slot.choices.pasta.label': 'Put the pasta works first',
-    'evt-two-buyers-one-slot.choices.pasta.effect.modifier.label': 'Durum on the rolls',
+    'evt-two-buyers-one-slot.choices.pasta.label': 'Put the polenta kitchen first',
+    'evt-two-buyers-one-slot.choices.pasta.effect.modifier.label': 'Changeover to maize',
     'evt-two-buyers-one-slot.choices.pasta.effect.result':
-      'The pasta works gets the early slot; the hard durum is heavier on the rolls.',
+      'The polenta kitchen gets the early slot; the maize run means a changeover on the rolls.',
     'evt-two-buyers-one-slot.choices.rota.label': 'Keep the booking order',
     'evt-two-buyers-one-slot.choices.rota.effect.result':
       'The slot goes by the booking order and neither buyer is put first.',
@@ -313,8 +314,9 @@ export const eventDeckMessages = defineMessages({
     'evt-wet-intake.text':
       'O medidor de umidade na recepção indica valores muito acima do limite seguro de armazenamento, carga após carga. O trigo úmido forma pontes nos silos e fica mole e pegajoso na moagem. É possível alugar um secador móvel ou misturar os lotes úmidos com grãos mais secos do estoque.',
     'evt-wet-intake.choices.dryer.label': 'Alugar um secador móvel',
+    'evt-wet-intake.choices.dryer.effect.modifier.label': 'Secador móvel',
     'evt-wet-intake.choices.dryer.effect.result':
-      'O secador reduz a umidade do trigo recebido ao nível de armazenamento e elimina a penalidade da safra úmida.',
+      'Um secador móvel é alugado por três turnos: secar o trigo antes do condicionamento não gasta energia enquanto ele estiver aqui.',
     'evt-wet-intake.choices.blend.label': 'Misturar com grãos do estoque',
     'evt-wet-intake.choices.blend.effect.modifier.label': 'Misturas em processamento',
     'evt-wet-intake.choices.blend.effect.result':
@@ -428,16 +430,16 @@ export const eventDeckMessages = defineMessages({
       'O inspetor encerra a visita com uma breve lista de ações a concluir.',
     'evt-two-buyers-one-slot.title': 'Dois compradores, um horário',
     'evt-two-buyers-one-slot.text':
-      'Riverside Bakers’ Cooperative e Community Pasta Works querem o primeiro horário de coleta na doca na próxima semana. Os padeiros querem farinha branca forte para um festival de fim de semana; a fábrica de massas quer sêmola antes de mudar o cardápio. Cada um pede prioridade ao moinho.',
+      'Riverside Bakers’ Cooperative e Community Polenta Kitchen querem o primeiro horário de coleta na doca na próxima semana. Os padeiros querem farinha branca forte para um festival de fim de semana; a cozinha de polenta quer fubá antes de mudar o cardápio. Cada um pede prioridade ao moinho.',
     'evt-two-buyers-one-slot.choices.bakers.label': 'Priorizar os padeiros',
     'evt-two-buyers-one-slot.choices.bakers.effect.modifier.label':
       'Condicionamento de trigo forte',
     'evt-two-buyers-one-slot.choices.bakers.effect.result':
       'Os padeiros ficam com o primeiro horário; o condicionamento mais longo do trigo forte consome mais energia.',
-    'evt-two-buyers-one-slot.choices.pasta.label': 'Priorizar a fábrica de massas',
-    'evt-two-buyers-one-slot.choices.pasta.effect.modifier.label': 'Trigo durum nos rolos',
+    'evt-two-buyers-one-slot.choices.pasta.label': 'Priorizar a cozinha de polenta',
+    'evt-two-buyers-one-slot.choices.pasta.effect.modifier.label': 'Troca para milho nos rolos',
     'evt-two-buyers-one-slot.choices.pasta.effect.result':
-      'A fábrica de massas fica com o primeiro horário; o durum duro exige mais dos rolos.',
+      'A cozinha de polenta fica com o primeiro horário; a troca para milho exige mais dos rolos.',
     'evt-two-buyers-one-slot.choices.rota.label': 'Manter a ordem das reservas',
     'evt-two-buyers-one-slot.choices.rota.effect.result':
       'O horário segue a ordem das reservas e nenhum comprador recebe prioridade.',

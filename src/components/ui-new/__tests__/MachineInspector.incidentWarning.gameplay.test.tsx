@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MachineInspector } from '../sidebar/MachineInspector';
 import { MachineType, type MachineData } from '../../../types';
 import { useProductionStore } from '../../../stores/productionStore';
@@ -8,6 +8,7 @@ import { useBreakdownStore } from '../../../stores/breakdownStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useSafetyStore } from '../../../stores/safetyStore';
 import { useUIStore } from '../../../stores/uiStore';
+import { RESTART_GAME_SECONDS, resetUnitWork, stepUnitWork } from '../../../systems/unitService';
 
 // Low wear, cool and quiet: the only thing holding this unit in warning is
 // the open dust-filter incident raised against it.
@@ -28,7 +29,7 @@ let savedMachines: MachineData[];
 let savedIncidents: ReturnType<typeof useOperationsCampaignStore.getState>['incidents'];
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  resetUnitWork();
   savedMachines = useProductionStore.getState().machines;
   savedIncidents = useOperationsCampaignStore.getState().incidents;
   useBreakdownStore.setState({ activeBreakdowns: [], workOrders: [] });
@@ -47,9 +48,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.useRealTimers();
+  resetUnitWork();
   const game = useGameSimulationStore.getState();
   if (game.emergencyActive) game.resolveEmergency();
+  useGameSimulationStore.setState({ preEmergencyMachineStatuses: new Map() });
   useProductionStore.setState({ machines: savedMachines });
   useOperationsCampaignStore.setState({ incidents: savedIncidents });
   useSafetyStore.setState({ forkliftEmergencyStop: false });
@@ -65,32 +67,30 @@ const statusOf = () =>
 // restart cleared the incident's hold before the fix was applied.
 // Working if Restart leaves an incident-held unit in warning and says why.
 describe('MachineInspector Restart on a unit an open incident holds in warning', () => {
-  it('returns the unit to warning, not running, and does not claim it recovered', async () => {
+  it('returns the unit to warning, not running, and does not claim it recovered', () => {
     useProductionStore.setState({ machines: [sifter] });
     render(<MachineInspector machine={sifter} />);
     fireEvent.click(screen.getByText('Inspect'));
     fireEvent.click(screen.getByRole('button', { name: 'Restart Unit' }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
-    });
+    act(() => stepUnitWork(RESTART_GAME_SECONDS));
     expect(statusOf()).toBe('warning');
     const titles = useUIStore.getState().alerts.map((alert) => alert.title);
     expect(titles).not.toContain('Machine Recovered');
   });
 
-  it('hands a facility stop that lands mid-sequence the warning, not running', async () => {
+  it('hands a facility stop that lands mid-sequence the warning, not running', () => {
     useProductionStore.setState({ machines: [sifter] });
     render(<MachineInspector machine={sifter} />);
     fireEvent.click(screen.getByText('Inspect'));
     fireEvent.click(screen.getByRole('button', { name: 'Restart Unit' }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(500);
-    });
+    act(() => stepUnitWork(15));
     act(() => useGameSimulationStore.getState().triggerEmergency('E-STOP'));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(3000);
-    });
+    // The tick stands the restart down while the stop holds.
+    act(() => stepUnitWork(RESTART_GAME_SECONDS));
     act(() => useGameSimulationStore.getState().resolveEmergency());
+    // Clearing the stop leaves the line idle; the restart starts it (D13).
+    expect(statusOf()).toBe('idle');
+    act(() => useGameSimulationStore.getState().restartLine());
     expect(statusOf()).toBe('warning');
   });
 });

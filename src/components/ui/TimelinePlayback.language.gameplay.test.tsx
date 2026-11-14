@@ -63,11 +63,11 @@ describe('History replay decision list after a language switch', () => {
     useHistoricalPlaybackStore.getState().logDecision(engineDecision());
     useHistoricalPlaybackStore.getState().enterReplayMode(START + 60_000);
     render(<TimelinePlayback />);
-    expect(screen.getByText('Queue condition-based maintenance for R.M. 101')).toBeInTheDocument();
+    expect(screen.getByText('Return R.M. 101 to warning if it is critical')).toBeInTheDocument();
 
     act(() => setLocale('pt-BR'));
     expect(
-      screen.getByText('Programar manutenção baseada em condição para R.M. 101')
+      screen.getByText('Voltar R.M. 101 para alerta se estiver em estado crítico')
     ).toBeInTheDocument();
   });
 });

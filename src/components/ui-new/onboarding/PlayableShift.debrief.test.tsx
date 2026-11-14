@@ -80,7 +80,11 @@ const tick = (minutes: number, overrides: Partial<CampaignTickContext> = {}) =>
 
 /** A Morning in which the bakery order arrives ten minutes late. */
 function lateMorning() {
-  tick(249);
+  // To the due minute first: the late rate is booked over the whole tick an
+  // order turns late in, so one 249-minute step charged 249 minutes of
+  // lateness and, with grain now priced (plan 3.8), a negative margin.
+  tick(240);
+  tick(9);
   const [manifest, batch] = shipment('shipping-0001', 6000);
   tick(1, { manifests: [manifest], productionBatches: [batch] });
   tick(1, { shiftKey: 'day-0-afternoon', shiftLabel: 'Afternoon' });
@@ -145,7 +149,7 @@ describe('decisions in the debrief', () => {
     render(<ShiftDebrief />);
     expect(screen.getByRole('heading', { name: 'Your decisions this shift' })).toBeInTheDocument();
     expect(
-      screen.getByText('Community Pasta Works: Fine corn semolina is now the active commitment.')
+      screen.getByText('Community Polenta Kitchen: Cornmeal is now the active commitment.')
     ).toBeVisible();
     const narration = screen.getByText('What the mill did');
     expect(narration.closest('details')).not.toHaveAttribute('open');
@@ -189,8 +193,10 @@ describe('this shift so far (row 22)', () => {
     expect(
       screen.getByRole('heading', { name: /^Afternoon so far: provisional grade [A-F]$/ })
     ).toBeVisible();
+    // D14: the heading says the shift is open; no note under it repeats that.
+    expect(screen.queryByText(/This shift is still open/)).not.toBeInTheDocument();
     expect(
-      screen.getByText('Community Pasta Works: 4,000 of 4,000 kg, delivered on time.')
+      screen.getByText('Community Polenta Kitchen: 4,000 of 4,000 kg, delivered on time.')
     ).toBeVisible();
     expect(
       screen.getByText('County School Meals: 8,000 of 8,000 kg, delivered on time.')
@@ -219,6 +225,8 @@ describe('the end of a shift is in view (row 21)', () => {
     expect(
       screen.getByText(/Morning report is saved when the shift closes at 14:00/)
     ).toBeVisible();
+    // D14: the empty state names the state, not what to do meanwhile.
+    expect(screen.queryByText(/Keep operating/)).not.toBeInTheDocument();
     cleanup();
     act(() => setLocale('pt-BR'));
     render(<ShiftDebrief />);
@@ -336,7 +344,10 @@ it.each(['mixed', 'incident'] as const)(
     tick(1, { ...constraints, shiftKey: 'day-0-afternoon' });
     const report = useOperationsCampaignStore.getState().reports.at(-1)!;
     expect(report.gradeBasis!.lateDeliveries).toBe(1);
-    expect(report.grade).toBe(mode === 'mixed' ? 'C' : 'F');
+    // Re-pinned for plan item 3.4 (D6): flour under an order's minimum is not
+    // credited to it, so quality 80 no longer books failing kilograms (the F
+    // cap); the open serious incident caps the window at D.
+    expect(report.grade).toBe(mode === 'mixed' ? 'C' : 'D');
     if (mode === 'mixed') expect(report.gradeBasis!.risks).toHaveLength(1);
     else expect(report.gradeBasis!.unsafeTitles.length).toBeGreaterThan(0);
     const view = render(<ShiftDebrief />),

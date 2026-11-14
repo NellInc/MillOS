@@ -4,7 +4,6 @@ import {
   MachineData,
   MachineType,
   AIDecision,
-  ProductionTarget,
   type AIDecisionDisposition,
   type MaintenanceRecord,
 } from '../types';
@@ -61,21 +60,6 @@ export type { TruckScheduleState, TruckScheduleStore } from './truckScheduleStor
 // - incidentReplayStore.ts - Incident replay
 // - truckScheduleStore.ts - Truck scheduling
 // =========================================================================
-
-/**
- * Daily production goal in bags. Shared by ProductionTargetWidget (progress UI)
- * and UnifiedGameTick (milestone celebrations at 25/50/75/100%). A game day is
- * 2,880 plant seconds at any pace (pace.ts, STANDARD_GAME_SPEED = 30). Measured
- * on the material model over one game day: the three packers' ceiling is
- * 3 x 25 kg/s = 216 t (8,640 bags); with finished goods shipped every game hour
- * the line packs ~126 t (~5,000 bags); with nothing shipped the packers fill
- * their 5 t output buffers and stop at 15 t (600 bags). The 1,200 bags (30 t)
- * here therefore needs dispatch to keep up, and the order plan and truck cadence
- * cap a real day below the steady-dispatch figure. The former 5,000 asked for
- * that figure itself (the measurement fed 20 t wheat deliveries; the game's
- * GRAIN_DELIVERY_KG is 15 t), which no day in play reached.
- */
-export const DAILY_TARGET_BAGS = 1200;
 
 // =========================================================================
 // PERF: Throttled bag production accumulator
@@ -159,7 +143,8 @@ interface WearConfig {
   /**
    * Wear per SIMULATED second while running (0-100 scale), scaled by a load
    * factor of 0.5-1.5. The live tick (UnifiedGameTick) feeds it game seconds,
-   * so a roller mill warns about once per game day (~8.5 real min at 180x).
+   * so a roller mill warns about once per game day (48 real minutes at the
+   * standard pace of 30 game seconds per second, simulation/pace.ts).
    */
   wearRatePerSecond: number;
   /** Threshold where machine enters 'warning' state (0-100) */
@@ -168,6 +153,13 @@ interface WearConfig {
   breakdownThreshold: number;
   /** How much maintenance reduces wear (0-100) */
   maintenanceReduction: number;
+  /**
+   * Game minutes a routine service takes the unit offline (D7). On the game
+   * clock: P holds it and pace scales it. This plant has spare capacity
+   * (measured: no outage of any unit costs a tonne or delays an order), so the
+   * minutes are shown on the button and never priced in tonnes.
+   */
+  serviceMinutes: number;
 }
 
 /**
@@ -186,30 +178,35 @@ export const WEAR_CONFIG: Record<MachineType, WearConfig> = {
     warningThreshold: 70,
     breakdownThreshold: 95,
     maintenanceReduction: 40,
+    serviceMinutes: 20,
   },
   [MachineType.ROLLER_MILL]: {
     wearRatePerSecond: 0.0005,
     warningThreshold: 60,
     breakdownThreshold: 90,
     maintenanceReduction: 50,
+    serviceMinutes: 45,
   },
   [MachineType.PLANSIFTER]: {
     wearRatePerSecond: 0.0003,
     warningThreshold: 65,
     breakdownThreshold: 92,
     maintenanceReduction: 45,
+    serviceMinutes: 30,
   },
   [MachineType.PACKER]: {
     wearRatePerSecond: 0.0004,
     warningThreshold: 55,
     breakdownThreshold: 88,
     maintenanceReduction: 48,
+    serviceMinutes: 30,
   },
   [MachineType.CONTROL_ROOM]: {
     wearRatePerSecond: 0.0005,
     warningThreshold: 80,
     breakdownThreshold: 98,
     maintenanceReduction: 30,
+    serviceMinutes: 15,
   },
 };
 
@@ -219,6 +216,21 @@ export function getWearConfig(machineType: string): WearConfig {
     (WEAR_CONFIG as Record<string, WearConfig | undefined>)[machineType] ??
     WEAR_CONFIG[MachineType.ROLLER_MILL]
   );
+}
+
+/**
+ * Wear a repaired unit returns at, below its breakdown threshold. A repair
+ * replaces what failed (a bearing, a belt), not the worn rolls or screens, so
+ * the unit comes back still worn and still needs its service; the headroom is
+ * about two game hours of running for the first unit of a line at nominal load
+ * (roller mill: 5 / (0.0005 x 1.24) s), so it does not fail again at once. A
+ * fault raised below this wear (an incident trip) returns at the wear it had.
+ * Working if a repair never makes a unit better than a service would.
+ */
+export const REPAIR_HEADROOM_WEAR = 5;
+export function repairedWear(wear: number, machineType: string): number {
+  const ceiling = Math.max(0, getWearConfig(machineType).breakdownThreshold - REPAIR_HEADROOM_WEAR);
+  return Math.min(Number.isFinite(wear) ? Math.max(0, wear) : 0, ceiling);
 }
 
 /**
@@ -382,7 +394,9 @@ export interface ProductionStore
   /** Routine wear service; an active fault requires its exact queued work-order restart. */
   performMaintenance: (
     machineId: string,
-    restartWorkOrderId?: string
+    restartWorkOrderId?: string,
+    /** Game minutes the unit was offline for it, for the service record. */
+    durationMinutes?: number
   ) => {
     success: boolean;
     wearReduced: number;
@@ -416,12 +430,8 @@ export interface ProductionStore
   showHeatMap: boolean;
   setShowHeatMap: (show: boolean) => void;
 
-  // Production targets
-  productionTarget: ProductionTarget | null;
-  setProductionTarget: (target: ProductionTarget) => void;
-  updateProductionProgress: (bagsProduced: number) => void;
   totalBagsProduced: number;
-  /** Bags produced since the last game-day rollover (drives the daily target UI) */
+  /** Bags produced since the last game-day rollover: a count of output, not against a target */
   dailyBagsProduced: number;
   /** Reset the daily counter - called by the game tick on day rollover */
   resetDailyBagsProduced: () => void;
@@ -890,7 +900,11 @@ export const useProductionStore = create<ProductionStore>()(
       }),
 
     // MAINTENANCE SYSTEM - Reduces wear and repairs machines
-    performMaintenance: (machineId: string, restartWorkOrderId?: string) => {
+    performMaintenance: (
+      machineId: string,
+      restartWorkOrderId?: string,
+      durationMinutes?: number
+    ) => {
       const state = get();
       const machine = state.machines.find((m) => m.id === machineId);
 
@@ -942,7 +956,11 @@ export const useProductionStore = create<ProductionStore>()(
       }
 
       const wearConfig = getWearConfig(machine.type);
-      const wearReduced = Math.max(0, Math.min(currentWear, wearConfig.maintenanceReduction));
+      // A routine service takes off its reduction. A repair's restart is not a
+      // service: the unit returns just below its breakdown wear (repairedWear).
+      const wearReduced = authorizedRestart
+        ? Math.max(0, currentWear - repairedWear(currentWear, machine.type))
+        : Math.max(0, Math.min(currentWear, wearConfig.maintenanceReduction));
       const newWear = Math.max(0, currentWear - wearReduced);
       const newEfficiency = calculateEfficiency(newWear, machine.type);
 
@@ -1010,7 +1028,10 @@ export const useProductionStore = create<ProductionStore>()(
         id: recordId,
         type: authorizedRestart ? ('corrective' as const) : ('preventive' as const),
         serviceUnit: authorizedRestart ? (restartWorkOrderId ?? '') : '',
-        duration: 0,
+        duration:
+          Number.isFinite(durationMinutes) && (durationMinutes as number) > 0
+            ? (durationMinutes as number)
+            : 0,
         figures,
       };
       const record: WordedMaintenanceRecord = {
@@ -1243,42 +1264,9 @@ export const useProductionStore = create<ProductionStore>()(
     showHeatMap: false,
     setShowHeatMap: (show: boolean) => set({ showHeatMap: show }),
 
-    // Production targets
-    productionTarget: {
-      id: 'daily-target-1',
-      date: new Date().toISOString().split('T')[0],
-      targetBags: DAILY_TARGET_BAGS,
-      producedBags: 0,
-      targetThroughput: 1500,
-      actualThroughput: 0,
-      status: 'in_progress' as const,
-    },
-    setProductionTarget: (target: ProductionTarget) => set({ productionTarget: target }),
-    updateProductionProgress: (bagsProduced: number) =>
-      set((state) => ({
-        productionTarget: state.productionTarget
-          ? {
-              ...state.productionTarget,
-              producedBags: bagsProduced,
-              status:
-                bagsProduced >= state.productionTarget.targetBags ? 'completed' : 'in_progress',
-            }
-          : null,
-      })),
     totalBagsProduced: 0,
     dailyBagsProduced: 0,
-    resetDailyBagsProduced: () =>
-      set((state) => ({
-        dailyBagsProduced: 0,
-        // Keep the Overview panel's daily target in sync: new day, fresh count
-        productionTarget: state.productionTarget
-          ? {
-              ...state.productionTarget,
-              producedBags: 0,
-              status: 'in_progress' as const,
-            }
-          : null,
-      })),
+    resetDailyBagsProduced: () => set({ dailyBagsProduced: 0 }),
     incrementBagsProduced: (count = 1) =>
       set((state) => {
         // Validate input: ensure non-negative integer count
@@ -1296,20 +1284,6 @@ export const useProductionStore = create<ProductionStore>()(
             Number.MAX_SAFE_INTEGER,
             state.dailyBagsProduced + actualIncrement
           ),
-          productionTarget: state.productionTarget
-            ? {
-                ...state.productionTarget,
-                producedBags: Math.min(
-                  Number.MAX_SAFE_INTEGER,
-                  state.productionTarget.producedBags + actualIncrement
-                ),
-                status:
-                  state.productionTarget.producedBags + actualIncrement >=
-                  state.productionTarget.targetBags
-                    ? 'completed'
-                    : 'in_progress',
-              }
-            : null,
         };
       }),
 
@@ -1331,20 +1305,6 @@ export const useProductionStore = create<ProductionStore>()(
             Number.MAX_SAFE_INTEGER,
             state.dailyBagsProduced + actualIncrement
           ),
-          productionTarget: state.productionTarget
-            ? {
-                ...state.productionTarget,
-                producedBags: Math.min(
-                  Number.MAX_SAFE_INTEGER,
-                  state.productionTarget.producedBags + actualIncrement
-                ),
-                status:
-                  state.productionTarget.producedBags + actualIncrement >=
-                  state.productionTarget.targetBags
-                    ? 'completed'
-                    : 'in_progress',
-              }
-            : null,
         };
       }),
 

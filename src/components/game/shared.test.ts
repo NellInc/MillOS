@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { DAILY_TARGET_BAGS, useProductionStore } from '../../stores/productionStore';
+import { useProductionStore } from '../../stores/productionStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAnnouncementsStore } from '../../stores/announcementsStore';
@@ -73,9 +73,11 @@ describe('the PA stays quiet while the plant is nominal', () => {
         machine('nominal-pk', 'Packer Line 1', 'running'),
       ],
     } as never);
+    // Packing at 90% of the retired 1,200-bag day (D11), as before it went.
+    const dayBags = 1200;
     for (let minute = 1; minute <= 60; minute++) {
       useProductionStore.setState({
-        dailyBagsProduced: Math.floor(DAILY_TARGET_BAGS * 0.9 * (minute / 60)),
+        dailyBagsProduced: Math.floor(dayBags * 0.9 * (minute / 60)),
       });
       vi.advanceTimersByTime(MINUTE);
     }
@@ -150,6 +152,31 @@ describe('the PA stays quiet while the plant is nominal', () => {
     hook.unmount();
   });
 
+  // D-061 and D-098: muted, a fault is captioned once and builds no urgency
+  // until the sound is back.
+  it('captions a fault once while muted and builds no urgency until the sound is back', async () => {
+    const { audioManager } = await import('../../utils/audioManager');
+    const hook = renderHook(() => useEventAnnouncementScheduler());
+    vi.advanceTimersByTime(5_000);
+    (audioManager as { muted: boolean }).muted = true;
+    try {
+      useProductionStore.setState({
+        machines: [
+          machine(rm, 'R.M. 101', 'warning'),
+          machine('nominal-pk', 'Packer Line 1', 'running'),
+        ],
+      } as never);
+      vi.advanceTimersByTime(20 * MINUTE);
+      expect(lines()).toEqual([sharedMessages.en.machineWarning.replace('{machine}', 'R.M. 101')]);
+      (audioManager as { muted: boolean }).muted = false;
+      vi.advanceTimersByTime(3 * MINUTE + 10_000);
+      expect(lines()).toHaveLength(2);
+    } finally {
+      (audioManager as { muted: boolean }).muted = false;
+      hook.unmount();
+    }
+  });
+
   it('hears a flapping warning once in three minutes, and again after', () => {
     const hook = renderHook(() => useEventAnnouncementScheduler());
     vi.advanceTimersByTime(5_000);
@@ -204,7 +231,6 @@ describe('machine status PA notices beside an announced bell alert', () => {
     useAnnouncementsStore.setState({ mode: 'focused' });
     useProductionStore.setState({
       addAnnouncement,
-      productionTarget: null,
       machines: [
         machine('dedupe-a', 'R.M. 901', 'running'),
         machine('dedupe-b', 'R.M. 902', 'running'),

@@ -14,6 +14,7 @@ import {
 } from '../simulation/workplaceImprovement';
 import { cloneMaterialFlowData } from './materialFlowStore';
 import { captureCurrentPackingPlant } from './workplaceStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 beforeEach(() => {
   endReplayClock();
@@ -35,6 +36,17 @@ const prepare = () => {
   }
   return store;
 };
+
+/** An episode answer as a save from before 5b recorded it (no longer offered). */
+function legacyAnswer(actorId: string, choice: 'smaller-delivery' | 'decline') {
+  const w = useWorkplaceStore.getState().workplace;
+  useWorkplaceStore.setState({
+    workplace: {
+      ...w,
+      improvement: { ...w.improvement!, episode: { ...w.improvement!.episode!, actorId, choice } },
+    },
+  });
+}
 
 describe('improvement store boundaries', () => {
   it('does not advise departure through a paused direct incident gate before execution updates', () => {
@@ -114,12 +126,14 @@ describe('improvement store boundaries', () => {
     const finances = structuredClone(useWorkplaceStore.getState().workplace.finance);
     for (const e of HANDOFF_EPISODES) {
       expect(store.setImprovementEpisode(e.id).changed).toBe(true);
-      expect(store.respondImprovementEpisode('quality', 'decline').changed).toBe(true);
+      // 5.9: only answers with an effect are offered ("decline" is gone).
+      expect(store.respondImprovementEpisode('quality', 'decline').changed).toBe(false);
+      expect(store.respondImprovementEpisode('quality', 'defer').changed).toBe(true);
       const state = useWorkplaceStore.getState().workplace;
       expect(
         state.members.every((m) => m.ballot === null && !m.sharing && m.coverConsent === null)
       ).toBe(true);
-      expect(improvementEpisodeOutcome(state)).toContain('Extra duty is declined');
+      expect(improvementEpisodeOutcome(state)).toContain('trial is deferred');
       expect(state.finance).toEqual(finances);
       expect(cloneMaterialFlowData(useMaterialFlowStore.getState())).toEqual(plant);
       expect(store.respondImprovementEpisode('mind', 'ordinary').changed).toBe(false);
@@ -143,7 +157,9 @@ describe('improvement store boundaries', () => {
   it('shows honest outcomes for smaller delivery, assumed hold, deferral and a wage-first budget', () => {
     const store = prepare();
     store.setImprovementEpisode('late-truck');
-    store.respondImprovementEpisode('packing', 'smaller-delivery');
+    // A save from before 5b may hold the retired "smaller delivery" answer: it
+    // still reads honestly, though it is no longer offered.
+    legacyAnswer('packing', 'smaller-delivery');
     expect(improvementEpisodeOutcome(useWorkplaceStore.getState().workplace, 100)).toContain(
       'at most 100 kg'
     );
@@ -231,6 +247,7 @@ describe('improvement store boundaries', () => {
 
   it('cancels an unfunded first handoff shift back to its origin, after a reload too, and holds the clock only while it is decided', async () => {
     const store = useWorkplaceStore.getState();
+    fulfilFirstDelivery();
     expect(store.startCampaign('team', 3).changed).toBe(true);
     expect(store.stop().changed).toBe(true);
     const origin = structuredClone(useWorkplaceStore.getState().workplace);

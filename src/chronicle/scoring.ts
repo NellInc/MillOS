@@ -6,7 +6,7 @@
 import { charterScore, TRAINING_MODE } from './charter';
 import { eraById } from './plans';
 import { MEDAL_POINTS } from './trials';
-import type { Charter, EraId, Medal } from './types';
+import type { Charter, ChronicleLength, EraId, Medal } from './types';
 
 /**
  * Thresholds rescaled when part two raised the maximum from 53 to 60 (standing
@@ -52,6 +52,30 @@ export interface ScoreBreakdown {
   rank: string;
 }
 
+/** Points for the top era, Federated in a full chronicle (order 4, 3 an era). */
+export const TOP_ERA_POINTS = 12;
+
+/**
+ * The top era a chronicle of this length can reach (review 2, finding 10).
+ * Installs run one at a time (a crew installs one plan; a firm cannot be hired
+ * while one is installing), the twelve shortest installs before Federated take
+ * 31 shifts at a firm's ordinary speed, and on the probe all sixteen skilled 27-shift
+ * runs stopped at Regional with 9 or 10 installs. So in 27 shifts the ladder
+ * tops out at Regional.
+ */
+export const TOP_ERA_ORDER: Readonly<Record<'full' | 'short', number>> = { full: 4, short: 3 };
+
+/**
+ * An era's points as the share of the length's own ladder it climbed, so the
+ * top of either ladder is worth TOP_ERA_POINTS and a shorter chronicle loses
+ * nothing to its length (charter.ts LENGTH_OPTIONS: neither changes the score).
+ * A full chronicle scores 3 an era as before.
+ */
+export function eraPoints(era: EraId, length: ChronicleLength | undefined): number {
+  const top = TOP_ERA_ORDER[length === 'short' ? 'short' : 'full'];
+  return Math.min(TOP_ERA_POINTS, Math.round((eraById(era).order / top) * TOP_ERA_POINTS));
+}
+
 export function scoreChronicle(input: ScoreInput): ScoreBreakdown {
   const trials = input.trialMedals.reduce(
     (sum, medal) => sum + (medal ? MEDAL_POINTS[medal] : 0),
@@ -63,7 +87,7 @@ export function scoreChronicle(input: ScoreInput): ScoreBreakdown {
     .sort((a, b) => b - a)
     .slice(0, 3)
     .reduce((sum, value) => sum + value, 0);
-  const era = eraById(input.era).order * 3;
+  const era = eraPoints(input.era, input.charter.length);
   const grades = input.gradePoints.length
     ? Math.round(
         (input.gradePoints.reduce((sum, value) => sum + value, 0) / input.gradePoints.length) * 2

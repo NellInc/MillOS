@@ -2,10 +2,12 @@ import type { WorkplaceState } from '../../../types/workplace';
 import { WorkplaceNegotiation } from './WorkplaceNegotiation';
 import { WORKPLACE_PLANS, workplaceReadiness } from '../../../simulation/bilateralWorkplace';
 import {
-  CAMPAIGN_PRESSURES,
   campaignOutcomes,
+  campaignPressure,
+  campaignShiftPause,
   campaignTotals,
   formatKg,
+  mondayHolds,
   pressureObjectionText,
   shiftResumable,
 } from '../../../simulation/workplaceCampaign';
@@ -17,7 +19,8 @@ type Destination = 'Shift' | 'Agreement / Voices' | 'Review';
 /** Current-state guidance only; no consent, time or plant mutation. */
 export function deriveWorkplaceGuidance(state: WorkplaceState) {
   const campaign = state.campaign;
-  const pressure = campaign ? CAMPAIGN_PRESSURES[campaign.shift] : undefined;
+  // 5.10: the season's draw sets which pressure each shift meets.
+  const pressure = campaignPressure(state);
   const readiness = workplaceReadiness(state);
   const totals = campaignTotals(state);
   const outcomes = campaignOutcomes(state);
@@ -35,6 +38,8 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
   const reviewing = state.phase === 'review';
   const running = state.phase === 'active';
   const resumable = reviewing && shiftResumable(state);
+  // What paused a campaign shift that has not ended (reload, safety, objection).
+  const pause = campaignShiftPause(state);
   const recoveryOwed = state.members.some((member) => member.recoveryOwedMinutes > 0);
   const finalReview = reviewing && campaign?.shift === 2;
   const archiveBlocked =
@@ -46,8 +51,7 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
       state.finance.compensationReserve > 0 ||
       state.activeCoverMemberId !== null ||
       state.coverRemainingMinutes > 0);
-  const inspectionHeld =
-    running && campaign?.shift === 1 && state.minute >= 25 && !campaign.inspectionComplete;
+  const inspectionHeld = running && campaign?.shift === 1 && mondayHolds(state);
   const inspectionPending = inspectionHeld && campaign.inspectionUntilMinute === null;
   const needsEpisodeResponse = !!campaign && campaign.shift !== 1 && campaign.decision === null;
   const packing = state.members.find((member) => member.id === 'packing');
@@ -96,13 +100,23 @@ export function deriveWorkplaceGuidance(state: WorkplaceState) {
       : inspectionHeld
         ? inspectionPending
           ? translate(msg, 'nextInspect')
-          : translate(msg, 'nextInspecting', {
-              minute: formatFixed(Math.ceil(campaign?.inspectionUntilMinute ?? 0), 0),
-            })
+          : campaign?.mondaySample
+            ? translate(msg, 'nextInspectingSample')
+            : translate(msg, 'nextInspecting', {
+                minute: formatFixed(Math.ceil(campaign?.inspectionUntilMinute ?? 0), 0),
+              })
         : reviewing
-          ? // A reload pauses rather than ends a shift; never call that one final.
+          ? // A reload, a safety stop or a resolved objection pauses rather
+            // than ends a shift; never call that one final.
             resumable
-            ? translate(msg, 'nextResumeAfterReload')
+            ? translate(
+                msg,
+                pause === 'safety'
+                  ? 'nextResumeAfterSafety'
+                  : pause === 'objection'
+                    ? 'nextResumeAfterObjection'
+                    : 'nextResumeAfterReload'
+              )
             : recoveryOwed
               ? translate(msg, state.mode === 'workshop' ? 'nextWorkshopRecovery' : 'nextRecovery')
               : archiveBlocked
@@ -147,7 +161,7 @@ export function WorkplacePressureChapter({
   const t = useT(workplacePressureChapterMessages);
   const campaign = state.campaign;
   if (!campaign) return null;
-  const pressure = CAMPAIGN_PRESSURES[campaign.shift];
+  const pressure = campaignPressure(state);
   if (!pressure) return null;
   const plan = WORKPLACE_PLANS.find((item) => item.id === state.planId);
   const {
@@ -157,7 +171,6 @@ export function WorkplacePressureChapter({
     protectedTerms,
     challenge,
     openObjections,
-    termsNeeded,
     needsRemedy,
     reviewing,
     running,
@@ -196,7 +209,6 @@ export function WorkplacePressureChapter({
             ? t('protectedWithoutChallenge')
             : t('noPressureResponse')}
       </p>
-      {reviewing && needsRemedy && <p>{t('repairBelongs')}</p>}
       <button
         type="button"
         className="min-h-9 rounded-md border border-cyan-300/25 px-3 py-1.5 text-sm font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
@@ -208,15 +220,7 @@ export function WorkplacePressureChapter({
       <details>
         <summary className="cursor-pointer text-slate-100">{t('detailsSummary')}</summary>
         <div className="mt-2 space-y-2">
-          <ol className="list-decimal space-y-1 pl-5">
-            {termsNeeded && <li>{t('stepRestate')}</li>}
-            {needsRemedy && <li>{t('stepRemedy')}</li>}
-            {!running && !reviewing && <li>{t('stepApprove')}</li>}
-            <li>{t('stepReview')}</li>
-          </ol>
-          <p>
-            {rule} {t('extraDutyNote')}
-          </p>
+          <p>{rule}</p>
           <p>
             {t('offerLine', {
               plan: plan?.title ?? state.planId,
@@ -275,7 +279,6 @@ export function WorkplacePressureChapter({
                 evidence: t('evidenceStatus', { status: campaign.mission.evidence }),
               })}
           </p>
-          <p>{t('recoveryNote')}</p>
         </div>
       </details>
     </section>

@@ -65,6 +65,8 @@ leaders (WCM'26). Brazilian Portuguese only, never European Portuguese.
 | shift pace                  | ritmo do turno                             |
 | paused / relaxed / standard | pausado / tranquilo / padrão               |
 | maintenance                 | manutenção                                 |
+| service (a unit) / Maintain | fazer manutenção (never "revisar")         |
+| test first                  | testar primeiro                            |
 | breakdown                   | pane                                       |
 | wear                        | desgaste                                   |
 | work order                  | ordem de serviço                           |
@@ -75,10 +77,10 @@ leaders (WCM'26). Brazilian Portuguese only, never European Portuguese.
 | emergency stop              | parada de emergência                       |
 | fire drill / egress         | simulado de evacuação / rota de saída      |
 | near miss                   | quase acidente                             |
-| incident                    | ocorrência                                 |
+| incident                    | ocorrência (never "incidente")             |
 | SCADA, tags, historian      | SCADA, tags, histórico                     |
 | strong white bread flour    | farinha de trigo forte para pão            |
-| semolina                    | semolina                                   |
+| cornmeal (id `semolina`)    | fubá (D-102)                               |
 | community flour             | farinha comunitária                        |
 | wheat / corn                | trigo / milho                              |
 
@@ -91,11 +93,14 @@ leaders (WCM'26). Brazilian Portuguese only, never European Portuguese.
 | member review             | avaliação dos cooperados                 |
 | surplus                   | sobras                                   |
 | distribute surplus        | distribuir as sobras / rateio das sobras |
+| Reserve Fund              | Fundo de Reserva                         |
+| Assistance Fund           | FATES                                    |
 | retain (in cash)          | reter em caixa                           |
 | allocate to the community | destinar à comunidade                    |
 | ballot / vote             | votação / voto                           |
 | meeting / assembly        | assembleia                               |
-| chair                     | coordenação                              |
+| chair                     | presidência                              |
+| Coordinator (the role)    | Coordenação                              |
 | charter                   | estatuto                                 |
 | working agreement         | acordo de trabalho                       |
 | role / role holder        | função / responsável pela função         |
@@ -135,9 +140,10 @@ leaders (WCM'26). Brazilian Portuguese only, never European Portuguese.
 
 ## Never translate
 
-SCADA tag IDs and engineering units; machine designations (R.M. 101,
-Silo Alpha, Plansifter A, Line 1); proper names of people, places, brands and
-customers (Riverside Bakers' Cooperative); soundtrack song titles and lyrics;
+SCADA tag IDs and engineering units; machine designations, as the plant
+names them in `MillScene.tsx` (R.M. 101, Silo Alpha, Sifter A, Pack Line 1);
+proper names of people, places, brands and customers (Riverside Bakers'
+Cooperative, Community Polenta Kitchen); soundtrack song titles and lyrics;
 painted in-world signage; console, logger and developer-only error strings;
 agent-protocol command names, schemas and machine-readable fields; test IDs,
 CSS classes, keys and URLs.

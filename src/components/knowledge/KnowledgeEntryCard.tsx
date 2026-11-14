@@ -29,6 +29,10 @@ import {
   Sprout,
   Users,
   Library,
+  Wheat,
+  Wind,
+  Flame,
+  Croissant,
   Eye,
   LucideIcon,
 } from 'lucide-react';
@@ -64,6 +68,10 @@ const ICON_MAP: Record<KnowledgeIcon, LucideIcon> = {
   users: Users,
   cog: Settings,
   library: Library,
+  wheat: Wheat,
+  wind: Wind,
+  flame: Flame,
+  croissant: Croissant,
 };
 
 // Render a Lucide icon from its identifier
@@ -271,7 +279,10 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
     .map((id) => getEntry(id))
     .filter(
       (e): e is KnowledgeEntry =>
-        e !== undefined && (e.unlockCondition.type === 'always' || isUnlocked(e.id))
+        e !== undefined &&
+        // A player article never links into the developer reference, or back.
+        (e.audience ?? 'player') === (entry.audience ?? 'player') &&
+        (e.unlockCondition.type === 'always' || isUnlocked(e.id))
     );
 
   return (
@@ -332,6 +343,31 @@ export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntr
                   className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300"
                 >
                   {place}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* What the article was written from */}
+        {entry.sources && entry.sources.length > 0 && (
+          <div className="mt-6 pt-6 border-t border-slate-700">
+            <h4 className="flex items-center gap-2 text-sm font-medium text-slate-400 mb-3">
+              <BookOpen className="w-4 h-4" aria-hidden="true" />
+              {t('sources')}
+            </h4>
+            <ul className="space-y-1 text-xs text-slate-400">
+              {entry.sources.map((source) => (
+                <li key={source.url}>
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-slate-300 underline decoration-slate-600 hover:text-white"
+                  >
+                    {source.title}
+                  </a>
+                  {`, ${source.publisher}`}
                 </li>
               ))}
             </ul>

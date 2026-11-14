@@ -2,6 +2,7 @@
  * Pass 17, chronicle lane: defects a player meets.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { acceptOffer, OFFER_DECK } from './administratorOffer';
 import { setLocale } from '../../i18n';
 import { DEFAULT_CHARTER } from '../charter';
 import { SHIFTS_PER_CROP_YEAR } from '../cropYears';
@@ -64,7 +65,7 @@ function evidence(dispatchedKg = 3000): ShiftCloseEvidence {
 function run(state: ChronicleState, shifts: number, dispatchedKg = 3000): ChronicleState {
   let next = state;
   for (let i = 0; i < shifts && next.status === 'active'; i++)
-    next = closeShift(next, evidence(dispatchedKg), []).state;
+    next = acceptOffer(closeShift(next, evidence(dispatchedKg), OFFER_DECK).state);
   return next;
 }
 
@@ -173,7 +174,8 @@ describe('a dispatch trial', () => {
       startedShift: 11,
     };
     // Shipments allocate fractions of a kilo: 0.4 kg short over the window.
-    const perShift = (6000 - 0.4) / definition.durationShifts;
+    const kg = definition.goal.kind === 'dispatch' ? definition.goal.kg : 0;
+    const perShift = (kg - 0.4) / definition.durationShifts;
     for (let i = 0; i < definition.durationShifts && progress.phase === 'active'; i++)
       progress = advanceTrial(definition, progress, {
         dispatchedKg: perShift,
@@ -183,28 +185,32 @@ describe('a dispatch trial', () => {
         qcPassedThisShift: true,
         unresolvedHighIncident: false,
       });
-    expect(progress.failureReason ?? '').not.toMatch(/^6,000 of 6,000 kg/);
+    const english = kg.toLocaleString('en-GB');
+    expect(progress.failureReason ?? '').not.toMatch(new RegExp(`^${english} of ${english} kg`));
     expect(progress.phase).toBe('passed');
   });
 
-  it('never fails Grid Winter on "Energy 0.080 per kg against 0.08"', () => {
+  it('never fails Grid Winter on "Energy 0.0080 per kg against 0.008"', () => {
     const definition = trialById('grid_winter');
     let progress: TrialProgress = {
       ...emptyTrialProgress(definition.id),
       phase: 'active',
       startedShift: 38,
     };
-    // 8,000 kg at 0.08004 per kg: over the limit only past the third decimal printed.
+    // The goal at the cap plus 0.4 of the last decimal printed (four since
+    // item 4.1): over the limit only past what the notice can show.
+    const kg = definition.goal.kind === 'dispatch' ? definition.goal.kg : 0;
+    const cap = definition.goal.kind === 'dispatch' ? definition.goal.maxEnergyPerKg! : 0;
     for (let i = 0; i < definition.durationShifts && progress.phase === 'active'; i++)
       progress = advanceTrial(definition, progress, {
-        dispatchedKg: 8000 / definition.durationShifts,
+        dispatchedKg: kg / definition.durationShifts,
         qualityFailureKg: 0,
-        energyCost: (8000 * 0.08004) / definition.durationShifts,
+        energyCost: (kg * (cap + 0.00004)) / definition.durationShifts,
         grade: 'B',
         qcPassedThisShift: true,
         unresolvedHighIncident: false,
       });
-    expect(progress.failureReason ?? '').not.toMatch(/Energy 0\.080 per kg against 0\.08/);
+    expect(progress.failureReason ?? '').not.toMatch(/Energy 0\.0080 per kg against 0\.008/);
     expect(progress.phase).toBe('passed');
   });
 });

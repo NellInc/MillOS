@@ -70,15 +70,14 @@ describe('Chronicle part three tabs', { timeout: 30_000 }, () => {
     // The open proposal is named once, on its own step, not repeated on every button.
     expect(screen.getAllByText('before the assembly')).toHaveLength(1);
     expect(screen.queryByText(/already before the assembly/)).toBeNull();
-    fireEvent.click(within(assembly).getByRole('button', { name: /Meet the need/ }));
+    // Meeting the yard hand's need would leave a 2 to 2 tie: refused before it is paid (4.10).
+    expect(within(assembly).getByRole('button', { name: /Meet the need/ })).toBeDisabled();
     expect(
-      within(screen.getByRole('region', { name: /Before the assembly/ })).getByText(
-        /2 for, 2 against/
-      )
+      within(assembly).getByText('Meeting every need would still not carry it.')
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Withdraw the change' }));
     expect(screen.queryByRole('region', { name: /Before the assembly/ })).toBeNull();
-    expect(useChronicleStore.getState().chronicle.marks['crew-concession']).toBeDefined();
+    expect(useChronicleStore.getState().chronicle.marks['crew-concession']).toBeUndefined();
   });
 
   it('carries a change the crew backs and locks the ladder', () => {

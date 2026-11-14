@@ -35,16 +35,20 @@ describe('Chronicle number formatting', () => {
   it('writes trial tonnage the English way on a Portuguese browser', () => {
     browserLocalePtBr();
     const wet = TRIALS.find((trial) => trial.id === 'wet_harvest')!;
-    expect(trialGoalText(wet)).toContain('dispatch 6,000 kg');
+    // The goal is set from the measured plant (item 4.1); its English figure is grouped.
+    const kg = wet.goal.kind === 'dispatch' ? wet.goal.kg : 0;
+    const english = kg.toLocaleString('en-GB');
+    expect(trialGoalText(wet)).toContain(`dispatch ${english} kg`);
     const progress = { ...emptyTrialProgress('wet_harvest'), dispatchedKg: 4200 };
-    expect(trialShortfall(wet, progress)).toBe('4,200 of 6,000 kg dispatched.');
+    expect(trialShortfall(wet, progress)).toBe(`4,200 of ${english} kg dispatched.`);
     expect(whole(12000)).toBe('12,000');
   });
 
   it('keeps the English sentence English when the app is in Portuguese', () => {
     setLocale('pt-BR');
     const rush = TRIALS.find((trial) => trial.id === 'bakers_rush')!;
-    expect(trialGoalText(rush)).toContain('dispatch 12,000 kg');
+    const kg = rush.goal.kind === 'dispatch' ? rush.goal.kg : 0;
+    expect(trialGoalText(rush)).toContain(`dispatch ${kg.toLocaleString('en-GB')} kg`);
     expect(signedHundredths(125)).toBe('+1.25');
     // The workspace is translated now, so its own figures follow the interface.
     expect(whole(6000)).toBe('6.000');

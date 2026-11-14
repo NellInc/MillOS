@@ -1,20 +1,26 @@
 /**
- * Maintain runs a 1.2 s service. A unit with a booked service can also be
- * serviced from the planner's Complete in Mill Overview. A Complete that lands
- * during the Inspector's delay services the unit and closes the booking; the
+ * Maintain runs a service. A unit with a booked service can also be serviced
+ * from the planner's Start in Mill Overview. A Complete that landed during the
+ * Inspector's old 1.2 s delay serviced the unit and closed the booking; the
  * Inspector then found no booking, fell back to a spare part, and serviced the
- * unit a second time: two services, the booking's parts and a filter.
- * Working if one press of Maintain and one Complete service the unit once.
+ * unit a second time: two services, two charges. The service now runs on the
+ * game clock from the booking itself (D7), so whichever control starts it, the
+ * other finds it under way: the planner shows the minutes left instead of a
+ * button, and beginUnitService refuses a second start as busy.
+ * Working if one press of Maintain and one Start service the unit once.
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MachineInspector } from '../sidebar/MachineInspector';
 import { PredictiveMaintenancePanel } from '../../ui/PredictiveMaintenancePanel';
 import { MachineType, type MachineData } from '../../../types';
-import { useProductionStore } from '../../../stores/productionStore';
+import { getWearConfig, useProductionStore } from '../../../stores/productionStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useUIStore } from '../../../stores/uiStore';
+import { beginUnitService, resetUnitWork, stepUnitWork } from '../../../systems/unitService';
+
+const SERVICE_MINUTES = getWearConfig(MachineType.ROLLER_MILL).serviceMinutes;
 
 const mill: MachineData = {
   id: 'rm-race',
@@ -34,11 +40,15 @@ const mill: MachineData = {
 let savedMachines: MachineData[];
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  resetUnitWork();
   savedMachines = useProductionStore.getState().machines;
   useProductionStore.setState({ machines: [mill] });
   useBreakdownStore.getState().resetBreakdownStore();
-  useGameSimulationStore.setState({ emergencyActive: false, emergencyDrillMode: false });
+  useGameSimulationStore.setState({
+    emergencyActive: false,
+    emergencyDrillMode: false,
+    preEmergencyMachineStatuses: new Map(),
+  });
   useUIStore.setState({ alerts: [] });
   useBreakdownStore.getState().scheduleMaintenanceTask({
     machineId: mill.id,
@@ -50,41 +60,61 @@ beforeEach(() => {
   });
 });
 
-afterEach(async () => {
+afterEach(() => {
   cleanup();
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(3000);
-  });
-  vi.useRealTimers();
+  resetUnitWork();
   useProductionStore.setState({ machines: savedMachines });
   useBreakdownStore.getState().resetBreakdownStore();
   useUIStore.setState({ alerts: [] });
 });
 
-describe('MachineInspector Maintain racing the planner Complete', () => {
-  it('services the unit once when Complete lands during the Inspector service', async () => {
+const live = () => useProductionStore.getState().machines.find((m) => m.id === mill.id)!;
+
+const expectServicedOnce = (before: Record<string, number>) => {
+  expect(live().maintenanceHistory ?? []).toHaveLength(1);
+  expect(live().metrics.wear).toBeCloseTo(35, 5);
+  // One service, at one part (the booking's listed parts are not charged).
+  expect(useBreakdownStore.getState().partsInventory).toEqual({
+    ...before,
+    filters: before.filters - 1,
+  });
+};
+
+describe('MachineInspector Maintain racing the planner Start', () => {
+  it('services the unit once when the planner is opened during the Inspector service', () => {
     const before = { ...useBreakdownStore.getState().partsInventory };
     const inspector = render(<MachineInspector machine={mill} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300);
-    });
-    // The player opens Mill Overview (the sidebar swaps the Inspector out)
-    // and completes the booked service there.
+    fireEvent.click(screen.getByRole('button', { name: /^Perform Maintenance/ }));
+    act(() => stepUnitWork(60));
+    // The player opens Mill Overview (the sidebar swaps the Inspector out):
+    // the booking is the service under way, with no Start to press.
     inspector.unmount();
     render(<PredictiveMaintenancePanel />);
-    fireEvent.click(screen.getByRole('button', { name: /Complete maintenance on RM-RACE/i }));
+    expect(screen.queryByRole('button', { name: /Start maintenance on RM-RACE/i })).toBeNull();
+    expect(
+      screen.getByText(`Offline for service · ${SERVICE_MINUTES - 1} min left`)
+    ).toBeInTheDocument();
+    // A second start, from any control, is refused.
+    expect(beginUnitService(mill.id)).toEqual({ started: false, reason: 'busy' });
 
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2000);
+    act(() => stepUnitWork(SERVICE_MINUTES * 60));
+    expectServicedOnce(before);
+  });
+
+  it('services the unit once when Maintain is pressed during the planner service', () => {
+    const before = { ...useBreakdownStore.getState().partsInventory };
+    const planner = render(<PredictiveMaintenancePanel />);
+    fireEvent.click(screen.getByRole('button', { name: /Start maintenance on RM-RACE/i }));
+    act(() => stepUnitWork(60));
+    planner.unmount();
+    render(<MachineInspector machine={mill} />);
+    const maintain = screen.getByRole('button', {
+      name: `Offline for service · ${SERVICE_MINUTES - 1} min left`,
     });
-    const live = useProductionStore.getState().machines.find((m) => m.id === mill.id)!;
-    expect(live.maintenanceHistory ?? []).toHaveLength(1);
-    expect(live.metrics.wear).toBeCloseTo(35, 5);
-    expect(useBreakdownStore.getState().partsInventory).toEqual({
-      ...before,
-      bearings: before.bearings - 1,
-      belts: before.belts - 1,
-    });
+    expect(maintain).toBeDisabled();
+    fireEvent.click(maintain);
+
+    act(() => stepUnitWork(SERVICE_MINUTES * 60));
+    expectServicedOnce(before);
   });
 });

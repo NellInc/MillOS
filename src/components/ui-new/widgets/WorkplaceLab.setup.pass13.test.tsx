@@ -13,6 +13,7 @@ import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { setLocale } from '../../../i18n';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
 
@@ -22,6 +23,8 @@ beforeEach(() => {
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
   useGameSimulationStore.getState().setGameSpeed(0);
   useWorkplaceStore.setState({
     participationMode: 'solo',
@@ -37,7 +40,7 @@ afterEach(() => {
 // After one standalone exercise the setup form (mode, seed, season) never came
 // back: the Review tab offered only another exercise of the same mode.
 describe('Lab Review returns a settled standalone exercise to setup (pass thirteen)', () => {
-  it('offers the setup form again, with focus kept on the Shift tab', async () => {
+  it('offers the setup form again, with focus kept in the laboratory', async () => {
     expect(useWorkplaceStore.getState().start('pilot', 9).changed).toBe(true);
     expect(useWorkplaceStore.getState().stop().changed).toBe(true);
     render(<WorkplaceLab />);
@@ -49,11 +52,13 @@ describe('Lab Review returns a settled standalone exercise to setup (pass thirte
     expect(screen.getByRole('button', { name: 'Shift' })).toHaveAttribute('aria-pressed', 'true');
     // The season form is the game mode's: it is offered again.
     expect(
-      screen.getByRole('button', { name: 'Start Living Cooperative campaign' })
+      screen.getByRole('button', { name: 'Start 3-shift cooperative season (1x)' })
     ).toBeInTheDocument();
+    // Back at the idle game, the solo step (5.1) is the season's start, and
+    // it takes focus while the tabs sit behind the facilitator disclosure.
     await waitFor(() => {
       expect(document.activeElement).not.toBe(document.body);
-      expect(document.activeElement).toHaveAttribute('aria-pressed', 'true');
+      expect(document.activeElement).toHaveAttribute('data-step-focus');
     });
   });
 
@@ -76,6 +81,7 @@ describe('Lab Review returns a settled standalone exercise to setup (pass thirte
   });
 
   it('is not offered inside a season, and reads in Portuguese', () => {
+    fulfilFirstDelivery();
     expect(useWorkplaceStore.getState().startCampaign('toe-dip', 4).changed).toBe(true);
     expect(useWorkplaceStore.getState().stop().changed).toBe(true);
     const { unmount } = render(<WorkplaceLab />);

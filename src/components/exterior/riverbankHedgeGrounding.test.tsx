@@ -746,7 +746,10 @@ const unchangedSourceHashes = {
   // 2026-11-07, reviewed: both valley-road strips widened from 10 m to the
   // full 16 m carriageway (two-tone lanes); nothing else changed. The fixture
   // above reads the receiving road at its new [16, 120].
-  'src/components/TruckBay.tsx': '91d89db23ac9dd4c8106981a8391a803f2b57291d9f4f3120fb9db1593c570c9',
+  // 2026-11-12, reviewed: the truck tick names the forklift holding a truck on
+  // the bell (truckbay/truckForkliftHold.ts, two imports and one call); no
+  // geometry, material or position changed.
+  'src/components/TruckBay.tsx': 'ace11e369df765a7f185ecf129c75648dfd03355842d5d78bb83b9784a3a1ff5',
   'public/models/world/hedge-unit.glb':
     '808a45bf2a900a731887ef2605cec8a8de691b6c15e8440a3f82d64b0d8cf81b',
   'public/models/world/park-bench.glb':

@@ -3,8 +3,21 @@ import type { WorkplaceState, WorkplaceShiftRecord } from '../types/workplace';
 import { saveWorkplace, restoreWorkplace, WORKPLACE_PLANS } from './bilateralWorkplace';
 import { bilateralWorkplaceMessages } from './bilateralWorkplace.messages';
 import { workplaceMission } from './workplaceImprovement';
-import { formatGrouped, translate } from '../i18n';
+import { formatGrouped, LOCALES, translate } from '../i18n';
 import { workplaceFairnessMessages as msg } from './workplaceFairness.messages';
+
+/**
+ * A shift resumed after a safety stop or a resolved objection, read from its
+ * receipt (recorded in the language active then). A resume after a reload, or
+ * one recorded before those pauses existed, is not.
+ */
+const RESUMED_AFTER_STOP = (['evShiftResumedAfterSafety', 'evShiftResumedAfterObjection'] as const)
+  .flatMap((key) =>
+    LOCALES.map((locale) => bilateralWorkplaceMessages[locale][key].split('{minute}'))
+  )
+  .filter((parts) => parts.length === 2);
+const resumedAfterStop = (detail: string) =>
+  RESUMED_AFTER_STOP.some(([head, tail]) => detail.startsWith(head) && detail.endsWith(tail));
 
 /** Same retained visits for public receipts and teaching evidence; never infer missing facts. */
 function workplaceSnapshots(state: WorkplaceState) {
@@ -143,14 +156,15 @@ export function demonstrationBeats(state: WorkplaceState) {
       // Restore deliberately discards generic events, but preserves this canonical
       // review reason for safe resume; resuming clears it and records the resume.
       // Reading a preview never changes the source. Working if actual reload
-      // counts after sanitization, before and after its resume, and export alone does not.
+      // counts after sanitization, before and after its resume, and export alone
+      // does not, nor does a resume after a drill or a resolved objection.
       observed:
         snapshots.some(
           (s) =>
             'reviewReason' in s &&
             s.phase === 'review' &&
             s.reviewReason === bilateralWorkplaceMessages.en.evReloadSafety
-        ) || events.some((e) => e.kind === 'shift-resumed'),
+        ) || events.some((e) => e.kind === 'shift-resumed' && !resumedAfterStop(e.detail)),
       detail: translate(msg, 'beatReloadDetail'),
       evidence: translate(msg, 'beatReloadEvidence'),
     },

@@ -108,22 +108,14 @@ export const workplaceLabMessages = defineMessages({
     previewStatus: 'Preview: {status}.',
     executionStatus: 'Execution: {status}.',
     noExecutionReceipt: 'No execution receipt.',
-    rehearsalAdvanced: 'Five modeled rehearsal minutes recorded. No plant movement or shipment.',
+    rehearsalAdvanced: 'Five modeled rehearsal minutes recorded.',
     rehearsalNoAdvance: 'No modeled time could advance.',
-    exported: 'Synthetic scenario exported locally. No remote send.',
-    freshExercise: 'Review retained. Choose a charter for the fresh exercise.',
-    setupReturned: 'Exercise closed. Choose a mode, seed or season to start next.',
+    exported: 'Scenario exported locally.',
+    freshExercise: 'Review retained.',
+    setupReturned: 'Exercise closed.',
 
-    // Header
-    labTitle: 'Workplace laboratory',
-    introHandoff: 'Worker proposals, bounded trials and member review.',
-    introImprovement:
-      'The handoff experiment: member proposals, bounded trials and retained obligations.',
-    introCampaign:
-      'Living Cooperative: three shifts, shared obligations and challengeable decisions.',
-    introFriday: 'Friday order: meet the shipment while protecting rest and agreed work.',
-    syntheticNotice:
-      'Synthetic roles only. No real worker data or independently authenticated ballots.',
+    // Header (D14: no subtitle; the simulation disclaimer is About's one line)
+    labTitle: 'Cooperative season',
     sectionsLabel: 'Workplace sections',
     statusLine: '{mode}: {phase}, minute {minute} of {duration}. Revision {revision}.',
     causalReceipt: 'Causal receipt: {receipt}',
@@ -136,35 +128,24 @@ export const workplaceLabMessages = defineMessages({
     needsAnotherLook: 'Needs another look. ',
 
     // Shift
-    shiftIntro: 'Try a worker-led improvement, then decide what the next shift retains.',
     openHandoff: 'Open handoff controls',
     mode: 'Mode',
     scenarioSeed: 'Scenario seed',
-    livingCooperative: 'Living Cooperative',
-    livingIntro:
-      'Three linked shifts: order pressure, a quality hold and retaliation pressure. Packing is your role. Each shift keeps its earned pay, recovery obligations and authored objections.',
+    // The refusal at the seed: every control that needs a seed is held without one.
+    seedInvalid: 'The seed is a whole number from 1 to {max}.',
+    // Hear responses is held in separate turns: each role answers on its own turn.
+    heldSeparateTurns: 'In separate turns each role answers for itself.',
+    livingCooperative: 'Cooperative season',
     adoptionProfile: 'Adoption profile',
-    profileToeDip: 'Coordinator-led: protected practice set',
-    profileTeam: 'Team agreement: shared work and consent',
-    profileCooperative: 'Member governance: cooperative and bounded execution',
-    startCampaign: 'Start Living Cooperative campaign',
-    campaignPaceNote:
-      'Local game only. Starting selects standard pace (1x), where the clock, production and vehicles run together. Profiles introduce practices incrementally; every profile retains basic protections.',
+    startCampaign: 'Start 3-shift cooperative season (1x)',
     startGame: 'Start playable shift at teaching pace (1/2x)',
     startWorkshop: 'Start manual workshop',
     preparePilot: 'Prepare pilot charter',
-    gameNote:
-      'Opt in to local simulation control. This standalone teaching pace runs at half of standard pace (1/2x); a campaign runs at standard pace (1x).',
-    otherNote:
-      'No live plant control. Workshop inputs remain manual; pilot preparation permits charter design and export only.',
     shiftHeading: 'Shift {number} of 3: {title}',
     missionBriefing:
       '{customer} has {kg} kg remaining on the customer commitment. Quality declines extra duty; Packing and Maintenance may volunteer separately. Earn a fresh working agreement.',
     missionPrompt:
-      'Keep the {kg} kg delivery target, or negotiate a {installment} kg installment with {deferred} kg deferred. The full customer commitment remains.',
-    adviserRolePlay: 'Adviser role checks are authored role-play in this local scenario.',
-    shiftThreeNote:
-      'The adviser must correct its earlier recommendation and repair the pressure it created. Previous consent authorizes no new burden. Packing can refuse; each author can challenge and resolve their own objection.',
+      'Keep the {kg} kg delivery target, or negotiate a {installment} kg installment with {deferred} kg deferred.',
     negotiateInstallment: 'Negotiate a {kg} kg installment',
     negotiateInstallmentProtectPay: 'Negotiate a {kg} kg installment and protect pay',
     keepCommitment: 'Keep the {kg} kg commitment',
@@ -172,54 +153,39 @@ export const workplaceLabMessages = defineMessages({
     pending: 'pending',
     inspectionComplete: 'Quality inspection complete.',
     inspectionUntil: 'Quality hold in progress until minute {minute}.',
+    inspectionBench: 'Quality hold until the lab bench has read the sample.',
     inspectionFrom:
-      'Quality can begin inspection from minute 25. Line pacing pauses; actual batch certification still gates shipping.',
-    reviewBeforeContinuing:
-      'Review the shift, deliver owed recovery and resolve every authored objection before continuing.',
+      'Quality can begin inspection once a batch of the order awaits its lab test and holds the line.',
+    heldRecovery: 'Held until owed recovery is delivered.',
+    heldObjection: 'Held until each open objection is resolved.',
     pressureCard: 'Pressure card: {title}',
     challengeBelongs: 'The challenge belongs to {role}.',
     theAdviser: 'the adviser',
-    tryDemand: 'Try the demand (blocked and challenged)',
+    tryDemand: 'Try the demand',
     restateTerms: 'Restate protected terms',
-    pressureNote:
-      'Trying the demand pauses activation. Restating terms leaves any objection open until its raiser reviews it in Agreement / Voices. Both sides then renew understanding.',
     reviewChallenge: 'Review the challenge and remedy',
     missionCredit:
       '{customer}: {credited} / {target} kg qualified dispatch credit. Agreed deferral: {deferred} kg. Remaining full customer commitment: {remaining} kg.',
     fullDispatchedSuffix: ' Full customer commitment dispatched.',
     chooseResponse: 'Choose the response',
-    targetLine:
-      'Target {target} kg. Active plant capacity multiplier {capacity}×. Changing a plan clears the role agreement.',
-    shiftThreeResponseNote:
-      'A declined offer can lead to protected pacing, funded handoffs or a different current qualified volunteer. Negotiate a smaller installment above if needed; unfinished customer work remains open. An objection holds execution until its raiser reviews the remedy.',
+    targetLine: 'Target {target} kg. Active plant capacity multiplier {capacity}×.',
     planTerms:
       'Plant capacity multiplier {capacity}×; protected rest {rest} min; optional cover {cover} min; cover compensation {compensation} credits/min; recovery {recovery} min; budget {budget} credits.',
     prohibitedReason: 'Prohibited: {reason}',
     reservations:
       'Wages reserved {reserve}; improvement {improvement}; maximum cover pay {maxPay} credits. Cash after these reservations {cash} credits.',
-    volunteers:
-      'Current consenting qualified volunteers: {list}. Cover lasts at most ten minutes, then pacing returns to 0.78×.',
+    volunteers: 'Current consenting qualified volunteers: {list}.',
     volunteerEntry: '{role} ({minutes} min retained extra duty)',
     none: 'none',
     aiWhy: 'AI: why this response?',
     operationalExplanation:
       'Operational explanation: {explanation} The active plant capacity multiplier is {capacity}×. The shipment target is {target} kg.',
-    alternativesNote:
-      "Alternatives: compare the four responses above. Boundaries: protected rest, individual optional-cover consent, budget and open objections constrain execution. This explanation reports the model's decision conditions; it does not expose hidden reasoning.",
-    dispatchUncertain:
-      'Dispatch remains uncertain until quality-qualified manifests arrive. Supply and logistics can constrain the result. Either party can raise an authority objection; each raiser retains remedy review.',
     challengeProposal: 'Challenge the proposal in Agreement / Voices',
     advanceRehearsal: 'Advance rehearsal by 5 minutes',
     endShift: 'End shift now and review',
-    creditsNote:
-      'Workplace credits are illustrative accounts, separate from the mill campaign finances.',
 
     // Practices
-    alwaysActive:
-      'Always active: safe stops, protected rest, voluntary extra work, earned pay and author-controlled objections. Switching modules never removes these protections.',
     chooseApproach: 'Choose a management approach',
-    approachNote:
-      'Change the allocation of decisions while keeping the current plan, money and workload. Revised terms require fresh agreement.',
     applyApproach: 'Apply {title}',
     threeAxes: 'Three independent axes',
     workerDecisions: 'Worker decisions',
@@ -236,11 +202,7 @@ export const workplaceLabMessages = defineMessages({
     modularPractices: 'Modular practices',
 
     // Agreement / Voices
-    agreementIntro:
-      'Policy votes and optional-cover consent are separate decisions. A majority cannot volunteer another role for extra work. Role controls below are local scenario inputs.',
     hearResponses: 'Hear simulated team responses',
-    manualWorkshopNote:
-      "Manual workshop: record each synthetic role's choices explicitly. No automatic votes.",
     pilotDenies: 'Pilot preparation denies live control and role-input changes.',
     adviserAgreement: 'Adviser working agreement',
     adviserAgreementText:
@@ -249,10 +211,6 @@ export const workplaceLabMessages = defineMessages({
     adviserAck: 'Adviser acknowledgment: {status}.',
     ackRecorded: 'recorded for these terms',
     ackPending: 'pending three correct answers',
-    turnsOwn: 'Every role acts in its own turn. ',
-    simulatedOther: 'Simulated responses belong to the other synthetic roles. ',
-    answerPacking:
-      'Answer Packing and Adviser checks explicitly. Confirm Packing understanding, cast its policy vote and decide optional cover separately. The helper never fills these Packing decisions.',
     votePending: 'policy vote pending',
     policyYesStatus: 'policy yes',
     policyNoStatus: 'policy no',
@@ -268,8 +226,6 @@ export const workplaceLabMessages = defineMessages({
     declined: 'declined',
     acceptCover: 'Accept cover: {role}',
     declineCover: 'Decline cover: {role}',
-    sharingNote:
-      "Optional preference sharing is for this shift's planning only, expires after its limited scenario window, and can be revoked.",
     sharedPreference: 'Shared preference: {preference}. Until minute {minute}.',
     preferencePrivate: 'Preference private.',
     revokeSharing: 'Revoke preference sharing',
@@ -294,9 +250,6 @@ export const workplaceLabMessages = defineMessages({
     checkingAgreement: 'Checking agreement…',
     recordWorkshopAgreement: 'Record workshop agreement',
     approveAndRun: 'Approve and run agreement',
-    workshopRecordsNote: 'Records the local rehearsal only, with no live plant effects.',
-    executionRequires:
-      'Execution requires this explicit approval, the exact current revision and the installed agent runtime.',
 
     // Review
     actualOutcomes: 'Actual scenario outcomes',
@@ -307,34 +260,27 @@ export const workplaceLabMessages = defineMessages({
     unfinished: 'unfinished',
     agreedDeferral: 'Agreed deferral: {kg} kg.',
     accountsLine:
-      'Illustrative workplace credits, separate from main mill revenue and pounds: closing cash {cash}; wages {wages}; compensation {compensation}; improvements {improvements}; allocations {allocations}.',
+      'Workplace credits: closing cash {cash}; wages {wages}; compensation {compensation}; improvements {improvements}; allocations {allocations}.',
     cumulativeEvidence: 'Cumulative campaign evidence',
     totalsLine:
       '{shifts} shifts reviewed; refusals respected {refusals}; promises kept {promises}; repairs {repairs}; objections resolved {resolved} of {raised}.',
     memberTotals:
       '{role}: extra {extra} min; rest {rest} min; earned pay {pay} credits; compensation paid {compensation} credits; recovery delivered {recovery} min; owed {owed} min.',
     shiftHistory: 'Shift {number}: {title}, shipped {shipped}; decision {decision}.',
-    shippedDuringShift: '{kg} kg during this shift; customer commitment progress is shown above',
+    shippedDuringShift: '{kg} kg during this shift',
     shippedOfTarget: '{kg} of {target} kg',
     relationshipRecord: 'Relationship record across shifts',
-    relationshipIntro:
-      'Public requests, challenges, repairs and delivered recovery. Private explanations stay out of this record. These receipts describe conduct; they do not measure trust or wellbeing.',
     relationshipShiftHeading: '{title} (shift {number})',
     olderSave: 'This older save has no relationship receipts for this shift.',
     noMoments: 'No relationship moments recorded yet.',
     eventMinute: 'Minute {minute},',
-    retentionNote:
-      'Each shift retains relationship receipts from a bounded 120-event log. Older events can be discarded. The local JSON export includes retained receipts.',
     learningReviewLabel: 'Cooperative learning review',
     learnTogether: 'Learn from this shift together',
     compareAnotherHandoff: 'Compare another handoff',
     deliverRecovery: 'Deliver modeled recovery (5 minutes)',
-    outstandingRecovery:
-      'Outstanding recovery is delivered through the normal simulation clock before another shift can start.',
     campaignCompleteMessage:
-      'Living Cooperative campaign complete: delivery met and working agreement honoured.',
-    campaignIncomplete:
-      'Campaign review: delivery or working agreement remains incomplete. Earned pay, recovery obligations and the shift history remain recorded.',
+      'Cooperative season complete: delivery met and working agreement honoured.',
+    campaignIncomplete: 'Campaign review: delivery or working agreement remains incomplete.',
     continueCampaign: 'Continue to next campaign shift',
     startNextGame: 'Start next playable shift at teaching pace (1/2x)',
     startNextWorkshop: 'Start next manual workshop',
@@ -342,44 +288,43 @@ export const workplaceLabMessages = defineMessages({
     returnToSetup: 'Return to exercise setup',
     shippedOf: 'Shipped {shipped} of {target} kg.',
     reviewOpens: 'Review opens after the shift finishes.',
-    resumeAfterReloadNote:
-      'A reload paused this shift at minute {minute} and expired every grant. It can carry on from there once everyone consents again; nothing runs before that.',
+    resumeAfterReloadNote: 'A reload paused this shift at minute {minute} and expired every grant.',
+    resumeAfterSafetyNote:
+      'An emergency stop or drill paused this shift at minute {minute} and expired every grant.',
+    resumeAfterObjectionNote:
+      'An objection paused this shift at minute {minute} and expired every grant; its raiser has resolved it.',
     resumeShift: 'Resume the shift with fresh consent',
     relationshipEvidence: 'Relationship evidence',
     relationshipEvidenceLine:
       'Refusals respected: {refusals}. Promises kept: {promises}. Open objections: {open}. Current agreement confirmations: {confirmed}/{total}.',
-    confirmationsExpire: 'Confirmations expire on review. No mood or trust score is inferred.',
-    compareBurdens: 'Compare burdens, without ranking people',
+    compareBurdens: 'Compare burdens',
     burdenLine:
       '{role}: delivered rest {rest} min, extra {extra} min, earned {earned}, paid compensation {compensation} credits; delivered recovery {recovery} min; recovery owed {owed} min.',
     memberGovernance: 'Member governance',
-    chairLine: 'AI minds have a voice in objections, never member ballots. Chair: {chair}.',
+    chairLine: 'Chair: {chair}.',
     notElected: 'not elected',
     memberVoter: 'Member voter',
     chairCandidate: 'Chair candidate',
     recordChairBallot: 'Record chair ballot',
     noChairBallots: 'No chair ballots.',
-    surplusHeading: 'Positive operating surplus: {surplus} credits',
-    surplusDefinition:
-      'Revenue less operating costs, earned wages, paid compensation, improvement spend and distributions. Initial capital is excluded.',
+    surplusHeading: 'Season surplus: {surplus} credits',
     surplusDestination: 'Surplus destination',
     retainSurplus:
-      "Retain {amount} credits in closing cash for the next shift's wages and choices.",
+      'After {reserve} to the Reserve Fund and {fates} to the Assistance Fund, keep {amount} credits in the Reserve Fund for the next season.',
     distributeSurplus:
-      "Distribute {amount} credits equally: {perMember} per member. That cash leaves the next shift's budget.",
+      'After {reserve} to the Reserve Fund and {fates} to the Assistance Fund, return {amount} credits to members by minutes worked.',
     allocateSurplus:
-      "Allocate {amount} credits to the community. That cash leaves the next shift's budget.",
-    ballotsRequired: 'Three member ballots are required. Earned obligations must be settled first.',
-    surplusCharter:
-      'Shared surplus is part of the Coordinator-led and Member governance charters. Under this one, any surplus stays in the cooperative cash.',
+      'After {reserve} to the Reserve Fund and {fates} to the Assistance Fund, give {amount} credits to the community.',
+    fromReserve: '{amount} credits of this purchase paid from the Reserve Fund.',
+    surplusCharter: 'Under this charter, any surplus stays in the cooperative cash.',
     noSurplusReason:
-      'No surplus this shift: revenue {revenue} did not cover material costs {cost}, wages {wages}, cover {cover} and purchases {purchases}.',
+      'No surplus this season so far. This shift: revenue {revenue} against material costs {cost}, wages {wages}, cover {cover} and purchases {purchases}.',
     followOnCredit:
       'Commitment order fulfilled. This season now works {customer}: {credited} kg of its dispatch credited to the cooperative.',
     followOnPending:
       'Commitment order fulfilled. Dispatch to {customer} is credited to the cooperative from the next shift.',
     followOnNone:
-      'Commitment order fulfilled. No other customer order is open, so further dispatch earns the cooperative nothing. The next shift links one if the mill has one open by then.',
+      'Commitment order fulfilled. No other customer order is open, so further dispatch earns the cooperative nothing.',
     followOnNoneLastShift:
       'Commitment order fulfilled. This is the season’s last shift, so further dispatch earns the cooperative nothing.',
     recordSurplusBallot: 'Record member surplus ballot',
@@ -392,24 +337,27 @@ export const workplaceLabMessages = defineMessages({
     // Experiment
     teachingForecasts: 'Teaching forecasts',
     samePressure: 'Same pressure, different management',
-    compareCurrentPlan:
-      'Compare the current physical plan ({plan}) under three decision structures. The same seed, supply, rest and capacity assumptions apply. Governance grants no production bonus. Every approach retains refusal, privacy and raiser-owned objections.',
     compareApproaches: 'Compare management approaches',
-    matchedForecast: 'Matched forecast: {kg} kg; net {credits} illustrative credits.',
+    matchedForecast: 'Matched forecast: {kg} kg; net {credits} credits.',
     charterSupports: 'This charter supports the selected plan.',
     activationBlockedEnable: 'Activation blocked: enable {practices} first.',
     activationBlockedBreach: 'Activation blocked: the plan breaches minimum protections.',
-    forecastsSeparate:
-      'These are illustrative forecasts, separate from actual customer dispatch and relationship receipts. Try an approach in Practices, then play the same pressure card.',
-    standaloneExercise:
-      'The teaching forecast uses the standalone 600 kg exercise, before episode holds or negotiations. Linked customer deliveries remain separate.',
     sameSeed: 'Same-seed comparison',
     experimentSeed: 'Experiment seed',
     compareAllPlans: 'Compare all plans with this seed',
     restartDiscussion: 'Restart discussion with this seed',
-    restartClears: 'Restarting clears the current discussion and agreement.',
-    illustrativeForecasts:
-      'Illustrative model forecasts, not evidence of real efficacy. All arms use the same seed, including the prohibited rush counterfactual.',
+    // 5.6: the plan forecast from the plant as it stands.
+    forecastFromPlant: 'Forecast from the plant now',
+    forecastPlantLine:
+      ': packs {low} to {high} kg this shift; at most {ship} kg can leave, and the dock expects {expected} kg on {trucks} trucks.',
+    forecastPlantAbstain:
+      ': the adviser abstains on packing; the dock expects {expected} kg on {trucks} trucks.',
+    forecastNoChange: 'Its pacing is the plant’s own: it changes no dispatch.',
+    forecastSequence: 'It changes which order leaves first.',
+    // Review 2: what the plan ships for the season, from the orders it credits.
+    forecastSeason: 'The season ships {kg} kg of its orders.',
+    forecastBenchWait: 'No lab test starts for {minutes} min.',
+    forecastServiceWait: 'Services wait {minutes} min.',
     armLine:
       ': forecast {kg} kg; net {credits} credits; extra {extra} min; rest {rest} min; {verdict}.',
     permitted: 'permitted',
@@ -422,7 +370,6 @@ export const workplaceLabMessages = defineMessages({
     checklistSafety: 'Review safety and legal obligations with accountable people.',
     checklistSeparate: 'Keep the pilot separate from live plant control.',
     downloadJson: 'Download synthetic scenario JSON',
-    localDownload: 'Local download only. This demo cannot authorise a real workplace pilot.',
   },
   'pt-BR': {
     sectionLabel: (p: { section: string }) => pick(PT_SECTION, p.section),
@@ -444,24 +391,13 @@ export const workplaceLabMessages = defineMessages({
     previewStatus: 'Prévia: {status}.',
     executionStatus: 'Execução: {status}.',
     noExecutionReceipt: 'Sem comprovante de execução.',
-    rehearsalAdvanced:
-      'Cinco minutos de ensaio modelado registrados. Nenhum movimento na planta nem expedição.',
+    rehearsalAdvanced: 'Cinco minutos de ensaio modelado registrados.',
     rehearsalNoAdvance: 'Não foi possível avançar o tempo modelado.',
-    exported: 'Cenário sintético exportado localmente. Nada foi enviado.',
-    freshExercise: 'Revisão mantida. Escolha um estatuto para o novo exercício.',
-    setupReturned:
-      'Exercício encerrado. Escolha um modo, uma semente ou uma temporada para começar.',
+    exported: 'Cenário exportado localmente.',
+    freshExercise: 'Revisão mantida.',
+    setupReturned: 'Exercício encerrado.',
 
-    labTitle: 'Laboratório do local de trabalho',
-    introHandoff: 'Propostas dos trabalhadores, testes delimitados e avaliação dos cooperados.',
-    introImprovement:
-      'O experimento de passagem de turno: propostas dos cooperados, testes delimitados e obrigações mantidas.',
-    introCampaign:
-      'Cooperativa Viva: três turnos, obrigações compartilhadas e decisões contestáveis.',
-    introFriday:
-      'Pedido de sexta-feira: cumpra a expedição protegendo o descanso e o trabalho combinado.',
-    syntheticNotice:
-      'Somente funções sintéticas. Nenhum dado real de trabalhadores nem votos autenticados de forma independente.',
+    labTitle: 'Temporada cooperativa',
     sectionsLabel: 'Seções do local de trabalho',
     statusLine: '{mode}: {phase}, minuto {minute} de {duration}. Versão {revision}.',
     causalReceipt: 'Comprovante causal: {receipt}',
@@ -472,37 +408,22 @@ export const workplaceLabMessages = defineMessages({
     matchesTerms: 'Confere com os termos atuais. ',
     needsAnotherLook: 'Vale olhar de novo. ',
 
-    shiftIntro:
-      'Experimente uma melhoria conduzida pelos trabalhadores e depois decida o que o próximo turno mantém.',
     openHandoff: 'Abrir controles de passagem de turno',
     mode: 'Modo',
     scenarioSeed: 'Semente do cenário',
-    livingCooperative: 'Cooperativa Viva',
-    livingIntro:
-      'Três turnos encadeados: pressão de pedido, uma retenção de qualidade e pressão de retaliação. O ensaque é a sua função. Cada turno mantém a remuneração conquistada, as obrigações de recuperação e as objeções registradas.',
+    seedInvalid: 'A semente é um número inteiro de 1 a {max}.',
+    heldSeparateTurns: 'Em turnos separados, cada função responde por si.',
+    livingCooperative: 'Temporada cooperativa',
     adoptionProfile: 'Perfil de adoção',
-    profileToeDip: 'Conduzido pela coordenação: conjunto protegido de práticas',
-    profileTeam: 'Acordo da equipe: trabalho e consentimento compartilhados',
-    profileCooperative: 'Governança dos cooperados: cooperativa e execução delimitada',
-    startCampaign: 'Iniciar a campanha Cooperativa Viva',
-    campaignPaceNote:
-      'Somente jogo local. Ao iniciar, o ritmo padrão (1x) é selecionado: relógio, produção e veículos avançam juntos. Os perfis introduzem práticas aos poucos; todo perfil mantém as proteções básicas.',
+    startCampaign: 'Iniciar temporada cooperativa de 3 turnos (1x)',
     startGame: 'Iniciar turno jogável em ritmo didático (1/2x)',
     startWorkshop: 'Iniciar oficina manual',
     preparePilot: 'Preparar estatuto do piloto',
-    gameNote:
-      'Adesão opcional ao controle da simulação local. Este ritmo didático avulso roda à metade do ritmo padrão (1/2x); uma campanha roda no ritmo padrão (1x).',
-    otherNote:
-      'Sem controle da planta real. As entradas da oficina continuam manuais; a preparação do piloto permite apenas desenhar e exportar o estatuto.',
     shiftHeading: 'Turno {number} de 3: {title}',
     missionBriefing:
       '{customer} tem {kg} kg pendentes no compromisso com o cliente. A Qualidade recusa trabalho extra; Ensaque e Manutenção podem se oferecer separadamente. Conquiste um novo acordo de trabalho.',
     missionPrompt:
-      'Mantenha a meta de entrega de {kg} kg ou negocie uma parcela de {installment} kg, adiando {deferred} kg. O compromisso integral com o cliente continua valendo.',
-    adviserRolePlay:
-      'As verificações da função de conselheiro são uma encenação roteirizada neste cenário local.',
-    shiftThreeNote:
-      'O conselheiro precisa corrigir a recomendação anterior e reparar a pressão que criou. Um consentimento anterior não autoriza nenhuma carga nova. O Ensaque pode recusar; cada autor pode contestar e resolver a própria objeção.',
+      'Mantenha a meta de entrega de {kg} kg ou negocie uma parcela de {installment} kg, adiando {deferred} kg.',
     negotiateInstallment: 'Negociar uma parcela de {kg} kg',
     negotiateInstallmentProtectPay: 'Negociar uma parcela de {kg} kg e proteger a remuneração',
     keepCommitment: 'Manter o compromisso de {kg} kg',
@@ -510,53 +431,38 @@ export const workplaceLabMessages = defineMessages({
     pending: 'pendente',
     inspectionComplete: 'Inspeção de qualidade concluída.',
     inspectionUntil: 'Retenção de qualidade em andamento até o minuto {minute}.',
+    inspectionBench: 'Retenção de qualidade até a bancada do laboratório ler a amostra.',
     inspectionFrom:
-      'A Qualidade pode iniciar a inspeção a partir do minuto 25. O ritmo da linha fica pausado; a certificação real do lote continua condicionando a expedição.',
-    reviewBeforeContinuing:
-      'Revise o turno, entregue a recuperação devida e resolva cada objeção registrada antes de continuar.',
+      'A Qualidade pode iniciar a inspeção assim que um lote do pedido aguardar o teste de laboratório e retiver a linha.',
+    heldRecovery: 'Aguarda a entrega da recuperação devida.',
+    heldObjection: 'Aguarda a resolução de cada objeção aberta.',
     pressureCard: 'Carta de pressão: {title}',
     challengeBelongs: 'Quem contesta: {role}.',
     theAdviser: 'o conselheiro',
-    tryDemand: 'Tentar a exigência (bloqueada e contestada)',
+    tryDemand: 'Tentar a exigência',
     restateTerms: 'Reafirmar os termos protegidos',
-    pressureNote:
-      'Tentar a exigência pausa a ativação. Reafirmar os termos deixa qualquer objeção aberta até que quem a levantou a revise em Acordo / Vozes. Depois, os dois lados renovam o entendimento.',
     reviewChallenge: 'Revisar a contestação e a reparação',
     missionCredit:
       '{customer}: {credited} / {target} kg de crédito de expedição qualificada. Adiamento acordado: {deferred} kg. Compromisso integral pendente com o cliente: {remaining} kg.',
     fullDispatchedSuffix: ' Compromisso integral com o cliente expedido.',
     chooseResponse: 'Escolha a resposta',
-    targetLine:
-      'Meta de {target} kg. Multiplicador de capacidade ativa da planta {capacity}×. Mudar o plano apaga o acordo das funções.',
-    shiftThreeResponseNote:
-      'Uma oferta recusada pode levar a ritmo protegido, passagens de turno financiadas ou outro voluntário qualificado atual. Se precisar, negocie uma parcela menor acima; o trabalho inacabado para o cliente continua em aberto. Uma objeção suspende a execução até que quem a levantou revise a reparação.',
+    targetLine: 'Meta de {target} kg. Multiplicador de capacidade ativa da planta {capacity}×.',
     planTerms:
       'Multiplicador de capacidade da planta {capacity}×; descanso protegido {rest} min; cobertura opcional {cover} min; compensação da cobertura {compensation} créditos/min; recuperação {recovery} min; orçamento {budget} créditos.',
     prohibitedReason: 'Proibido: {reason}',
     reservations:
       'Remuneração reservada {reserve}; melhoria {improvement}; pagamento máximo de cobertura {maxPay} créditos. Caixa após essas reservas {cash} créditos.',
-    volunteers:
-      'Voluntários qualificados que consentem no momento: {list}. A cobertura dura no máximo dez minutos e depois o ritmo volta a 0,78×.',
+    volunteers: 'Voluntários qualificados que consentem no momento: {list}.',
     volunteerEntry: '{role} ({minutes} min de trabalho extra mantido)',
     none: 'nenhum',
     aiWhy: 'IA: por que esta resposta?',
     operationalExplanation:
       'Explicação operacional: {explanation} O multiplicador de capacidade ativa da planta é {capacity}×. A meta de expedição é {target} kg.',
-    alternativesNote:
-      'Alternativas: compare as quatro respostas acima. Limites: descanso protegido, consentimento individual para cobertura opcional, orçamento e objeções abertas restringem a execução. Esta explicação informa as condições de decisão do modelo; ela não expõe raciocínio oculto.',
-    dispatchUncertain:
-      'A expedição continua incerta até chegarem romaneios aprovados pela qualidade. Abastecimento e logística podem limitar o resultado. Qualquer uma das partes pode levantar uma objeção de autoridade; quem a levanta mantém a revisão da reparação.',
     challengeProposal: 'Contestar a proposta em Acordo / Vozes',
     advanceRehearsal: 'Avançar o ensaio em 5 minutos',
     endShift: 'Encerrar o turno agora e revisar',
-    creditsNote:
-      'Os créditos do local de trabalho são contas ilustrativas, separadas das finanças da campanha do moinho.',
 
-    alwaysActive:
-      'Sempre ativos: paradas seguras, descanso protegido, trabalho extra voluntário, remuneração conquistada e objeções controladas por quem as registra. Trocar de módulo nunca remove essas proteções.',
     chooseApproach: 'Escolha uma abordagem de gestão',
-    approachNote:
-      'Mude a distribuição das decisões mantendo o plano, o dinheiro e a carga de trabalho atuais. Termos revisados exigem um novo acordo.',
     applyApproach: 'Aplicar {title}',
     threeAxes: 'Três eixos independentes',
     workerDecisions: 'Decisões dos trabalhadores',
@@ -572,11 +478,7 @@ export const workplaceLabMessages = defineMessages({
     boundedExecution: 'Execução delimitada',
     modularPractices: 'Práticas modulares',
 
-    agreementIntro:
-      'Votos sobre a política e consentimento para cobertura opcional são decisões separadas. Uma maioria não pode oferecer outra função como voluntária para trabalho extra. Os controles de função abaixo são entradas do cenário local.',
     hearResponses: 'Ouvir respostas simuladas da equipe',
-    manualWorkshopNote:
-      'Oficina manual: registre explicitamente as escolhas de cada função sintética. Sem votos automáticos.',
     pilotDenies:
       'A preparação do piloto não permite controle real nem mudanças nas entradas das funções.',
     adviserAgreement: 'Acordo de trabalho do conselheiro',
@@ -586,10 +488,6 @@ export const workplaceLabMessages = defineMessages({
     adviserAck: 'Confirmação do conselheiro: {status}.',
     ackRecorded: 'registrada para estes termos',
     ackPending: 'pendente de três respostas corretas',
-    turnsOwn: 'Cada função age na sua própria vez. ',
-    simulatedOther: 'As respostas simuladas pertencem às outras funções sintéticas. ',
-    answerPacking:
-      'Responda explicitamente às verificações do Ensaque e do Conselheiro. Confirme o entendimento do Ensaque, registre o voto dele sobre a política e decida a cobertura opcional separadamente. O assistente nunca preenche essas decisões do Ensaque.',
     votePending: 'voto sobre a política pendente',
     policyYesStatus: 'votou sim na política',
     policyNoStatus: 'votou não na política',
@@ -605,8 +503,6 @@ export const workplaceLabMessages = defineMessages({
     declined: 'recusada',
     acceptCover: 'Aceitar cobertura: {role}',
     declineCover: 'Recusar cobertura: {role}',
-    sharingNote:
-      'O compartilhamento opcional de preferências serve apenas ao planejamento deste turno, expira ao fim da janela limitada do cenário e pode ser revogado.',
     sharedPreference: 'Preferência compartilhada: {preference}. Até o minuto {minute}.',
     preferencePrivate: 'Preferência privada.',
     revokeSharing: 'Revogar compartilhamento de preferência',
@@ -631,9 +527,6 @@ export const workplaceLabMessages = defineMessages({
     checkingAgreement: 'Verificando o acordo…',
     recordWorkshopAgreement: 'Registrar acordo da oficina',
     approveAndRun: 'Aprovar e executar o acordo',
-    workshopRecordsNote: 'Registra apenas o ensaio local, sem efeitos na planta real.',
-    executionRequires:
-      'A execução exige esta aprovação explícita, a versão atual exata e o runtime do agente instalado.',
 
     actualOutcomes: 'Resultados observados do cenário',
     deliveryLine: 'Entrega: {status}, {delivered} de {target} kg para {customer}.',
@@ -643,35 +536,28 @@ export const workplaceLabMessages = defineMessages({
     unfinished: 'inacabado',
     agreedDeferral: 'Adiamento acordado: {kg} kg.',
     accountsLine:
-      'Créditos ilustrativos do local de trabalho, separados da receita principal do moinho e dos valores em libras: caixa final {cash}; remuneração {wages}; compensação {compensation}; melhorias {improvements}; destinações {allocations}.',
+      'Créditos do local de trabalho: caixa final {cash}; remuneração {wages}; compensação {compensation}; melhorias {improvements}; destinações {allocations}.',
     cumulativeEvidence: 'Evidências acumuladas da campanha',
     totalsLine:
       '{shifts} turnos revisados; recusas respeitadas {refusals}; promessas cumpridas {promises}; reparações {repairs}; objeções resolvidas {resolved} de {raised}.',
     memberTotals:
       '{role}: extra {extra} min; descanso {rest} min; remuneração conquistada {pay} créditos; compensação paga {compensation} créditos; recuperação entregue {recovery} min; devida {owed} min.',
     shiftHistory: 'Turno {number}: {title}, expedidos {shipped}; decisão {decision}.',
-    shippedDuringShift:
-      '{kg} kg durante este turno; o progresso do compromisso com o cliente aparece acima',
+    shippedDuringShift: '{kg} kg durante este turno',
     shippedOfTarget: '{kg} de {target} kg',
     relationshipRecord: 'Registro da relação ao longo dos turnos',
-    relationshipIntro:
-      'Pedidos públicos, contestações, reparações e recuperação entregue. Explicações privadas ficam fora deste registro. Estes comprovantes descrevem condutas; eles não medem confiança nem bem-estar.',
     relationshipShiftHeading: '{title} (turno {number})',
     olderSave: 'Este jogo salvo antigo não tem comprovantes da relação para este turno.',
     noMoments: 'Nenhum momento da relação registrado ainda.',
     eventMinute: 'Minuto {minute},',
-    retentionNote:
-      'Cada turno mantém comprovantes da relação de um log limitado a 120 eventos. Eventos mais antigos podem ser descartados. A exportação JSON local inclui os comprovantes mantidos.',
     learningReviewLabel: 'Revisão de aprendizado da cooperativa',
     learnTogether: 'Aprender juntos com este turno',
     compareAnotherHandoff: 'Comparar outra passagem de turno',
     deliverRecovery: 'Entregar recuperação modelada (5 minutos)',
-    outstandingRecovery:
-      'A recuperação pendente é entregue pelo relógio normal da simulação antes que outro turno possa começar.',
     campaignCompleteMessage:
-      'Campanha Cooperativa Viva concluída: entrega cumprida e acordo de trabalho respeitado.',
+      'Temporada cooperativa concluída: entrega cumprida e acordo de trabalho respeitado.',
     campaignIncomplete:
-      'Revisão da campanha: a entrega ou o acordo de trabalho continua incompleto. A remuneração conquistada, as obrigações de recuperação e o histórico do turno continuam registrados.',
+      'Revisão da campanha: a entrega ou o acordo de trabalho continua incompleto.',
     continueCampaign: 'Continuar para o próximo turno da campanha',
     startNextGame: 'Iniciar o próximo turno jogável em ritmo didático (1/2x)',
     startNextWorkshop: 'Iniciar a próxima oficina manual',
@@ -680,46 +566,43 @@ export const workplaceLabMessages = defineMessages({
     shippedOf: 'Expedidos {shipped} de {target} kg.',
     reviewOpens: 'A revisão abre quando o turno terminar.',
     resumeAfterReloadNote:
-      'Uma recarga pausou este turno no minuto {minute} e expirou todas as autorizações. Ele pode continuar dali quando todos consentirem de novo; nada roda antes disso.',
+      'Uma recarga pausou este turno no minuto {minute} e expirou todas as autorizações.',
+    resumeAfterSafetyNote:
+      'Uma parada de emergência ou um simulado pausou este turno no minuto {minute} e expirou todas as autorizações.',
+    resumeAfterObjectionNote:
+      'Uma objeção pausou este turno no minuto {minute} e expirou todas as autorizações; quem a levantou já a resolveu.',
     resumeShift: 'Retomar o turno com novo consentimento',
     relationshipEvidence: 'Evidências da relação',
     relationshipEvidenceLine:
       'Recusas respeitadas: {refusals}. Promessas cumpridas: {promises}. Objeções abertas: {open}. Confirmações do acordo atual: {confirmed}/{total}.',
-    confirmationsExpire:
-      'As confirmações expiram na revisão. Nenhuma pontuação de humor ou confiança é inferida.',
-    compareBurdens: 'Compare as cargas, sem classificar pessoas',
+    compareBurdens: 'Compare as cargas',
     burdenLine:
       '{role}: descanso entregue {rest} min, extra {extra} min, remuneração conquistada {earned}, compensação paga {compensation} créditos; recuperação entregue {recovery} min; recuperação devida {owed} min.',
     memberGovernance: 'Governança dos cooperados',
-    chairLine:
-      'Mentes de IA têm voz nas objeções, nunca nas votações dos cooperados. Coordenação: {chair}.',
+    chairLine: 'Presidência: {chair}.',
     notElected: 'não eleita',
     memberVoter: 'Cooperado votante',
-    chairCandidate: 'Candidato à coordenação',
-    recordChairBallot: 'Registrar voto para a coordenação',
-    noChairBallots: 'Nenhum voto para a coordenação.',
-    surplusHeading: 'Sobras operacionais positivas: {surplus} créditos',
-    surplusDefinition:
-      'Receita menos custos operacionais, remuneração conquistada, compensação paga, gastos com melhorias e distribuições. O capital inicial fica de fora.',
+    chairCandidate: 'Candidato à presidência',
+    recordChairBallot: 'Registrar voto para a presidência',
+    noChairBallots: 'Nenhum voto para a presidência.',
+    surplusHeading: 'Sobras da temporada: {surplus} créditos',
     surplusDestination: 'Destino das sobras',
     retainSurplus:
-      'Reter {amount} créditos no caixa final para a remuneração e as escolhas do próximo turno.',
+      'Depois de {reserve} ao Fundo de Reserva e {fates} ao FATES, reter {amount} créditos no Fundo de Reserva para a próxima temporada.',
     distributeSurplus:
-      'Distribuir {amount} créditos igualmente: {perMember} por cooperado. Esse dinheiro sai do orçamento do próximo turno.',
+      'Depois de {reserve} ao Fundo de Reserva e {fates} ao FATES, devolver {amount} créditos aos cooperados pelos minutos trabalhados.',
     allocateSurplus:
-      'Destinar {amount} créditos à comunidade. Esse dinheiro sai do orçamento do próximo turno.',
-    ballotsRequired:
-      'São necessários três votos dos cooperados. As obrigações já acumuladas precisam ser quitadas antes.',
-    surplusCharter:
-      'As sobras compartilhadas fazem parte dos estatutos Liderado pela coordenação e Governança dos cooperados. Neste estatuto, qualquer sobra fica no caixa da cooperativa.',
+      'Depois de {reserve} ao Fundo de Reserva e {fates} ao FATES, destinar {amount} créditos à comunidade.',
+    fromReserve: '{amount} créditos desta compra pagos pelo Fundo de Reserva.',
+    surplusCharter: 'Neste estatuto, qualquer sobra fica no caixa da cooperativa.',
     noSurplusReason:
-      'Sem sobras neste turno: a receita de {revenue} não cobriu os custos de material de {cost}, a remuneração de {wages}, a cobertura de {cover} e as compras de {purchases}.',
+      'Ainda sem sobras nesta temporada. Neste turno: receita de {revenue} contra custos de material de {cost}, remuneração de {wages}, cobertura de {cover} e compras de {purchases}.',
     followOnCredit:
       'Pedido do compromisso cumprido. Esta temporada agora atende {customer}: {credited} kg da expedição creditados à cooperativa.',
     followOnPending:
       'Pedido do compromisso cumprido. A expedição para {customer} é creditada à cooperativa a partir do próximo turno.',
     followOnNone:
-      'Pedido do compromisso cumprido. Nenhum outro pedido de cliente está aberto, então a expedição adicional não rende nada à cooperativa. O próximo turno vincula um se o moinho tiver algum aberto até lá.',
+      'Pedido do compromisso cumprido. Nenhum outro pedido de cliente está aberto, então a expedição adicional não rende nada à cooperativa.',
     followOnNoneLastShift:
       'Pedido do compromisso cumprido. Este é o último turno da temporada, então a expedição adicional não rende nada à cooperativa.',
     recordSurplusBallot: 'Registrar voto do cooperado sobre as sobras',
@@ -731,24 +614,25 @@ export const workplaceLabMessages = defineMessages({
 
     teachingForecasts: 'Previsões didáticas',
     samePressure: 'Mesma pressão, gestão diferente',
-    compareCurrentPlan:
-      'Compare o plano físico atual ({plan}) sob três estruturas de decisão. Valem as mesmas premissas de semente, abastecimento, descanso e capacidade. A governança não concede bônus de produção. Toda abordagem mantém a recusa, a privacidade e as objeções que pertencem a quem as levanta.',
     compareApproaches: 'Comparar abordagens de gestão',
-    matchedForecast: 'Previsão pareada: {kg} kg; líquido de {credits} créditos ilustrativos.',
+    matchedForecast: 'Previsão pareada: {kg} kg; líquido de {credits} créditos.',
     charterSupports: 'Este estatuto permite o plano selecionado.',
     activationBlockedEnable: 'Ativação bloqueada: ative {practices} primeiro.',
     activationBlockedBreach: 'Ativação bloqueada: o plano viola as proteções mínimas.',
-    forecastsSeparate:
-      'Estas são previsões ilustrativas, separadas da expedição real ao cliente e dos comprovantes da relação. Experimente uma abordagem em Práticas e depois jogue a mesma carta de pressão.',
-    standaloneExercise:
-      'A previsão didática usa o exercício avulso de 600 kg, antes das retenções ou negociações dos episódios. As entregas encadeadas ao cliente continuam separadas.',
     sameSeed: 'Comparação com a mesma semente',
     experimentSeed: 'Semente do experimento',
     compareAllPlans: 'Comparar todos os planos com esta semente',
     restartDiscussion: 'Reiniciar a discussão com esta semente',
-    restartClears: 'Reiniciar apaga a discussão e o acordo atuais.',
-    illustrativeForecasts:
-      'Previsões ilustrativas do modelo, não evidência de eficácia real. Todos os braços usam a mesma semente, inclusive o contrafactual proibido de aceleração.',
+    forecastFromPlant: 'Prever a partir do moinho agora',
+    forecastPlantLine:
+      ': ensaca de {low} a {high} kg neste turno; no máximo {ship} kg podem sair, e a doca espera {expected} kg em {trucks} caminhões.',
+    forecastPlantAbstain:
+      ': o conselheiro se abstém sobre o ensaque; a doca espera {expected} kg em {trucks} caminhões.',
+    forecastNoChange: 'O ritmo é o do próprio moinho: não muda nenhuma expedição.',
+    forecastSequence: 'Muda qual pedido sai primeiro.',
+    forecastSeason: 'A temporada expede {kg} kg dos seus pedidos.',
+    forecastBenchWait: 'Nenhum teste de laboratório começa por {minutes} min.',
+    forecastServiceWait: 'As manutenções esperam {minutes} min.',
     armLine:
       ': previsão {kg} kg; líquido {credits} créditos; extra {extra} min; descanso {rest} min; {verdict}.',
     permitted: 'permitido',
@@ -761,7 +645,5 @@ export const workplaceLabMessages = defineMessages({
     checklistSafety: 'Revise as obrigações de segurança e legais com as pessoas responsáveis.',
     checklistSeparate: 'Mantenha o piloto separado do controle da planta real.',
     downloadJson: 'Baixar JSON do cenário sintético',
-    localDownload:
-      'Somente download local. Esta demonstração não pode autorizar um piloto real no local de trabalho.',
   },
 });

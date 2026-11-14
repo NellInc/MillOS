@@ -10,7 +10,7 @@ const PT_MATERIAL: Record<string, string> = {
 export const operationsPlayMessages = defineMessages({
   en: {
     blockActiveChallenge: 'Finish or abandon the active challenge first.',
-    blockNoCommitment: 'Accept a production programme with an open commitment first.',
+    blockNoCommitment: 'Accept a delivery programme with an open commitment first.',
     blockOpenIncidents: 'Recover existing incidents before adding another challenge.',
     blockPlanning: 'Wait for the selected route to refresh its inventory and quality readings.',
     blockNoFeedstock: 'Receive the active recipe feedstock before starting.',
@@ -38,7 +38,10 @@ export const operationsPlayMessages = defineMessages({
     resolveConsequenceEnded:
       'Restores the abandoned or expired scenario controller to normal. Its recorded challenge result remains unchanged; a fresh challenge can then be started.',
     repairLabel: 'Repair the stopped machine in Overview',
-    programmeLabel: 'Accept next production programme',
+    // One name with the debrief's button (PlayableShift acceptNextProgramme).
+    programmeLabel: 'Accept next delivery programme',
+    layerSeasonLabel: 'Cooperative season',
+    layerCharterLabel: 'Chronicle charter',
     programmeConsequence:
       'Creates three customer commitments, {dayKg} kg in all ({nightKg} kg on the night shift): a one-truck rush that pays {premium}% more but is due within {window} and costs double the usual late penalty, a {standardKg} kg order and a two-truck bulk order. The rush customer changes with each programme. Existing stock remains available; no goods or revenue are created.',
     qualityLabel: 'Review the quality hold in Overview',
@@ -55,6 +58,13 @@ export const operationsPlayMessages = defineMessages({
     productionLabel: 'Check the production line in SCADA',
     residualConsequence:
       '{title} retains residual effects. Recover the affected equipment or hold in its owning workspace; acknowledgement alone cannot restore it.',
+    // A Chronicle-raised incident is restored in the Chronicle workspace
+    // (ChronicleOverview m23, m26; the sidebar's title).
+    chronicleRestoreLabel: 'Restore controls in the Mill Chronicle',
+    chronicleRestoreConsequence:
+      '{title}: Restore controls is under Incidents raised by the chronicle.',
+    chronicleRestorePendingConsequence:
+      '{title}: Restore controls opens once the mitigation takes effect.',
     productionConsequence:
       'Follow feedstock through mills, sifters and packers. The scheduler sets recipe throughput; quality release precedes shipment.',
 
@@ -74,7 +84,7 @@ export const operationsPlayMessages = defineMessages({
   },
   'pt-BR': {
     blockActiveChallenge: 'Primeiro conclua ou abandone o desafio ativo.',
-    blockNoCommitment: 'Primeiro aceite um programa de produção com um compromisso em aberto.',
+    blockNoCommitment: 'Primeiro aceite um programa de entregas com um compromisso em aberto.',
     blockOpenIncidents: 'Recupere as ocorrências existentes antes de adicionar outro desafio.',
     blockPlanning: 'Aguarde a rota selecionada atualizar as leituras de estoque e de qualidade.',
     blockNoFeedstock: 'Receba a matéria-prima da receita ativa antes de começar.',
@@ -102,7 +112,9 @@ export const operationsPlayMessages = defineMessages({
     resolveConsequenceEnded:
       'Restaura ao normal o controlador do cenário abandonado ou expirado. O resultado registrado do desafio não muda; depois disso, um novo desafio pode ser iniciado.',
     repairLabel: 'Reparar a máquina parada na Visão geral',
-    programmeLabel: 'Aceitar o próximo programa de produção',
+    programmeLabel: 'Aceitar o próximo programa de entregas',
+    layerSeasonLabel: 'Temporada cooperativa',
+    layerCharterLabel: 'Carta da Crônica',
     programmeConsequence:
       'Cria três compromissos com clientes, {dayKg} kg no total ({nightKg} kg no turno da noite): um pedido urgente de um caminhão, que paga {premium}% a mais, mas vence em {window} e custa o dobro da multa usual por atraso, um pedido de {standardKg} kg e um pedido a granel de dois caminhões. O cliente urgente muda a cada programa. O estoque existente continua disponível; nenhum produto ou faturamento é criado.',
     qualityLabel: 'Revisar a retenção de qualidade na Visão geral',
@@ -119,6 +131,11 @@ export const operationsPlayMessages = defineMessages({
     productionLabel: 'Verificar a linha de produção no SCADA',
     residualConsequence:
       '{title} mantém efeitos residuais. Recupere o equipamento afetado ou resolva a retenção no espaço de trabalho correspondente; só o reconhecimento não basta para restabelecer a operação.',
+    chronicleRestoreLabel: 'Restaurar controles na Crônica do moinho',
+    chronicleRestoreConsequence:
+      '{title}: Restaurar controles fica em Ocorrências geradas pela crônica.',
+    chronicleRestorePendingConsequence:
+      '{title}: Restaurar controles fica disponível quando a mitigação fizer efeito.',
     productionConsequence:
       'Acompanhe a matéria-prima pelos moinhos de rolos, plansifters e ensacadeiras. A programação da produção define a vazão da receita; a liberação de qualidade vem antes da expedição.',
 

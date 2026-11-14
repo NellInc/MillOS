@@ -27,6 +27,9 @@ function season() {
     return result;
   };
   run({ type: 'startCampaign', args: ['cooperative', 23] });
+  // The fixed order a season begun before seeded draws keeps (5.10): of the
+  // authored roles, Maintenance is the one willing to cover.
+  delete state.campaign!.draw;
   const agree = () => {
     for (const actor of ['packing', 'mind']) {
       for (const id of requiredChecks(actor))

@@ -103,18 +103,19 @@ export const useAINarrationStore = create<AINarrationState>()(
       name: 'millos-autonomous-narration',
       storage: safeJSONStorage,
       version: 2,
+      // The "AI Reflections" switch that wrote `enabled` left Settings with the
+      // narration cards (D14). A save holding it off would block every
+      // narration and its Datalinks unlock for good, with nothing to switch it
+      // back on, so a saved `enabled` is read as retired and no longer written.
       partialize: (state) => ({
         shownNarrations: [...state.shownNarrations],
-        enabled: state.enabled,
       }),
       merge: (persisted, current) => {
-        const state = persisted as
-          | Partial<{ shownNarrations: string[]; enabled: boolean }>
-          | undefined;
+        const state = persisted as Partial<{ shownNarrations: string[] }> | undefined;
         return {
           ...current,
           shownNarrations: new Set(state?.shownNarrations ?? []),
-          enabled: state?.enabled ?? true,
+          enabled: true,
         };
       },
     }

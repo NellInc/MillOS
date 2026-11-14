@@ -6,6 +6,7 @@ import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 import { WorkplaceAutomaticDemo } from './WorkplaceParticipation';
 import { setLocale } from '../../../i18n';
 
@@ -22,6 +23,8 @@ beforeEach(() => {
   });
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
 });
 afterEach(() => {
   useWorkplaceAutoplay.getState().pause();
@@ -29,14 +32,14 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// "Skip guide and run fictional demo" disables itself as the season starts.
+// "Let fictional roles decide" disables itself as the season starts.
 // Browsers move focus off a control that becomes disabled to <body>, where
 // Space is the forklift emergency stop, and Tab restarts from the page top.
 // Working if focus lands on the demo's next control (pause) instead.
 it('keeps focus on an enabled demo control after starting the automatic season', async () => {
   vi.useFakeTimers();
   render(<WorkplaceAutomaticDemo profile="toe-dip" />);
-  const skip = screen.getByRole('button', { name: 'Skip guide and run fictional demo' });
+  const skip = screen.getByRole('button', { name: 'Let fictional roles decide' });
   skip.focus();
   fireEvent.click(skip);
   await act(async () => {

@@ -20,10 +20,19 @@ import {
 } from '../../../simulation/workplaceCampaign';
 import { executeAgentCommand } from '../../../agent/client/executeAgentCommand';
 import type { AgentCommandClientResult } from '../../../agent/client/executeAgentCommand';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
 vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
 const execute = vi.mocked(executeAgentCommand);
-const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
+/** 5.1: in a solo season the tabs sit behind the facilitator disclosure; open it. */
+const openTools = () => {
+  const tools = screen.queryByText('Facilitator tools')?.closest('details');
+  if (tools) tools.open = true;
+};
+const open = (name: string) => {
+  openTools();
+  fireEvent.click(screen.getByRole('button', { name }));
+};
 /** Delivery kilograms are grouped in English too ("1,200"). */
 const groupedKg = (kg: number) => kg.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const prepare = (mode: 'game' | 'workshop' = 'game') => {
@@ -49,6 +58,16 @@ const result = (status: 'verified' | 'rejected', message?: string): AgentCommand
       problems: message ? [{ code: 'stale', severity: 'blocking', message }] : [],
     },
   }) as unknown as AgentCommandClientResult;
+/**
+ * The fixed order (and Monday at minute 25) a season begun before seeded
+ * draws keeps (5.10), for the tests about a named pressure on a named day.
+ */
+const fixedOrder = () => {
+  const { workplace } = useWorkplaceStore.getState();
+  if (!workplace.campaign) return;
+  const { draw: _draw, ...campaign } = workplace.campaign;
+  useWorkplaceStore.setState({ workplace: { ...workplace, campaign } });
+};
 
 beforeEach(() => {
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);
@@ -62,6 +81,7 @@ afterEach(cleanup);
 
 describe('Workplace laboratory interface', () => {
   it('offers to resume a shift a reload paused, with fresh consent, from the minute reached', () => {
+    fulfilFirstDelivery();
     for (let i = 0; i < 200 && useWorkplaceStore.getState().workplace.phase !== 'active'; i++)
       autoplayWorkplaceStep('toe-dip');
     useWorkplaceStore.getState().tick(30, 0, false);
@@ -81,8 +101,27 @@ describe('Workplace laboratory interface', () => {
     expect(resumed.members.every((m) => !m.understood && m.ballot === null)).toBe(true);
   });
 
+  it('names an emergency stop or drill, not a reload, as what paused the shift', () => {
+    fulfilFirstDelivery();
+    for (let i = 0; i < 200 && useWorkplaceStore.getState().workplace.phase !== 'active'; i++)
+      autoplayWorkplaceStep('toe-dip');
+    useWorkplaceStore.getState().tick(30, 0, false);
+    useWorkplaceStore.getState().tick(5, 0, true);
+    render(<WorkplaceLab />);
+    open('Review');
+    expect(
+      screen.getByText(/An emergency stop or drill paused this shift at minute 30/)
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/A reload paused this shift/)).toBeNull();
+    expect(
+      screen.getByRole('button', { name: 'Resume the shift with fresh consent' })
+    ).toBeInTheDocument();
+  });
+
   it('stages the direct third-shift chapter and exposes its pressure controls without consent', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startCampaign('team', 17);
+    fixedOrder();
     const state = useWorkplaceStore.getState().workplace;
     useWorkplaceStore.setState({
       workplace: { ...state, campaign: { ...state.campaign!, shift: 2 } },
@@ -105,6 +144,7 @@ describe('Workplace laboratory interface', () => {
   });
 
   it('switches decision structures without changing physical work or money', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startCampaign('cooperative', 17);
     const before = useWorkplaceStore.getState().workplace;
     render(<WorkplaceLab />);
@@ -123,27 +163,31 @@ describe('Workplace laboratory interface', () => {
     expect(useWorkplaceStore.getState().workplace.governance).toBe('team-consent');
   });
 
-  it('plays a blocked privacy demand and leaves remedy approval with Quality', () => {
+  it('plays a blocked privacy demand; Quality resolves its own challenge once terms are restated', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startCampaign('cooperative', 17);
+    fixedOrder();
     render(<WorkplaceLab />);
     fireEvent.click(screen.getByText('Pressure card: A private reason for refusal?'));
-    open('Try the demand (blocked and challenged)');
+    open('Try the demand');
     expect(screen.getByText(/Demand blocked and challenged/)).toBeInTheDocument();
     expect(useWorkplaceStore.getState().workplace.members.every((member) => !member.sharing)).toBe(
       true
     );
-    open('Restate protected terms');
     expect(useWorkplaceStore.getState().workplace.objections[0].status).toBe('open');
-    open('Review the challenge and remedy');
-    fireEvent.change(screen.getByLabelText('Resolving author for privacy'), {
-      target: { value: 'quality' },
-    });
-    open('Author confirms resolution');
+    // 5b: the raiser resolves its own objection; in a solo season Quality does,
+    // from its value, once the terms it challenged are restated.
+    open('Restate protected terms');
     expect(useWorkplaceStore.getState().workplace.objections[0].status).toBe('resolved');
+    expect(
+      useWorkplaceStore.getState().workplace.events.find((e) => e.kind === 'objection-resolved')
+        ?.actorId
+    ).toBe('quality');
     expect(execute).not.toHaveBeenCalled();
   });
 
   it('compares the same physical plan under three charters without a productivity bonus', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startCampaign('cooperative', 17);
     render(<WorkplaceLab />);
     open('Experiment');
@@ -153,12 +197,14 @@ describe('Workplace laboratory interface', () => {
       .map((element) => element.textContent);
     expect(forecasts).toHaveLength(3);
     expect(new Set(forecasts).size).toBe(1);
-    expect(screen.getByText(/Governance grants no production bonus/)).toBeInTheDocument();
+    expect(screen.queryByText(/Governance grants no production bonus/)).not.toBeInTheDocument();
   });
 
   it('shows public relationship receipts and identifies missing legacy evidence', () => {
     const store = useWorkplaceStore.getState();
+    fulfilFirstDelivery();
     store.startCampaign('cooperative', 17);
+    fixedOrder();
     store.respondToPressure('disclosure', 'accept-demand');
     const state = useWorkplaceStore.getState().workplace;
     const record = campaignRecord(state);
@@ -179,6 +225,7 @@ describe('Workplace laboratory interface', () => {
     expect(screen.queryByText(/predictable packing handoff/)).not.toBeInTheDocument();
   });
   it('shows the actual bound target and deferred installment without rewriting the customer order', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startMission('team', 17);
     const before = useOperationsCampaignStore.getState().orders;
     const mission = useWorkplaceStore.getState().workplace.campaign!.mission!;
@@ -198,11 +245,10 @@ describe('Workplace laboratory interface', () => {
     open('Review');
     expect(screen.getByText(/Delivery: pending/)).toBeInTheDocument();
     expect(screen.getByText(/Working agreement: pending/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Illustrative workplace credits, separate from main mill revenue and pounds/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/^Workplace credits: closing cash/)).toBeInTheDocument();
   });
   it('reports a fair zero-output run as a delivery shortfall and remembers the previous shift', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startMission('team', 17);
     const state = useWorkplaceStore.getState().workplace;
     const members = state.members.map((member) => ({ ...member, restMinutes: 15 }));
@@ -227,6 +273,9 @@ describe('Workplace laboratory interface', () => {
       },
     });
     render(<WorkplaceLab />);
+    // An ended season opens on its Review (the HUD debrief sends the player there).
+    expect(screen.getByRole('button', { name: 'Review' })).toHaveAttribute('aria-pressed', 'true');
+    open('Shift');
     expect(
       screen.getByText(
         new RegExp(
@@ -301,7 +350,7 @@ describe('Workplace laboratory interface', () => {
   });
   it('returns the laboratory to view when changing sections in a scrolled workspace', () => {
     render(<WorkplaceLab />);
-    const lab = screen.getByRole('region', { name: 'Workplace laboratory' });
+    const lab = screen.getByRole('region', { name: 'Cooperative season' });
     lab.scrollIntoView = vi.fn();
     open('Review');
     expect(lab.scrollIntoView).toHaveBeenCalledWith({ block: 'start', behavior: 'instant' });
@@ -310,9 +359,10 @@ describe('Workplace laboratory interface', () => {
   it('requires an explicit game start before changing the teaching clock', () => {
     render(<WorkplaceLab />);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
+    // 5.1 and D-012: the solo game opens on its next step, with no disclaimer.
     expect(
-      screen.getByText(/No real worker data or independently authenticated ballots/)
-    ).toBeInTheDocument();
+      screen.queryByText(/No real worker data or independently authenticated ballots/)
+    ).toBeNull();
     open('Start playable shift at teaching pace (1/2x)');
     expect(useGameSimulationStore.getState().gameSpeed).toBe(15);
     expect(useWorkplaceStore.getState().workplace.phase).toBe('deliberating');
@@ -488,9 +538,10 @@ describe('Workplace laboratory interface', () => {
     render(<WorkplaceLab />);
     open('Practices');
     fireEvent.change(screen.getByLabelText('Worker decisions'), {
-      target: { value: 'individual' },
+      target: { value: 'directed' },
     });
-    expect(useWorkplaceStore.getState().workplace.workerAutonomy).toBe('individual');
+    // 5.9: "individual" and "team" are one setting now; "directed" is the other.
+    expect(useWorkplaceStore.getState().workplace.workerAutonomy).toBe('directed');
     open('Shift');
     fireEvent.click(screen.getByRole('radio', { name: /Resequence together/ }));
     expect(useWorkplaceStore.getState().workplace.planId).toBe('resequence');
@@ -523,7 +574,7 @@ describe('Workplace laboratory interface', () => {
     fireEvent.change(screen.getByLabelText('Experiment seed'), { target: { value: '42' } });
     open('Compare all plans with this seed');
     expect(screen.getAllByText(/forecast .* kg;/)).toHaveLength(4);
-    expect(screen.getByText(/Illustrative model forecasts/)).toBeInTheDocument();
+    expect(screen.queryByText(/Illustrative model forecasts/)).not.toBeInTheDocument();
     open('Review');
     expect(
       within(screen.getByLabelText('Member voter')).queryByRole('option', { name: 'AI mind' })
@@ -540,10 +591,12 @@ describe('Living Cooperative campaign interface', () => {
   };
 
   it('starts only explicitly with the selected profile and a standard-pace local clock', () => {
+    fulfilFirstDelivery();
     render(<WorkplaceLab />);
     expect(useGameSimulationStore.getState().gameSpeed).toBe(180);
-    fireEvent.change(screen.getByLabelText('Adoption profile'), { target: { value: 'team' } });
-    open('Start Living Cooperative campaign');
+    // 5.1: the solo game's next step is the season: its charter and its start.
+    fireEvent.change(screen.getByLabelText('Charter'), { target: { value: 'team' } });
+    open('Start 3-shift cooperative season (1x)');
     expect(useWorkplaceStore.getState().workplace.campaign?.profile).toBe('team');
     expect(useGameSimulationStore.getState().gameSpeed).toBe(30);
     expect(screen.getByText(`Shift 1 of 3: ${CAMPAIGN_SHIFTS[0].title}`)).toBeInTheDocument();
@@ -551,6 +604,7 @@ describe('Living Cooperative campaign interface', () => {
   });
 
   it('requires Packing and adviser answers, clarifies mistakes and keeps sharing optional', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startCampaign('team', 17);
     render(<WorkplaceLab />);
     open('Agreement / Voices');
@@ -588,12 +642,18 @@ describe('Living Cooperative campaign interface', () => {
     expect(useWorkplaceStore.getState().workplace.members[0].sharing).toBe(false);
   });
 
-  it('records episode decisions and locks quality inspection until the active hold', () => {
+  it('shows each role’s own call, and leaves Monday’s inspection to Quality', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startCampaign('toe-dip', 17);
+    fixedOrder();
     render(<WorkplaceLab />);
-    open(CAMPAIGN_SHIFTS[0].choices[1].label);
+    // 5b: the Coordinator made Friday's call itself; its controls are its own.
     expect(useWorkplaceStore.getState().workplace.campaign?.decision).toBe('renegotiate');
+    openTools();
     expect(screen.getByText('Recorded decision: renegotiate.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: CAMPAIGN_SHIFTS[0].choices[0].label })
+    ).toBeDisabled();
     act(() => {
       const current = useWorkplaceStore.getState().workplace;
       useWorkplaceStore.setState({
@@ -607,13 +667,20 @@ describe('Living Cooperative campaign interface', () => {
       const current = useWorkplaceStore.getState().workplace;
       useWorkplaceStore.setState({ workplace: { ...current, phase: 'active', minute: 25 } });
     });
-    expect(screen.getByRole('button', { name: CAMPAIGN_SHIFTS[1].choices[0].label })).toBeEnabled();
-    open(CAMPAIGN_SHIFTS[1].choices[1].label);
+    // Quality's call, not the player's: it starts the inspection on the tick.
+    expect(
+      screen.getByRole('button', { name: CAMPAIGN_SHIFTS[1].choices[0].label })
+    ).toBeDisabled();
+    act(() => {
+      useWorkplaceStore.getState().tick(0.5, 0, false);
+    });
+    expect(useWorkplaceStore.getState().workplace.campaign?.decision).toBe('inspect');
     expect(useWorkplaceStore.getState().workplace.campaign?.inspectionComplete).toBe(false);
   });
 
   it('retains cumulative outcomes through the next shift instead of replaying the campaign', () => {
     const store = useWorkplaceStore.getState();
+    fulfilFirstDelivery();
     store.startCampaign('team', 17);
     store.campaignDecision('renegotiate', 'coordinator');
     store.stop();
@@ -629,6 +696,7 @@ describe('Living Cooperative campaign interface', () => {
     expect(screen.getByText(/Shift 1: Friday: the urgent order/)).toBeInTheDocument();
   });
   it('promises credit from the next shift only when a next order and a next shift exist', () => {
+    fulfilFirstDelivery();
     const ops = useOperationsCampaignStore.getState();
     const first = ops.orders.find((o) => o.id === ops.activeOrderId)!;
     expect(useWorkplaceStore.getState().startMission('team', 17).changed).toBe(true);
@@ -657,7 +725,7 @@ describe('Living Cooperative campaign interface', () => {
     expect(screen.getByText(/No other customer order is open/)).toBeInTheDocument();
     none.unmount();
     // The mill has moved on to a next order: that one is named.
-    const second = ops.orders.find((o) => o.id !== first.id)!;
+    const second = ops.orders.find((o) => o.id !== first.id && o.status !== 'fulfilled')!;
     useOperationsCampaignStore.setState({
       orders: ops.orders.map((o) =>
         o.id === first.id ? { ...o, status: 'fulfilled', shippedKg: o.requiredKg } : o
@@ -682,6 +750,7 @@ describe('Living Cooperative campaign interface', () => {
 
 it('turns the cooperative review into a discussion and comparison without changing the plant or agreement', () => {
   const store = useWorkplaceStore.getState();
+  fulfilFirstDelivery();
   store.startCampaign('cooperative', 17);
   store.stop();
   const agreement = useWorkplaceStore.getState().workplace;
@@ -703,6 +772,7 @@ it('turns the cooperative review into a discussion and comparison without changi
 });
 
 it('keeps cooperative reflection out of unfinished discussions', () => {
+  fulfilFirstDelivery();
   useWorkplaceStore.getState().startCampaign('cooperative', 17);
   render(<WorkplaceLab />);
   open('Review');
@@ -782,6 +852,7 @@ it.each(['packing', 'mind'])(
   'keeps %s learning feedback beside current answers without casting member decisions',
   (actorId) => {
     const get = () => useWorkplaceStore.getState();
+    fulfilFirstDelivery();
     get().startCampaign('cooperative', 17);
     const stock = structuredClone(useMaterialFlowStore.getState().sourceLots);
     const finance = structuredClone(get().workplace.finance);
@@ -835,16 +906,19 @@ it.each(['packing', 'mind'])(
     act(() => {
       get().selectPlan('resequence');
     });
+    // 5.2: a plan change renews every vote, not the checks whose terms stand.
     for (const q of questions) {
-      expect(document.getElementById(`check-answer-${actorId}-${q.id}`)).toBeNull();
-      expect(screen.getByLabelText(`${role}: ${q.prompt}`)).toHaveValue('');
-      expect(screen.getByLabelText(`${role}: ${q.prompt}`)).not.toHaveAttribute('aria-invalid');
+      expect(document.getElementById(`check-answer-${actorId}-${q.id}`)).toHaveTextContent(
+        'Matches the current terms.'
+      );
+      expect(screen.getByLabelText(`${role}: ${q.prompt}`)).toHaveValue(q.correct);
     }
-    expect(get().workplace.campaign?.adviserAcknowledged).toBe(false);
+    expect(get().workplace.campaign?.adviserAcknowledged).toBe(actorId === 'mind');
   }
 );
 
 it('disables surplus decisions outside a shared-surplus charter and says where they live', () => {
+  fulfilFirstDelivery();
   useWorkplaceStore.getState().startCampaign('team', 17);
   const state = useWorkplaceStore.getState().workplace;
   expect(state.practices).not.toContain('gainsharing');
@@ -869,7 +943,7 @@ it('disables surplus decisions outside a shared-surplus charter and says where t
   expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Execute agreed allocation' })).toBeDisabled();
   expect(
-    screen.getByText(/Shared surplus is part of the Coordinator-led and Member governance charters/)
+    screen.getByText('Under this charter, any surplus stays in the cooperative cash.')
   ).toBeVisible();
   cleanup();
   act(() => {
@@ -881,10 +955,11 @@ it('disables surplus decisions outside a shared-surplus charter and says where t
   render(<WorkplaceLab />);
   open('Review');
   expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeEnabled();
-  expect(screen.queryByText(/Shared surplus is part of the/)).toBeNull();
+  expect(screen.queryByText(/any surplus stays in the cooperative cash/)).toBeNull();
 });
 
 it('names why there is no surplus to share in the default charter', () => {
+  fulfilFirstDelivery();
   useWorkplaceStore.getState().startCampaign('toe-dip', 17);
   const state = useWorkplaceStore.getState().workplace;
   expect(state.practices).toContain('gainsharing');
@@ -908,7 +983,7 @@ it('names why there is no surplus to share in the default charter', () => {
   open('Review');
   expect(
     screen.getByText(
-      'No surplus this shift: revenue 100.00 did not cover material costs 40.00, wages 108.00, cover 6.00 and purchases 0.00.'
+      'No surplus this season so far. This shift: revenue 100.00 against material costs 40.00, wages 108.00, cover 6.00 and purchases 0.00.'
     )
   ).toBeVisible();
   expect(screen.getByRole('button', { name: 'Record member surplus ballot' })).toBeDisabled();
@@ -923,6 +998,7 @@ it('names the shift stop for what it does and rounds the inspection hold minute'
   cleanup();
   // A campaign starts only from the idle laboratory, not from the review above.
   useWorkplaceStore.setState({ workplace: createWorkplace() });
+  fulfilFirstDelivery();
   expect(useWorkplaceStore.getState().startCampaign('team', 17).changed).toBe(true);
   const state = useWorkplaceStore.getState().workplace;
   useWorkplaceStore.setState({

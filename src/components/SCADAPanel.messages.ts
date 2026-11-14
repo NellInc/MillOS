@@ -2,12 +2,6 @@ import { defineMessages, upperFirst } from '../i18n';
 import { PT_PHASE } from './ui/PredictiveMaintenancePanel.messages';
 import { PT_DISPOSITION, PT_MATERIAL } from './ui-new/panels/OverviewPanel.messages';
 
-const PT_ASSET_STATUS: Record<string, string> = {
-  critical: 'crítico',
-  low: 'baixo',
-  normal: 'normal',
-};
-
 const PT_ALARM_PRIORITY: Record<string, string> = {
   CRITICAL: 'CRÍTICA',
   HIGH: 'ALTA',
@@ -29,14 +23,6 @@ const PT_FAULT_TYPE: Record<string, string> = {
   stuck: 'travado',
   noise: 'ruído',
   communication: 'comunicação',
-};
-
-// Phase of an ocorrência (feminine); the description after it passes through.
-const PT_INCIDENT_PHASE: Record<string, string> = {
-  raised: 'aberta',
-  acknowledged: 'reconhecida',
-  mitigated: 'mitigada',
-  resolved: 'resolvida',
 };
 
 // Plant-state enums shown as values. English renders the raw value (CSS
@@ -81,14 +67,6 @@ const spaced = (value: string): string => value.replaceAll('_', ' ');
 const ptValue = (labels: Record<string, string>, value: string): string =>
   labels[value] ?? spaced(value);
 
-// Spoken aria text only; the visible quality codes (GOOD, BAD...) stay as codes.
-const PT_SIGNAL_QUALITY: Record<string, string> = {
-  good: 'bom',
-  bad: 'ruim',
-  stale: 'desatualizado',
-  uncertain: 'incerto',
-};
-
 export const scadaPanelMessages = defineMessages({
   en: {
     runtimeEnabled: 'SCADA runtime enabled',
@@ -105,7 +83,8 @@ export const scadaPanelMessages = defineMessages({
     scadaSimulation: 'SCADA Simulation',
     scadaConnected: 'SCADA Connected',
     simulatedBadge: 'SIMULATED',
-    tagCount: '{count} tags',
+    tagCount: (p: { count: string; n: number }) =>
+      p.n === 1 ? `${p.count} tag` : `${p.count} tags`,
     openWorkspace: 'Open full SCADA workspace',
     workspaceButton: 'WORKSPACE',
     disableTelemetry: 'Disable SCADA telemetry',
@@ -129,8 +108,6 @@ export const scadaPanelMessages = defineMessages({
     // Workspace header and tabs
     workspaceDialogLabel: 'Full simulated SCADA workspace',
     workspaceTitle: 'Simulated SCADA Workspace',
-    workspaceDescription:
-      'ISA-18.2-informed alarm workflow. Training simulation, not a certified control system.',
     closePanel: 'Close SCADA panel',
     modeLabel: 'Mode:',
     tagsLabel: 'Tags:',
@@ -158,7 +135,6 @@ export const scadaPanelMessages = defineMessages({
     localSimulatedTelemetry: 'local simulated telemetry',
     configuredDataAdapter: 'configured data adapter',
     ledgerHeading: 'Live material ledger',
-    ledgerBody: 'Conserved simulation values sampled into SCADA history.',
     balance: 'Balance {sign}{value} kg',
     rawGrain: 'Raw grain',
     inProcess: 'In process',
@@ -186,14 +162,12 @@ export const scadaPanelMessages = defineMessages({
     qualityProvenance: 'Quality provenance',
     noDispositionAction: 'no disposition action',
     operationsCommitments: 'Operations commitments',
-    operationsCommitmentsBody:
-      'Customer promise, incident, and constraint context alongside process truth.',
     openLogbook: 'Open logbook',
     activeOrder: 'Active order',
     allCommitmentsComplete: 'All commitments complete',
     percentDispatched: '{percent}% dispatched',
     executionState: 'Execution state',
-    percentSetpoint: '{percent}% setpoint',
+    percentProductionSpeed: '{percent}% production speed',
     activeIncidents: 'Active incidents',
     noCampaignIncident: 'No campaign incident',
     topConstraint: 'Top constraint',
@@ -212,24 +186,12 @@ export const scadaPanelMessages = defineMessages({
     kgDispatchable: '{kg} kg dispatchable',
     truckLoad: 'Truck load',
     dispatchStatus: (p: { value: string }) => p.value,
-    utilityHeading: 'Utility vessel telemetry',
-    utilityBody: 'Historian-linked instruments for the visible tank farm and LPG compound.',
-    assetLevelAria: (p: { status: string; quality: string }) =>
-      `${p.status} level, ${p.quality} signal`,
-    assetSignalTitle: '{quality} signal',
     grainFlowHeading: 'Grain process flow',
-    grainFlowBody: 'Select an asset to link the workspace and the 3D factory.',
-    rearIntakeToFrontDispatch: 'Rear intake to front dispatch',
     stageIntake: 'Intake and storage',
-    stageIntakeDescription: 'Raw grain inventory',
     stageMilling: 'Milling',
-    stageMillingDescription: 'Roll reduction',
     stageSifting: 'Sifting',
-    stageSiftingDescription: 'Plansifter separation',
     stagePacking: 'Packing',
-    stagePackingDescription: 'Finished product dispatch',
     stageLogistics: 'Autonomous logistics',
-    stageLogisticsDescription: 'Forklift and truck motion interlocks',
     stageStateCritical: 'critical',
     stageStateAttention: 'attention',
     stageStateNominal: 'nominal',
@@ -239,6 +201,21 @@ export const scadaPanelMessages = defineMessages({
     searchTagsPlaceholder: 'Search tags...',
     filterTagsByGroup: 'Filter tags by group',
     allGroups: 'All',
+    // Tag-type filter labels are interface copy; the tag ids stay untranslated.
+    groupTEMPERATURE: 'TEMPERATURE',
+    groupPRESSURE: 'PRESSURE',
+    groupFLOW: 'FLOW',
+    groupLEVEL: 'LEVEL',
+    groupVIBRATION: 'VIBRATION',
+    groupSPEED: 'SPEED',
+    groupCURRENT: 'CURRENT',
+    groupPOWER: 'POWER',
+    groupHUMIDITY: 'HUMIDITY',
+    groupWEIGHT: 'WEIGHT',
+    groupPOSITION: 'POSITION',
+    groupSETPOINT: 'SETPOINT',
+    groupCOMMAND: 'COMMAND',
+    groupSTATUS: 'STATUS',
     quality: 'Quality: {quality}',
     exportCsv: 'Export CSV',
     exportJson: 'Export JSON',
@@ -264,9 +241,7 @@ export const scadaPanelMessages = defineMessages({
     modeName: (p: { value: string }) => p.value,
     modeHeading: (p: { value: string }) => p.value,
     faultName: (p: { value: string }) => p.value,
-    incidentTitle: (p: { phase: string; description: string }) => `${p.phase}: ${p.description}`,
     shelveAria: 'Shelve {tag} alarm for 15 minutes',
-    enterReasonFirst: 'Enter a disposition reason first',
     shelve15: 'Shelve 15m',
     suppressAria: 'Suppress {tag} alarm for 15 minutes',
     suppress15: 'Suppress 15m',
@@ -306,10 +281,7 @@ export const scadaPanelMessages = defineMessages({
     refresh: 'Refresh',
     resume: 'Resume',
     pause: 'Pause',
-    trendFootnote:
-      'One-second aligned samples, refreshed every two seconds. BAD and STALE quality remains visible as a gap. Use the table for exact values and quality.',
     selectTagsPrompt: 'Select tags below to view trends',
-    upToSixTags: 'Up to 6 tags can be displayed',
     trendTableCaption:
       'SCADA trend samples. Missing numeric values indicate BAD or STALE data quality and are not interpolated.',
     time: 'Time',
@@ -321,10 +293,7 @@ export const scadaPanelMessages = defineMessages({
 
     // Events tab
     eventHistoryHeading: 'Alarm event history',
-    eventHistoryBody: 'Active alarms and the last 24 hours of archived alarm transitions.',
     operationsLogbook: 'Operations logbook',
-    operationsLogbookBody:
-      'Control decisions, campaign incidents, manifests, and dispatch records.',
     returnToLive: 'Return to live',
     openRecentReplay: 'Open recent replay',
     operationsLogMessage: 'Operations log message',
@@ -339,8 +308,6 @@ export const scadaPanelMessages = defineMessages({
     unassigned: 'Unassigned',
 
     // Simulation Lab
-    simulationLabBanner:
-      'Training simulation only. Injected faults affect simulated telemetry and alarms; they do not control physical equipment.',
     faultSensorFail: 'sensor fail',
     faultSpike: 'spike',
     faultDrift: 'drift',
@@ -363,14 +330,8 @@ export const scadaPanelMessages = defineMessages({
     scadaRuntime: 'SCADA runtime',
     enabled: 'Enabled',
     disabled: 'Disabled',
-    enableToStart: 'Enable to start local simulated SCADA telemetry.',
     connectionType: 'Connection Type',
     connSimulation: 'Simulation',
-    connSimulationDescription: 'Local physics simulation',
-    connRestDescription: 'HTTP polling',
-    connMqttDescription: 'MQTT pub/sub',
-    connWebsocketDescription: 'Direct WS connection',
-    connOpcuaDescription: 'Via backend proxy',
     restConfiguration: 'REST API Configuration',
     baseUrl: 'Base URL',
     pollInterval: 'Poll Interval (ms)',
@@ -406,7 +367,8 @@ export const scadaPanelMessages = defineMessages({
     scadaSimulation: 'Simulação SCADA',
     scadaConnected: 'SCADA conectado',
     simulatedBadge: 'SIMULADO',
-    tagCount: '{count} tags',
+    tagCount: (p: { count: string; n: number }) =>
+      p.n === 1 ? `${p.count} tag` : `${p.count} tags`,
     openWorkspace: 'Abrir a área de trabalho SCADA completa',
     workspaceButton: 'ÁREA DE TRABALHO',
     disableTelemetry: 'Desativar a telemetria SCADA',
@@ -429,8 +391,6 @@ export const scadaPanelMessages = defineMessages({
 
     workspaceDialogLabel: 'Área de trabalho SCADA simulada completa',
     workspaceTitle: 'Área de trabalho SCADA simulada',
-    workspaceDescription:
-      'Fluxo de alarmes inspirado na ISA-18.2. Simulação de treinamento, não um sistema de controle certificado.',
     closePanel: 'Fechar o painel SCADA',
     modeLabel: 'Modo:',
     tagsLabel: 'Tags:',
@@ -457,7 +417,6 @@ export const scadaPanelMessages = defineMessages({
     localSimulatedTelemetry: 'telemetria simulada local',
     configuredDataAdapter: 'adaptador de dados configurado',
     ledgerHeading: 'Registro de materiais em tempo real',
-    ledgerBody: 'Valores conservados da simulação, amostrados no histórico SCADA.',
     balance: 'Balanço {sign}{value} kg',
     rawGrain: 'Grão bruto',
     inProcess: 'Em processo',
@@ -486,14 +445,12 @@ export const scadaPanelMessages = defineMessages({
     qualityProvenance: 'Rastreabilidade da qualidade',
     noDispositionAction: 'nenhuma ação de destinação',
     operationsCommitments: 'Compromissos operacionais',
-    operationsCommitmentsBody:
-      'Contexto de compromissos com clientes, ocorrências e restrições ao lado dos dados reais do processo.',
     openLogbook: 'Abrir diário',
     activeOrder: 'Pedido ativo',
     allCommitmentsComplete: 'Todos os compromissos cumpridos',
     percentDispatched: '{percent}% expedido',
     executionState: 'Estado da execução',
-    percentSetpoint: '{percent}% do setpoint',
+    percentProductionSpeed: '{percent}% de velocidade de produção',
     activeIncidents: 'Ocorrências ativas',
     noCampaignIncident: 'Nenhuma ocorrência na campanha',
     topConstraint: 'Principal restrição',
@@ -512,25 +469,12 @@ export const scadaPanelMessages = defineMessages({
     kgDispatchable: '{kg} kg liberados para expedição',
     truckLoad: 'Carga do caminhão',
     dispatchStatus: (p: { value: string }) => upperFirst(ptValue(PT_DISPATCH_STATUS, p.value)),
-    utilityHeading: 'Telemetria dos tanques de utilidades',
-    utilityBody:
-      'Instrumentos vinculados ao histórico para o parque de tanques visível e a área de GLP.',
-    assetLevelAria: (p: { status: string; quality: string }) =>
-      `nível ${PT_ASSET_STATUS[p.status] ?? p.status}, sinal ${PT_SIGNAL_QUALITY[p.quality] ?? p.quality}`,
-    assetSignalTitle: 'Sinal {quality}',
     grainFlowHeading: 'Fluxo do processo de grãos',
-    grainFlowBody: 'Selecione um ativo para vincular a área de trabalho e a fábrica 3D.',
-    rearIntakeToFrontDispatch: 'Do recebimento nos fundos à expedição na frente',
     stageIntake: 'Recebimento e armazenagem',
-    stageIntakeDescription: 'Estoque de grão bruto',
     stageMilling: 'Moagem',
-    stageMillingDescription: 'Redução nos rolos',
     stageSifting: 'Peneiramento',
-    stageSiftingDescription: 'Separação no plansifter',
     stagePacking: 'Ensaque',
-    stagePackingDescription: 'Expedição do produto acabado',
     stageLogistics: 'Logística autônoma',
-    stageLogisticsDescription: 'Intertravamentos de movimento de empilhadeiras e caminhões',
     stageStateCritical: 'crítico',
     stageStateAttention: 'atenção',
     stageStateNominal: 'normal',
@@ -539,6 +483,20 @@ export const scadaPanelMessages = defineMessages({
     searchTagsPlaceholder: 'Buscar tags...',
     filterTagsByGroup: 'Filtrar tags por grupo',
     allGroups: 'Todos',
+    groupTEMPERATURE: 'TEMPERATURA',
+    groupPRESSURE: 'PRESSÃO',
+    groupFLOW: 'VAZÃO',
+    groupLEVEL: 'NÍVEL',
+    groupVIBRATION: 'VIBRAÇÃO',
+    groupSPEED: 'VELOCIDADE',
+    groupCURRENT: 'CORRENTE',
+    groupPOWER: 'POTÊNCIA',
+    groupHUMIDITY: 'UMIDADE',
+    groupWEIGHT: 'PESO',
+    groupPOSITION: 'POSIÇÃO',
+    groupSETPOINT: 'SETPOINT',
+    groupCOMMAND: 'COMANDO',
+    groupSTATUS: 'ESTADO',
     quality: 'Qualidade: {quality}',
     exportCsv: 'Exportar CSV',
     exportJson: 'Exportar JSON',
@@ -562,10 +520,7 @@ export const scadaPanelMessages = defineMessages({
     modeName: (p: { value: string }) => PT_SCADA_MODE[p.value] ?? p.value,
     modeHeading: (p: { value: string }) => upperFirst(PT_SCADA_MODE[p.value] ?? p.value),
     faultName: (p: { value: string }) => PT_FAULT_TYPE[p.value] ?? p.value,
-    incidentTitle: (p: { phase: string; description: string }) =>
-      `${PT_INCIDENT_PHASE[p.phase] ?? p.phase}: ${p.description}`,
     shelveAria: 'Engavetar o alarme {tag} por 15 minutos',
-    enterReasonFirst: 'Informe primeiro um motivo de destinação',
     shelve15: 'Engavetar 15min',
     suppressAria: 'Suprimir o alarme {tag} por 15 minutos',
     suppress15: 'Suprimir 15min',
@@ -604,10 +559,7 @@ export const scadaPanelMessages = defineMessages({
     refresh: 'Atualizar',
     resume: 'Retomar',
     pause: 'Pausar',
-    trendFootnote:
-      'Amostras alinhadas em intervalos de um segundo, atualizadas a cada dois segundos. A qualidade BAD e STALE continua visível como lacuna. Use a tabela para ver os valores exatos e a qualidade.',
     selectTagsPrompt: 'Selecione tags abaixo para ver as tendências',
-    upToSixTags: 'É possível exibir até 6 tags',
     trendTableCaption:
       'Amostras de tendência SCADA. Valores numéricos ausentes indicam qualidade de dados BAD ou STALE e não são interpolados.',
     time: 'Hora',
@@ -618,10 +570,7 @@ export const scadaPanelMessages = defineMessages({
     removeFromTrend: 'Remover {tag} da tendência',
 
     eventHistoryHeading: 'Histórico de eventos de alarme',
-    eventHistoryBody: 'Alarmes ativos e as transições de alarme arquivadas nas últimas 24 horas.',
     operationsLogbook: 'Diário de operações',
-    operationsLogbookBody:
-      'Decisões de controle, ocorrências da campanha, romaneios e registros de expedição.',
     returnToLive: 'Voltar ao tempo real',
     openRecentReplay: 'Abrir reprodução recente',
     operationsLogMessage: 'Mensagem do diário de operações',
@@ -635,8 +584,6 @@ export const scadaPanelMessages = defineMessages({
     eventDetail: '{machine}: {type} em {value}',
     unassigned: 'Sem atribuição',
 
-    simulationLabBanner:
-      'Somente simulação de treinamento. As falhas injetadas afetam a telemetria e os alarmes simulados; elas não controlam equipamentos físicos.',
     faultSensorFail: 'Falha de sensor',
     faultSpike: 'Pico',
     faultDrift: 'Deriva',
@@ -658,14 +605,8 @@ export const scadaPanelMessages = defineMessages({
     scadaRuntime: 'Execução do SCADA',
     enabled: 'Ativado',
     disabled: 'Desativado',
-    enableToStart: 'Ative para iniciar a telemetria SCADA simulada local.',
     connectionType: 'Tipo de conexão',
     connSimulation: 'Simulação',
-    connSimulationDescription: 'Simulação física local',
-    connRestDescription: 'Consulta periódica HTTP',
-    connMqttDescription: 'MQTT pub/sub',
-    connWebsocketDescription: 'Conexão WS direta',
-    connOpcuaDescription: 'Via proxy de backend',
     restConfiguration: 'Configuração da API REST',
     baseUrl: 'URL base',
     pollInterval: 'Intervalo de consulta (ms)',

@@ -9,9 +9,31 @@ import { useSafetyStore } from './safetyStore';
 import { sanitizeGameSimulationState, sanitizeGameSpeed } from './persistenceMigrations';
 import { migrateLegacyGameSpeed, STANDARD_GAME_SPEED } from '../simulation/pace';
 import { translate } from '../i18n';
+import { registerAlertCatalog } from '../i18n/alertCopy';
 import { gameSimulationStoreMessages } from './gameSimulationStore.messages';
+// Both are read only inside actions and the deferred weather lock, never at
+// module evaluation, so the import cycles through them stay inert.
+import { useUIStore } from './uiStore';
+import { useOperationsCampaignStore, type OperationalIncident } from './operationsCampaignStore';
 
-export type CelebrationType = 'milestone' | 'zero_incident' | 'target_met' | 'shift_complete';
+const GAME_SIMULATION_ALERT_CATALOG = 'gameSimulationStore';
+registerAlertCatalog(GAME_SIMULATION_ALERT_CATALOG, gameSimulationStoreMessages);
+/** The bell's one entry for a line left idle by a cleared stop. */
+export const LINE_RESTART_ALERT_ID = 'line-restart-pending';
+
+/**
+ * 'order_fulfilled' (a customer's order delivered) and 'shift_complete' (a
+ * graded shift) are the results the HUD shows; 'milestone' is an achievement
+ * unlock. 'target_met' and 'zero_incident' are no longer raised (the daily bag
+ * target was replaced by the programme's commitment, D11) and stay only so a
+ * queue saved by an older build still reads.
+ */
+export type CelebrationType =
+  | 'milestone'
+  | 'zero_incident'
+  | 'target_met'
+  | 'shift_complete'
+  | 'order_fulfilled';
 export type CrisisType = 'fire' | 'power_outage' | 'supply_emergency' | 'inspection' | 'weather';
 export type CrisisSeverity = 'low' | 'medium' | 'high' | 'critical';
 export type SafetyEventKind = 'facility_stop' | 'fire_drill' | 'crisis';
@@ -24,6 +46,16 @@ export interface CelebrationEvent {
   timestamp: number;
   position?: [number, number, number];
   message?: string;
+  /** order_fulfilled: the customer, a proper name shown as it is. */
+  customer?: string;
+  /** order_fulfilled: whole minutes past its due time; 0 is on time. */
+  lateMinutes?: number;
+  /** order_fulfilled: kilograms shipped below the recipe's quality minimum. */
+  offSpecKg?: number;
+  /** shift_complete: the grade, A to F. */
+  grade?: string;
+  /** shift_complete: the window key ('day-0-morning'), named at read time. */
+  shiftKey?: string;
 }
 
 export interface CrisisState {
@@ -53,6 +85,36 @@ export interface SafetyEventRecord {
    * the current language (safetyEventCopy). Absent on records saved before them.
    */
   copy?: Partial<Record<SafetyEventCopyField, SafetyEventCopyRef>>;
+  /** A drill's plant clock at START. Absent on stops and on older drills. */
+  drillStartClock?: DrillClock;
+  /**
+   * A drill's record: one entry per zone in the drill, in egress order, kept
+   * after the drill ends. Absent on stops and on drills saved before it.
+   */
+  drillZones?: DrillZoneRecord[];
+}
+
+/** The plant clock: game day and fractional hour, as the logs stamp it. */
+export interface DrillClock {
+  day: number;
+  hour: number;
+}
+
+/**
+ * How a zone came out: verified on its own step-free route, verified on its
+ * agreed alternative, held because both were blocked, or never reached.
+ */
+export type DrillZoneResult = 'clear' | 'alternative' | 'blocked' | 'unverified';
+
+export interface DrillZoneRecord {
+  zoneId: string;
+  result: DrillZoneResult;
+  /** The level exit whose route verified the zone ('alternative' only). */
+  alternative?: string;
+  /** Fleet tags of the stopped forklifts on its route (and, blocked, on the alternative's). */
+  blockedBy?: string[];
+  /** When it was verified, or first found blocked, on the plant clock. */
+  clock?: DrillClock;
 }
 
 type SafetyEventCopyField = 'cause' | 'response' | 'recovery';
@@ -84,6 +146,7 @@ export interface DrillMetrics {
   verifiedZoneIds: string[];
   totalZones: number;
   verificationComplete: boolean;
+  /** Game seconds from START to the last zone verified, on the plant clock. */
   finalTimeSeconds: number | null;
 }
 
@@ -157,6 +220,18 @@ export type ClockHolder =
  */
 const DERIVED_HOLDERS: readonly ClockHolder[] = ['handoff'];
 
+/** The player's own pauses: P ('shortcut') and a chosen Paused ('player'). */
+const PLAYER_HOLDERS: readonly ClockHolder[] = ['player', 'shortcut'];
+
+/**
+ * Holds the pace hold note carries an exit for (D21), as a pace choice no
+ * longer lifts them. 'restoreFailed' has no other release; the tick also ends
+ * 'scada' itself once control is back with the simulation (UnifiedGameTick
+ * releaseScadaHoldWhenLocal).
+ */
+export type NoticeHolder = Extract<ClockHolder, 'restoreFailed' | 'scada'>;
+export const NOTICE_HOLDERS: readonly NoticeHolder[] = ['restoreFailed', 'scada'];
+
 export interface ClockHold {
   readonly holder: ClockHolder;
   /** The pace to return to when this hold is released; 0 stays paused. */
@@ -176,6 +251,21 @@ export interface GameSimulationStore {
    * one (DERIVED_HOLDERS), whose resume pace it sets instead; 0 is a player pause.
    */
   setGameSpeed: (speed: number) => void;
+  /**
+   * The player's pace choice (the pace buttons and Shift pace), on P's rule
+   * (D21): it ends the player's own pauses, then sets the pace, or, while a
+   * feature still holds the clock, leaves that hold in place and returns its
+   * holder for the control to name. Under a derived hold the pace waits as its
+   * resume pace (null). `releases` names the feature whose own panel hosts
+   * this control, so the control is that hold's exit (the cooperative review's
+   * owed-recovery resume). Feature code that ends its own hold keeps setGameSpeed.
+   */
+  choosePace: (speed: number, releases?: Exclude<ClockHolder, 'player'>) => ClockHolder | null;
+  /**
+   * The exit for a hold nothing else releases (NOTICE_HOLDERS): releases it,
+   * and for a failed restore the restore hold it was stacked on.
+   */
+  releaseNoticeHold: (holder: NoticeHolder) => void;
   /** Holds stacked over the clock, oldest first. Never persisted. */
   clockHolds: ClockHold[];
   /** Pause the clock for `holder`, remembering the pace to return to. */
@@ -220,7 +310,20 @@ export interface GameSimulationStore {
   safetyEvents: SafetyEventRecord[];
   activeSafetyEventId: string | null;
   triggerEmergency: (machineId: string) => void;
+  /**
+   * Clear a facility stop: release the interlock and the forklifts it held.
+   * The machines stay idle (D13); `preEmergencyMachineStatuses` keeps what
+   * they were until `restartLine`.
+   */
   resolveEmergency: () => void;
+  /**
+   * The deliberate restart after a cleared stop or an ended drill: returns
+   * every unit the stop idled to its recorded status. Nothing while a stop,
+   * drill or crisis holds.
+   */
+  restartLine: () => void;
+  /** Record one zone's check on the running drill's safety event (one entry per zone). */
+  recordDrillZoneCheck: (entry: DrillZoneRecord) => void;
   /**
    * While a stop holds, record the status a unit returns to on its release
    * (a unit serviced or cleared during the stop). No effect when no stop holds.
@@ -230,7 +333,8 @@ export interface GameSimulationStore {
   endEmergencyDrill: () => void;
   acknowledgeSafetyEvent: (eventId: string, note?: string) => void;
   drillMetrics: DrillMetrics;
-  markZoneVerified: (zoneId: string) => void;
+  /** Mark a zone verified; `record` is its entry in the drill's record. */
+  markZoneVerified: (zoneId: string, record?: DrillZoneRecord) => void;
 
   crisisState: CrisisState;
   triggerCrisis: (
@@ -249,6 +353,8 @@ export interface GameSimulationStore {
   };
   triggerCelebration: (type: CelebrationType, data?: Partial<CelebrationEvent>) => void;
   clearCelebration: () => void;
+  /** Drop every queued celebration: what was queued before the HUD could show it is not news. */
+  discardCelebrations: () => void;
   updateZeroIncidentStreak: (days: number) => void;
   setPackerBellEnabled: (enabled: boolean) => void;
 }
@@ -312,9 +418,16 @@ const CELEBRATION_TYPES = new Set<CelebrationType>([
   'zero_incident',
   'target_met',
   'shift_complete',
+  'order_fulfilled',
 ]);
 
-const sanitizeCelebrationEvent = (value: unknown): CelebrationEvent | null => {
+/**
+ * A celebration as the queue keeps it. The physical-session restore writes the
+ * saved game domain without this, so a reader validates each entry with it too.
+ * Results keep their facts, not their words, so they read in the language
+ * active when shown.
+ */
+export const sanitizeCelebrationEvent = (value: unknown): CelebrationEvent | null => {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
   const source = value as Partial<CelebrationEvent>;
   if (!source.type || !CELEBRATION_TYPES.has(source.type) || !Number.isFinite(source.timestamp)) {
@@ -323,6 +436,14 @@ const sanitizeCelebrationEvent = (value: unknown): CelebrationEvent | null => {
   const event: CelebrationEvent = { type: source.type, timestamp: source.timestamp as number };
   if (typeof source.value === 'number' && Number.isFinite(source.value)) event.value = source.value;
   if (typeof source.message === 'string') event.message = source.message.slice(0, 500);
+  if (typeof source.customer === 'string' && source.customer.trim())
+    event.customer = source.customer.slice(0, 120);
+  if (typeof source.lateMinutes === 'number' && Number.isFinite(source.lateMinutes))
+    event.lateMinutes = Math.max(0, Math.ceil(source.lateMinutes));
+  if (typeof source.offSpecKg === 'number' && Number.isFinite(source.offSpecKg))
+    event.offSpecKg = Math.max(0, Math.round(source.offSpecKg));
+  if (typeof source.grade === 'string' && /^[A-F]$/.test(source.grade)) event.grade = source.grade;
+  if (typeof source.shiftKey === 'string') event.shiftKey = source.shiftKey.slice(0, 40);
   if (
     Array.isArray(source.position) &&
     source.position.length === 3 &&
@@ -368,16 +489,112 @@ const sanitizeCelebrations = (value: unknown): GameSimulationStore['celebrations
   };
 };
 
-const stopProduction = (): Map<string, string> => {
+const restartable = (status: string | undefined): boolean =>
+  status === 'running' || status === 'warning';
+
+/**
+ * Idle every running unit and record what each was. `pending` is the record of
+ * an earlier stop still awaiting its restart: a unit it idled is recorded as
+ * what it was before that stop, not as the idle the stop left, so a second
+ * stop (or a drill) before the restart cannot lose the line.
+ */
+const stopProduction = (pending: ReadonlyMap<string, string>): Map<string, string> => {
   const production = useProductionStore.getState();
   const statuses = new Map<string, string>();
   production.machines.forEach((machine) => {
-    statuses.set(machine.id, machine.status);
+    const earlier = pending.get(machine.id);
+    statuses.set(
+      machine.id,
+      machine.status === 'idle' && restartable(earlier) ? (earlier as string) : machine.status
+    );
     if (machine.status === 'running' || machine.status === 'warning') {
       production.updateMachineStatus(machine.id, 'idle');
     }
   });
   return statuses;
+};
+
+/**
+ * Releasing a stop never restarts the machinery (D13). The Machinery Directive,
+ * 2006/42/EC Annex I 1.2.4.3 (Emergency stop), as published on EUR-Lex
+ * (https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:32006L0042),
+ * read 2026-11-13: "it must be possible to disengage the device only by an
+ * appropriate operation, and disengaging the device must not restart the
+ * machinery but only permit restarting." So CLEAR and the drill's end release
+ * the interlock and leave the units idle; restartLine is the separate,
+ * deliberate restart.
+ */
+export const selectRestartPending = (
+  state: Pick<GameSimulationStore, 'emergencyActive' | 'preEmergencyMachineStatuses'>
+): boolean => {
+  if (state.emergencyActive) return false;
+  for (const status of state.preEmergencyMachineStatuses.values())
+    if (restartable(status)) return true;
+  return false;
+};
+
+const raiseRestartAlert = (): void => {
+  const title = translate(gameSimulationStoreMessages, 'lineRestartTitle');
+  const message = translate(gameSimulationStoreMessages, 'lineRestartMessage');
+  useUIStore.getState().addAlert({
+    id: LINE_RESTART_ALERT_ID,
+    type: 'warning',
+    title,
+    message,
+    timestamp: new Date(),
+    acknowledged: false,
+    announce: 'polite',
+    copy: {
+      catalog: GAME_SIMULATION_ALERT_CATALOG,
+      title: 'lineRestartTitle',
+      message: 'lineRestartMessage',
+    },
+  });
+};
+const retireRestartAlert = (): void => {
+  const ui = useUIStore.getState();
+  if (ui.alerts?.some((alert) => alert.id === LINE_RESTART_ALERT_ID))
+    ui.dismissAlert(LINE_RESTART_ALERT_ID);
+};
+
+const drillClockOf = (state: Pick<GameSimulationStore, 'gameDay' | 'gameTime'>): DrillClock => ({
+  day: Number.isFinite(state.gameDay) ? state.gameDay : 0,
+  hour: Number.isFinite(state.gameTime) ? state.gameTime : 0,
+});
+const clockSeconds = (clock: DrillClock): number => (clock.day * 24 + clock.hour) * 3600;
+
+/** A drill record entry, or the same entry when nothing in it changed. */
+const sameZoneRecord = (a: DrillZoneRecord, b: DrillZoneRecord): boolean =>
+  a.result === b.result &&
+  a.alternative === b.alternative &&
+  (a.blockedBy ?? []).join('|') === (b.blockedBy ?? []).join('|');
+
+/** The drill event with `entry` upserted, keeping egress order. */
+const withZoneRecord = (
+  event: SafetyEventRecord,
+  entry: DrillZoneRecord
+): SafetyEventRecord | null => {
+  const zones = event.drillZones ?? [];
+  const index = zones.findIndex((zone) => zone.zoneId === entry.zoneId);
+  if (index >= 0 && sameZoneRecord(zones[index], entry)) return null;
+  const next =
+    index >= 0 ? zones.map((zone, i) => (i === index ? entry : zone)) : [...zones, entry];
+  const order = (id: string) => SERVICE_EGRESS_POINTS.findIndex((point) => point.id === id);
+  next.sort((a, b) => order(a.zoneId) - order(b.zoneId));
+  return { ...event, drillZones: next };
+};
+
+const SEVERE_RAIN: OperationalIncident['kind'] = 'severe_rain';
+const severeRainOpen = (incidents: readonly OperationalIncident[] | undefined): boolean =>
+  Array.isArray(incidents) &&
+  incidents.some((incident) => incident.kind === SEVERE_RAIN && incident.phase !== 'resolved');
+/** The campaign's incidents now; none where a test mocks the campaign store away. */
+const openCampaignIncidents = (): readonly OperationalIncident[] | undefined => {
+  try {
+    return useOperationsCampaignStore.getState()?.incidents;
+  } catch {
+    return undefined;
+  }
 };
 
 const restoreProduction = (statuses: Map<string, string>): void => {
@@ -504,6 +721,42 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           ],
         });
       },
+      choosePace: (speed, releases) => {
+        const gameSpeed = sanitizeGameSpeed(speed);
+        if (releases && gameSpeed > 0)
+          while (get().releaseClock(releases)) {
+            /* every acquisition by the hosting feature */
+          }
+        const { gameSpeed: current, clockHolds } = get();
+        const foreign = clockHolds.filter((hold) => !PLAYER_HOLDERS.includes(hold.holder));
+        // A pause, a running clock (any recorded hold is stale) or only the
+        // player's own holds: the choice is the player's to make.
+        if (gameSpeed === 0 || current > 0 || foreign.length === 0) {
+          get().setGameSpeed(gameSpeed);
+          return null;
+        }
+        if (foreign.every((hold) => DERIVED_HOLDERS.includes(hold.holder))) {
+          get().setGameSpeed(gameSpeed);
+          return null;
+        }
+        // Refused: the player's own pauses go, newest first, as P releases
+        // them; the feature's hold stays, with the pace it returns to.
+        for (let i = clockHolds.length - 1; i >= 0; i--)
+          if (PLAYER_HOLDERS.includes(clockHolds[i].holder))
+            get().releaseClock(clockHolds[i].holder, clockHolds[i]);
+        return selectClockHolder(get());
+      },
+      releaseNoticeHold: (holder) => {
+        const release = (name: ClockHolder) => {
+          while (get().releaseClock(name)) {
+            /* every acquisition by this holder */
+          }
+        };
+        release(holder);
+        // A failed restore stacks on the restore hold finishRestore never
+        // reached; leaving the failure leaves both.
+        if (holder === 'restoreFailed') release('restore');
+      },
       clockHolds: [],
       timeOfDayHeld: false,
       setTimeOfDayHeld: (held) => set({ timeOfDayHeld: held }),
@@ -579,6 +832,9 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         get().endEmergencyDrill();
         get().resolveCrisis();
         if (get().emergencyActive) get().resolveEmergency();
+        // A reset is the operator's own restart: the line the stop idled
+        // comes back, as it did before releases stopped restarting it (D13).
+        get().restartLine();
         set({
           gameTime: 10,
           gameDay: 0,
@@ -587,7 +843,8 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           currentShift: 'morning',
           shiftStartTime: Date.now(),
           shiftChangeActive: false,
-          weather: 'clear',
+          // The campaign keeps its incidents through a clock reset (6.8).
+          weather: severeRainOpen(openCampaignIncidents()) ? 'storm' : 'clear',
           emergencyActive: false,
           emergencyMachineId: null,
           emergencyDrillMode: false,
@@ -611,7 +868,13 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       },
 
       weather: 'clear',
-      setWeather: (weather) => set({ weather }),
+      // 6.8: the sky cannot contradict an open severe-rain incident. While one
+      // is open the weather is a storm and no other value is taken; the lock
+      // below lifts the storm when the last one closes.
+      setWeather: (weather) => {
+        if (weather !== 'storm' && severeRainOpen(openCampaignIncidents())) return;
+        set({ weather });
+      },
 
       currentShift: 'morning',
       shiftStartTime: Date.now(),
@@ -652,10 +915,13 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           recovery: recovery.text,
           copy: { cause: cause.ref, response: response.ref, recovery: recovery.ref },
         };
+        // A line awaiting restart is stopped again: the bell's "cleared" is
+        // no longer true. The clear raises it again.
+        retireRestartAlert();
         set({
           emergencyActive: true,
           emergencyMachineId: machineId,
-          preEmergencyMachineStatuses: stopProduction(),
+          preEmergencyMachineStatuses: stopProduction(state.preEmergencyMachineStatuses),
           safetyEvents: [...state.safetyEvents, event].slice(-MAX_SAFETY_EVENTS),
           activeSafetyEventId: id,
         });
@@ -666,11 +932,10 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         // A drill is torn down only by endEmergencyDrill; resolving here would
         // release the forklifts while drill mode and metrics stay active.
         if (state.crisisState.active || state.emergencyDrillMode) return;
-        restoreProduction(state.preEmergencyMachineStatuses);
+        // The machines stay idle and keep their record for restartLine (D13).
         set({
           emergencyActive: false,
           emergencyMachineId: null,
-          preEmergencyMachineStatuses: new Map(),
           activeSafetyEventId: null,
           safetyEvents: state.safetyEvents.map((event) =>
             event.id === state.activeSafetyEventId
@@ -686,7 +951,31 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
         });
         releaseForkliftsAfterStop();
         silenceAlarmUnlessForkliftStop();
+        if (selectRestartPending(get())) raiseRestartAlert();
       },
+      restartLine: () => {
+        const state = get();
+        // An interlocked crisis holds emergencyActive; a monitored one stops
+        // nothing, so the line may restart under it.
+        if (state.emergencyActive || state.emergencyDrillMode) return;
+        restoreProduction(state.preEmergencyMachineStatuses);
+        if (state.preEmergencyMachineStatuses.size > 0)
+          set({ preEmergencyMachineStatuses: new Map() });
+        retireRestartAlert();
+      },
+      recordDrillZoneCheck: (entry) =>
+        set((state) => {
+          if (!state.emergencyDrillMode || !state.activeSafetyEventId) return {};
+          let changed = false;
+          const safetyEvents = state.safetyEvents.map((event) => {
+            if (event.id !== state.activeSafetyEventId || event.kind !== 'fire_drill') return event;
+            const next = withZoneRecord(event, entry);
+            if (!next) return event;
+            changed = true;
+            return next;
+          });
+          return changed ? { safetyEvents } : {};
+        }),
       setReleaseStatus: (machineId, status) =>
         set((state) =>
           state.emergencyActive
@@ -725,12 +1014,15 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           response: response.text,
           recovery: recovery.text,
           copy: { cause: cause.ref, response: response.ref, recovery: recovery.ref },
+          drillStartClock: drillClockOf(state),
+          drillZones: [],
         };
+        retireRestartAlert();
         set({
           emergencyActive: true,
           emergencyMachineId: 'DRILL',
           emergencyDrillMode: true,
-          preEmergencyMachineStatuses: stopProduction(),
+          preEmergencyMachineStatuses: stopProduction(state.preEmergencyMachineStatuses),
           drillMetrics: {
             active: true,
             startTime: Date.now(),
@@ -747,28 +1039,38 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       endEmergencyDrill: () => {
         const state = get();
         if (!state.emergencyDrillMode) return;
-        restoreProduction(state.preEmergencyMachineStatuses);
+        // The line stays idle for restartLine (D13). The record names every
+        // zone in the drill: one never reached when it ended is 'unverified'.
+        // A zone verified without an entry (a drill restored from an older
+        // save) is left out rather than called unverified.
+        const drillZoneIds = SERVICE_EGRESS_POINTS.slice(0, state.drillMetrics.totalZones)
+          .map((point) => point.id as string)
+          .filter((id) => !state.drillMetrics.verifiedZoneIds.includes(id));
         set({
           emergencyActive: false,
           emergencyMachineId: null,
           emergencyDrillMode: false,
-          preEmergencyMachineStatuses: new Map(),
           drillMetrics: defaultDrill(),
           activeSafetyEventId: null,
-          safetyEvents: state.safetyEvents.map((event) =>
-            event.id === state.activeSafetyEventId
-              ? {
-                  ...event,
-                  stage: 'cleared' as const,
-                  clearedAt: Date.now(),
-                  recovery: translate(gameSimulationStoreMessages, 'drillCleared'),
-                  copy: { ...event.copy, recovery: { key: 'drillCleared' as const } },
-                }
-              : event
-          ),
+          safetyEvents: state.safetyEvents.map((event) => {
+            if (event.id !== state.activeSafetyEventId) return event;
+            let closed: SafetyEventRecord = event;
+            if (event.kind === 'fire_drill')
+              for (const zoneId of drillZoneIds)
+                if (!closed.drillZones?.some((zone) => zone.zoneId === zoneId))
+                  closed = withZoneRecord(closed, { zoneId, result: 'unverified' }) ?? closed;
+            return {
+              ...closed,
+              stage: 'cleared' as const,
+              clearedAt: Date.now(),
+              recovery: translate(gameSimulationStoreMessages, 'drillCleared'),
+              copy: { ...event.copy, recovery: { key: 'drillCleared' as const } },
+            };
+          }),
         });
         releaseForkliftsAfterStop();
         silenceAlarmUnlessForkliftStop();
+        if (selectRestartPending(get())) raiseRestartAlert();
       },
       acknowledgeSafetyEvent: (id, note) =>
         set((state) => ({
@@ -784,24 +1086,31 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           ),
         })),
       drillMetrics: defaultDrill(),
-      markZoneVerified: (zoneId) =>
+      markZoneVerified: (zoneId, record) => {
+        if (record && get().drillMetrics.active) get().recordDrillZoneCheck(record);
         set((state) => {
           if (!state.drillMetrics.active || state.drillMetrics.verifiedZoneIds.includes(zoneId)) {
             return {};
           }
           const verifiedZoneIds = [...state.drillMetrics.verifiedZoneIds, zoneId];
           const verificationComplete = verifiedZoneIds.length >= state.drillMetrics.totalZones;
+          // On the plant clock the drill runs on, not wall time.
+          const started = state.safetyEvents.find(
+            (event) => event.id === state.activeSafetyEventId
+          )?.drillStartClock;
           return {
             drillMetrics: {
               ...state.drillMetrics,
               verifiedZoneIds,
               verificationComplete,
-              finalTimeSeconds: verificationComplete
-                ? (Date.now() - state.drillMetrics.startTime) / 1000
-                : null,
+              finalTimeSeconds:
+                verificationComplete && started
+                  ? Math.max(0, clockSeconds(drillClockOf(state)) - clockSeconds(started))
+                  : null,
             },
           };
-        }),
+        });
+      },
 
       crisisState: defaultCrisis(),
       triggerCrisis: (type, severity, metadata = {}) => {
@@ -827,6 +1136,7 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           recovery: recovery.text,
           copy: { cause: cause.ref, response: response.ref, recovery: recovery.ref },
         };
+        if (interlocked) retireRestartAlert();
         set({
           crisisState: {
             active: true,
@@ -838,7 +1148,10 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
           },
           emergencyActive: interlocked,
           emergencyMachineId: interlocked ? (machineId ?? `CRISIS-${type}`) : null,
-          preEmergencyMachineStatuses: interlocked ? stopProduction() : new Map(),
+          // A monitored crisis stops nothing; a line awaiting its restart keeps its record.
+          preEmergencyMachineStatuses: interlocked
+            ? stopProduction(state.preEmergencyMachineStatuses)
+            : state.preEmergencyMachineStatuses,
           safetyEvents: [...state.safetyEvents, event].slice(-MAX_SAFETY_EVENTS),
           activeSafetyEventId: id,
         });
@@ -854,12 +1167,20 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
       resolveCrisis: () => {
         const state = get();
         if (!state.crisisState.active) return;
-        restoreProduction(state.preEmergencyMachineStatuses);
+        // A crisis's own interlock still restores the line on its resolution
+        // (the Chronicle's duct fire hands the plant back this way). A
+        // monitored crisis stopped nothing, so a line idle from an earlier
+        // cleared stop keeps waiting for its deliberate restart.
+        const interlocked = state.emergencyActive;
+        if (interlocked) {
+          restoreProduction(state.preEmergencyMachineStatuses);
+          retireRestartAlert();
+        }
         set({
           crisisState: defaultCrisis(),
           emergencyActive: false,
           emergencyMachineId: null,
-          preEmergencyMachineStatuses: new Map(),
+          preEmergencyMachineStatuses: interlocked ? new Map() : state.preEmergencyMachineStatuses,
           activeSafetyEventId: null,
           safetyEvents: state.safetyEvents.map((event) =>
             event.id === state.activeSafetyEventId
@@ -907,6 +1228,18 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
             celebrationActive: state.celebrations.milestoneQueue.length > 1,
           },
         })),
+      discardCelebrations: () =>
+        set((state) =>
+          state.celebrations.milestoneQueue?.length
+            ? {
+                celebrations: {
+                  ...state.celebrations,
+                  milestoneQueue: [],
+                  celebrationActive: false,
+                },
+              }
+            : {}
+        ),
       updateZeroIncidentStreak: (days) =>
         set((state) => {
           if (!Number.isFinite(days)) return {};
@@ -976,3 +1309,52 @@ export const useGameSimulationStore = create<GameSimulationStore>()(
     }
   )
 );
+
+/**
+ * At start-up, a saved sky against the incidents: a storm saved with no
+ * incident open is one whose incident closed when nothing lifted it, and the
+ * Safety panel no longer offers a way to; an open incident brings its storm.
+ * Any other saved sky is kept. The benchmark route sets its sky later.
+ */
+export function reconcileSavedWeather(): void {
+  const game = useGameSimulationStore.getState();
+  const open = severeRainOpen(openCampaignIncidents());
+  if (open && game.weather !== 'storm') useGameSimulationStore.setState({ weather: 'storm' });
+  else if (!open && game.weather === 'storm') useGameSimulationStore.setState({ weather: 'clear' });
+}
+
+/**
+ * The weather's side of 6.8: an open severe-rain incident brings the storm
+ * (a restored save or a sky set before the incident), and the storm it brought
+ * lifts when the last one closes. Only an incident's own change acts, so a
+ * storm set with no incident (the benchmark weather route) is left alone.
+ * Installed after module evaluation: the stores import each other, and the
+ * campaign store may not exist yet while this module evaluates.
+ * Working if the sky never contradicts an open severe-rain incident.
+ */
+queueMicrotask(() => {
+  // A test that mocks the campaign store away has no incidents to follow.
+  let subscribe: typeof useOperationsCampaignStore.subscribe;
+  try {
+    subscribe = useOperationsCampaignStore.subscribe;
+  } catch {
+    return;
+  }
+  if (typeof subscribe !== 'function') return;
+  subscribe((state, previous) => {
+    if (state.incidents === previous.incidents) return;
+    const open = severeRainOpen(state.incidents);
+    const game = useGameSimulationStore.getState();
+    if (open && game.weather !== 'storm') useGameSimulationStore.setState({ weather: 'storm' });
+    else if (!open && severeRainOpen(previous.incidents) && game.weather === 'storm')
+      useGameSimulationStore.setState({ weather: 'clear' });
+  });
+  // A sky written over an open incident by a direct write (the physical
+  // session restores the game after the campaign) goes back to the storm.
+  useGameSimulationStore.subscribe((state, previous) => {
+    if (state.weather === previous.weather || state.weather === 'storm') return;
+    if (severeRainOpen(openCampaignIncidents()))
+      useGameSimulationStore.setState({ weather: 'storm' });
+  });
+  reconcileSavedWeather();
+});

@@ -258,8 +258,10 @@ function designationWords(digits: string, locale: Locale): string {
 
 /*
  * A capital letter standing alone at the end of a clause is a letter (a grade,
- * "Plansifter A"), never the article; spelled as it is said, so "an A." is not
- * read as "an a". Only the letters a reader could take for a word are spelled.
+ * "Sifter A."), never the article; spelled as it is said, so "an A." is not
+ * read as "an a". So is one that ends a machine name mid-sentence ("Sifter A
+ * needs a look", "Sifter A's still down"): a lone capital straight after a
+ * capitalised word. Only the letters a reader could take for a word are spelled.
  */
 const LONE_LETTER: Record<Locale, Record<string, string>> = {
   en: { A: 'ay' },
@@ -273,6 +275,9 @@ export function speakableText(text: string, locale: Locale): string {
     return `${ROLLER_MILL[locale]} ${designationWords(digits, locale)}`;
   });
   out = out.replace(/(?<=\s)([A-Z])(?=[.,!?;]|$)/g, (match, letter: string) => {
+    return LONE_LETTER[locale][letter] ?? match;
+  });
+  out = out.replace(/(?<=\b[A-Z][a-z]+ )([A-Z])(?=\s|'s\b|’s\b)/g, (match, letter: string) => {
     return LONE_LETTER[locale][letter] ?? match;
   });
   // Clock times before plain numbers, so "14:05" is one time, not two numbers.

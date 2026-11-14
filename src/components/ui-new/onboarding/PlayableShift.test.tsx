@@ -15,6 +15,7 @@ import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
+import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 import {
   campaignRecord,
   requiredChecks,
@@ -24,6 +25,16 @@ import { setLocale } from '../../../i18n';
 import { MachineType } from '../../../types';
 import type { MachineData } from '../../../types';
 import type { OperationalIncident } from '../../../stores/operationsCampaignStore';
+import { usePartnerProposalStore } from '../../../stores/partnerProposalStore';
+import { PROPOSAL_KIND_IDS } from '../../../simulation/partnerProposals';
+
+// Written with every proposal kind asking; a kind's default now follows the
+// delegation rule, so "ask me" is set here, as the card's toggle sets it.
+beforeEach(() => {
+  usePartnerProposalStore.getState().reset();
+  for (const kind of PROPOSAL_KIND_IDS)
+    usePartnerProposalStore.getState().setDelegation(kind, 'ask');
+});
 vi.mock('../../knowledge/LearningNote', () => ({ LearningNote: () => null }));
 
 beforeEach(() => {
@@ -37,7 +48,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('playable shift UI', () => {
+  // D4: the season is a layer offered after the first delivery.
+  it('offers no season opt-in while the first delivery is open', () => {
+    render(<OperationsPlayCard />);
+    expect(
+      screen.queryByRole('button', { name: 'Start 3-shift cooperative season on this order (1x)' })
+    ).not.toBeInTheDocument();
+    expect(useWorkplaceStore.getState().workplace.phase).toBe('idle');
+  });
   it('starts an opt-in campaign bound to the actual customer and opens Autonomy', () => {
+    fulfilFirstDelivery();
     const before = useOperationsCampaignStore.getState();
     const order = before.orders.find((item) => item.id === before.activeOrderId)!;
     const handler = vi.fn();
@@ -46,11 +66,16 @@ describe('playable shift UI', () => {
     fireEvent.change(screen.getByLabelText('Working agreement profile'), {
       target: { value: 'team' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Start linked cooperative campaign' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Start 3-shift cooperative season on this order (1x)' })
+    );
     const campaign = useWorkplaceStore.getState().workplace.campaign!;
     expect(campaign.profile).toBe('team');
     expect(campaign.mission?.orderId).toBe(order.id);
-    expect(campaign.mission?.targetKg).toBe(order.requiredKg - order.shippedKg);
+    // 5b (D5): the Coordinator makes Friday's call itself as the season opens,
+    // and in solo play it is always an installment: 80% of the order now.
+    expect(campaign.mission?.originalTargetKg).toBe(order.requiredKg - order.shippedKg);
+    expect(campaign.mission?.targetKg).toBe((order.requiredKg - order.shippedKg) * 0.8);
     expect(campaign.mission?.creditedKg).toBe(0);
     expect(useOperationsCampaignStore.getState().orders).toBe(before.orders);
     expect(useOperationsCampaignStore.getState().economics).toBe(before.economics);
@@ -62,6 +87,7 @@ describe('playable shift UI', () => {
     window.removeEventListener('millos:open-operations-workspace', handler);
   });
   it.each(['no-order', 'quality', 'challenge'] as const)('holds campaign opt-in for %s', (gate) => {
+    fulfilFirstDelivery();
     const state = useOperationsCampaignStore.getState();
     if (gate === 'no-order') useOperationsCampaignStore.setState({ activeOrderId: null });
     if (gate === 'quality')
@@ -72,6 +98,7 @@ describe('playable shift UI', () => {
       useOperationsCampaignStore.setState({
         execution: {
           ...state.execution,
+          orderId: state.activeOrderId,
           stage: 'milling',
           sourceInventoryKg: 10000,
           qualityReleased: true,
@@ -82,16 +109,19 @@ describe('playable shift UI', () => {
     }
     render(<OperationsPlayCard />);
     // Inert rather than disabled (a tick can block it under focus); a press starts nothing.
-    const start = screen.getByRole('button', { name: 'Start linked cooperative campaign' });
+    const start = screen.getByRole('button', {
+      name: 'Start 3-shift cooperative season on this order (1x)',
+    });
     expect(start).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(start);
     expect(useWorkplaceStore.getState().workplace.phase).toBe('idle');
   });
   it('keeps an existing laboratory run separate from ordinary play', () => {
+    fulfilFirstDelivery();
     useWorkplaceStore.getState().startCampaign('toe-dip', 17);
     render(<OperationsPlayCard />);
     expect(
-      screen.queryByRole('button', { name: 'Start linked cooperative campaign' })
+      screen.queryByRole('button', { name: 'Start 3-shift cooperative season on this order (1x)' })
     ).not.toBeInTheDocument();
     expect(
       screen.getByLabelText('Active customer commitment', { exact: false })
@@ -102,13 +132,31 @@ describe('playable shift UI', () => {
       'en',
       'Reload safety: future authority and consent revoked; earned pay retained.',
       'Working agreement: pending',
-      'Paused by a reload at minute 76: the shift carries on once everyone consents again, in the Bilateral Autonomy System (BAS) panel.',
+      'Paused by a reload at minute 76: the shift carries on once everyone consents again, in Autonomy.',
     ],
     [
       'pt-BR',
       'Reload safety: future authority and consent revoked; earned pay retained.',
       'Acordo de trabalho: pendente',
-      'Pausado por uma recarga no minuto 76: o turno continua quando todos consentirem de novo, no painel Sistema de Autonomia Bilateral (BAS).',
+      'Pausado por uma recarga no minuto 76: o turno continua quando todos consentirem de novo, em Autonomia.',
+    ],
+    [
+      'en',
+      'Emergency stop or drill: this shift paused; earned obligations retained.',
+      'Working agreement: pending',
+      'Paused by an emergency stop or drill at minute 76: the shift carries on once everyone consents again, in Autonomy.',
+    ],
+    [
+      'pt-BR',
+      'Emergency stop or drill: this shift paused; earned obligations retained.',
+      'Acordo de trabalho: pendente',
+      'Pausado por uma parada de emergência ou um simulado no minuto 76: o turno continua quando todos consentirem de novo, em Autonomia.',
+    ],
+    [
+      'en',
+      'Paused safely for an objection; earned obligations retained.',
+      'Working agreement: pending',
+      'Paused by an objection at minute 76, now resolved: the shift carries on once everyone consents again, in Autonomy.',
     ],
     ['en', 'Stopped by the team.', 'Working agreement: incomplete', 'Why: Stopped by the team.'],
     [
@@ -120,6 +168,7 @@ describe('playable shift UI', () => {
   ] as const)(
     'debrief (%s) tells a reload pause (resumable) from an ending (%s)',
     (locale, reason, status, line) => {
+      fulfilFirstDelivery();
       useWorkplaceStore.getState().startMission('team');
       const state = useWorkplaceStore.getState().workplace;
       const record = campaignRecord({ ...state, minute: 90 });
@@ -155,6 +204,7 @@ describe('playable shift UI', () => {
   it.each([0, 80, 100])(
     'debrief separates delivery, deferral and agreement outcomes at %s kg',
     (delivered) => {
+      fulfilFirstDelivery();
       useWorkplaceStore.getState().startMission('team');
       const state = useWorkplaceStore.getState().workplace;
       const members = state.members.map((member) => ({ ...member, restMinutes: 15 }));
@@ -208,14 +258,12 @@ describe('playable shift UI', () => {
         expect(screen.getByText(/Full customer commitment dispatched/)).toBeInTheDocument();
       else
         expect(screen.queryByText(/Full customer commitment dispatched/)).not.toBeInTheDocument();
-      expect(
-        screen.getByText(
-          /Illustrative workplace credits, separate from main mill revenue and pounds/
-        )
-      ).toBeInTheDocument();
+      // D14: the accounts line is a readout; its disclaimer is About's one line.
+      expect(screen.getByText(/^Workplace credits: closing cash/)).toBeInTheDocument();
+      expect(screen.queryByText(/Illustrative workplace credits/)).not.toBeInTheDocument();
       expect(
         screen.getByRole('button', { name: 'Accept next delivery programme' })
-      ).not.toBeDisabled();
+      ).not.toHaveAttribute('aria-disabled');
       act(() =>
         useWorkplaceStore.setState({
           workplace: {
@@ -227,7 +275,9 @@ describe('playable shift UI', () => {
           },
         })
       );
-      expect(screen.getByRole('button', { name: 'Accept next delivery programme' })).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: 'Accept next delivery programme' })
+      ).toHaveAttribute('aria-disabled', 'true');
     }
   );
   it('replays a real commitment and keeps production untouched', () => {
@@ -412,10 +462,15 @@ describe('playable shift UI', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Now: Community Pasta Works, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
+        'Now: Community Polenta Kitchen, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
       )
     ).toBeInTheDocument();
     expect(screen.getByText('Check shipping in SCADA')).toBeInTheDocument();
+    // One next-step line (D-012): the step's explanation, cut from the play
+    // card, was still here and ran under the pinned action, clipped.
+    expect(screen.queryByText(/Only material recorded/)).toBeNull();
+    const card = screen.getByRole('heading', { name: 'Delivery fulfilled' }).closest('section')!;
+    expect(card.querySelector('p.text-xs.text-slate-300')).toBeNull();
     // The action stays pinned in the card's scroll box however long the lines.
     expect(screen.getByRole('button', { name: 'Open SCADA' }).closest('.sticky')).toHaveClass(
       'bottom-[-1rem]',
@@ -426,7 +481,7 @@ describe('playable shift UI', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
     expect(
       screen.getByText(
-        'Now: Community Pasta Works, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
+        'Now: Community Polenta Kitchen, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
       )
     ).toBeInTheDocument();
     expect(screen.queryByText(/^Inspection: /)).not.toBeInTheDocument();
@@ -470,7 +525,7 @@ describe('playable shift UI', () => {
       render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
       expect(
         screen.getByText(
-          'Agora: Community Pasta Works, 1.000 de 4.000 kg expedidos. Vence em 1h 0min (tempo simulado).'
+          'Agora: Community Polenta Kitchen, 1.000 de 4.000 kg expedidos. Vence em 1h 0min (tempo simulado).'
         )
       ).toBeInTheDocument();
     } finally {
@@ -552,7 +607,9 @@ describe('playable shift UI', () => {
     });
     render(<OperationsPlayCard />);
     fireEvent.click(screen.getByText('Adjust the challenge'));
-    expect(screen.getByText(/New challenges allow 6 simulated hours/)).toBeInTheDocument();
+    // D14: the challenge's terms are a readout, not a paragraph of rules.
+    expect(screen.queryByText(/New challenges allow/)).not.toBeInTheDocument();
+    expect(screen.getByText('6 h to recover · up to 1,000 kg to dispatch')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Recover from a power sag' }));
     const run = useOperationsCampaignStore.getState().activeChallenge!;
     expect(run).not.toBeNull();
@@ -600,7 +657,10 @@ describe('playable shift UI', () => {
     render(<ShiftDebrief />);
     fireEvent.click(screen.getByText('Shift log'));
     expect(screen.getByText('Operator mitigated a power sag')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Accept next delivery programme' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Accept next delivery programme' })).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
   });
 });
 
@@ -649,7 +709,9 @@ it('keeps real inspection tracking mounted in the compact scene guide and restor
   expect(screen.getByLabelText('Delivery deadline')).toHaveTextContent(deadline!);
   expect(screen.getByRole('button', { name: 'Expand delivery guide' })).toBeInTheDocument();
   expect(screen.getByRole('combobox', { name: 'Shift pace' })).toBeInTheDocument();
-  expect(screen.getByText('Select a machine to record your inspection.')).toBeInTheDocument();
+  // D14: the Inspect a roller mill button (when the host can fly to a mill)
+  // is the instruction; no hint sits above it.
+  expect(screen.queryByText('Select a machine to record your inspection.')).not.toBeInTheDocument();
   expect(useUIStore.getState().journeyVisible).toBe(true);
   rerender(
     <FirstDeliveryJourney
@@ -789,6 +851,8 @@ function queueControllerResponse() {
   useOperationsCampaignStore.setState({
     execution: {
       ...state.execution,
+      // The active order's run: order-002 once the first delivery is in (D4).
+      orderId: state.activeOrderId ?? state.execution.orderId,
       stage: 'milling',
       sourceInventoryKg: 10000,
       qualityReleased: true,
@@ -812,13 +876,10 @@ it.each([0, 30, 180])(
       name: speed === 0 ? 'Resume shift for controller response' : 'Awaiting simulation update',
     });
     expect(useGameSimulationStore.getState()).toBe(clock);
-    expect(
-      screen.getByText(
-        speed === 0
-          ? /Resumes the whole shift at standard pace/
-          : /The shift is running at your chosen pace/
-      )
-    ).toBeInTheDocument();
+    // D14: while the response waits, no advice replaces the effect line.
+    if (speed === 0)
+      expect(screen.getByText(/Resumes the whole shift at standard pace/)).toBeInTheDocument();
+    expect(screen.queryByText(/The shift is running at your chosen pace/)).not.toBeInTheDocument();
     expect(
       screen
         .getByRole('group', { name: 'Recovery challenge progress' })
@@ -841,6 +902,7 @@ it.each(['deliberating', 'active', 'review'] as const)(
   'keeps explicit resume separate from programme eligibility during linked %s',
   (phase) => {
     const w = useWorkplaceStore.getState();
+    fulfilFirstDelivery();
     expect(w.startMission('team').changed).toBe(true);
     if (phase !== 'deliberating') {
       w.campaignDecision('keep-target', 'coordinator');
@@ -1047,10 +1109,17 @@ it.each([
 });
 
 it('points a linked campaign hold at the working agreement controls that can finish it', () => {
+  fulfilFirstDelivery();
   useWorkplaceStore.getState().startMission('toe-dip');
   render(<OperationsPlayCard />);
   expect(screen.getByLabelText('Active customer commitment', { exact: false })).toBeDisabled();
-  expect(screen.getByText(/Review working agreement opens Autonomy/)).toBeInTheDocument();
+  // D14: one clause says why the select is held; the button names the way on.
+  expect(
+    screen.getByText(
+      'Finish the linked working agreement season and owed recovery before switching customers.'
+    )
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/Review working agreement opens Autonomy/)).not.toBeInTheDocument();
 });
 
 it('routes a stopped machine to Mill Overview, Maintenance as Attention, not Blocked', () => {
@@ -1100,6 +1169,7 @@ it('shows on the shift card what each failure is costing and what this shift has
 it('leaves a linked season from the play card, keeping its receipts and reopening customer choice', () => {
   useWorkplaceStore.setState({ leftCampaigns: [] });
   useGameSimulationStore.getState().setGameSpeed(30);
+  fulfilFirstDelivery();
   expect(useWorkplaceStore.getState().startMission('toe-dip').changed).toBe(true);
   useWorkplaceAutoplay.getState().start('toe-dip');
   render(<OperationsPlayCard />);
@@ -1128,6 +1198,7 @@ it.each([
     try {
       setLocale(locale);
       useWorkplaceStore.setState({ leftCampaigns: [] });
+      fulfilFirstDelivery();
       expect(useWorkplaceStore.getState().startMission('toe-dip').changed).toBe(true);
       render(<ShiftDebrief />);
       fireEvent.click(
@@ -1290,14 +1361,20 @@ it.each([
         host === 'card'
           ? screen.getByLabelText(guardedLabel, { exact: false })
           : screen.getByRole('button', { name: guardedLabel });
-      expect(control).toBeDisabled();
+      // The card's select is disabled; the debrief's accept is inert, so a
+      // press can say why.
+      const held = () =>
+        control.tagName === 'SELECT'
+          ? (control as HTMLSelectElement).disabled
+          : control.getAttribute('aria-disabled') === 'true';
+      expect(held()).toBe(true);
       fireEvent.click(screen.getByRole('button', { name: reviewLabel }));
       expect(handler).toHaveBeenCalledOnce();
       expect(handler.mock.calls[0][0].detail).toBe('autonomy');
       expect(useWorkplaceStore.getState().workplace).toBe(workplace);
       expect(useOperationsCampaignStore.getState()).toBe(operations);
       expect(useGameSimulationStore.getState()).toBe(game);
-      expect(control).toBeDisabled();
+      expect(held()).toBe(true);
       if (hint) {
         expect(screen.getByText(new RegExp(hint.replace('.', '\\.')))).toBeInTheDocument();
         expect(
@@ -1327,14 +1404,18 @@ it('keeps owed handoff recovery blocking the next programme after review navigat
   expect(store.beginImprovement('cooperative', store.workplace.revision).changed).toBe(true);
   expect(store.stop().changed).toBe(true);
   expect(store.acknowledgeImprovementReview().changed).toBe(true);
-  for (const member of useWorkplaceStore.getState().workplace.members)
-    expect(store.voteImprovementReview(member.id, 'amend').changed).toBe(true);
+  // 5b (D5): in solo play the player casts Packing's verdict only; the other
+  // roles have cast theirs from their values once the review was acknowledged.
+  expect(
+    Object.keys(useWorkplaceStore.getState().workplace.improvement?.ballots ?? {}).sort()
+  ).toEqual(['coordinator', 'maintenance', 'quality']);
+  expect(store.voteImprovementReview('packing', 'amend').changed).toBe(true);
   expect(
     store.finishImprovementReview(useWorkplaceStore.getState().workplace.revision).changed
   ).toBe(true);
   render(<ShiftDebrief />);
   const next = screen.getByRole('button', { name: 'Accept next delivery programme' });
-  expect(next).toBeEnabled();
+  expect(next).not.toHaveAttribute('aria-disabled');
   // Debt fixture exercises the UI's existing guard, not an earned-work claim.
   act(() =>
     useWorkplaceStore.setState((state) => ({
@@ -1347,9 +1428,9 @@ it('keeps owed handoff recovery blocking the next programme after review navigat
     }))
   );
   const owed = useWorkplaceStore.getState().workplace;
-  expect(next).toBeDisabled();
+  expect(next).toHaveAttribute('aria-disabled', 'true');
   fireEvent.click(screen.getByRole('button', { name: 'Review working agreement' }));
-  expect(next).toBeDisabled();
+  expect(next).toHaveAttribute('aria-disabled', 'true');
   expect(useWorkplaceStore.getState().workplace).toBe(owed);
   expect(owed.members[0].recoveryOwedMinutes).toBe(4);
 });

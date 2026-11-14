@@ -143,9 +143,12 @@ describe('the agent cockpit in Portuguese', () => {
       const inspection = await handler.inspect(command, capture);
       inspection.effects.forEach((line) => lines.add(line));
       // The workplace readiness reasons arrive already translated
-      // (bilateralWorkplace resolves them in the reader's language).
+      // (bilateralWorkplace resolves them in the reader's language), as does
+      // the line-restart refusal (workplaceStore's restartLineFirst).
       [...inspection.preconditions, ...inspection.invariants]
-        .filter((item) => item.id !== 'PRE.WORKPLACE.READY')
+        .filter(
+          (item) => item.id !== 'PRE.WORKPLACE.READY' && item.id !== 'PRE.WORKPLACE.LINE_RESTARTED'
+        )
         .forEach((item) => lines.add(item.detail));
       const verification = await handler.verify(command, capture, capture, { changed: false });
       verification.forEach((item) => lines.add(item.detail));

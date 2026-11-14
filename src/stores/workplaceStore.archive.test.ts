@@ -11,6 +11,7 @@ import {
   WORKPLACE_CHECKS,
 } from '../simulation/workplaceCampaign';
 import { beginReplayClock, endReplayClock } from '../simulation/workplaceReplayRuntime';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 beforeEach(async () => {
   endReplayClock();
@@ -24,13 +25,14 @@ beforeEach(async () => {
 
 function finalReview(shifts = 3) {
   const store = useWorkplaceStore.getState();
+  fulfilFirstDelivery();
   expect(store.startCampaign('cooperative', 17).changed).toBe(true);
   for (let shift = 0; shift < shifts; shift++) {
+    // 5b: the Coordinator makes Friday's and Thursday's calls itself.
     if (shift !== 1)
-      expect(
-        store.campaignDecision(shift === 0 ? 'keep-target' : 'protect-refusal', 'coordinator')
-          .changed
-      ).toBe(true);
+      expect(useWorkplaceStore.getState().workplace.campaign?.decision).toBe(
+        shift === 0 ? 'renegotiate' : 'protect-refusal'
+      );
     for (const actor of ['packing', 'mind']) {
       for (const check of requiredChecks(actor))
         store.answerCheck(
@@ -43,12 +45,8 @@ function finalReview(shifts = 3) {
     store.vote('packing', true);
     store.simulateResponses();
     expect(store.activate(useWorkplaceStore.getState().workplace.revision).changed).toBe(true);
-    while (useWorkplaceStore.getState().workplace.phase === 'active') {
-      const state = useWorkplaceStore.getState().workplace;
-      if (shift === 1 && state.minute >= 25 && !state.campaign?.decision)
-        store.campaignDecision('inspect', 'quality');
-      store.tick(5, 0, false);
-    }
+    // Quality starts Monday's inspection itself when the line holds.
+    while (useWorkplaceStore.getState().workplace.phase === 'active') store.tick(5, 0, false);
     if (shift < shifts - 1) expect(store.nextCampaignShift().changed).toBe(true);
   }
   return useWorkplaceStore.getState().workplace;
@@ -76,6 +74,7 @@ describe('completed cooperative campaign archive', () => {
     expect(completedCampaigns[0].members.every((m) => m.preference === '')).toBe(true);
     expect(useMaterialFlowStore.getState()).toBe(physical);
     expect(useOperationsCampaignStore.getState()).toBe(operations);
+    fulfilFirstDelivery();
     expect(useWorkplaceStore.getState().startCampaign('team', 23).changed).toBe(true);
     expect(useWorkplaceStore.getState().completedCampaigns).toHaveLength(1);
   });
@@ -171,6 +170,7 @@ describe('leaving a cooperative season early', () => {
     expect(campaignOutcomes(saved.leftCampaigns[0]).accounts).toEqual(
       campaignOutcomes(before).accounts
     );
+    fulfilFirstDelivery();
     expect(saved.startCampaign('team', 23).changed).toBe(true);
   });
 
@@ -248,6 +248,7 @@ describe('closing a handoff experiment opened from a season', () => {
       expect(after[kept]).toHaveLength(1);
       expect(after[kept][0].campaign?.shift).toBe(before.campaign?.shift);
       expect(campaignOutcomes(after[kept][0]).accounts).toEqual(campaignOutcomes(before).accounts);
+      fulfilFirstDelivery();
       expect(after.startCampaign('team', 23).changed).toBe(true);
     }
   );

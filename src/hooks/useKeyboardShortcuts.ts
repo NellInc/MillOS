@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { GraphicsQuality } from '../stores/graphicsStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
-import { useProductionStore } from '../stores/productionStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAIConfigStore } from '../stores/aiConfigStore';
@@ -16,26 +15,32 @@ import { useMobileControlStore } from '../stores/mobileControlStore';
 import { getMobileDetection } from './useMobileDetection';
 import { cameraControllerMessages } from '../components/CameraController.messages';
 import type { ForkliftData, MachineData } from '../types';
-import { FORKLIFT_STOP_TOPIC } from '../components/GameFeatures';
-import { sharedMessages } from '../components/game/shared.messages';
-import { registerAlertCatalog } from '../i18n/alertCopy';
+import { engageForkliftStop, releaseForkliftStop } from '../components/ui-new/panels/forkliftStop';
 import { formatFixed, translate } from '../i18n';
 import { keyboardShortcutsMessages } from './useKeyboardShortcuts.messages';
-import { safetyStoreMessages } from '../stores/safetyStore.messages';
 
 type KeyboardShortcutsMessages = typeof keyboardShortcutsMessages.en;
 type PlainMessageKey = {
   [K in keyof KeyboardShortcutsMessages]: KeyboardShortcutsMessages[K] extends string ? K : never;
 }[keyof KeyboardShortcutsMessages];
 
-// The X-key forklift stop's PA line (the only line of the forklift-stop
-// corpus), filed by key so it follows a language switch and a reload.
-const KEYBOARD_PA_CATALOG = 'keyboardShortcutsPA';
-const FORKLIFT_STOP_PA_KEY = 'forkliftStop';
-registerAlertCatalog(KEYBOARD_PA_CATALOG, sharedMessages);
-
 /** Resolved when the key is pressed, so the notification follows the current language. */
 const msg = (key: PlainMessageKey): string => translate(keyboardShortcutsMessages, key);
+
+/**
+ * The verbs players most need, each on a key (plan 2.10, report 09 F10): the
+ * shift commitment (N), the bell (B), Safety (L) and the Chronicle (M). The
+ * workspaces and the bell belong to GameInterface, which hears this event
+ * and opens or closes them as the dock and the bell button do.
+ */
+export const WORKSPACE_KEY_EVENT = 'millos:workspace-key';
+export type WorkspaceKeyVerb = 'commitment' | 'bell' | 'safety' | 'chronicle';
+const WORKSPACE_KEYS: Readonly<Record<string, WorkspaceKeyVerb>> = {
+  n: 'commitment',
+  b: 'bell',
+  l: 'safety',
+  m: 'chronicle',
+};
 
 /**
  * The next 10 % mark strictly above (+1) or below (-1) a line rate, within
@@ -155,9 +160,6 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
   useEffect(() => {
     forkliftEmergencyStopRef.current = forkliftEmergencyStop;
   }, [forkliftEmergencyStop]);
-  const setForkliftEmergencyStop = useSafetyStore((state) => state.setForkliftEmergencyStop);
-  const addSafetyIncident = useSafetyStore((state) => state.addSafetyIncident);
-  const addAnnouncement = useProductionStore((state) => state.addAnnouncement);
 
   // Camera presets
   const setCameraPreset = useCameraStore((state) => state.setPreset);
@@ -233,32 +235,13 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
           scheduleNotificationClear(2000);
           return;
         }
-        const newState = !forkliftEmergencyStopRef.current;
-        setForkliftEmergencyStop(newState);
-        if (newState) {
-          audioManager.playEmergencyStop();
-          audioManager.startEmergencyStopAlarm();
-          // Forklift-only stop: the PA must not claim the mill has stopped.
-          // On the forklift-stop topic, so the release retires it even after
-          // a language switch changed the line's wording; keyed, so a queued
-          // or restored line reads in the language active when shown.
-          addAnnouncement({
-            type: 'emergency',
-            message: translate(sharedMessages, FORKLIFT_STOP_PA_KEY),
-            priority: 4,
-            channel: 'safety',
-            topic: FORKLIFT_STOP_TOPIC,
-            copy: { catalog: KEYBOARD_PA_CATALOG, key: FORKLIFT_STOP_PA_KEY },
-          });
-          // Kept by key, so the log reads in the language active when read.
-          addSafetyIncident({
-            type: 'emergency',
-            description: translate(safetyStoreMessages, 'keyboardEmergencyStop'),
-            descriptionKey: 'keyboardEmergencyStop',
-          });
+        // The same stop the Safety panel sets (forkliftStop.ts): the klaxon,
+        // the PA line on the forklift-stop topic, and the incident.
+        if (!forkliftEmergencyStopRef.current) {
+          engageForkliftStop('keyboard');
           setQualityNotification(msg('emergencyStop'));
         } else {
-          audioManager.stopEmergencyStopAlarm();
+          releaseForkliftStop();
           setQualityNotification(msg('emergencyStopReleased'));
         }
         scheduleNotificationClear(2000);
@@ -397,6 +380,18 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
           audioManager.playPanelClose();
         }
         setShowSCADAPanel(!showSCAPanelRef.current);
+        return;
+      }
+
+      // N, B, L, M - the commitment, the bell, Safety, the Chronicle. Ctrl+B
+      // (blueprint) returned above, so B here is the bare key.
+      const verb = WORKSPACE_KEYS[key];
+      if (verb) {
+        e.preventDefault();
+        audioManager.playClick();
+        window.dispatchEvent(
+          new CustomEvent<WorkspaceKeyVerb>(WORKSPACE_KEY_EVENT, { detail: verb })
+        );
         return;
       }
 
@@ -665,9 +660,6 @@ export function useKeyboardShortcuts(config: KeyboardShortcutsConfig) {
     setShowZones,
     setAutoRotate,
     setQualityNotification,
-    setForkliftEmergencyStop,
-    addSafetyIncident,
-    addAnnouncement,
     setCameraPreset,
   ]);
 }

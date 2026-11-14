@@ -19,8 +19,8 @@ import {
   createConveyorObstacles,
   DOCK_PLATFORM_OBSTACLES,
 } from '../constants/factoryObstacles';
-import { SITE_LAYOUT, getSiloAssemblyScale } from '../constants/siteLayout';
 import { useUIStore } from '../stores/uiStore';
+import { useMobileControlStore } from '../stores/mobileControlStore';
 import { useT } from '../i18n';
 import {
   forkliftPromptMessages,
@@ -41,19 +41,32 @@ import {
   useForkliftDriveStore,
 } from '../stores/forkliftDriveStore';
 import { forkliftInReach, forkliftStepDownPoint } from '../utils/forkliftBoarding';
+import { forkliftWorkMessages } from '../stores/forkliftDriveStore.messages';
 import {
   activateAimedInteractable,
   clearAimedInteractable,
   updateAimedInteractable,
   useAimedInteractableStore,
 } from '../utils/worldInteractables';
+import { LADDER_CLIMB_SPEED, walkingPace } from '../utils/walkingPace';
+import { LADDER_TOP_TOLERANCE, siloLadderAt } from '../utils/siloLadders';
+import { clearFirstPersonPose, writeFirstPersonPose } from '../utils/firstPersonPose';
+import { linkSceneInteractables, unlinkSceneInteractables } from '../utils/sceneInteractables';
+import { WorldCard } from './worldCard/WorldCard';
+import { updateSiloCard } from './worldCard/worldCardStore';
+import { useWindmillLearningStore } from '../stores/windmillLearningStore';
+import { useProcessInspectionStore } from '../stores/processInspectionStore';
 
 /** View direction scratch for the activation's aim test (no per-frame allocation). */
 const _aimDirection = new THREE.Vector3();
+/** Yaw scratch for the published pose (the mini-map). */
+const _yaw = new THREE.Euler(0, 0, 0, 'YXZ');
 
-// Movement configuration
-const MOVE_SPEED = 12; // Units per second (walking speed)
-const SPRINT_MULTIPLIER = 3.6; // Speed multiplier when sprinting (doubled for fast gameplay)
+/** True while a farm lesson card (windmill or henhouse) is open. */
+const lessonOpen = (): boolean =>
+  useWindmillLearningStore.getState().open || useProcessInspectionStore.getState().active !== null;
+
+// Movement configuration: paces come from utils/walkingPace.ts (D16).
 const PLAYER_HEIGHT = FIRST_PERSON_EYE_HEIGHT;
 const PLAYER_RADIUS = 0.4; // Collision radius
 // Vertical FOV. 105 was a fish-eye (~140 degrees across at 16:9); 75 is about
@@ -125,15 +138,6 @@ const findFreeSpawn = (x: number, z: number): [number, number] => {
   return [x, z];
 };
 
-const SILO_LADDER_SCALE = getSiloAssemblyScale(SITE_LAYOUT.machineDimensions.silo);
-const LADDER_ZONES = SITE_LAYOUT.machines.silos.map(({ position: [x, y, z] }) => ({
-  minX: x - 0.6 * SILO_LADDER_SCALE[0],
-  maxX: x + 0.6 * SILO_LADDER_SCALE[0],
-  minZ: z + 2.29 * SILO_LADDER_SCALE[2] - 0.7,
-  maxZ: z + 2.29 * SILO_LADDER_SCALE[2] + 0.7,
-  height: y + SITE_LAYOUT.machineDimensions.silo[1],
-}));
-
 // Track pressed keys
 const pressedKeys = new Set<string>();
 
@@ -186,7 +190,7 @@ interface FirstPersonControllerProps {
 }
 
 export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ onLockChange }) => {
-  const { camera, gl } = useThree();
+  const { camera, gl, scene } = useThree();
   const controlsRef = useRef<any>(null);
   const velocity = useRef(new THREE.Vector3());
   const direction = useRef(new THREE.Vector3());
@@ -260,6 +264,8 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   const interact = useCallback((): boolean => {
     const drive = useForkliftDriveStore.getState();
     if (drive.drivenId) {
+      // At a station, E picks or drops (the store says when it used the press).
+      if (drive.requestWork()) return true;
       const height = exitForklift(camera, drive.drivenId);
       if (height !== null) currentHeight.current = height;
       verticalSpeed.current = 0;
@@ -344,6 +350,63 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     };
   }, [handleKeyDown, handleKeyUp, handleBlur, handleVisibilityChange]);
 
+  // Scene targets (residents, the farm lessons) and the published pose live
+  // only while first person is mounted.
+  useEffect(
+    () => () => {
+      unlinkSceneInteractables();
+      clearFirstPersonPose();
+    },
+    []
+  );
+
+  /**
+   * A farm lesson is a card in the Overview panel, answered with the mouse.
+   * Opening one from first person releases the mouse without leaving first
+   * person; closing it takes the mouse back (inside the close click, which
+   * the browser requires), or leaves first person if that is refused.
+   */
+  const releasedForLesson = useRef(false);
+  useEffect(() => {
+    let wasOpen = lessonOpen();
+    // Taking the mouse back failed: leave first person rather than strand a dead view.
+    const leave = () => {
+      if (!releasedForLesson.current) return;
+      releasedForLesson.current = false;
+      useUIStore.getState().setFpsMode(false);
+    };
+    const onLessonChange = () => {
+      const open = lessonOpen();
+      const opened = open && !wasOpen;
+      const closed = !open && wasOpen;
+      wasOpen = open;
+      if (opened && isLocked.current && document.pointerLockElement) {
+        releasedForLesson.current = true;
+        document.exitPointerLock();
+      } else if (closed && releasedForLesson.current && !isLocked.current) {
+        try {
+          const request: Promise<void> | void = gl.domElement.requestPointerLock?.();
+          if (request) void request.catch(leave);
+          else if (!gl.domElement.requestPointerLock) leave();
+        } catch {
+          leave();
+        }
+      }
+    };
+    // Browsers whose request returns nothing report a refusal as this event.
+    const onLockError = () => {
+      if (!lessonOpen()) leave();
+    };
+    const offWindmill = useWindmillLearningStore.subscribe(onLessonChange);
+    const offInspection = useProcessInspectionStore.subscribe(onLessonChange);
+    document.addEventListener('pointerlockerror', onLockError);
+    return () => {
+      offWindmill();
+      offInspection();
+      document.removeEventListener('pointerlockerror', onLockError);
+    };
+  }, [gl]);
+
   // Collision detection
   const checkCollision = collides;
 
@@ -351,19 +414,17 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   // The forklift last driven, until the player is back on their feet.
   const seatedInRef = useRef<string | null>(null);
   const isClimbing = useRef(false);
-
-  // Check if player is in a ladder zone
-  const checkLadder = useCallback((x: number, z: number): number | null => {
-    for (const zone of LADDER_ZONES) {
-      if (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) {
-        return zone.height;
-      }
-    }
-    return null;
-  }, []);
+  // The silo whose ladder top the body is on, while its card shows.
+  const siloAtTop = useRef<string | null>(null);
 
   // Movement update
   useFrame((_, delta) => {
+    linkSceneInteractables(scene);
+    writeFirstPersonPose(
+      camera.position.x,
+      camera.position.z,
+      _yaw.setFromQuaternion(camera.quaternion).y
+    );
     if (!isLocked.current) return;
     const movementDelta = clampNavigationDelta(delta);
     const keyboardIntent = getNavigationIntent(pressedKeys);
@@ -418,9 +479,8 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
       direction.current.normalize();
     }
 
-    // Apply sprint multiplier
-    const speedScale = keyboardIntent.sprint ? SPRINT_MULTIPLIER : 1;
-    const speed = MOVE_SPEED * speedScale;
+    // A person's pace in the hall, a jog and a run outside it (D16).
+    const speed = walkingPace(camera.position.x, camera.position.z, keyboardIntent.sprint);
 
     // On a ladder Q descends (E is the activation key, so it no longer climbs;
     // W/S do). Held apart from the horizontal direction so a diagonal walk does
@@ -438,7 +498,8 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     right.normalize();
 
     // Check ladder status
-    const ladderMaxHeight = checkLadder(camera.position.x, camera.position.z);
+    const ladder = siloLadderAt(camera.position.x, camera.position.z);
+    const ladderMaxHeight = ladder?.height ?? null;
 
     // Enter/Exit climbing mode
     if (ladderMaxHeight !== null) {
@@ -452,7 +513,7 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
 
     if (isClimbing.current && ladderMaxHeight !== null) {
       // CLIMBING PHYSICS: W/S moves Up/Down
-      const climbSpeed = speed * 0.8;
+      const climbSpeed = LADDER_CLIMB_SPEED;
       jumpRequested.current = false;
       verticalSpeed.current = 0;
 
@@ -480,7 +541,14 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
 
       camera.position.y = currentHeight.current;
       velocity.current.y = 0; // Reset vertical velocity accumulation for next frame logic
+      updateSiloCard(
+        siloAtTop,
+        ladder && currentHeight.current >= ladder.height - LADDER_TOP_TOLERANCE
+          ? ladder.siloId
+          : null
+      );
     } else {
+      updateSiloCard(siloAtTop, null);
       // WALKING PHYSICS
       const terrainSegments = getTerrainGridSegments(useGraphicsStore.getState().graphics.quality);
       const previousFloor =
@@ -553,6 +621,7 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
   // Handle lock state changes
   const handleLock = useCallback(() => {
     isLocked.current = true;
+    releasedForLesson.current = false;
     onLockChange?.(true);
   }, [onLockChange]);
 
@@ -563,6 +632,8 @@ export const FirstPersonController: React.FC<FirstPersonControllerProps> = ({ on
     useForkliftDriveStore.getState().exit();
     clearAimedInteractable();
     onLockChange?.(false);
+    // Released for a farm lesson: first person waits for the card to close.
+    if (releasedForLesson.current) return;
 
     // Exit FPS mode when pointer lock is lost
     useUIStore.getState().setFpsMode(false);
@@ -588,15 +659,22 @@ export const FPSCrosshair: React.FC<{ touch?: boolean }> = ({ touch = false }) =
   const drivenId = useForkliftDriveStore((state) => state.drivenId);
   const inReachId = useForkliftDriveStore((state) => state.inReachId);
   const aimedPrompt = useAimedInteractableStore((state) => state.prompt);
+  const workOffer = useForkliftDriveStore((state) => state.workOffer);
+  const workRefusal = useForkliftDriveStore((state) => state.workRefusal);
   const t = useT(forkliftPromptMessages);
+  const tWork = useT(forkliftWorkMessages);
   const tInteract = useT(interactPromptMessages);
+  // A phone sheet is read, not walked through: the dot drew over its tabs.
+  const sheetOpen = useMobileControlStore((state) => state.mobilePanelVisible);
 
-  if (!fpsMode) return null;
+  if (!fpsMode || (touch && sheetOpen)) return null;
 
   // A touch player has buttons for this (MobileControlsOverlay), not an E key.
   const promptId = touch ? null : (drivenId ?? inReachId ?? aimedPrompt);
   const prompt = drivenId
-    ? t('leave')
+    ? workOffer
+      ? tWork(workOffer)
+      : t('leave')
     : inReachId
       ? t('drive', { tag: FORKLIFT_FLEET_TAGS[inReachId] ?? inReachId })
       : aimedPrompt
@@ -607,6 +685,7 @@ export const FPSCrosshair: React.FC<{ touch?: boolean }> = ({ touch = false }) =
     <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center">
       {/* Crosshair dot */}
       <div className="w-1.5 h-1.5 bg-white/80 rounded-full shadow-sm" />
+      <WorldCard />
       {promptId && prompt && (
         <div
           data-testid="forklift-drive-prompt"
@@ -614,6 +693,15 @@ export const FPSCrosshair: React.FC<{ touch?: boolean }> = ({ touch = false }) =
         >
           <kbd className="px-2 py-0.5 bg-slate-700 rounded font-mono">E</kbd>
           <span>{prompt}</span>
+        </div>
+      )}
+      {drivenId && workRefusal && (
+        <div
+          role="alert"
+          data-testid="forklift-work-refusal"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-20 rounded-lg bg-amber-900/85 px-3 py-1.5 text-sm text-amber-100"
+        >
+          {tWork(workRefusal)}
         </div>
       )}
     </div>
@@ -748,6 +836,21 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
               </kbd>
             </div>
             <span className="text-slate-400 text-sm">{t('forklift')}</span>
+          </div>
+
+          <div className="bg-slate-800/50 rounded-lg p-3" data-testid="fps-help-forks">
+            <div className="flex items-center gap-2 mb-2">
+              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">R</kbd>
+              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">Q</kbd>
+            </div>
+            <span className="text-slate-400 text-sm">{t('forks')}</span>
+          </div>
+
+          <div className="bg-slate-800/50 rounded-lg p-3" data-testid="fps-help-forklift-stop">
+            <div className="flex items-center gap-2 mb-2">
+              <kbd className="px-2 py-1 bg-slate-700 rounded text-white text-sm font-mono">X</kbd>
+            </div>
+            <span className="text-slate-400 text-sm">{t('forkliftStop')}</span>
           </div>
 
           <div className="bg-slate-800/50 rounded-lg p-3">

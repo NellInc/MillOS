@@ -3,10 +3,10 @@ import { defineMessages } from '../../i18n';
 export const learningNoteMessages = defineMessages({
   en: {
     whyItMatters: 'Why it matters: {title}',
-    seeItIn: 'See it in {places}. Open Datalinks for the full explanation.',
+    seeItIn: 'See it in {places}.',
   },
   'pt-BR': {
     whyItMatters: 'Por que isso importa: {title}',
-    seeItIn: 'Veja na prática em {places}. Abra o Datalinks para a explicação completa.',
+    seeItIn: 'Veja na prática em {places}.',
   },
 });

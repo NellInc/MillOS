@@ -21,6 +21,7 @@ import { formatPlantStamp } from '../../../utils/timeFormatting';
 import { workplaceReplayMessages } from './WorkplaceReplay.messages';
 // Breakdown type labels already live with the maintenance panel's catalogue.
 import { predictiveMaintenancePanelMessages } from '../../ui/PredictiveMaintenancePanel.messages';
+import { customerDisplayName } from '../../../stores/customerNames';
 
 const buttonClass =
   'min-h-9 rounded-md border border-cyan-300/25 px-2 py-1.5 text-xs font-medium text-cyan-100 hover:bg-cyan-900/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
@@ -106,7 +107,6 @@ export function WorkplaceReplay({
       className="min-w-0 space-y-3 break-words border-b border-slate-700 pb-4"
     >
       <h4 className="font-semibold text-white">{t('title')}</h4>
-      <p>{t('intro')}</p>
       <div className="flex flex-wrap gap-2">
         <button
           className={buttonClass}
@@ -114,7 +114,7 @@ export function WorkplaceReplay({
           onClick={() => {
             useGameSimulationStore.getState().setGameSpeed(0);
             // Pausing disables this control with focus on it, which a browser
-            // drops to <body> (Space = forklift emergency stop). Capture is
+            // drops to <body>, losing a keyboard user's place. Capture is
             // the next step. Working if Tab and Space continue from Capture.
             requestAnimationFrame(() => {
               const active = document.activeElement as HTMLButtonElement | null;
@@ -137,7 +137,6 @@ export function WorkplaceReplay({
           {t('startGuided')}
         </button>
       </div>
-      <p>{t('captureRequires')}</p>
       {feedbackText && (
         <p role="status" className="break-words text-amber-100">
           {feedbackText}
@@ -147,7 +146,7 @@ export function WorkplaceReplay({
         <div className="space-y-2">
           <p className="tabular-nums">
             {t('checkpointLine', {
-              customer: replay.checkpoint.customer,
+              customer: customerDisplayName(replay.checkpoint.customer),
               // Grouped like every other kilogram figure in the laboratory.
               remaining: formatKg(replay.checkpoint.remainingKg, 1),
               source: formatKg(replay.checkpoint.sourceKg, 1),
@@ -192,7 +191,6 @@ export function WorkplaceReplay({
               {t('forget')}
             </button>
           </div>
-          <p>{t('replayNote')}</p>
         </div>
       ) : (
         <p>{t('noCheckpoint')}</p>
@@ -212,7 +210,6 @@ export function WorkplaceReplay({
               </ul>
             )}
             <p className="text-cyan-100">{learning.question}</p>
-            <p>{t('hearRoles')}</p>
           </div>
         </details>
       )}
@@ -359,7 +356,6 @@ export function WorkplaceReplay({
           {t('downloadReport')}
         </button>
       )}
-      <p>{t('closingNote')}</p>
     </section>
   );
 }
@@ -438,7 +434,6 @@ export function WorkplaceReplayGuide({
           {t('endGuide')}
         </button>
       </div>
-      <p>{t('optionalNavigation')}</p>
     </aside>
   );
 }

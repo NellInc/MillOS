@@ -1,9 +1,13 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MachineInspector } from '../sidebar/MachineInspector';
 import { MachineType, type MachineData } from '../../../types';
-import { useProductionStore } from '../../../stores/productionStore';
+import { getWearConfig, useProductionStore } from '../../../stores/productionStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
+import { stepUnitWork } from '../../../systems/unitService';
+
+// A service runs its minutes on the game clock (D7); stepUnitWork is the tick's call.
+const SERVICE_SECONDS = getWearConfig(MachineType.ROLLER_MILL).serviceMinutes * 60;
 
 const worn: MachineData = {
   id: 'alert-mill',
@@ -26,7 +30,6 @@ describe('MachineInspector Maintain and the open prediction', () => {
     useProductionStore.setState({ machines: [worn] });
   });
   afterEach(() => {
-    vi.useRealTimers();
     useProductionStore.setState({ machines: savedMachines });
     act(() => useBreakdownStore.getState().resetBreakdownStore());
   });
@@ -34,29 +37,28 @@ describe('MachineInspector Maintain and the open prediction', () => {
   // Maintain takes wear below the warning threshold, so the window the
   // prediction showed no longer exists; left open it would also block the
   // machine's next warning from raising a prediction at all.
-  it('closes the machine prediction once the service is performed', async () => {
-    vi.useFakeTimers();
+  // The service now starts at the press and closes the prediction then; it
+  // stays closed when the service is performed.
+  it('closes the machine prediction once the service is performed', () => {
     useBreakdownStore
       .getState()
       .addPredictiveAlert(worn.id, worn.name, { vibration: 5, temperature: 60, load: 70 }, 60);
+    const open = () =>
+      useBreakdownStore
+        .getState()
+        .predictiveAlerts.filter((alert) => alert.machineId === worn.id && !alert.acknowledged);
     render(<MachineInspector machine={worn} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1300);
-    });
+    fireEvent.click(screen.getByRole('button', { name: /^Perform Maintenance/ }));
+    expect(open()).toHaveLength(0);
+    act(() => stepUnitWork(SERVICE_SECONDS));
     expect(useProductionStore.getState().machines[0].metrics.wear).toBe(20);
-    const open = useBreakdownStore
-      .getState()
-      .predictiveAlerts.filter((alert) => alert.machineId === worn.id && !alert.acknowledged);
-    expect(open).toHaveLength(0);
+    expect(open()).toHaveLength(0);
   });
 
-  // Booking a predicted service and pressing Maintain run the same service.
-  // Maintain used to take one filter and close the booking for free, so a
-  // booking (sensors and motors) cost more than not having booked at all.
-  // Working if Maintain on a booked unit performs the booking, at its parts.
-  it('performs an open booking at its parts rather than one spare', async () => {
-    vi.useFakeTimers();
+  // Booking a predicted service and pressing Maintain run the same service, at
+  // one price: one spare part, whatever the booking lists. Working if Maintain
+  // on a booked unit takes one part and closes the booking.
+  it('performs an open booking for one spare part and closes it', () => {
     useBreakdownStore.getState().scheduleMaintenanceTask({
       machineId: worn.id,
       machineName: worn.name,
@@ -67,21 +69,19 @@ describe('MachineInspector Maintain and the open prediction', () => {
     });
     const before = { ...useBreakdownStore.getState().partsInventory };
     render(<MachineInspector machine={worn} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1300);
+    fireEvent.click(screen.getByRole('button', { name: /^Perform Maintenance/ }));
+    act(() => stepUnitWork(SERVICE_SECONDS));
+    expect(useBreakdownStore.getState().partsInventory).toEqual({
+      ...before,
+      filters: before.filters - 1,
     });
-    const after = useBreakdownStore.getState().partsInventory;
-    expect(after.filters).toBe(before.filters);
-    expect(after.sensors).toBe(before.sensors - 1);
-    expect(after.motors).toBe(before.motors - 1);
     expect(useBreakdownStore.getState().maintenanceSchedule.every((task) => task.completed)).toBe(
       true
     );
   });
 
-  it('refuses Maintain on a booked unit whose booking parts are not in free stock', async () => {
-    vi.useFakeTimers();
+  // A booking's listed parts no longer price or gate the service.
+  it('services a booked unit whose listed parts are out of stock, for one free part', () => {
     useBreakdownStore.getState().scheduleMaintenanceTask({
       machineId: worn.id,
       machineName: worn.name,
@@ -95,12 +95,13 @@ describe('MachineInspector Maintain and the open prediction', () => {
     }));
     const before = { ...useBreakdownStore.getState().partsInventory };
     render(<MachineInspector machine={worn} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Perform Maintenance' }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1300);
+    fireEvent.click(screen.getByRole('button', { name: /^Perform Maintenance/ }));
+    act(() => stepUnitWork(SERVICE_SECONDS));
+    expect(useProductionStore.getState().machines[0].metrics.wear).toBe(20);
+    expect(useBreakdownStore.getState().partsInventory).toEqual({
+      ...before,
+      filters: before.filters - 1,
     });
-    expect(useProductionStore.getState().machines[0].metrics.wear).toBe(70);
-    expect(useBreakdownStore.getState().partsInventory).toEqual(before);
-    expect(useBreakdownStore.getState().maintenanceSchedule[0].completed).toBe(false);
+    expect(useBreakdownStore.getState().maintenanceSchedule[0].completed).toBe(true);
   });
 });

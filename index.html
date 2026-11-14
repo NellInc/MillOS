@@ -177,8 +177,7 @@
         height: 56px;
         margin-bottom: 14px;
       }
-      .loading-text,
-      .loading-sub {
+      .loading-text {
         font-family:
           'Inter',
           system-ui,
@@ -193,13 +192,11 @@
         font-weight: 650;
         letter-spacing: 0.08em;
       }
-      .loading-sub {
-        color: #9fb3ad;
-        font-size: 13px;
-        margin-top: 8px;
+      /* Holds the slot the React cover's progress line fills, so the bar does
+        not move when it takes over. It carries no text (D14). */
+      .loading-status {
+        margin: 8px 0 0;
         min-height: 20px;
-        max-width: 32rem;
-        margin-bottom: 0;
       }
       .loading-bar {
         width: min(320px, 78vw);
@@ -258,13 +255,14 @@
           height="56"
         />
         <h1 class="loading-text">MillOS: WARMING UP THE ROLLERS</h1>
-        <p class="loading-sub">A live 3D grain mill, from wheat intake to flour dispatch.</p>
+        <div class="loading-status" aria-hidden="true"></div>
         <div class="loading-bar"></div>
       </div>
     </div>
     <!-- Mirrors detectLocale() in src/i18n/index.ts so a Portuguese visitor's
-      first frame is already Portuguese. Working if ?lang=, the saved choice and
-      the browser language agree with the React shell that replaces this one. -->
+      first frame is already Portuguese: ?lang=, then the saved choice, then
+      English. The browser language is never consulted (D-048). Working if the
+      cover agrees with the React shell that replaces this one. -->
     <script>
       (function () {
         try {
@@ -282,24 +280,15 @@
           try {
             saved = localStorage.getItem('millos-locale');
           } catch (e) {}
-          var langs =
-            navigator.languages && navigator.languages.length
-              ? navigator.languages
-              : [navigator.language];
           var locale =
             pick(new URLSearchParams(location.search).get('lang')) ||
             (saved === 'en' || saved === 'pt-BR' ? saved : null);
-          for (var i = 0; !locale && i < langs.length; i++) locale = pick(langs[i]);
           if (locale !== 'pt-BR') return;
           document.documentElement.lang = 'pt-BR';
           var screen = document.querySelector('#root .loading-screen');
           if (screen) screen.setAttribute('aria-label', 'Carregando o MillOS');
           var text = document.querySelector('#root .loading-text');
           if (text) text.textContent = 'MillOS: AQUECENDO OS ROLOS';
-          var sub = document.querySelector('#root .loading-sub');
-          if (sub)
-            sub.textContent =
-              'Um moinho de grãos 3D ao vivo, da recepção do trigo à expedição da farinha.';
         } catch (e) {}
       })();
     </script>

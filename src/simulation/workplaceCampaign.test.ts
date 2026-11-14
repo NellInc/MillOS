@@ -24,10 +24,18 @@ import {
   CAMPAIGN_PRESSURES,
   MANAGEMENT_APPROACHES,
   campaignRelationship,
+  mondayMinute,
+  seasonDraw,
 } from './workplaceCampaign';
 import type { WorkplaceProfile } from '../types/workplace';
 
-function campaign(profile: WorkplaceProfile = 'cooperative') {
+/**
+ * A season of seed 17. Most tests here are about a named pressure on a named
+ * day, so by default the season keeps the fixed order (and Monday's minute 25)
+ * that a season begun before seeded draws keeps (5.10); `drawn` keeps the
+ * seed's own draw.
+ */
+function campaign(profile: WorkplaceProfile = 'cooperative', drawn = false) {
   let state = createWorkplace();
   const run = (command: WorkplaceCommand) => {
     const result = transitionWorkplace(state, command);
@@ -35,6 +43,7 @@ function campaign(profile: WorkplaceProfile = 'cooperative') {
     return result;
   };
   run({ type: 'startCampaign', args: [profile, 17] });
+  if (!drawn) delete state.campaign!.draw;
   const understand = (actor: string) => {
     for (const id of requiredChecks(actor))
       run({
@@ -53,7 +62,11 @@ function campaign(profile: WorkplaceProfile = 'cooperative') {
   const activate = () => run({ type: 'activate', args: [state.revision] });
   const finish = () => {
     while (state.phase === 'active') {
-      if (state.campaign?.shift === 1 && state.minute >= 25 && state.campaign.decision === null)
+      if (
+        state.campaign?.shift === 1 &&
+        state.minute >= mondayMinute(state) &&
+        state.campaign.decision === null
+      )
         run({ type: 'campaignDecision', args: ['inspect', 'quality'] });
       run({ type: 'tick', args: [5, 0, false] });
     }
@@ -84,7 +97,8 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     ).toContain('Demand blocked');
     expect(c.state.finance).toEqual(before.finance);
     expect(c.state.members.every((m) => !m.sharing && m.coverConsent === null)).toBe(true);
-    expect(c.state.campaign?.adviserAcknowledged).toBe(false);
+    // 5.2: the terms the checks are about are unchanged, so they stand.
+    expect(c.state.campaign?.adviserAcknowledged).toBe(true);
     expect(c.activate().changed).toBe(false);
     expect(c.run({ type: 'resolveObjection', args: ['o-1', 'quality'] }).reason).toContain(
       'Restate'
@@ -448,8 +462,9 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
   it.each(['toe-dip', 'team', 'cooperative'] as WorkplaceProfile[])(
     'completes all three shifts under %s, retaining actual obligations and cash',
     (profile) => {
-      const c = campaign(profile);
+      const c = campaign(profile, true);
       const volunteers: string[] = [];
+      let covered = 0;
       for (let shift = 0; shift < 3; shift++) {
         expect(c.state.campaign?.shift).toBe(shift);
         if (shift !== 1)
@@ -459,16 +474,28 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
           });
         c.run({ type: 'selectPlan', args: ['cover'] });
         c.agree();
+        // 5.3: with nothing shipped, by Thursday cover pay would leave the
+        // books under a shift's wages, and the Coordinator says no. Under team
+        // consent that refusal holds; the team runs steady instead.
+        if (profile === 'team' && shift === 2) {
+          expect(c.activate().changed).toBe(false);
+          expect(
+            c.state.events.some((e) => e.kind === 'authored-refusal' && e.actorId === 'coordinator')
+          ).toBe(true);
+          c.run({ type: 'selectPlan', args: ['steady'] });
+          c.agree();
+        }
         expect(c.activate().changed).toBe(true);
-        volunteers.push(c.state.activeCoverMemberId!);
+        if (c.state.activeCoverMemberId) {
+          volunteers.push(c.state.activeCoverMemberId);
+          covered += 1;
+        }
         c.finish();
         const cash = c.state.finance.cash;
         const totals = campaignTotals(c.state);
-        expect(totals.members.reduce((n, m) => n + m.extraMinutes, 0)).toBe((shift + 1) * 10);
-        expect(totals.members.reduce((n, m) => n + m.compensationPaid, 0)).toBeCloseTo(
-          (shift + 1) * 8
-        );
-        expect(totals.members.reduce((n, m) => n + m.recoveryMinutes, 0)).toBe((shift + 1) * 10);
+        expect(totals.members.reduce((n, m) => n + m.extraMinutes, 0)).toBe(covered * 10);
+        expect(totals.members.reduce((n, m) => n + m.compensationPaid, 0)).toBeCloseTo(covered * 8);
+        expect(totals.members.reduce((n, m) => n + m.recoveryMinutes, 0)).toBe(covered * 10);
         expect(totals.members.every((m) => m.recoveryOwedMinutes === 0)).toBe(true);
         expect(totals.members.find((m) => m.id === 'quality')?.extraMinutes).toBe(0);
         c.restore();
@@ -483,13 +510,23 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
           expect(c.run({ type: 'nextCampaignShift', args: [] }).changed).toBe(true);
           expect(c.state.finance.initialCapital).toBeCloseTo(cash);
           expect(c.state.finance.cash).toBeCloseTo(cash);
-          expect(c.state.campaign?.checks).toEqual({});
+          // 5.2: a new shift renews every vote, not the checks whose terms stand.
+          expect(c.state.campaign?.checks.packing).toEqual({
+            refusal: 'individual',
+            privacy: 'optional',
+            repayment: 'retained',
+          });
         }
       }
-      expect(volunteers).toEqual(['maintenance', 'packing', 'maintenance']);
+      // The authored member the draw leaves willing covers first; once it has
+      // covered this season it declines, and Packing (the player) covers.
+      const willing = seasonDraw(17).decliner === 'coordinator' ? 'maintenance' : 'coordinator';
+      expect(volunteers).toEqual(
+        profile === 'team' ? [willing, 'packing'] : [willing, 'packing', 'packing']
+      );
       expect(campaignAgreementHonoured(c.state)).toBe(true);
       expect(campaignComplete(c.state)).toBe(false);
-      expect(c.state.finance.cash).toBeCloseTo(400 - 3 * 108 - 3 * 8);
+      expect(c.state.finance.cash).toBeCloseTo(400 - 3 * 108 - covered * 8);
       expect(campaignTotals(c.state).repairs).toBe(1);
       expect(c.run({ type: 'nextCampaignShift', args: [] }).changed).toBe(false);
       expect(c.run({ type: 'start', args: ['game', 17] }).reason).toContain('history');
@@ -501,7 +538,8 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     c.run({ type: 'campaignDecision', args: ['keep-target', 'coordinator'] });
     c.run({ type: 'simulateResponses', args: [] });
     expect(c.state.members[0].understood).toBe(false);
-    expect(c.state.campaign?.adviserAcknowledged).toBe(false);
+    // 5b: the adviser answers its own checks; Packing's stay the player's.
+    expect(c.state.campaign?.adviserAcknowledged).toBe(true);
     expect(c.run({ type: 'understand', args: ['packing'] }).changed).toBe(false);
     const wrong = c.run({ type: 'answerCheck', args: ['packing', 'refusal', 'majority'] });
     expect(wrong.changed).toBe(true);
@@ -530,8 +568,13 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     c.run({ type: 'campaignDecision', args: ['renegotiate', 'coordinator'] });
     expect(c.state.targetKg).toBe(480);
     expect(c.state.shippedKg).toBe(0);
-    expect(c.state.campaign?.checks).toEqual({});
-    expect(c.state.campaign?.adviserAcknowledged).toBe(false);
+    // 5.2: the call renews every vote and consent; the checks' terms stand.
+    expect(c.state.campaign?.checks.packing).toEqual({
+      refusal: 'individual',
+      privacy: 'optional',
+      repayment: 'retained',
+    });
+    expect(c.state.campaign?.adviserAcknowledged).toBe(true);
     expect(
       c.state.members.every((m) => !m.understood && m.ballot === null && m.coverConsent === null)
     ).toBe(true);
@@ -574,7 +617,7 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     c.run({ type: 'nextCampaignShift', args: [] });
     c.agree();
     c.activate();
-    expect(workplaceTickCapacity(c.state, 30)).toBeCloseTo((25 * 0.78) / 30);
+    expect(workplaceTickCapacity(c.state, 30)).toBeCloseTo(25 / 30);
     c.run({ type: 'tick', args: [25, 0, false] });
     expect(c.state.minute).toBe(25);
     expect(workplaceCapacity(c.state)).toBe(0);
@@ -588,7 +631,7 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     expect(c.state.campaign?.inspectionComplete).toBe(false);
     c.run({ type: 'tick', args: [1, 0, false] });
     expect(c.state.campaign?.inspectionComplete).toBe(true);
-    expect(workplaceCapacity(c.state)).toBe(0.78);
+    expect(workplaceCapacity(c.state)).toBe(1);
     c.restore();
     expect(c.state.campaign?.inspectionComplete).toBe(true);
     expect(c.state.phase).toBe('review');
@@ -614,7 +657,7 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     c.run({ type: 'selectPlan', args: ['cover'] });
     c.agree();
     c.activate();
-    expect(workplaceTickCapacity(c.state, 15)).toBeCloseTo((10 * 0.98 + 5 * 0.78) / 15);
+    expect(workplaceTickCapacity(c.state, 15)).toBeCloseTo(1);
     c.run({ type: 'tick', args: [15, 0, false] });
     expect(c.state.members.reduce((n, m) => n + m.extraMinutes, 0)).toBe(10);
     expect(c.state.finance.wagesPaid).toBeCloseTo(18);
@@ -622,17 +665,17 @@ describe('Living Cooperative, synthetic multi-shift fairness', () => {
     c.run({ type: 'nextCampaignShift', args: [] });
     c.agree();
     c.activate();
-    expect(workplaceTickCapacity(c.state, 30)).toBeCloseTo((25 * 0.78) / 30);
+    expect(workplaceTickCapacity(c.state, 30)).toBeCloseTo(25 / 30);
     c.run({ type: 'tick', args: [30, 0, false] });
     expect(c.state.minute).toBe(30);
     expect(c.state.finance.wagesPaid).toBeCloseTo(36);
     expect(workplaceCapacity(c.state)).toBe(0);
     c.run({ type: 'campaignDecision', args: ['inspect', 'quality'] });
-    expect(workplaceTickCapacity(c.state, 10)).toBeCloseTo((5 * 0.78) / 10);
+    expect(workplaceTickCapacity(c.state, 10)).toBeCloseTo(5 / 10);
     c.run({ type: 'tick', args: [10, 0, false] });
     expect(c.state.campaign?.inspectionComplete).toBe(true);
     c.run({ type: 'tick', args: [45, 0, false] });
-    expect(workplaceTickCapacity(c.state, 10)).toBeCloseTo((5 * 0.78 + 5) / 10);
+    expect(workplaceTickCapacity(c.state, 10)).toBeCloseTo(1);
   });
 
   it('retaliation, waiver and exhausted-budget attempts cannot buy authority or remove rights', () => {
@@ -737,7 +780,10 @@ describe('cooperative learning from public review evidence', () => {
       const review = campaignLearningReview(c.state)!;
       expect(review.goal).toContain('protected rest');
       expect(review.evidence[0]).toContain('Teaching output');
-      expect(review.evidence[0]).toContain('separate from customer shipment receipts');
+      // D14: the trailing disclaimer is cut; the readout keeps its figures.
+      expect(review.evidence[0]).toMatch(
+        /^Teaching output: [\d.,]+ kg against [\d.,]+ kg agreed\.$/
+      );
       expect(JSON.stringify(c.state)).toBe(before);
     }
   );
@@ -822,8 +868,9 @@ describe('cooperative learning from public review evidence', () => {
     expect(campaignLearningReview(inspected)?.evidence.join(' ')).toContain(
       'Quality completed the modeled inspection'
     );
-    expect(campaignLearningReview(inspected)?.evidence.join(' ')).toContain(
-      'Actual batch certification still controls shipment'
+    // D14: the trailing disclaimer about batch certification is cut.
+    expect(campaignLearningReview(inspected)?.evidence.join(' ')).not.toContain(
+      'Actual batch certification'
     );
   });
 });

@@ -13,6 +13,7 @@ import {
   shiftResumable,
   thursdayNegotiation,
   WORKPLACE_CHECKS,
+  mondayMinute,
 } from './workplaceCampaign';
 import { setLocale, translate } from '../i18n';
 import { workplaceCampaignMessages } from './workplaceCampaign.messages';
@@ -44,7 +45,11 @@ function pausedFinalShift() {
     run({ type: 'activate', args: [state.revision] });
     const stopAt = shift === 2 ? 40 : 90;
     while (state.phase === 'active' && state.minute < stopAt) {
-      if (state.campaign?.shift === 1 && state.minute >= 25 && state.campaign.decision === null)
+      if (
+        state.campaign?.shift === 1 &&
+        state.minute >= mondayMinute(state) &&
+        state.campaign.decision === null
+      )
         run({ type: 'campaignDecision', args: ['inspect', 'quality'] });
       run({ type: 'tick', args: [5, 0, false] });
     }

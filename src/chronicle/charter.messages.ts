@@ -37,6 +37,11 @@ const catalog = defineMessages({
     m32: 'Customers',
     m33: 'Fortune',
     m34: 'Chronicle',
+    m35: 'Length',
+    m36: 'Full chronicle',
+    m37: '63 shifts',
+    m38: 'Short chronicle',
+    m39: '27 shifts, the same trials and years closer together',
   },
   'pt-BR': {
     m0: 'Produtores cooperados',
@@ -74,6 +79,11 @@ const catalog = defineMessages({
     m32: 'Clientes',
     m33: 'Sorte',
     m34: 'Crônica',
+    m35: 'Duração',
+    m36: 'Crônica completa',
+    m37: '63 turnos',
+    m38: 'Crônica curta',
+    m39: '27 turnos, os mesmos desafios e anos mais próximos',
   },
 });
 const keys = new Map<string, keyof typeof catalog.en>(

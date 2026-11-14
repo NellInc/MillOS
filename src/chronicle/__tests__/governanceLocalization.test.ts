@@ -4,6 +4,7 @@
  * it recognises and leaves anything else exactly as stored.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { acceptOffer, OFFER_DECK } from './administratorOffer';
 import { setLocale } from '../../i18n';
 import { DEFAULT_CHARTER } from '../charter';
 import { SHIFTS_PER_CROP_YEAR } from '../cropYears';
@@ -112,7 +113,9 @@ function run(
 ) {
   let next = state;
   for (let i = 0; i < shifts && next.status === 'active'; i++)
-    next = keep(closeShift(next, evidence(kg, revenue), deck).state);
+    next = keep(
+      acceptOffer(closeShift(next, evidence(kg, revenue), [...deck, ...OFFER_DECK]).state)
+    );
   return next;
 }
 
@@ -158,7 +161,13 @@ function scenarios() {
               prefers: { ladder: 'maintenance' as const, rung: 1 as const },
               need: { ...profile.need, ladder: 'maintenance' as const, rung: 0 as const },
             }
-          : { ...profile, need: { ...profile.need, ladder: 'intake' as const, rung: 0 as const } };
+          : {
+              ...profile,
+              // Eager, so meeting every need could carry run-to-failure and a
+              // concession is not refused as futile (item 4.10).
+              ...(index === 5 && { temperament: 'eager' as const }),
+              need: { ...profile.need, ladder: 'intake' as const, rung: 0 as const },
+            };
       }),
     },
   };
@@ -233,6 +242,63 @@ function scenarios() {
     ...rolls,
     governance: { ...rolls.governance, policies: { ...rolls.governance.policies, maintenance: 1 } },
   };
+  // A tie carries a move off a red line (stock: lean), and off the step a
+  // standing condition needs left (worn rolls, run-to-failure): 1 to 1, the
+  // rest abstaining, and the notice says why the tie carried.
+  const tiedCrew = (ladder: PolicyLadder, from: PolicyRung, to: PolicyRung): CrewMember[] =>
+    CREW_ROLE_IDS.map((id, index) => {
+      const profile = CREW_PROFILES[id][0];
+      const need = { ...profile.need, ladder: 'orders' as const, rung: 0 as const };
+      const prefers =
+        index === 0
+          ? { ladder, rung: to }
+          : index === 1
+            ? { ladder, rung: from }
+            : { ladder: 'orders' as const, rung: 1 as const };
+      return { ...profile, temperament: 'even' as const, prefers, need };
+    });
+  const tiedOffLine = rich(signed());
+  keep(
+    proposePolicy(
+      unlock(
+        {
+          ...tiedOffLine,
+          governance: {
+            ...tiedOffLine.governance,
+            policies: { ...tiedOffLine.governance.policies, stock: 0 },
+            crew: tiedCrew('stock', 0, 1),
+          },
+        },
+        'stock'
+      ),
+      'stock',
+      1
+    ).state
+  );
+  let tiedRolls = rich(signed(11, 'tired'));
+  tiedRolls = run(
+    {
+      ...tiedRolls,
+      governance: {
+        ...tiedRolls.governance,
+        policies: { ...tiedRolls.governance.policies, maintenance: 0 },
+      },
+    },
+    4
+  );
+  keep(
+    proposePolicy(
+      unlock(
+        {
+          ...rich(tiedRolls),
+          governance: { ...tiedRolls.governance, crew: tiedCrew('maintenance', 0, 1) },
+        },
+        'maintenance'
+      ),
+      'maintenance',
+      1
+    ).state
+  );
   run(rolls, 4);
 
   // Returns, a missed quota, the administrator arriving and leaving.
@@ -244,22 +310,32 @@ function scenarios() {
   // Three cooled organisations bring the administrator, setting an open proposal
   // aside; a grant changed while it stays is kept when it leaves.
   const cooled = rich(signed());
-  let administered = run(
-    {
-      ...cooled,
-      stakeholders: cooled.stakeholders.map((party) => ({ ...party, value: 0 })),
+  // The federation offers at the close, with the change still open when the
+  // assembly accepts the support (item 4.11).
+  const offered = keep(
+    closeShift(
+      {
+        ...cooled,
+        stakeholders: cooled.stakeholders.map((party) => ({ ...party, value: 0 })),
+      },
+      evidence(3000, 2000),
+      OFFER_DECK
+    ).state
+  );
+  let administered = keep(
+    acceptOffer({
+      ...offered,
       governance: {
-        ...cooled.governance,
+        ...offered.governance,
         proposal: {
           ladder: 'orders',
           from: 1,
           to: 2,
-          proposedShift: cooled.shift,
+          proposedShift: offered.shift,
           concessions: [],
         },
       },
-    },
-    1
+    })
   );
   administered = keep(setDelegation(administered, 3).state);
   run(administered, ADMINISTRATION_SHIFTS);
@@ -478,6 +554,8 @@ describe('saved part-three sentences', () => {
     const bodies = [...notices.values()].map((notice) => `${notice.title} | ${notice.body}`);
     for (const shape of [
       /carries the .* \| Carried \d+ to \d+, \d+ abstaining\./,
+      /carries the .* \| Carried (\d+) to \1, \d+ abstaining\. .* The tie carries it: the move leaves a step an organisation has warned against\.$/,
+      /carries the .* \| Carried (\d+) to \1, \d+ abstaining\. .* The tie carries it: the move leaves the step a standing condition needs left to clear\.$/,
       /does not carry the .* \| \d+ for, \d+ against, \d+ abstaining\./,
       /^The federation sends an administrator \| \d+ of the valley’s organisations have cooled .* The order book change before the assembly is set aside\.$/,
       /^The administrator leaves \| .*keeps the grant you set\.$/,

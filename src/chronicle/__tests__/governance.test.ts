@@ -9,9 +9,11 @@ import { DEFAULT_CHARTER } from '../charter';
 import { CHRONICLE_SHIFTS, SHIFTS_PER_CROP_YEAR } from '../cropYears';
 import { chronicleEffect, chronicleTotals } from '../effects';
 import {
+  chooseEventOption,
   closeShift,
   currentForecastChance,
   IMPROVEMENTS,
+  concessionBlockReason,
   concessionFor,
   createInitialState,
   depositReserve,
@@ -32,6 +34,7 @@ import {
 } from '../engine';
 import { GOVERNANCE_EPILOGUE_SECTIONS, epilogue } from '../epilogue';
 import { EVENT_DECK } from '../eventDeck';
+import { FEDERATION_ADMINISTRATOR_EVENT_ID } from '../stewardDeck';
 import {
   ADMINISTRATION_SHIFTS,
   briefInstallRank,
@@ -98,11 +101,18 @@ function evidence(dispatchedKg = 3000, revenue = 2000): ShiftCloseEvidence {
   };
 }
 
-/** Shift closes with an empty deck, so nothing but part three acts. */
+/**
+ * Shift closes with only part three's own event, the federation's offer of its
+ * administrator (item 4.11), so nothing but part three acts. Left alone, the
+ * offer lapses to acceptance two closes after it is made.
+ */
+const PART_THREE_DECK = EVENT_DECK.filter(
+  (event) => event.id === FEDERATION_ADMINISTRATOR_EVENT_ID
+);
 function run(state: ChronicleState, shifts: number, kg = 3000, revenue = 2000): ChronicleState {
   let next = state;
   for (let i = 0; i < shifts && next.status === 'active'; i++)
-    next = closeShift(next, evidence(kg, revenue), []).state;
+    next = closeShift(next, evidence(kg, revenue), PART_THREE_DECK).state;
   return next;
 }
 
@@ -220,7 +230,6 @@ describe('policy ladders', () => {
     expect(state.ledger.knowHow.policies).toBe(knowHow - POLICY_KNOW_HOW);
     expect(state.ledger.sinceCloseKnowHow.policies).toBe(-POLICY_KNOW_HOW);
     expect(state.ledger.sinceCloseKnowHow.event_costs).toBeUndefined();
-    expect(state.desks.council.points).toBe(1);
     expect(chronicleTotals(effectInput(state)).reinvestment).toBeCloseTo(-0.02, 5);
     expect(policyBlockReason(state, 'orders', 1)).toMatch(/changed lately/);
     state = run(state, 3);
@@ -249,7 +258,7 @@ describe('policy ladders', () => {
     expect(policyBlockReason(fitted, 'maintenance', 2)).toBeNull();
   });
 
-  it('leaves a falling proposal open; a met need abstains, and a tie still does not carry', () => {
+  it('leaves a falling proposal open, and refuses a concession that could not carry it', () => {
     // Profile 0 on stock 1 -> 2: the packing lead (toward) and the eager roll fitter
     // for; both cautious members and the yard hand (room to turn a forklift) against.
     let state = withCrew(rich(signed()), 0);
@@ -257,19 +266,16 @@ describe('policy ladders', () => {
     expect(state.governance.policies.stock).toBe(1);
     expect(proposalStanding(state)).toMatchObject({ for: 2, against: 3, carried: false });
     expect(concessionFor(state, 'yard')).toMatchObject({ kind: 'proposal', fund: 30 });
+    // Meeting the yard hand's need would leave a 2 to 2 tie, which does not carry:
+    // it is refused before the money is spent (item 4.10; report 08, defect 2).
+    expect(concessionBlockReason(state, 'yard')).toMatch(/would still not carry/);
     const fund = fundOf(state);
-    state = meetNeed(state, 'yard').state;
-    expect(fundOf(state)).toBe(fund - 30);
-    expect(state.marks['crew-concession']).toBeDefined();
-    expect(proposalStanding(state)).toMatchObject({ for: 2, against: 2, carried: false });
-    expect(proposalStanding(state)?.ballots.find((b) => b.memberId === 'yard')?.vote).toBe(
-      'abstain'
-    );
-    // A second proposal cannot replace the open one and wipe the paid concession.
+    expect(meetNeed(state, 'yard').state).toBe(state);
+    expect(fundOf(state)).toBe(fund);
+    expect(state.marks['crew-concession']).toBeUndefined();
+    // A second proposal cannot replace the open one.
     expect(policyBlockReason(state, 'stock', 0)).toMatch(/already before the assembly/);
     expect(proposePolicy(state, 'stock', 0).state).toBe(state);
-    // The concession is in this shift's tally, like any other spend.
-    expect(state.ledger.sinceCloseFund.concessions).toBe(-30);
     state = withdrawProposal(state);
     expect(state.governance.proposal).toBeNull();
     expect(state.governance.policies.stock).toBe(1);
@@ -630,6 +636,9 @@ describe('the crop-year return and the ratchet', () => {
   it('two missed quotas bring the administrator, who locks policies, holds delegation up and leaves', () => {
     let state = run(rich(signed()), SHIFTS_PER_CROP_YEAR, 3000);
     state = run(state, SHIFTS_PER_CROP_YEAR * 2, 500);
+    // The federation offers; left alone, the offer lapses to acceptance (4.11).
+    expect(state.governance.administration).toBeNull();
+    state = run(state, 2, 500);
     expect(state.marks.administered).toBeDefined();
     expect(state.governance.administration).not.toBeNull();
     expect(state.delegation).toBeGreaterThanOrEqual(2);
@@ -733,7 +742,17 @@ function seededGovernancePlay(seed: number): ChronicleState {
   for (let i = 0; i < CHRONICLE_SHIFTS + 2 && state.status === 'active'; i++) {
     const kg = Math.round(3000 * (0.5 + roll('kg', i)));
     const revenue = poor && i < recovers ? 0 : 2000;
-    state = closeShift(state, evidence(kg, revenue), []).state;
+    state = closeShift(state, evidence(kg, revenue), PART_THREE_DECK).state;
+    // The assembly answers the federation's offer one way or the other (4.11).
+    for (const pending of state.pendingEvents)
+      if (pending.eventId === FEDERATION_ADMINISTRATOR_EVENT_ID)
+        state = chooseEventOption(
+          state,
+          pending.instanceId,
+          roll('offer', i) < 0.5 ? 'accept' : 'refuse',
+          'player',
+          PART_THREE_DECK
+        ).state;
     if (roll('propose', i) < 0.35) {
       const ladders: PolicyLadder[] = ['maintenance', 'intake', 'stock', 'orders'];
       const ladder = ladders[Math.floor(roll('ladder', i) * 4)];

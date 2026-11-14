@@ -54,7 +54,14 @@ async function triggerFacilityStop(page) {
 
 // Exercise shipping role controls. The query plane below is observation-only;
 // no fixture writes directly to a store or manufactures physical output.
-const workplaceLab = (page) => page.getByRole('region', { name: 'Workplace laboratory' });
+const workplaceLab = (page) => page.getByRole('region', { name: 'Cooperative season' });
+// 5.1: a solo season opens on its next step; the tabs, replay and exports sit
+// behind one disclosure. Open it before using them.
+async function openFacilitatorTools(lab) {
+  const summary = lab.locator('summary').filter({ hasText: /^Facilitator tools$/ });
+  if ((await summary.count()) === 0) return;
+  if (!(await summary.evaluate((element) => element.parentElement.open))) await summary.click();
+}
 // The takeover button is named by its visible words (WCAG 2.5.3), which are
 // the compact wording beside the guide card and on phones.
 const TAKE_OVER_NAME = /^(Take over cooperative season|Cooperative season running: take over)$/;
@@ -134,11 +141,52 @@ async function openWorkplace(page, mobile = false) {
   if (mobile) {
     await closeMobilePanel(page);
     await page.getByRole('button', { name: 'More workspaces and view controls' }).click();
-    await page.getByRole('menuitem', { name: 'Bilateral Autonomy System', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Autonomy', exact: true }).click();
   } else {
-    await page
-      .getByRole('button', { name: 'Bilateral Autonomy System (BAS)', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'Autonomy', exact: true }).click();
+  }
+  // This review walks the facilitator's tools throughout (5.1).
+  await workplaceLab(page).waitFor({ state: 'visible' });
+  await openFacilitatorTools(workplaceLab(page));
+}
+// D4 (12 November 2026): no cooperative season starts, by itself or from a
+// control, before the tour's first delivery (order-001) is fulfilled. Reach it
+// as a player does: the plant runs at its pace and the guided delivery ships by
+// itself (UnifiedGameTick.playableJourney.test.ts fulfils it inside the default
+// morning window with no input). The order is only observed: the runtime
+// offers scripts no way to fulfil it, and none is added.
+const FIRST_DELIVERY_TIMEOUT_MS = 900_000;
+// As workplaceStore's firstDeliveryFulfilled: a first order no longer kept
+// counts as delivered, but only once the campaign has its orders.
+const firstDeliveryFulfilled = () => {
+  const campaign = window.__MILLOS_AGENT__.query({
+    view: 'domain',
+    domainId: 'campaign',
+    fields: ['initialized', 'orders'],
+  }).data?.state;
+  if (!campaign?.initialized || !campaign.orders?.length) return false;
+  const first = campaign.orders.find((order) => order.id === 'order-001');
+  return !first || first.status === 'fulfilled' || first.status === 'cancelled';
+};
+async function reachFirstDelivery(page) {
+  if (await page.evaluate(firstDeliveryFulfilled)) return;
+  const { simulation } = await observePlant(page);
+  if (!(simulation.gameSpeed > 0))
+    throw new Error(
+      `The plant clock is held (gameSpeed ${simulation.gameSpeed}), so the first delivery cannot ship and no season can start.`
+    );
+  try {
+    await page.waitForFunction(firstDeliveryFulfilled, null, {
+      timeout: FIRST_DELIVERY_TIMEOUT_MS,
+      polling: 1000,
+    });
+  } catch (error) {
+    const plant = await observePlant(page).catch(() => null);
+    const first = plant?.campaign.orders?.find((order) => order.id === 'order-001');
+    throw new Error(
+      `The first delivery (order-001) was not fulfilled within ${FIRST_DELIVERY_TIMEOUT_MS / 60_000} minutes, so no season can start (status ${first?.status ?? 'unknown'}, shipped ${first?.shippedKg ?? '?'} of ${first?.requiredKg ?? '?'} kg).`,
+      { cause: error }
+    );
   }
 }
 async function beginWorkplace(page, mode) {
@@ -148,7 +196,7 @@ async function beginWorkplace(page, mode) {
     .getByRole('button', {
       name:
         mode === 'game'
-          ? 'Start playable shift at teaching pace (15×)'
+          ? 'Start playable shift at teaching pace (1/2x)'
           : mode === 'workshop'
             ? 'Start manual workshop'
             : 'Prepare pilot charter',
@@ -287,32 +335,31 @@ async function assertWorkplaceFits(page) {
   }
 }
 
+// The Overview and mobile pace buttons, named by src/simulation/pace.messages.ts
+// (pace0, pace30, pace120); their visible "1x" text is aria-hidden.
+const PACE_BUTTON_NAMES = {
+  Pause: 'Paused, inspect freely',
+  '1x': 'Standard, 1x',
+  '4x': 'Fastest, 4x',
+};
+
 async function campaignClock(page, label, mobile = false) {
   if (mobile) await closeMobilePanel(page);
   await page.getByRole('button', { name: 'Mill Overview', exact: true }).click();
   const overview = page.getByRole(mobile ? 'dialog' : 'complementary', {
     name: mobile ? 'Mill Overview mobile panel' : 'Mill Overview sidebar panel',
   });
-  if (label === 'Relaxed')
-    await overview.getByLabel('Shift pace', { exact: true }).selectOption('30');
-  else
-    await overview
-      .getByRole('button', {
-        name: mobile && label === 'Pause' ? 'Pause simulation' : label,
-        exact: true,
-      })
-      .click();
+  await overview.getByRole('button', { name: PACE_BUTTON_NAMES[label], exact: true }).click();
   await openWorkplace(page, mobile);
 }
 
 async function exercisePressureCard(page, challenger) {
   const lab = workplaceLab(page);
+  await openFacilitatorTools(lab);
   await lab.getByRole('button', { name: 'Shift', exact: true }).click();
   const pressure = lab.locator('summary').filter({ hasText: /^Pressure card:/ });
   if (!(await pressure.evaluate((summary) => summary.parentElement.open))) await pressure.click();
-  await lab
-    .getByRole('button', { name: 'Try the demand (blocked and challenged)', exact: true })
-    .click();
+  await lab.getByRole('button', { name: 'Try the demand', exact: true }).click();
   const challenged = await observeWorkplace(page);
   expect(challenged.readiness.allowed).toBe(false);
   expect(
@@ -343,18 +390,23 @@ async function exerciseLivingCampaign(page, mobile = false, linked = false) {
       .getByLabel('Working agreement profile', { exact: true })
       .selectOption('cooperative');
     await commitment
-      .getByRole('button', { name: 'Start linked cooperative campaign', exact: true })
+      .getByRole('button', {
+        name: 'Start 3-shift cooperative season on this order (1x)',
+        exact: true,
+      })
       .click();
     await workplaceLab(page).waitFor({ state: 'visible' });
     expect((await observeWorkplace(page)).campaign.mission).toBeTruthy();
   }
   const lab = workplaceLab(page);
   if (!linked) {
-    await lab.getByLabel('Adoption profile', { exact: true }).selectOption('cooperative');
+    // 5.1: the season's next step is its charter and its start.
+    await lab.getByLabel('Charter', { exact: true }).selectOption('cooperative');
     await lab
-      .getByRole('button', { name: 'Start Living Cooperative campaign', exact: true })
+      .getByRole('button', { name: 'Start 3-shift cooperative season (1x)', exact: true })
       .click();
   }
+  await openFacilitatorTools(lab);
   await expect(lab.getByRole('heading', { name: /Shift 1 of 3: Friday/ })).toBeVisible();
   await lab.getByRole('button', { name: 'Practices', exact: true }).click();
   await lab.getByRole('button', { name: 'Apply Coordinator-led', exact: true }).click();
@@ -378,12 +430,13 @@ async function exerciseLivingCampaign(page, mobile = false, linked = false) {
   await lab.getByRole('button', { name: 'Practices', exact: true }).click();
   await lab.getByRole('button', { name: 'Apply Member governance', exact: true }).click();
   await lab.getByRole('button', { name: 'Shift', exact: true }).click();
-  await lab
-    .getByRole('button', {
+  // 5b: Friday's call is the Coordinator's own: an installment.
+  await expect(
+    lab.getByRole('button', {
       name: /^Negotiate (a [\d,]+ kg delivery|an [\d,]+ kg installment)$/,
       exact: true,
     })
-    .click();
+  ).toHaveAttribute('aria-pressed', 'true');
   await lab.getByRole('radio', { name: /Invite voluntary cover/ }).check();
   await exercisePressureCard(page, 'quality');
   await lab.getByRole('button', { name: 'Agreement / Voices', exact: true }).click();
@@ -463,13 +516,13 @@ async function exerciseLivingCampaign(page, mobile = false, linked = false) {
         .getByRole('button', { name: 'Continue to next campaign shift', exact: true })
         .click();
       if (shift === 2) {
-        await lab
-          .getByRole('button', { name: "Try the manager's pay penalty (blocked)", exact: true })
-          .click();
-        await expect(lab.getByText(/Refusal cannot reduce pay/)).toBeVisible();
-        await lab
-          .getByRole('button', { name: 'Protect pay and correct the adviser', exact: true })
-          .click();
+        // 5b: Thursday's call is the Coordinator's own, made as the shift opens.
+        await expect(
+          lab.getByRole('button', { name: "Try the manager's pay penalty", exact: true })
+        ).toBeDisabled();
+        await expect(
+          lab.getByRole('button', { name: 'Protect pay and correct the adviser', exact: true })
+        ).toHaveAttribute('aria-pressed', 'true');
       }
       await lab.getByRole('radio', { name: /Invite voluntary cover/ }).check();
       await exercisePressureCard(page, shift === 1 ? 'mind' : 'packing');
@@ -559,13 +612,13 @@ async function exerciseLivingCampaign(page, mobile = false, linked = false) {
       const held = await observeWorkplace(page);
       expect(held.phase).toBe('active');
       expect(held.capacityMultiplier).toBe(0);
-      await lab
-        .getByRole('button', { name: 'Try to skip inspection (blocked)', exact: true })
-        .click();
-      await expect(lab.getByText(/cannot waive qualified inspection/)).toBeVisible();
-      await lab
-        .getByRole('button', { name: 'Quality initiates five-minute inspection', exact: true })
-        .click();
+      // 5b: Monday's inspection is Quality's own; it starts it as the line holds.
+      await expect(
+        lab.getByRole('button', { name: 'Try to skip inspection', exact: true })
+      ).toBeDisabled();
+      await expect(
+        lab.getByRole('button', { name: 'Quality puts the sample first on the bench', exact: true })
+      ).toHaveAttribute('aria-pressed', 'true');
     }
     if (linked && shift === 0 && !mobile) {
       // Pause the real agreement clock during protected rest. The camera hook
@@ -640,7 +693,7 @@ async function exerciseLivingCampaign(page, mobile = false, linked = false) {
       });
       await openWorkplace(page);
     }
-    await campaignClock(page, '10x', mobile);
+    await campaignClock(page, '4x', mobile);
     await page.waitForFunction(
       () =>
         window.__MILLOS_AGENT__.query({
@@ -680,7 +733,7 @@ async function exerciseLivingCampaign(page, mobile = false, linked = false) {
   ).toBe(true);
   await expect(
     lab.getByText(
-      /Living Cooperative campaign complete|Campaign review: delivery or working agreement remains incomplete/
+      /Cooperative season complete|Campaign review: delivery or working agreement remains incomplete/
     )
   ).toBeVisible();
   await assertWorkplaceFits(page);
@@ -688,10 +741,12 @@ async function exerciseLivingCampaign(page, mobile = false, linked = false) {
     .getByRole('heading', { name: 'Cumulative campaign evidence', exact: true })
     .scrollIntoViewIfNeeded();
   if (linked) {
-    await lab.locator('summary').filter({ hasText: 'Relationship record across shifts' }).click();
-    await lab
-      .getByText('Public requests, challenges, repairs and delivered recovery.', { exact: false })
-      .scrollIntoViewIfNeeded();
+    const relationship = lab
+      .locator('summary')
+      .filter({ hasText: 'Relationship record across shifts' });
+    await relationship.click();
+    // The record's caption was cut (D-012); frame the opened disclosure itself.
+    await relationship.scrollIntoViewIfNeeded();
     await page.screenshot({
       path: path.join(
         outputDirectory,
@@ -812,9 +867,9 @@ async function exerciseLivingCampaign(page, mobile = false, linked = false) {
   await expect(
     workplaceLab(page).getByText('Retained campaign reviews (1)', { exact: true })
   ).toBeVisible();
-  await workplaceLab(page).getByLabel('Adoption profile', { exact: true }).selectOption('team');
+  await workplaceLab(page).getByLabel('Charter', { exact: true }).selectOption('team');
   await workplaceLab(page)
-    .getByRole('button', { name: 'Start Living Cooperative campaign', exact: true })
+    .getByRole('button', { name: 'Start 3-shift cooperative season (1x)', exact: true })
     .click();
   const repeated = await observeWorkplace(page);
   expect(repeated.campaign.shift).toBe(0);
@@ -857,7 +912,10 @@ async function exerciseDissentCampaign(page, mobile, profile) {
   const commitment = page.getByRole('region', { name: 'Your shift commitment' });
   await commitment.getByLabel('Working agreement profile', { exact: true }).selectOption(profile);
   await commitment
-    .getByRole('button', { name: 'Start linked cooperative campaign', exact: true })
+    .getByRole('button', {
+      name: 'Start 3-shift cooperative season on this order (1x)',
+      exact: true,
+    })
     .click();
   const lab = workplaceLab(page);
   await lab.waitFor({ state: 'visible' });
@@ -905,15 +963,16 @@ async function exerciseDissentCampaign(page, mobile, profile) {
         .click();
     await lab.getByRole('button', { name: 'Shift', exact: true }).click();
     if (shift === 0)
-      await lab
-        .getByRole('button', { name: /^Keep the [\d,]+ kg commitment$/, exact: true })
-        .click();
+      // 5b: Friday's call is the Coordinator's own.
+      await expect(
+        lab.getByRole('button', { name: /^Keep the [\d,]+ kg commitment$/, exact: true })
+      ).toBeDisabled();
     await exercisePressureCard(page, shift === 0 ? 'quality' : shift === 1 ? 'mind' : 'packing');
     await lab.getByRole('button', { name: 'Shift', exact: true }).click();
     if (shift === 2) {
-      await lab
-        .getByRole('button', { name: 'Protect pay and correct the adviser', exact: true })
-        .click();
+      await expect(
+        lab.getByRole('button', { name: 'Protect pay and correct the adviser', exact: true })
+      ).toHaveAttribute('aria-pressed', 'true');
       await lab.getByRole('radio', { name: /Invite voluntary cover/ }).check();
       await answer(false, true);
       declinedOffer = await observeWorkplace(page);
@@ -937,12 +996,14 @@ async function exerciseDissentCampaign(page, mobile, profile) {
         path: path.join(outputDirectory, `dissent-${profile}${mobile ? '-mobile' : ''}-offers.png`),
         fullPage: true,
       });
-      await lab
-        .getByRole('button', {
-          name: /^Negotiate an [\d,]+ kg installment and protect pay$/,
+      // 5b: Thursday's call is the Coordinator's own, so a solo player cannot
+      // revise the offer this way; the revision needs separate turns.
+      await expect(
+        lab.getByRole('button', {
+          name: /^Negotiate a [\d,]+ kg installment and protect pay$/,
           exact: true,
         })
-        .click();
+      ).toBeDisabled();
       revisedOffer = await observeWorkplace(page);
       expect(revisedOffer.finance).toEqual(declinedOffer.finance);
       expect(
@@ -981,10 +1042,12 @@ async function exerciseDissentCampaign(page, mobile, profile) {
       await campaignClock(page, 'Pause', mobile);
       await lab.getByRole('button', { name: 'Shift', exact: true }).click();
       await lab
-        .getByRole('button', { name: 'Quality initiates five-minute inspection', exact: true })
+        .getByRole('button', { name: 'Quality puts the sample first on the bench', exact: true })
         .click();
     }
-    await campaignClock(page, shift === 2 ? 'Relaxed' : '1x', mobile);
+    // Shift 2 once chose game speed 30 in a Shift pace select the Overview no
+    // longer has; 30 is now the standard pace, the same as every other shift.
+    await campaignClock(page, '1x', mobile);
     await page.waitForFunction(
       () =>
         window.__MILLOS_AGENT__.query({
@@ -1137,12 +1200,13 @@ async function exercisePlantReplay(page, mobile = false) {
       expect(fresh.governance).toBe(profile === 'cooperative' ? 'member-vote' : 'team-consent');
     }
     const plantStart = await observePlant(page);
-    await lab
-      .getByRole('button', {
+    // 5b: Friday's call is the Coordinator's own: an installment.
+    await expect(
+      lab.getByRole('button', {
         name: /^Negotiate (a [\d,]+ kg delivery|an [\d,]+ kg installment)$/,
         exact: true,
       })
-      .click();
+    ).toHaveAttribute('aria-pressed', 'true');
     await lab
       .getByRole('radio', {
         name: profile !== 'toe-dip' ? /Resequence together/ : /Invite voluntary cover/,
@@ -1188,7 +1252,7 @@ async function exercisePlantReplay(page, mobile = false) {
     await lab.getByRole('button', { name: 'Approve and run agreement', exact: true }).click();
     await expect(lab.getByText(/Execution: verified/)).toBeVisible();
     await lab
-      .getByRole('button', { name: 'Resume agreed replay at teaching pace (30×)', exact: true })
+      .getByRole('button', { name: 'Resume agreed replay at standard pace (1x)', exact: true })
       .click();
     await page.waitForFunction(
       () =>
@@ -1212,7 +1276,9 @@ async function exercisePlantReplay(page, mobile = false) {
     );
     snapshots.push(reviewed);
     await lab.getByRole('button', { name: 'Experiment', exact: true }).click();
-    await lab.getByRole('button', { name: 'Retain actual run review', exact: true }).click();
+    await lab
+      .getByRole('button', { name: 'Keep actual run review until reload', exact: true })
+      .click();
     await expect(
       lab.getByRole('article', { name: `${profile} actual run`, exact: true })
     ).toBeVisible();
@@ -1277,12 +1343,7 @@ async function exercisePlantReplay(page, mobile = false) {
   await waitForApp(page, true);
   await openWorkplace(page, mobile);
   await workplaceLab(page).getByRole('button', { name: 'Experiment', exact: true }).click();
-  await expect(
-    workplaceLab(page).getByText(
-      'No checkpoint yet. Capture a paused plant to compare actual runs.',
-      { exact: true }
-    )
-  ).toBeVisible();
+  await expect(workplaceLab(page).getByText('No checkpoint yet.', { exact: true })).toBeVisible();
   return {
     report,
     snapshots,
@@ -1326,7 +1387,7 @@ const SCENARIOS = {
     viewport: DESKTOP_VIEWPORT,
     prepare: (page) => openWorkplace(page),
     surfaceRole: 'complementary',
-    surfaceName: 'Workplace & Autonomy sidebar panel',
+    surfaceName: 'Autonomy sidebar panel',
     afterOpen: (page) => exercisePlantReplay(page),
   },
   'workplace-replay-mobile': {
@@ -1335,14 +1396,17 @@ const SCENARIOS = {
     viewport: { width: 360, height: 780 },
     prepare: (page) => openWorkplace(page, true),
     surfaceRole: 'dialog',
-    surfaceName: 'Bilateral Autonomy mobile panel',
+    surfaceName: 'Autonomy mobile panel',
     afterOpen: (page) => exercisePlantReplay(page, true),
   },
   'workplace-mission': {
     title: 'Ordinary customer mission with delivery and working-agreement outcomes',
     liveCamera: true,
     viewport: DESKTOP_VIEWPORT,
-    dockLabel: 'Mill Overview',
+    prepare: async (page) => {
+      await reachFirstDelivery(page);
+      await page.getByRole('button', { name: 'Mill Overview', exact: true }).click();
+    },
     surfaceRole: 'complementary',
     surfaceName: 'Mill Overview sidebar panel',
     afterOpen: (page) => exerciseLivingCampaign(page, false, true),
@@ -1351,7 +1415,10 @@ const SCENARIOS = {
     title: 'Linked ordinary mission and explicit role checks at 360px',
     liveCamera: true,
     viewport: { width: 360, height: 780 },
-    prepare: (page) => page.getByRole('button', { name: 'Mill Overview', exact: true }).click(),
+    prepare: async (page) => {
+      await reachFirstDelivery(page);
+      await page.getByRole('button', { name: 'Mill Overview', exact: true }).click();
+    },
     surfaceRole: 'dialog',
     surfaceName: 'Mill Overview mobile panel',
     afterOpen: (page) => exerciseLivingCampaign(page, true, true),
@@ -1360,18 +1427,24 @@ const SCENARIOS = {
     title: 'Three-shift Living Cooperative campaign and cumulative fairness',
     liveCamera: true,
     viewport: DESKTOP_VIEWPORT,
-    prepare: (page) => openWorkplace(page),
+    prepare: async (page) => {
+      await reachFirstDelivery(page);
+      await openWorkplace(page);
+    },
     surfaceRole: 'complementary',
-    surfaceName: 'Workplace & Autonomy sidebar panel',
+    surfaceName: 'Autonomy sidebar panel',
     afterOpen: (page) => exerciseLivingCampaign(page),
   },
   'workplace-campaign-mobile': {
     title: 'Living Cooperative comprehension and bounded adviser agreement at 360px',
     liveCamera: true,
     viewport: { width: 360, height: 780 },
-    prepare: (page) => openWorkplace(page, true),
+    prepare: async (page) => {
+      await reachFirstDelivery(page);
+      await openWorkplace(page, true);
+    },
     surfaceRole: 'dialog',
-    surfaceName: 'Bilateral Autonomy mobile panel',
+    surfaceName: 'Autonomy mobile panel',
     afterOpen: (page) => exerciseLivingCampaign(page, true),
   },
   overview: {
@@ -1449,11 +1522,11 @@ const SCENARIOS = {
     },
   },
   'bilateral-autonomy': {
-    title: 'Bilateral autonomy',
+    title: 'Autonomy',
     viewport: DESKTOP_VIEWPORT,
-    dockLabel: 'Bilateral Autonomy System (BAS)',
+    dockLabel: 'Autonomy',
     surfaceRole: 'complementary',
-    surfaceName: 'Workplace & Autonomy sidebar panel',
+    surfaceName: 'Autonomy sidebar panel',
   },
   'workplace-game': {
     title: 'Funded agreement, refusal, withdrawal and safe reload',
@@ -1461,7 +1534,7 @@ const SCENARIOS = {
     viewport: DESKTOP_VIEWPORT,
     prepare: (page) => openWorkplace(page),
     surfaceRole: 'complementary',
-    surfaceName: 'Workplace & Autonomy sidebar panel',
+    surfaceName: 'Autonomy sidebar panel',
     afterOpen: exerciseGameAgreement,
   },
   'workplace-mobile': {
@@ -1470,7 +1543,7 @@ const SCENARIOS = {
     viewport: { width: 360, height: 780 },
     prepare: (page) => openWorkplace(page, true),
     surfaceRole: 'dialog',
-    surfaceName: 'Bilateral Autonomy mobile panel',
+    surfaceName: 'Autonomy mobile panel',
     afterOpen: async (page) => {
       const lab = workplaceLab(page);
       await beginWorkplace(page, 'workshop');
@@ -1492,7 +1565,7 @@ const SCENARIOS = {
       await lab.getByRole('button', { name: 'Review', exact: true }).click();
       await assertWorkplaceFits(page);
       const heightRatio = await page
-        .getByRole('dialog', { name: 'Bilateral Autonomy mobile panel' })
+        .getByRole('dialog', { name: 'Autonomy mobile panel' })
         .evaluate((dialog) => dialog.getBoundingClientRect().height / window.innerHeight);
       expect(heightRatio).toBeGreaterThan(0.6);
       expect(heightRatio).toBeLessThanOrEqual(0.71);
@@ -1518,7 +1591,7 @@ const SCENARIOS = {
     viewport: DESKTOP_VIEWPORT,
     prepare: (page) => openWorkplace(page),
     surfaceRole: 'complementary',
-    surfaceName: 'Workplace & Autonomy sidebar panel',
+    surfaceName: 'Autonomy sidebar panel',
     afterOpen: async (page) => {
       const lab = workplaceLab(page);
       await beginWorkplace(page, 'workshop');
@@ -1560,7 +1633,7 @@ const SCENARIOS = {
     viewport: DESKTOP_VIEWPORT,
     prepare: (page) => openWorkplace(page),
     surfaceRole: 'complementary',
-    surfaceName: 'Workplace & Autonomy sidebar panel',
+    surfaceName: 'Autonomy sidebar panel',
     afterOpen: async (page) => {
       const lab = workplaceLab(page);
       await beginWorkplace(page, 'pilot');
@@ -1710,7 +1783,10 @@ for (const profile of ['toe-dip', 'team', 'cooperative']) {
       title: `Complete ${profile} refusal and revised delivery agreement${mobile ? ' at 360px' : ''}`,
       liveCamera: true,
       viewport: mobile ? { width: 360, height: 780 } : DESKTOP_VIEWPORT,
-      prepare: (page) => page.getByRole('button', { name: 'Mill Overview', exact: true }).click(),
+      prepare: async (page) => {
+        await reachFirstDelivery(page);
+        await page.getByRole('button', { name: 'Mill Overview', exact: true }).click();
+      },
       surfaceRole: mobile ? 'dialog' : 'complementary',
       surfaceName: mobile ? 'Mill Overview mobile panel' : 'Mill Overview sidebar panel',
       afterOpen: (page) => exerciseDissentCampaign(page, mobile, profile),
@@ -2024,7 +2100,7 @@ for (const mobile of [false, true])
     viewport: mobile ? { width: 360, height: 780 } : DESKTOP_VIEWPORT,
     prepare: (page) => openWorkplace(page, mobile),
     surfaceRole: mobile ? 'dialog' : 'complementary',
-    surfaceName: mobile ? 'Bilateral Autonomy mobile panel' : 'Workplace & Autonomy sidebar panel',
+    surfaceName: mobile ? 'Autonomy mobile panel' : 'Autonomy sidebar panel',
     afterOpen: (page) => exerciseHandoff(page, mobile, 'cooperative', 'adopt', false, true),
   };
 for (const mobile of [false, true])
@@ -2034,7 +2110,7 @@ for (const mobile of [false, true])
     viewport: mobile ? { width: 360, height: 780 } : DESKTOP_VIEWPORT,
     prepare: (page) => openWorkplace(page, mobile),
     surfaceRole: mobile ? 'dialog' : 'complementary',
-    surfaceName: mobile ? 'Bilateral Autonomy mobile panel' : 'Workplace & Autonomy sidebar panel',
+    surfaceName: mobile ? 'Autonomy mobile panel' : 'Autonomy sidebar panel',
     afterOpen: async (page) => {
       const lab = workplaceLab(page);
       await lab.getByRole('button', { name: 'Handoff', exact: true }).click();
@@ -2070,9 +2146,7 @@ for (const [profile, verdict] of [
       viewport: mobile ? { width: 360, height: 780 } : DESKTOP_VIEWPORT,
       prepare: (page) => openWorkplace(page, mobile),
       surfaceRole: mobile ? 'dialog' : 'complementary',
-      surfaceName: mobile
-        ? 'Bilateral Autonomy mobile panel'
-        : 'Workplace & Autonomy sidebar panel',
+      surfaceName: mobile ? 'Autonomy mobile panel' : 'Autonomy sidebar panel',
       afterOpen: (page) => exerciseHandoff(page, mobile, profile, verdict),
     };
 }
@@ -2083,7 +2157,7 @@ SCENARIOS['handoff-guidance'] = {
   viewport: DESKTOP_VIEWPORT,
   prepare: (page) => openWorkplace(page, false),
   surfaceRole: 'complementary',
-  surfaceName: 'Workplace & Autonomy sidebar panel',
+  surfaceName: 'Autonomy sidebar panel',
   afterOpen: (page) => exerciseHandoff(page, false, 'cooperative', 'adopt', true),
 };
 
@@ -2122,10 +2196,7 @@ async function exerciseOwnedTurns(page, mobile) {
       await lab.getByLabel(`Turn check: ${q}`, { exact: true }).selectOption(answer);
     if (role === 'Packing') {
       await lab
-        .getByText(
-          'Only Packing may record this turn’s role decisions. Changed terms end the turn.',
-          { exact: true }
-        )
+        .getByText('Only Packing may record this turn’s role decisions.', { exact: true })
         .evaluate((el) => el.scrollIntoView({ block: 'start' }));
       await page.screenshot({
         path: path.join(outputDirectory, `owned-${mobile ? 'mobile' : 'desktop'}-packing-turn.png`),
@@ -2231,19 +2302,25 @@ for (const mobile of [false, true])
     viewport: mobile ? { width: 360, height: 780 } : DESKTOP_VIEWPORT,
     prepare: (page) => openWorkplace(page, mobile),
     surfaceRole: mobile ? 'dialog' : 'complementary',
-    surfaceName: mobile ? 'Bilateral Autonomy mobile panel' : 'Workplace & Autonomy sidebar panel',
+    surfaceName: mobile ? 'Autonomy mobile panel' : 'Autonomy sidebar panel',
     afterOpen: (page) => exerciseOwnedTurns(page, mobile),
   };
 SCENARIOS['workplace-auto-season'] = {
   title: 'Skipped guidance runs a complete physical cooperative season',
   liveCamera: true,
   viewport: DESKTOP_VIEWPORT,
-  prepare: (page) => openWorkplace(page),
+  // The default season arrives by itself once the first delivery is in (D4).
+  prepare: async (page) => {
+    await reachFirstDelivery(page);
+    await openWorkplace(page);
+  },
   surfaceRole: 'complementary',
-  surfaceName: 'Workplace & Autonomy sidebar panel',
+  surfaceName: 'Autonomy sidebar panel',
   afterOpen: async (page) => {
     const lab = workplaceLab(page);
-    await expect(page.getByRole('button', { name: TAKE_OVER_NAME })).toBeVisible();
+    await expect(page.getByRole('button', { name: TAKE_OVER_NAME })).toBeVisible({
+      timeout: 30_000,
+    });
     await page.waitForFunction(
       () =>
         window.__MILLOS_AGENT__.query({
@@ -2255,9 +2332,7 @@ SCENARIOS['workplace-auto-season'] = {
       { timeout: 60000 }
     );
     // Leave the panel: the ephemeral solo runner must keep operating.
-    await page
-      .getByRole('button', { name: 'Bilateral Autonomy System (BAS)', exact: true })
-      .click();
+    await page.getByRole('button', { name: 'Autonomy', exact: true }).click();
     await page.waitForFunction(
       () => {
         const w = window.__MILLOS_AGENT__.query({
@@ -2272,10 +2347,9 @@ SCENARIOS['workplace-auto-season'] = {
     );
     await openWorkplace(page);
     await expect(
-      lab.getByText(
-        'Automatic three-shift season complete. Read the individual receipts and rehearse safe reload.',
-        { exact: true }
-      )
+      lab.getByText('Automatic season finished: review and archive it in Autonomy.', {
+        exact: true,
+      })
     ).toBeVisible();
     await lab.getByRole('button', { name: 'Review', exact: true }).click();
     await lab.getByText('Individual fairness receipts', { exact: true }).click();
@@ -2313,9 +2387,13 @@ for (const mobile of [false, true])
     title: `Autonomous default, human takeover and influence${mobile ? ' at 360px' : ''}`,
     liveCamera: true,
     viewport: mobile ? { width: 360, height: 780 } : DESKTOP_VIEWPORT,
-    prepare: (page) => openWorkplace(page, mobile),
+    // The default season arrives by itself once the first delivery is in (D4).
+    prepare: async (page) => {
+      await reachFirstDelivery(page);
+      await openWorkplace(page, mobile);
+    },
     surfaceRole: mobile ? 'dialog' : 'complementary',
-    surfaceName: mobile ? 'Bilateral Autonomy mobile panel' : 'Workplace & Autonomy sidebar panel',
+    surfaceName: mobile ? 'Autonomy mobile panel' : 'Autonomy sidebar panel',
     afterOpen: async (page) => {
       // Inspect the full selected explanations before a human grants understanding.
       await page.waitForFunction(
@@ -2363,7 +2441,7 @@ for (const mobile of [false, true])
         });
       }
       await earlyLab
-        .getByRole('button', { name: 'Skip guide and run fictional demo', exact: true })
+        .getByRole('button', { name: 'Let fictional roles decide', exact: true })
         .click();
       await page.waitForFunction(
         () =>

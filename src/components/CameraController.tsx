@@ -722,15 +722,10 @@ export const CameraPresetIndicator: React.FC = () => {
         <div className="w-6 h-6 rounded-md bg-cyan-600 flex items-center justify-center">
           <span className="text-white text-sm font-bold">{activePreset + 1}</span>
         </div>
-        {/* Preset info */}
-        <div className="flex flex-col">
-          <span className="text-white text-xs font-semibold">
-            {t('presetName', { name: preset.name })}
-          </span>
-          <span className="text-slate-400 text-[10px]">
-            {t('presetDescription', { description: preset.description })}
-          </span>
-        </div>
+        {/* The view's name, with no caption beside it (D14) */}
+        <span className="text-white text-xs font-semibold">
+          {t('presetName', { name: preset.name })}
+        </span>
         {/* Animating indicator */}
         {isAnimating && <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse ml-1" />}
       </div>

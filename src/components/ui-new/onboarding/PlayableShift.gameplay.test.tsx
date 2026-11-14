@@ -98,6 +98,6 @@ it('keeps keyboard focus on the debrief after accepting the next programme', () 
   accept.focus();
   fireEvent.click(accept);
   expect(useOperationsCampaignStore.getState().orders.length).toBeGreaterThan(state.orders.length);
-  expect(accept).toBeDisabled();
+  expect(accept).toHaveAttribute('aria-disabled', 'true');
   expect(screen.getByRole('heading', { name: 'Shift debrief' })).toHaveFocus();
 });

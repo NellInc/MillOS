@@ -1,4 +1,5 @@
 import { copy } from './longNight.messages';
+import { formatGrouped } from '../i18n';
 import { localizedMarkLabel } from './record';
 import { localizedStakeholderPhrase } from './stakeholders';
 import { getImprovements } from './plans';
@@ -14,7 +15,15 @@ import { improvementById } from './plans';
 import { stakeholderPhrase } from './stakeholders';
 import { MARKS, hasMark } from './record';
 import type { RecordContext } from './record';
-import type { ForecastKind, FrontId, ImprovementId, StakeholderId } from './types';
+import { onSchedule } from './schedule';
+import type {
+  Charter,
+  ChronicleEventDefinition,
+  ForecastKind,
+  FrontId,
+  ImprovementId,
+  StakeholderId,
+} from './types';
 
 export const LONG_NIGHT_EVENT_ID = 'evt-long-night';
 export const LONG_NIGHT_SHIFT = 54;
@@ -23,6 +32,21 @@ export const LONG_NIGHT_TELEGRAPH_SHIFTS = 2;
 export const FRONT_HOLD_THRESHOLD = 2;
 /** Score points for holding the front the mill did not choose. */
 export const LONG_NIGHT_SCORE = 3;
+/**
+ * A co-op reserve at this balance or more counts as one preparation (report 08,
+ * F10: it paid only upkeep, which the fund pays anyway). It is listed on both
+ * fronts; only the front not chosen is tested, so it counts once.
+ */
+export const RESERVE_PREPARATION_BALANCE = 100;
+
+function reserveSource(context: RecordContext, label: string): PreparationSource {
+  return {
+    id: 'reserve',
+    label,
+    weight: 1,
+    met: (context.governance?.reserve.balance ?? 0) >= RESERVE_PREPARATION_BALANCE,
+  };
+}
 
 export const FRONTS: Record<
   FrontId,
@@ -50,6 +74,38 @@ export const FRONTS: Record<
     parties: ['federation', 'haulier'],
   },
 };
+
+/**
+ * The shift the long night's card first shows: the earliest scheduled event
+ * whose choice leaves a mark that prepares a front (the standby cover, shift 3).
+ * Taken from the deck so the card opens with the first errand, whatever it is.
+ */
+export function longNightCardShift(
+  deck: readonly ChronicleEventDefinition[],
+  charter?: Pick<Charter, 'length'> | null
+): number {
+  const shifts = deck
+    .filter((event) =>
+      event.choices.some((choice) =>
+        (choice.effect.marks ?? []).some((id) => (MARKS[id]?.prepares?.length ?? 0) > 0)
+      )
+    )
+    .flatMap((event) => (event.scheduled ? [onSchedule(charter, event.scheduled.shift)] : []));
+  return shifts.length
+    ? Math.min(...shifts)
+    : longNightShift(charter) - LONG_NIGHT_TELEGRAPH_SHIFTS;
+}
+
+/** The shift the long night arrives on this chronicle's clock. */
+export function longNightShift(charter?: Pick<Charter, 'length'> | null): number {
+  return onSchedule(charter, LONG_NIGHT_SHIFT);
+}
+
+/** The front an installed plan prepares for the long night, or null. */
+export function frontPreparedByPlan(id: ImprovementId): FrontId | null {
+  const front = (Object.keys(FRONTS) as FrontId[]).find((key) => FRONTS[key].plans.includes(id));
+  return front ?? null;
+}
 
 export function otherFront(front: FrontId): FrontId {
   return front === 'intake' ? 'floor' : 'intake';
@@ -95,6 +151,7 @@ export function frontSources(context: RecordContext, front: FrontId): Preparatio
       met: relationshipTier(value) === 'warm',
     });
   }
+  sources.push(reserveSource(context, `Co-op reserve at ${RESERVE_PREPARATION_BALANCE} or more`));
   return sources;
 }
 
@@ -157,6 +214,12 @@ export function localizedFrontSources(context: RecordContext, front: FrontId): P
       met: relationshipTier(value) === 'warm',
     });
   }
+  sources.push(
+    reserveSource(
+      context,
+      copy('Co-op reserve at {n} or more', { n: formatGrouped(RESERVE_PREPARATION_BALANCE) })
+    )
+  );
   return sources;
 }
 

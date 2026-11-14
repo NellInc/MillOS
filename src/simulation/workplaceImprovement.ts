@@ -5,12 +5,18 @@ import type {
   WorkplaceState,
   ImprovementEpisode,
 } from '../types/workplace';
-import { campaignTotals, formatKg, shiftResumable } from './workplaceCampaign';
+import { campaignTotals, chairBreaksTie, formatKg, shiftResumable } from './workplaceCampaign';
 import { displayAdviceText } from './workplaceAdvice';
 import { formatFixed, translate } from '../i18n';
 import { workplaceImprovementMessages as msg } from './workplaceImprovement.messages';
 
-/** Paid ordinary work only; no new individual duty, qualification or release authority. */
+/**
+ * Paid ordinary work only; no new individual duty, qualification or release authority.
+ * 5.4 (D4): cooperating is never the slow option and grants no capacity bonus,
+ * so after the briefing's own paid minutes every arrangement, and a stopped
+ * one, runs the line at the plant's rate (1.0). Earlier saves were forecast at
+ * the paces in LEGACY_HANDOFF_CAPACITY and still restore.
+ */
 export const HANDOFF_ARRANGEMENTS = [
   {
     id: 'briefing' as const,
@@ -22,7 +28,7 @@ export const HANDOFF_ARRANGEMENTS = [
       return translate(msg, 'briefingDetail');
     },
     cost: 8,
-    capacity: 0.9,
+    capacity: 1,
     briefingMinutes: 5,
   },
   {
@@ -35,10 +41,14 @@ export const HANDOFF_ARRANGEMENTS = [
       return translate(msg, 'bufferDetail');
     },
     cost: 32,
-    capacity: 1.02,
+    capacity: 1,
     briefingMinutes: 0,
   },
 ];
+/** The paces a handoff was forecast at before 5.4, by arrangement, and stopped. */
+export const LEGACY_HANDOFF_CAPACITY = { briefing: 0.9, buffer: 1.02, stopped: 0.78 } as const;
+/** A stopped arrangement runs ordinary work at the plant's rate. */
+const STOPPED_CAPACITY = 1;
 export const IMPROVEMENT_VERDICTS = ['adopt', 'amend', 'stop'] as const;
 export const IMPROVEMENT_CHALLENGES = ['forecast', 'cost', 'qualification'] as const;
 export const MAX_IMPROVEMENT_CYCLES = 8;
@@ -80,7 +90,11 @@ export const HANDOFF_EPISODES = [
     },
   },
 ];
-export const HANDOFF_EPISODE_CHOICES = [
+/**
+ * Every answer a handoff episode has ever been given, so an old save's answer
+ * restores and its receipt keeps its label.
+ */
+export const HANDOFF_EPISODE_ANSWERS = [
   {
     id: 'ordinary' as const,
     get label() {
@@ -106,6 +120,17 @@ export const HANDOFF_EPISODE_CHOICES = [
     },
   },
 ];
+/**
+ * 5.9: the answers offered are the ones with an effect the engine has. Keep
+ * qualified ordinary work runs the trial as proposed, bought; defer runs the
+ * shift as ordinary paid work and buys nothing. "Discuss a smaller delivery"
+ * and "Decline extra duty" changed nothing: a conversation cannot renegotiate
+ * an order, and a handoff trial asks no one for extra duty (its plan is
+ * steady). They are no longer offered.
+ */
+export const HANDOFF_EPISODE_CHOICES = HANDOFF_EPISODE_ANSWERS.filter(
+  (c) => c.id === 'ordinary' || c.id === 'defer'
+);
 
 /** Scenario choices retain public learning only, without changing physical or financial facts. */
 export function validImprovementEpisode(input: unknown): ImprovementEpisode | undefined {
@@ -116,7 +141,7 @@ export function validImprovementEpisode(input: unknown): ImprovementEpisode | un
     !HANDOFF_EPISODES.some((item) => item.id === e.id) ||
     (e.actorId !== null &&
       !['packing', 'quality', 'maintenance', 'coordinator'].includes(e.actorId)) ||
-    (e.choice !== null && !HANDOFF_EPISODE_CHOICES.some((item) => item.id === e.choice)) ||
+    (e.choice !== null && !HANDOFF_EPISODE_ANSWERS.some((item) => item.id === e.choice)) ||
     (e.choice === null) !== (e.actorId === null)
   )
     return undefined;
@@ -208,29 +233,68 @@ export const freshImprovementTerms = (): ImprovementTerms => ({
   ballots: {},
   verdict: null,
 });
-export function retainedImprovement(s: WorkplaceState): ImprovementId | null {
-  const previous = s.improvement?.history.at(-1);
-  return previous?.verdict === 'adopt' ? previous.proposalId : null;
+/**
+ * 5.9: an adopted arrangement outlives its cycle. It stays in place, bought
+ * once, until a later cycle that ran it ends with another verdict; trying the
+ * other arrangement meanwhile does not undo it. Returns the arrangement now
+ * proposed if it is in place, else the most recently adopted one still in place.
+ */
+export function retainedArrangements(s: WorkplaceState, withCurrent = false): ImprovementId[] {
+  const latest = new Map<ImprovementId, string | null>();
+  // Adopted in an experiment since closed (kept on the workplace itself).
+  for (const id of s.arrangementsInPlace ?? []) latest.set(id, 'adopt');
+  for (const h of s.improvement?.history ?? [])
+    if (h.proposalId) latest.set(h.proposalId, h.verdict);
+  const i = s.improvement;
+  if (withCurrent && i?.proposalId && i.verdict) latest.set(i.proposalId, i.verdict);
+  return [...latest].filter(([, verdict]) => verdict === 'adopt').map(([id]) => id);
 }
-export function improvementCost(s: WorkplaceState): number {
+/** A known, unique list of arrangements in place, as saved; anything else is dropped. */
+export function validArrangementsInPlace(input: unknown): ImprovementId[] | undefined {
+  if (
+    !Array.isArray(input) ||
+    input.some((id) => !HANDOFF_ARRANGEMENTS.some((a) => a.id === id)) ||
+    new Set(input).size !== input.length
+  )
+    return undefined;
+  return [...(input as ImprovementId[])].sort();
+}
+export function retainedImprovement(s: WorkplaceState): ImprovementId | null {
+  const retained = retainedArrangements(s);
+  const proposed = s.improvement?.proposalId ?? null;
+  if (proposed && retained.includes(proposed)) return proposed;
+  const adopted = [...(s.improvement?.history ?? [])]
+    .reverse()
+    .find((h) => h.verdict === 'adopt' && h.proposalId && retained.includes(h.proposalId));
+  return adopted?.proposalId ?? retained[0] ?? null;
+}
+/** `legacy` prices as an earlier build did (only the last cycle's adoption was free). */
+export function improvementCost(s: WorkplaceState, legacy = false): number {
   const a = improvementArrangement(s);
   if (!a || (s.improvement?.stopped && !s.improvement.funded)) return 0;
-  return retainedImprovement(s) === a.id ? 0 : a.cost;
+  const previous = s.improvement?.history.at(-1);
+  const retained = legacy
+    ? previous?.verdict === 'adopt' && previous.proposalId === a.id
+    : retainedArrangements(s).includes(a.id);
+  return retained ? 0 : a.cost;
 }
 /** Sampled by the existing unified physical tick, never a shipment generator. */
 export function improvementCapacity(s: WorkplaceState, minute = s.minute): number | null {
   if (!s.improvement || s.phase !== 'active' || s.mode !== 'game') return null;
   const a = improvementArrangement(s);
-  if (!a || s.improvement.stopped) return 0.78;
+  if (!a || s.improvement.stopped) return STOPPED_CAPACITY;
   return minute < a.briefingMinutes ? 0 : a.capacity;
 }
-export function improvementForecast(s: WorkplaceState) {
+/** `legacy` gives the forecast an earlier build froze, so its saves still restore. */
+export function improvementForecast(s: WorkplaceState, legacy = false) {
   const a = improvementArrangement(s);
   const supply = 430 + (((Math.imul(s.seed, 1664525) + 1013904223) >>> 0) % 281);
+  const pace = a ? (legacy ? LEGACY_HANDOFF_CAPACITY[a.id] : a.capacity) : STOPPED_CAPACITY;
+  const stoppedPace = legacy ? LEGACY_HANDOFF_CAPACITY.stopped : STOPPED_CAPACITY;
   const nominal =
     a && !s.improvement?.stopped
-      ? Math.min(600, supply, (90 - a.briefingMinutes) * a.capacity * 8)
-      : Math.min(600, supply, 90 * 0.78 * 8);
+      ? Math.min(600, supply, (90 - a.briefingMinutes) * pace * 8)
+      : Math.min(600, supply, 90 * stoppedPace * 8);
   const previous = s.improvement?.history.at(-1);
   // A bounded correction to a teaching forecast, derived from the last actual
   // shift. It never fabricates an outcome or claims a causal improvement.
@@ -255,7 +319,9 @@ export function improvementReviewWinner(s: WorkplaceState) {
   return (
     IMPROVEMENT_VERDICTS.find(
       (v) => Object.values(i.ballots).filter((b) => b === v).length >= threshold
-    ) ?? null
+    ) ??
+    // 5.9: under member governance the elected chair breaks a two-two tie.
+    chairBreaksTie(s, i.ballots)
   );
 }
 export function improvementObligations(s: WorkplaceState): string[] {
@@ -418,10 +484,7 @@ export function improvementLearningReview(s: WorkplaceState) {
     delivery: translate(msg, 'questionDelivery'),
     comparison: translate(msg, 'questionComparison'),
   };
-  return {
-    evidence,
-    focus,
-    question: questions[focus],
-    limitation: early ? translate(msg, 'limitationEarly') : translate(msg, 'limitationComplete'),
-  };
+  // D14: the evidence's first line says whether the trial ran its 90 minutes;
+  // the caveat that followed it is cut.
+  return { evidence, focus, question: questions[focus] };
 }

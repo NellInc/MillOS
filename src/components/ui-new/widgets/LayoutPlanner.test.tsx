@@ -129,7 +129,10 @@ it('pauses, applies, runs, compares and undoes through the workspace controls', 
     const close = vi.fn();
     const view = render(<LayoutPlanner onClose={close} />);
     fireEvent.change(screen.getByLabelText('shipping staging X (m)'), { target: { value: '18' } });
-    expect(screen.getByRole('button', { name: 'Apply to mill' })).toBeDisabled();
+    // Running, Apply refuses and says why instead of sitting disabled.
+    click('Apply to mill');
+    expect(screen.getByRole('status')).toHaveTextContent('Pause the mill before applying');
+    expect(useLogisticsLayoutStore.getState().layout.staging.shipping[0]).toBe(16);
     click('Pause mill');
     // The shift clock is the pause; the line rate is left as the operator set it.
     expect(useProductionStore.getState().productionSpeed).toBe(1.5);

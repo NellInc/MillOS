@@ -5,10 +5,20 @@ import { persist } from 'zustand/middleware';
 import { safeJSONStorage } from './storage';
 import { sanitizeKnowledgeState } from './persistenceMigrations';
 import { HISTORY_NOTES, getHistoryNote } from '../chronicle/history';
-import { translate } from '../i18n';
+import { formatFixed, translate } from '../i18n';
 import { knowledgeStoreMessages } from './knowledgeStore.messages';
+import {
+  BREAK_ROLL_DIFFERENTIAL,
+  BREAK_ROLL_DIFFERENTIAL_RANGE,
+  MILLING_ENTRY_SOURCES,
+  MILLING_SOURCES,
+  REDUCTION_ROLL_DIFFERENTIAL_RANGE,
+  type MillingSourceId,
+} from './millingSources';
+import { useWindmillLearningStore } from './windmillLearningStore';
+import { useProcessInspectionStore } from './processInspectionStore';
 
-export type KnowledgeCategory = 'principles' | 'pioneers' | 'systems' | 'case-studies';
+export type KnowledgeCategory = 'milling' | 'principles' | 'pioneers' | 'systems' | 'case-studies';
 export type KnowledgeIcon =
   | 'handshake'
   | 'heart-handshake'
@@ -30,11 +40,22 @@ export type KnowledgeIcon =
   | 'sprout'
   | 'users'
   | 'cog'
-  | 'library';
+  | 'library'
+  | 'wheat'
+  | 'wind'
+  | 'flame'
+  | 'croissant';
 
 export interface KnowledgeQuote {
   text: string;
   author: string;
+}
+
+/** A one-line milling fact for the loading cover, with the body that published it. */
+export interface LoadingFact {
+  readonly text: string;
+  readonly source: MillingSourceId;
+  readonly publisher: string;
 }
 
 export interface UnlockCondition {
@@ -56,6 +77,8 @@ export interface KnowledgeEntry {
   unlockCondition: UnlockCondition;
   audience?: 'player' | 'developer';
   quote?: KnowledgeQuote;
+  /** The sources the entry was written from (milling entries; millingSources.ts). */
+  sources?: { title: string; publisher: string; url: string }[];
 }
 
 export interface UnlockContext {
@@ -66,17 +89,18 @@ export interface KnowledgeState {
   unlockedEntries: Set<string>;
   readEntries: Set<string>;
   newEntries: Set<string>;
+  /** Cutaway lessons the player has finished, each recorded once and kept across reloads. */
+  completedLessons: Set<string>;
   showTooltips: boolean;
   showLoadingQuotes: boolean;
-  showAINarration: boolean;
   showUnlockNotifications: boolean;
   unlockEntry: (entryId: string) => void;
   markAsRead: (entryId: string) => void;
+  recordLessonCompleted: (lessonId: string) => void;
   clearNewBadge: (entryId: string) => void;
   checkUnlockConditions: (context: UnlockContext) => void;
   setShowTooltips: (show: boolean) => void;
   setShowLoadingQuotes: (show: boolean) => void;
-  setShowAINarration: (show: boolean) => void;
   setShowUnlockNotifications: (show: boolean) => void;
   getEntry: (id: string) => KnowledgeEntry | undefined;
   getEntriesByCategory: (category: KnowledgeCategory) => KnowledgeEntry[];
@@ -99,21 +123,43 @@ type KnowledgeEntryKey =
   | 'resourceTradeoffs'
   | 'communityCommitments'
   | 'depthAndMaterialPolicy'
-  | 'autonomousEvidence';
+  | 'autonomousEvidence'
+  | 'farmHenhouse'
+  | 'millingCleaningTempering'
+  | 'millingBreakReduction'
+  | 'millingPurifiers'
+  | 'millingExtractionAsh'
+  | 'millingBakerNeeds'
+  | 'millingDustExplosions';
 type KnowledgeEntryField = 'Title' | 'Tooltip' | 'Brief' | 'Article' | 'SeeInAction';
 type KnowledgeEntryData = Omit<
   KnowledgeEntry,
   'title' | 'tooltip' | 'brief' | 'article' | 'seeInAction'
 >;
 
+/** Decimals in the milling copy, written the way the active language reads them. */
+const millingNumbers = () => ({
+  breakLow: formatFixed(BREAK_ROLL_DIFFERENTIAL_RANGE[0], 1),
+  breakHigh: formatFixed(BREAK_ROLL_DIFFERENTIAL_RANGE[1], 1),
+  breakBest: formatFixed(BREAK_ROLL_DIFFERENTIAL, 1),
+  reductionLow: formatFixed(REDUCTION_ROLL_DIFFERENTIAL_RANGE[0], 1),
+  reductionHigh: formatFixed(REDUCTION_ROLL_DIFFERENTIAL_RANGE[1], 1),
+  wheatAsh: formatFixed(1.58, 2),
+  flourAsh: formatFixed(0.52, 2),
+});
+
 const entryText = (entry: KnowledgeEntryKey, field: KnowledgeEntryField): string => {
   const key: `${KnowledgeEntryKey}${KnowledgeEntryField}` = `${entry}${field}`;
-  return translate(knowledgeStoreMessages, key);
+  return translate(knowledgeStoreMessages, key, millingNumbers());
 };
+
+/** A milling entry's sources, in the order millingSources.ts lists them. */
+const millingSources = (id: string) =>
+  (MILLING_ENTRY_SOURCES[id] ?? []).map(({ id: source }) => MILLING_SOURCES[source]);
 
 /**
  * Library copy is read through getters, so every importer of KNOWLEDGE_ENTRIES
- * and LOADING_QUOTES sees the active language instead of an import-time copy.
+ * and LOADING_FACTS sees the active language instead of an import-time copy.
  * Working if switching language re-renders Datalinks in Portuguese with the
  * same entry objects.
  */
@@ -138,17 +184,13 @@ function localizedEntry(entry: KnowledgeEntryKey, data: KnowledgeEntryData): Kno
   };
 }
 
-function localizedQuote(
-  textKey: KnowledgeMessageKey,
-  authorKey: KnowledgeMessageKey
-): KnowledgeQuote {
+function localizedFact(textKey: KnowledgeMessageKey, source: MillingSourceId): LoadingFact {
   return {
     get text() {
       return translate(knowledgeStoreMessages, textKey);
     },
-    get author() {
-      return translate(knowledgeStoreMessages, authorKey);
-    },
+    source,
+    publisher: MILLING_SOURCES[source].publisher,
   };
 }
 
@@ -159,24 +201,84 @@ const always: UnlockCondition = {
   },
 };
 
-export const LOADING_QUOTES: KnowledgeQuote[] = [
-  localizedQuote('quoteTraceEveryLot', 'authorControl'),
-  localizedQuote('quoteSafeStop', 'authorControl'),
-  localizedQuote('quoteMotion', 'authorVisual'),
-  localizedQuote('quoteOneWorld', 'authorArchitecture'),
-  localizedQuote('quoteAutonomyTrust', 'authorAutonomy'),
-  localizedQuote('quoteAlarmNeeds', 'authorScada'),
-  localizedQuote('quoteBoringMill', 'authorControl'),
-  localizedQuote('quoteCheckMeasurement', 'authorScada'),
-  localizedQuote('quoteForklifts', 'authorLogistics'),
+// D14: the loading cover showed nine invented slogans credited to "MillOS
+// principles". It shows these instead: each is a claim millingSources.ts
+// records its source supporting, worded as the Datalinks article that cites
+// it, hedge included. Working if every line names a real source.
+export const LOADING_FACTS: LoadingFact[] = [
+  localizedFact('factExplosibleDust', 'hseDust'),
+  localizedFact('factStaticSpark', 'hseDust'),
+  localizedFact('factSecondaryBlast', 'csbDust'),
+  localizedFact('factExtraction', 'ksuMiddlings'),
+  localizedFact('factTempering', 'ksuMiddlings'),
+  localizedFact('factRolls', 'wmcMethods'),
+  localizedFact('factStreams', 'ukfmProcess'),
+  localizedFact('factFallingNumber', 'wmcMethods'),
+  localizedFact('factIntake', 'ukfmIntake'),
+];
+
+/**
+ * How a flour mill works (report 10 P3). Each is linked from the delivery
+ * stage or the machine cutaway it explains; every fact is in millingSources.ts.
+ */
+const MILLING_ENTRIES: KnowledgeEntry[] = [
+  localizedEntry('millingCleaningTempering', {
+    id: 'milling-cleaning-tempering',
+    category: 'milling',
+    icon: 'wheat',
+    relatedEntries: ['milling-break-reduction', 'milling-extraction-ash'],
+    unlockCondition: always,
+    sources: millingSources('milling-cleaning-tempering'),
+  }),
+  localizedEntry('millingBreakReduction', {
+    id: 'milling-break-reduction',
+    category: 'milling',
+    icon: 'cog',
+    relatedEntries: ['milling-cleaning-tempering', 'milling-purifiers'],
+    unlockCondition: always,
+    sources: millingSources('milling-break-reduction'),
+  }),
+  localizedEntry('millingPurifiers', {
+    id: 'milling-purifiers',
+    category: 'milling',
+    icon: 'wind',
+    relatedEntries: ['milling-break-reduction', 'milling-extraction-ash'],
+    unlockCondition: always,
+    sources: millingSources('milling-purifiers'),
+  }),
+  localizedEntry('millingExtractionAsh', {
+    id: 'milling-extraction-ash',
+    category: 'milling',
+    icon: 'scale',
+    relatedEntries: ['milling-purifiers', 'milling-baker-needs', 'batch-quality'],
+    unlockCondition: always,
+    sources: millingSources('milling-extraction-ash'),
+  }),
+  localizedEntry('millingBakerNeeds', {
+    id: 'milling-baker-needs',
+    category: 'milling',
+    icon: 'croissant',
+    relatedEntries: ['milling-extraction-ash', 'community-commitments'],
+    unlockCondition: always,
+    sources: millingSources('milling-baker-needs'),
+  }),
+  localizedEntry('millingDustExplosions', {
+    id: 'milling-dust-explosions',
+    category: 'milling',
+    icon: 'flame',
+    relatedEntries: ['milling-cleaning-tempering', 'predictive-maintenance'],
+    unlockCondition: always,
+    sources: millingSources('milling-dust-explosions'),
+  }),
 ];
 
 export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
+  ...MILLING_ENTRIES,
   localizedEntry('unifiedDigitalTwin', {
     id: 'unified-digital-twin',
     category: 'principles',
     icon: 'factory',
-    relatedEntries: ['autonomous-material-flow', 'environment-cycle'],
+    relatedEntries: ['autonomous-material-flow'],
     unlockCondition: always,
   }),
   localizedEntry('autonomousMaterialFlow', {
@@ -220,6 +322,8 @@ export const KNOWLEDGE_ENTRIES: KnowledgeEntry[] = [
     icon: 'sparkles',
     relatedEntries: ['unified-digital-twin', 'depth-and-material-policy'],
     unlockCondition: always,
+    // Its last paragraph is about shader cache keys: a note on the renderer.
+    audience: 'developer',
   }),
   localizedEntry('bottlenecksAndBuffers', {
     id: 'bottlenecks-and-buffers',
@@ -272,6 +376,40 @@ export const HISTORY_ENTRY_UNLOCK: UnlockCondition = {
   },
 };
 
+/**
+ * The farm lessons (report 04 P9): the henhouse inspection opens its own note,
+ * written from the inspection's copy, when it is finished.
+ */
+export const FARM_LESSON_UNLOCK: UnlockCondition = {
+  type: 'feature-use',
+  requirement: 'henhouse',
+  get description() {
+    return translate(knowledgeStoreMessages, 'farmLessonUnlock');
+  },
+};
+
+/**
+ * The post-mill note opens two ways: the Chronicle's wind turbine, or the farm
+ * windmill's cutaway in first person (the subscription below).
+ */
+export const WINDMILL_NOTE_UNLOCK: UnlockCondition = {
+  type: 'feature-use',
+  requirement: 'chronicle',
+  get description() {
+    return translate(knowledgeStoreMessages, 'windmillNoteUnlock');
+  },
+};
+
+KNOWLEDGE_ENTRIES.push(
+  localizedEntry('farmHenhouse', {
+    id: 'farm-henhouse',
+    category: 'case-studies',
+    icon: 'sprout',
+    relatedEntries: ['community-commitments'],
+    unlockCondition: FARM_LESSON_UNLOCK,
+  })
+);
+
 KNOWLEDGE_ENTRIES.push(
   ...HISTORY_NOTES.map(
     (note): KnowledgeEntry => ({
@@ -295,7 +433,8 @@ KNOWLEDGE_ENTRIES.push(
       get seeInAction() {
         return [translate(knowledgeStoreMessages, 'historySeeInAction')];
       },
-      unlockCondition: HISTORY_ENTRY_UNLOCK,
+      unlockCondition:
+        note.id === 'history-windmills' ? WINDMILL_NOTE_UNLOCK : HISTORY_ENTRY_UNLOCK,
     })
   )
 );
@@ -316,9 +455,9 @@ export const useKnowledgeStore = create<KnowledgeState>()(
       unlockedEntries: new Set(ALWAYS_UNLOCKED),
       readEntries: new Set(),
       newEntries: new Set(),
+      completedLessons: new Set(),
       showTooltips: true,
       showLoadingQuotes: true,
-      showAINarration: true,
       showUnlockNotifications: true,
       unlockEntry: (entryId) =>
         set((state) =>
@@ -331,6 +470,12 @@ export const useKnowledgeStore = create<KnowledgeState>()(
         ),
       markAsRead: (entryId) =>
         set((state) => ({ readEntries: new Set([...state.readEntries, entryId]) })),
+      recordLessonCompleted: (lessonId) =>
+        set((state) =>
+          state.completedLessons.has(lessonId)
+            ? state
+            : { completedLessons: new Set([...state.completedLessons, lessonId]) }
+        ),
       clearNewBadge: (entryId) =>
         set((state) => {
           const next = new Set(state.newEntries);
@@ -340,7 +485,6 @@ export const useKnowledgeStore = create<KnowledgeState>()(
       checkUnlockConditions: () => undefined,
       setShowTooltips: (show) => set({ showTooltips: show }),
       setShowLoadingQuotes: (show) => set({ showLoadingQuotes: show }),
-      setShowAINarration: (show) => set({ showAINarration: show }),
       setShowUnlockNotifications: (show) => set({ showUnlockNotifications: show }),
       getEntry: (id) => KNOWLEDGE_ENTRIES.find((entry) => entry.id === id),
       getEntriesByCategory: (category) =>
@@ -358,9 +502,12 @@ export const useKnowledgeStore = create<KnowledgeState>()(
       partialize: (state) => ({
         unlockedEntries: [...state.unlockedEntries],
         readEntries: [...state.readEntries],
+        // Optional: a save from before it has none and reads as no lessons finished.
+        ...(state.completedLessons.size > 0
+          ? { completedLessons: [...state.completedLessons] }
+          : {}),
         showTooltips: state.showTooltips,
         showLoadingQuotes: state.showLoadingQuotes,
-        showAINarration: state.showAINarration,
         showUnlockNotifications: state.showUnlockNotifications,
       }),
       merge: (persisted, current) => {
@@ -372,6 +519,7 @@ export const useKnowledgeStore = create<KnowledgeState>()(
           // Always-available entries plus any history note a chronicle unlocked.
           unlockedEntries: new Set([...ALWAYS_UNLOCKED, ...unlocked]),
           readEntries: read,
+          completedLessons: new Set(state.completedLessons ?? []),
           // NEW is "unlocked and not yet opened", so it is rebuilt from the two
           // saved lists rather than lost on a reload.
           newEntries: new Set(
@@ -379,7 +527,8 @@ export const useKnowledgeStore = create<KnowledgeState>()(
           ),
           showTooltips: state.showTooltips ?? true,
           showLoadingQuotes: state.showLoadingQuotes ?? true,
-          showAINarration: state.showAINarration ?? true,
+          // The AI reflection cards and their switch are cut (D14): a saved
+          // showAINarration is dropped by sanitizeKnowledgeState.
           showUnlockNotifications: state.showUnlockNotifications ?? true,
         };
       },
@@ -387,11 +536,12 @@ export const useKnowledgeStore = create<KnowledgeState>()(
   )
 );
 
-export function getRandomLoadingQuote(): KnowledgeQuote {
-  return LOADING_QUOTES[Math.floor(Math.random() * LOADING_QUOTES.length)];
+export function getRandomLoadingFact(): LoadingFact {
+  return LOADING_FACTS[Math.floor(Math.random() * LOADING_FACTS.length)];
 }
 
 export function getCategoryIcon(category: KnowledgeCategory): KnowledgeIcon {
+  if (category === 'milling') return 'wheat';
   if (category === 'principles') return 'sprout';
   if (category === 'pioneers') return 'sparkles';
   if (category === 'systems') return 'cog';
@@ -399,8 +549,28 @@ export function getCategoryIcon(category: KnowledgeCategory): KnowledgeIcon {
 }
 
 export function getCategoryLabel(category: KnowledgeCategory): string {
+  if (category === 'milling') return translate(knowledgeStoreMessages, 'categoryMilling');
   if (category === 'principles') return translate(knowledgeStoreMessages, 'categoryPrinciples');
   if (category === 'pioneers') return translate(knowledgeStoreMessages, 'categoryPioneers');
   if (category === 'systems') return translate(knowledgeStoreMessages, 'categorySystems');
   return translate(knowledgeStoreMessages, 'categoryCases');
 }
+
+/**
+ * Finishing a farm lesson opens its Datalinks note (report 04 P9): the
+ * windmill cutaway the Chronicle's post-mill note, the henhouse inspection its
+ * own. Reaching the last stage counts, however the lesson was started.
+ */
+useWindmillLearningStore.subscribe((state) => {
+  if (state.open && state.stage === 'collect')
+    useKnowledgeStore.getState().unlockEntry('history-windmills');
+});
+useProcessInspectionStore.subscribe((state) => {
+  if (state.active?.id === 'henhouse' && state.stage === 3)
+    useKnowledgeStore.getState().unlockEntry('farm-henhouse');
+  // A finished cutaway lesson is recorded once, and kept (the inspection
+  // store's own record lasts the session only).
+  for (const lessonId of state.completed)
+    if (!useKnowledgeStore.getState().completedLessons.has(lessonId))
+      useKnowledgeStore.getState().recordLessonCompleted(lessonId);
+});

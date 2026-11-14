@@ -39,6 +39,9 @@ describe('workplace far-side authority and consent', () => {
       const preview = await api.preview(draft());
       expect(preview.status).toBe('requires-approval');
       expect(useWorkplaceStore.getState().workplace.phase).toBe('deliberating');
+      // Unfunded before approval: nothing reserved and nobody covering.
+      expect(useWorkplaceStore.getState().workplace.finance.compensationReserve).toBe(0);
+      expect(useWorkplaceStore.getState().workplace.activeCoverMemberId).toBeNull();
       const receipt = await api.commit(
         preview,
         api.approve(preview.previewId, 'Visible terms approved.')
@@ -46,8 +49,21 @@ describe('workplace far-side authority and consent', () => {
       expect(receipt.status).toBe('verified');
       expect(receipt.changedDomains).toEqual(['experience']);
       expect(receipt.verification.every((v) => v.passed)).toBe(true);
-      expect(useWorkplaceStore.getState().workplace.finance.compensationReserve).toBe(8);
-      expect(workplaceCapacity(useWorkplaceStore.getState().workplace)).toBeLessThan(1);
+      // D4 runs cover at the line's own rate, so the funded agreement shows in
+      // its terms, not in a slower line: a consenting member covers the plan's
+      // ten minutes against an eight-unit reserve, and work draws that reserve
+      // down into their pay.
+      const funded = useWorkplaceStore.getState().workplace;
+      expect(funded.phase).toBe('active');
+      expect(funded.finance.compensationReserve).toBe(8);
+      const cover = funded.members.find((m) => m.id === funded.activeCoverMemberId);
+      expect(cover?.coverConsent).toBe(true);
+      expect(funded.coverRemainingMinutes).toBe(10);
+      useWorkplaceStore.getState().tick(1, 0, false);
+      const worked = useWorkplaceStore.getState().workplace;
+      expect(worked.finance.compensationPaid).toBeCloseTo(0.8);
+      expect(worked.finance.compensationReserve).toBeCloseTo(7.2);
+      expect(worked.coverRemainingMinutes).toBeCloseTo(9);
     } finally {
       remove();
     }
@@ -110,6 +126,7 @@ describe('workplace far-side authority and consent', () => {
     expect(api.revokeGrant('grant.agent-driver.simulation.v1', 'Authority withdrawn.')).toBe(true);
     expect(useWorkplaceStore.getState().workplace.phase).toBe('review');
     expect(workplaceCapacity(useWorkplaceStore.getState().workplace)).toBe(1);
+    expect(useWorkplaceStore.getState().workplace.activeCoverMemberId).toBeNull();
     useWorkplaceStore.getState().tick(20, 0, false);
     expect(useWorkplaceStore.getState().workplace.finance.compensationPaid).toBe(paid);
     remove();

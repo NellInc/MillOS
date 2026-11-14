@@ -20,13 +20,10 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('compact operating controls', () => {
-  it('opens the shared protected logistics workspace from the mobile overview', () => {
-    const open = vi.fn();
-    window.addEventListener('millos:open-layout-planner', open);
+  // The planner is an engineering tool behind the dock's More menu (plan 7.8).
+  it('keeps the logistics planner out of the mobile overview', () => {
     render(<MobilePanel isVisible content="overview" onClose={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Plan logistics' }));
-    expect(open).toHaveBeenCalledOnce();
-    window.removeEventListener('millos:open-layout-planner', open);
+    expect(screen.queryByRole('button', { name: 'Plan logistics' })).not.toBeInTheDocument();
   });
   it('activates the actual customer recipe instead of a read-only SCADA summary', () => {
     const order = useOperationsCampaignStore.getState().orders[1];

@@ -4,6 +4,7 @@
  * in English, and leaves no part-three English behind in pt-BR.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { acceptOffer, OFFER_DECK } from './administratorOffer';
 import { setLocale } from '../../i18n';
 import { DEFAULT_CHARTER } from '../charter';
 import { SHIFTS_PER_CROP_YEAR } from '../cropYears';
@@ -58,7 +59,7 @@ function evidence(dispatchedKg: number, revenue = 2000): ShiftCloseEvidence {
 function run(state: ChronicleState, shifts: number, kg = 3000, deck = [] as typeof EVENT_DECK) {
   let next = state;
   for (let i = 0; i < shifts && next.status === 'active'; i++)
-    next = closeShift(next, evidence(kg), deck).state;
+    next = acceptOffer(closeShift(next, evidence(kg), [...deck, ...OFFER_DECK]).state);
   return next;
 }
 

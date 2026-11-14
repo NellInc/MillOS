@@ -1,13 +1,15 @@
 import { createContext, useContext, useEffect } from 'react';
-import { DAILY_TARGET_BAGS, useProductionStore } from '../../stores/productionStore';
+import { useProductionStore } from '../../stores/productionStore';
+import { useOperationsCampaignStore } from '../../stores/operationsCampaignStore';
+import { programmeKey, runningProgramme } from '../../stores/programmeCommitment';
 import { useUIStore } from '../../stores/uiStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useAnnouncementsStore, type AnnouncementInput } from '../../stores/announcementsStore';
-import { audioManager } from '../../utils/audioManager';
 import { translate } from '../../i18n';
 import { registerAlertCatalog, type KeyedLine } from '../../i18n/alertCopy';
 import { sharedMessages } from './shared.messages';
+import { audioManager } from '../../utils/audioManager';
 
 type SharedMessageKey = keyof typeof sharedMessages.en;
 
@@ -36,7 +38,7 @@ export const useCameraFeedRefs = () => useContext(CameraFeedContext);
 
 /*
  * The PA speaks only when something is wrong or worth acting on (D-054): a
- * machine fault and its recovery, a drill or stop, the day's target made. The
+ * machine fault and its recovery, a drill or stop, the programme delivered. The
  * timed corpus of all-is-well notices ('The mill is calm', 'Silo inventory
  * reconciled') and the 25-90% target readouts are gone; a plant running as it
  * should is the silence.
@@ -71,11 +73,6 @@ const MACHINE_STATUS_NOTICES = {
     type: 'production' as const,
     priority: 'medium' as const,
   },
-};
-
-// Only the target itself is news; 25, 50, 75 and 90% were routine readouts.
-const MILESTONE_MESSAGES: Record<number, SharedMessageKey> = {
-  100: 'milestone100',
 };
 
 export const EMERGENCY_STOP_ANNOUNCEMENTS: EventAnnouncementConfig[] = [
@@ -132,28 +129,38 @@ const mapAnnouncementType = (type: NoticeType): AnnouncementInput['type'] => {
 const mapPriority = (priority: NoticePriority): number =>
   ({ low: 1, medium: 2, high: 3, critical: 4 })[priority];
 
-let lastMilestoneReached = 0;
+/*
+ * The goal is the running programme the customers committed to, not a daily
+ * bag count (D11), so the one line of good news is that programme delivered:
+ * the line the day's target used to have, moved, not a new one. Only the
+ * whole programme is news; each order's result is on the HUD, unspoken.
+ */
+let lastDeliveredProgramme: string | null = null;
 
-const DAILY_MILESTONES = [100] as const;
-
-// The same count and target the tick's milestone celebrations read, so a
-// caption and its toast mark the same moment.
-const dailyTargetProgress = (): number | null => {
-  const produced = useProductionStore.getState().dailyBagsProduced;
-  if (!(DAILY_TARGET_BAGS > 0) || !Number.isFinite(produced)) return null;
-  return Math.floor((produced / DAILY_TARGET_BAGS) * 100);
+/**
+ * The running programme's key once every order of it is fulfilled; null while
+ * one is open, and null when one was forfeited (closed 'cancelled'): a
+ * programme closed short is not delivered, and its forfeit has its own notice.
+ */
+const deliveredProgramme = (): string | null => {
+  const orders = useOperationsCampaignStore.getState().orders;
+  const running = runningProgramme(orders);
+  if (!running || running.open) return null;
+  const forfeited = orders.some(
+    (order) => order.status === 'cancelled' && programmeKey(order.id) === running.key
+  );
+  return forfeited ? null : running.key;
 };
 
 /**
- * Treat every milestone already passed when the scheduler starts as announced.
- * A reload restores dailyBagsProduced, and the PA has no saved record of what it
- * said, so without this the first poll captioned a milestone crossed before it.
- * Working if a reload at 60% stays quiet and the 75% crossing is still captioned.
+ * Treat a programme already delivered when the scheduler starts as announced.
+ * A reload restores the orders, and the PA has no saved record of what it
+ * said, so without this the first poll captioned a delivery made before it.
+ * Working if a reload after delivery stays quiet and the next programme's is
+ * still captioned.
  */
-const seedMilestones = (): void => {
-  const progress = dailyTargetProgress();
-  lastMilestoneReached =
-    progress === null ? 0 : (DAILY_MILESTONES.filter((m) => progress >= m).pop() ?? 0);
+const seedDeliveredProgramme = (): void => {
+  lastDeliveredProgramme = deliveredProgramme();
 };
 
 const lastMachineStatuses: Record<string, string> = {};
@@ -174,10 +181,12 @@ const DRILL_CAPTION_COOLDOWN_MS = 15000;
 /*
  * A fault left unresolved is said again, more urgently (D-061): "still needs a
  * look" after 3 minutes of running clock, then "right away" after 6. Time only
- * accrues while the clock runs and the poll runs (not paused, not muted), and
- * a machine leaving the fault, or changing fault, starts it over.
+ * accrues while the clock runs and the sound is on: a paused or muted plant
+ * builds no urgency (D-061). Mute silences sound only (D-098), so a muted
+ * fault is still captioned, once.
  * Working if a warning nobody attends to is heard three times in six minutes,
- * rising in urgency, and a fixed one is heard once.
+ * rising in urgency, a fixed one is heard once, and a muted one is captioned
+ * once until the sound is back.
  */
 export const FAULT_ESCALATION_AFTER_MS = [180000, 360000] as const;
 const FAULT_ESCALATION_KEYS = {
@@ -203,6 +212,13 @@ export const FORKLIFT_STOP_TOPIC = 'forklift-stop';
 
 type DrillSnapshot = { active: boolean; verificationComplete: boolean };
 
+/** Zones of the running drill verified on their alternative route, from its record. */
+const reroutedDrillZones = (): number => {
+  const sim = useGameSimulationStore.getState();
+  const event = sim.safetyEvents?.find((candidate) => candidate.id === sim.activeSafetyEventId);
+  return (event?.drillZones ?? []).filter((zone) => zone.result === 'alternative').length;
+};
+
 // Driven by a store subscription rather than the 5 s poll: the sequencer holds
 // a completed drill for only ~5 s before ending it and resetting its metrics.
 const announceDrillTransition = (
@@ -210,14 +226,22 @@ const announceDrillTransition = (
   previous: DrillSnapshot,
   addAnnouncement: (input: AnnouncementInput) => void
 ): void => {
-  if (audioManager.muted) return;
+  // Filed whatever the mute (D15): mute silences sound only.
   let key: SharedMessageKey | null = null;
   let priority = 3;
   if (drill.active && !previous.active) {
     key = 'drillStarted';
     priority = 4;
   } else if (drill.verificationComplete && !previous.verificationComplete) {
-    key = 'drillComplete';
+    // "All exits are clear" only when every zone verified on its own route;
+    // the record is written before the last verification completes the drill.
+    const rerouted = reroutedDrillZones();
+    key =
+      rerouted === 0
+        ? 'drillComplete'
+        : rerouted === 1
+          ? 'drillCompleteRerouted'
+          : 'drillCompleteReroutedMany';
   } else if (previous.active && !drill.active && !previous.verificationComplete) {
     key = 'drillEndedEarly';
   }
@@ -289,9 +313,8 @@ const MACHINE_TOPIC_PREFIX = 'machine:';
 /**
  * Retire each live fault line whose machine is no longer in a fault. The
  * recovery line also retires it, but that line can be held by its cooldown,
- * and the 5 s poll does not run at all while the PA is muted or off (a
- * critical caption still shows with the PA off), so the caption must not
- * depend on it. Working if 'Critical alarm at R.M. 101' never stays on screen
+ * and with the PA off the poll files no recovery line (a critical caption
+ * still shows with the PA off), so the caption must not depend on it. Working if 'Critical alarm at R.M. 101' never stays on screen
  * after R.M. 101 is running or idle again.
  */
 const retireRecoveredFaultLines = (): void => {
@@ -321,30 +344,23 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
   // drops the routine status lines.
   const paOff = useAnnouncementsStore.getState().mode === 'off';
   const state = useProductionStore.getState();
-  const progress = paOff ? null : dailyTargetProgress();
+  const delivered = paOff ? null : deliveredProgramme();
 
-  if (progress !== null) {
-    // Announce only the highest milestone newly crossed: a fast game speed
-    // would otherwise queue several at once.
-    const reached = DAILY_MILESTONES.filter(
-      (milestone) => progress >= milestone && lastMilestoneReached < milestone
-    ).pop();
-    if (reached !== undefined) {
-      lastMilestoneReached = reached;
-      addAnnouncement({
-        type: 'success',
-        message: say(MILESTONE_MESSAGES[reached]),
-        copy: keyed(MILESTONE_MESSAGES[reached]),
-        // Never 4: that tier is the red pulsing alarm, an assertive interrupt
-        // and the caption that ignores "PA captions: off". This is good news.
-        priority: reached >= 50 ? 3 : 2,
-        source: 'Production controller',
-        channel: 'operational',
-        tone: 'literal',
-        audience: 'control',
-        cooldownMs: 90000,
-      });
-    }
+  if (delivered !== null && delivered !== lastDeliveredProgramme) {
+    lastDeliveredProgramme = delivered;
+    addAnnouncement({
+      type: 'success',
+      message: say('programmeDelivered'),
+      copy: keyed('programmeDelivered'),
+      // Never 4: that tier is the red pulsing alarm, an assertive interrupt
+      // and the caption that ignores "PA captions: off". This is good news.
+      priority: 3,
+      source: 'Production controller',
+      channel: 'operational',
+      tone: 'literal',
+      audience: 'control',
+      cooldownMs: 90000,
+    });
   }
 
   const now = Date.now();
@@ -352,7 +368,8 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
     lastFaultPollAt === null
       ? 0
       : Math.min(FAULT_ESCALATION_MAX_STEP_MS, Math.max(0, now - lastFaultPollAt));
-  const clockRunning = useGameSimulationStore.getState().gameSpeed > 0;
+  // D-061: a paused or muted plant builds no urgency. Muted, the fault itself is still filed.
+  const clockRunning = useGameSimulationStore.getState().gameSpeed > 0 && !audioManager.muted;
   for (const machine of state.machines ?? []) {
     const previous = lastMachineStatuses[machine.id];
     const current = machine.status;
@@ -429,17 +446,21 @@ const checkEventAnnouncements = (addAnnouncement: (input: AnnouncementInput) => 
 const useEventAnnouncementScheduler = () => {
   const addAnnouncement = useProductionStore((state) => state.addAnnouncement);
   useEffect(() => {
-    seedMilestones();
+    seedDeliveredProgramme();
     const interval = setInterval(() => {
-      if (!audioManager.muted) checkEventAnnouncements(addAnnouncement);
+      // Every line is filed while muted too (D15): mute silences sound only.
+      checkEventAnnouncements(addAnnouncement);
     }, 5000);
-    // A fall in the day's count is a new day (or a restore). Watched by
-    // subscription because the poll skips while muted or off, and a skipped
-    // rollover left yesterday's milestones marked as said all the next day.
-    // Working if muting across midnight still captions the next day's 25%.
     const unsubscribeDay = useProductionStore.subscribe((state, previous) => {
-      if (state.dailyBagsProduced < previous.dailyBagsProduced) seedMilestones();
       if (state.machines !== previous.machines) retireRecoveredFaultLines();
+    });
+    // An open programme (a new one accepted, or a reset campaign) clears the
+    // record, so its delivery is said. Watched by subscription because the
+    // poll skips the delivery line with the PA off. Working if a programme
+    // delivered with the PA off is captioned once it is on again.
+    const unsubscribeProgramme = useOperationsCampaignStore.subscribe((state, previous) => {
+      if (state.orders !== previous.orders && deliveredProgramme() === null)
+        lastDeliveredProgramme = null;
     });
     const unsubscribeDrill = useGameSimulationStore.subscribe((state, previous) => {
       if (state.drillMetrics !== previous.drillMetrics) {
@@ -447,12 +468,7 @@ const useEventAnnouncementScheduler = () => {
       }
       // A facility emergency (not a drill, which captions itself above) gets
       // one caption on the rising edge.
-      if (
-        state.emergencyActive &&
-        !previous.emergencyActive &&
-        !state.emergencyDrillMode &&
-        !audioManager.muted
-      ) {
+      if (state.emergencyActive && !previous.emergencyActive && !state.emergencyDrillMode) {
         const notice =
           EMERGENCY_STOP_ANNOUNCEMENTS[
             Math.floor(Math.random() * EMERGENCY_STOP_ANNOUNCEMENTS.length)
@@ -476,27 +492,25 @@ const useEventAnnouncementScheduler = () => {
       if (previous.emergencyActive && !state.emergencyActive && !previous.emergencyDrillMode) {
         const announcements = useAnnouncementsStore.getState();
         announcements.dismissMatching((announcement) => announcement.topic === PLANT_STOP_TOPIC);
-        if (!audioManager.muted) {
-          // The clear releases only the forklift hold the stop applied
-          // (stopHeldForklifts, still set here: this runs inside the clear's
-          // set, before the release). A stop the player set before it stays.
-          const clearKey: SharedMessageKey =
-            state.stopHeldForklifts || !useSafetyStore.getState().forkliftEmergencyStop
-              ? 'facilityStopCleared'
-              : 'facilityStopClearedForkliftsHeld';
-          addAnnouncement({
-            type: 'emergency',
-            message: say(clearKey),
-            copy: keyed(clearKey),
-            priority: 3,
-            source: 'Safety controller',
-            channel: 'safety',
-            tone: 'literal',
-            audience: 'control',
-            cooldownMs: DRILL_CAPTION_COOLDOWN_MS,
-            topic: PLANT_STOP_TOPIC,
-          });
-        }
+        // The clear releases only the forklift hold the stop applied
+        // (stopHeldForklifts, still set here: this runs inside the clear's
+        // set, before the release). A stop the player set before it stays.
+        const clearKey: SharedMessageKey =
+          state.stopHeldForklifts || !useSafetyStore.getState().forkliftEmergencyStop
+            ? 'facilityStopCleared'
+            : 'facilityStopClearedForkliftsHeld';
+        addAnnouncement({
+          type: 'emergency',
+          message: say(clearKey),
+          copy: keyed(clearKey),
+          priority: 3,
+          source: 'Safety controller',
+          channel: 'safety',
+          tone: 'literal',
+          audience: 'control',
+          cooldownMs: DRILL_CAPTION_COOLDOWN_MS,
+          topic: PLANT_STOP_TOPIC,
+        });
       }
     });
     const unsubscribeForklifts = useSafetyStore.subscribe((state, previous) => {
@@ -508,6 +522,7 @@ const useEventAnnouncementScheduler = () => {
       clearInterval(interval);
       unsubscribeDrill();
       unsubscribeDay();
+      unsubscribeProgramme();
       unsubscribeForklifts();
     };
   }, [addAnnouncement]);

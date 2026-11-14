@@ -6,7 +6,9 @@ export const operationsCampaignMessages = defineMessages({
   en: {
     // Recipes
     recipeStrongWhite: 'Strong white bread flour',
-    recipeFineSemolina: 'Fine corn semolina',
+    // Milled from the corn silo, so maize meal, not semolina (a durum wheat
+    // product): sources in src/stores/customerNames.messages.ts (D17).
+    recipeFineSemolina: 'Cornmeal',
     recipeCommunityFlour: 'Community all-purpose flour',
 
     // Incidents
@@ -67,6 +69,10 @@ export const operationsCampaignMessages = defineMessages({
     logIncidentResolved: '{title} resolved and controls returned to normal.',
     logManifestAllocated:
       '{manifest} allocated {kg} kg of evidenced dispatch across active commitments.',
+    logOrderForfeited:
+      'Order for {customer} forfeited {minutes} min late with {shipped} of {required} kg shipped; penalty {fee}.',
+    logOrderForfeitedUnreachable:
+      'Order for {customer} forfeited {minutes} min late with {shipped} of {required} kg shipped: the best the line can make is {best}, under its {minimum}; penalty {fee}.',
 
     // Execution stage messages
     execPlanning: 'Production route planned.',
@@ -84,7 +90,7 @@ export const operationsCampaignMessages = defineMessages({
     execReadyToDispatch: 'The outbound load is ready for departure.',
     execDispatched: '{kg} kg left the shipping bay.',
     execAllFulfilled:
-      'All commitments fulfilled. Accept the next production programme or review the completed period.',
+      'All commitments fulfilled. Accept the next delivery programme or review the completed period.',
     execFulfilled: 'Commitment fulfilled.',
 
     // Constraints
@@ -121,7 +127,7 @@ export const operationsCampaignMessages = defineMessages({
   },
   'pt-BR': {
     recipeStrongWhite: 'Farinha de trigo forte para pão',
-    recipeFineSemolina: 'Semolina fina de milho',
+    recipeFineSemolina: 'Fubá',
     recipeCommunityFlour: 'Farinha comunitária multiuso',
 
     bearingOverheatTitle: 'Superaquecimento de rolamento no moinho de rolos',
@@ -185,6 +191,10 @@ export const operationsCampaignMessages = defineMessages({
     logIncidentResolved: 'Ocorrência resolvida: {title}; controles de volta ao normal.',
     logManifestAllocated:
       '{manifest} alocou {kg} kg de expedição comprovada entre os compromissos ativos.',
+    logOrderForfeited:
+      'Pedido de {customer} perdido com {minutes} min de atraso, {shipped} de {required} kg expedidos; multa de {fee}.',
+    logOrderForfeitedUnreachable:
+      'Pedido de {customer} perdido com {minutes} min de atraso, {shipped} de {required} kg expedidos: o melhor que a linha produz é {best}, abaixo do mínimo de {minimum}; multa de {fee}.',
 
     execPlanning: 'Rota de produção planejada.',
     execPackedResting:
@@ -201,7 +211,7 @@ export const operationsCampaignMessages = defineMessages({
     execReadyToDispatch: 'A carga de saída está pronta para partir.',
     execDispatched: '{kg} kg saíram da doca de expedição.',
     execAllFulfilled:
-      'Todos os compromissos foram cumpridos. Aceite o próximo programa de produção ou revise o período concluído.',
+      'Todos os compromissos foram cumpridos. Aceite o próximo programa de entregas ou revise o período concluído.',
     execFulfilled: 'Compromisso cumprido.',
 
     constraintStorageLabel: 'Capacidade de armazenagem',

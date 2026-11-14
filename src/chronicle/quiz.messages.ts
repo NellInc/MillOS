@@ -563,3 +563,34 @@ export function quizMessages(row: QuizQuestion) {
   };
   return defineMessages({ en, 'pt-BR': portuguese[row.id] ?? en });
 }
+
+/** Questions built from the player's own record (D19), resolved at display. */
+export const quizRecordMessages = defineMessages({
+  en: {
+    eventPrompt: 'Shift {shift}, {event}: you chose “{choice}”. What followed?',
+    // Quoted like the ruling and the trial: bare, it read "You installed Wind turbine."
+    planPrompt: 'You installed “{plan}”. What did it change?',
+    trialPrompt: 'The trial “{trial}” failed. Why?',
+    trialQuality: 'Flour shipped below its recipe’s quality threshold',
+    trialTonnage: 'Too little flour was dispatched before the window closed',
+    trialEnergy: 'Energy per kilogram went over the limit',
+    trialGrade: 'The average shift grade fell below the target',
+    planForecast: '{forecast} -{relief} points',
+    planCropPartial: '{crop} penalty down to {value}',
+    planCropNone: 'no {crop} penalty',
+    planKnowHow: '+{value} know-how per shift',
+  },
+  'pt-BR': {
+    eventPrompt: 'Turno {shift}, {event}: você escolheu “{choice}”. O que aconteceu depois?',
+    planPrompt: 'Você instalou “{plan}”. O que mudou?',
+    trialPrompt: 'A prova “{trial}” falhou. Por quê?',
+    trialQuality: 'Farinha expedida abaixo do limite de qualidade da receita',
+    trialTonnage: 'Pouca farinha foi expedida antes de o prazo terminar',
+    trialEnergy: 'A energia por quilograma passou do limite',
+    trialGrade: 'A nota média dos turnos ficou abaixo da meta',
+    planForecast: '{forecast} -{relief} pontos',
+    planCropPartial: 'penalidade de {crop} reduzida para {value}',
+    planCropNone: 'sem penalidade de {crop}',
+    planKnowHow: '+{value} de conhecimento prático por turno',
+  },
+});

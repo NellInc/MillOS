@@ -211,7 +211,7 @@ describe('Matched plant replay interface', () => {
     expect(screen.getByText(/kg; 1 dispatch manifest\./)).toBeInTheDocument();
     expect(screen.getByText(/kg; 2 dispatch manifests\./)).toBeInTheDocument();
     expect(screen.getAllByText('Plant accounts, pounds sterling')).toHaveLength(2);
-    expect(screen.getAllByText('Illustrative workplace credits')).toHaveLength(2);
+    expect(screen.getAllByText('Workplace credits')).toHaveLength(2);
     expect(screen.getAllByText(/Closing charter: team work choice/)).toHaveLength(2);
     expect(
       screen.getByText(/This closing field omits earlier shift charter settings/)
@@ -251,7 +251,7 @@ describe('Matched plant replay interface', () => {
     replay.guided = true;
     const before = useWorkplaceStore.getState().workplace;
     render(<WorkplaceReplayGuide section="Agreement / Voices" navigate={navigate} />);
-    expect(screen.getByText(/Quality may refuse without explaining/)).toBeInTheDocument();
+    expect(screen.getByText(/then explicitly approve the agreement below\.$/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Next guide section' }));
     expect(navigate).toHaveBeenCalledWith('Review');
     fireEvent.click(screen.getByRole('button', { name: 'End guide' }));

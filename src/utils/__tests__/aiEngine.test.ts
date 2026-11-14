@@ -5,7 +5,6 @@
  * - Decision generation
  * - Decision recording and tracking
  * - Memory management and limits
- * - Confidence adjustment learning
  * - Utility functions (ID generation, deep copy)
  * - Predicted events and decision outcomes
  */
@@ -15,7 +14,6 @@ import {
   generateContextAwareDecision,
   trackDecisionOutcome,
   getImpactStats,
-  getConfidenceAdjustments,
   resetShiftStats,
   shouldTriggerAudioCue,
   initializeShiftObserver,
@@ -344,6 +342,8 @@ describe('aiEngine - Core Functions', () => {
       expect(store.addAIDecision).not.toHaveBeenCalled();
     });
 
+    // Re-pinned for plan item 3.0: a unit in warning files no card now (its
+    // 'prediction' card changed nothing when accepted); a running one does.
     it('should add decision to store when generated', () => {
       const mockAddDecision = vi.fn(() => true);
       vi.mocked(useProductionStore.getState).mockReturnValue({
@@ -357,12 +357,12 @@ describe('aiEngine - Core Functions', () => {
             position: [0, 0, 0] as [number, number, number],
             size: [1, 1, 1] as [number, number, number],
             rotation: 0,
-            status: 'warning' as const,
+            status: 'running' as const,
             metrics: {
               rpm: 450,
-              temperature: 65,
-              vibration: 3.2,
-              load: 85,
+              temperature: 50,
+              vibration: 1.2,
+              load: 70,
               wear: 45,
               efficiency: 75,
             },
@@ -482,31 +482,8 @@ describe('aiEngine - Core Functions', () => {
     });
   });
 
-  describe('Confidence Adjustment Learning', () => {
-    it('should adjust confidence based on historical success rates', () => {
-      // Thirty outcomes replace the complete learning window, making the
-      // expected adjustment independent of earlier singleton state.
-      for (let i = 0; i < 30; i++) {
-        const decision: AIDecision = {
-          id: `ai-test-success-${i}`,
-          timestamp: new Date(),
-          type: 'optimization',
-          action: 'Test action',
-          reasoning: 'Test reasoning',
-          confidence: 75,
-          impact: 'Test impact',
-          status: 'completed',
-          outcome: 'Success',
-          priority: 'medium',
-        };
-        trackDecisionOutcome(decision);
-      }
-
-      const adjustmentsAfter = getConfidenceAdjustments();
-
-      expect(adjustmentsAfter.optimization).toBe(7);
-    });
-  });
+  // Confidence no longer learns from accept and reject (review 10, F3):
+  // aiEngine.honestCards.gameplay.test.ts pins it on the real stores.
 
   describe('Impact Statistics', () => {
     it('should reset shift stats correctly', () => {

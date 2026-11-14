@@ -45,8 +45,8 @@ export const settingsPanelMessages = defineMessages({
     searchPaTranscript: 'Search PA transcript',
     searchTranscript: 'Search transcript',
     paTranscript: 'PA transcript',
-    transcriptEmpty: 'Nothing announced yet. The mill is either very new or very quiet.',
-    transcriptNoMatches: 'No matches. Try a different search, or accept the silence.',
+    transcriptEmpty: 'Nothing announced yet.',
+    transcriptNoMatches: 'No matches.',
     // The channel is a store value; English shows it as stored.
     paChannel: (p: { channel: string }) => p.channel,
     clearTranscript: 'Clear transcript',
@@ -54,10 +54,8 @@ export const settingsPanelMessages = defineMessages({
     knowledgeSystem: 'Knowledge System',
     replayGettingStarted: 'Replay getting started',
     philosophyTooltips: 'Philosophy Tooltips',
-    loadingScreenQuotes: 'Loading Screen Quotes',
-    aiReflections: 'AI Reflections',
+    loadingScreenQuotes: 'Loading screen facts',
     unlockNotifications: 'Unlock Notifications',
-    knowledgeHelp: 'Controls the depth of bilateral alignment and economic democracy content.',
 
     graphics: 'Graphics',
     graphicsQuality: 'Graphics quality',
@@ -85,17 +83,13 @@ export const settingsPanelMessages = defineMessages({
 
     interfaceAccessibility: 'Interface accessibility',
     interfaceScale: 'Interface scale',
-    interfaceScaleHelp:
-      'Makes controls and text larger without reducing the 3D render resolution. Browser zoom and OS text size still work as expected.',
-    reduceMotion: 'Reduce motion',
+    // The label names what it holds still; vehicles and belts are the process
+    // and keep moving (the help line that said so was cut, D14).
+    reduceMotion: 'Reduce motion: people, machines, scenery, camera',
     reduceMotionSystem: 'Follow system',
     reduceMotionOn: 'On',
-    reduceMotionHelp:
-      'Follow system uses your device setting. On holds people and decorative loops still and cuts camera and panel animations; plant equipment keeps moving because its motion shows its state.',
 
     diagnosticReplay: 'Diagnostic replay',
-    diagnosticReplayHelp:
-      'The last ten minutes of the simulation are buffered — frames, commands, build ID and seed. No credentials or identity data leave the building.',
     frames: 'frames',
     commands: 'commands',
     enterReplay: 'Enter replay',
@@ -148,19 +142,16 @@ export const settingsPanelMessages = defineMessages({
     searchPaTranscript: 'Pesquisar na transcrição dos avisos',
     searchTranscript: 'Pesquisar na transcrição',
     paTranscript: 'Transcrição dos avisos',
-    transcriptEmpty: 'Nenhum aviso ainda. O moinho é muito novo ou está muito quieto.',
-    transcriptNoMatches: 'Nenhum resultado. Tente outra pesquisa ou aceite o silêncio.',
+    transcriptEmpty: 'Nenhum aviso ainda.',
+    transcriptNoMatches: 'Nenhum resultado.',
     paChannel: (p: { channel: string }) => PT_PA_CHANNELS[p.channel] ?? p.channel,
     clearTranscript: 'Limpar transcrição',
 
     knowledgeSystem: 'Sistema de conhecimento',
     replayGettingStarted: 'Rever os primeiros passos',
     philosophyTooltips: 'Dicas de filosofia',
-    loadingScreenQuotes: 'Citações na tela de carregamento',
-    aiReflections: 'Reflexões da IA',
+    loadingScreenQuotes: 'Fatos na tela de carregamento',
     unlockNotifications: 'Notificações de desbloqueio',
-    knowledgeHelp:
-      'Controla a profundidade do conteúdo sobre alinhamento bilateral e democracia econômica.',
 
     graphics: 'Gráficos',
     graphicsQuality: 'Qualidade gráfica',
@@ -187,17 +178,11 @@ export const settingsPanelMessages = defineMessages({
 
     interfaceAccessibility: 'Acessibilidade da interface',
     interfaceScale: 'Escala da interface',
-    interfaceScaleHelp:
-      'Aumenta controles e textos sem reduzir a resolução da renderização 3D. O zoom do navegador e o tamanho de texto do sistema continuam funcionando normalmente.',
-    reduceMotion: 'Reduzir movimento',
+    reduceMotion: 'Reduzir movimento: pessoas, máquinas, cenário, câmera',
     reduceMotionSystem: 'Seguir o sistema',
     reduceMotionOn: 'Ligado',
-    reduceMotionHelp:
-      'Seguir o sistema usa a configuração do seu dispositivo. Ligado deixa pessoas e animações decorativas paradas e corta as animações de câmera e de painéis; os equipamentos da fábrica continuam se movendo porque o movimento mostra o estado deles.',
 
     diagnosticReplay: 'Reprodução de diagnóstico',
-    diagnosticReplayHelp:
-      'Os últimos dez minutos da simulação ficam em memória: quadros, comandos, ID do build e semente. Nenhuma credencial ou dado de identidade sai daqui.',
     frames: 'quadros',
     commands: 'comandos',
     enterReplay: 'Entrar na reprodução',

@@ -3,6 +3,7 @@ import { createWorkplace } from '../simulation/bilateralWorkplace';
 import { endReplayClock } from '../simulation/workplaceReplayRuntime';
 import { setLocale } from '../i18n';
 import { useWorkplaceStore, workplaceReasonText } from './workplaceStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 
 const get = () => useWorkplaceStore.getState();
 
@@ -22,6 +23,7 @@ describe('understanding-check clarifications follow a language switch (pass elev
   afterEach(() => setLocale('en'));
 
   it('keys a season check clarification', () => {
+    fulfilFirstDelivery();
     expect(get().startCampaign('toe-dip', 17).changed).toBe(true);
     const result = get().answerCheck('packing', 'refusal', 'majority');
     expect(result.changed).toBe(true);

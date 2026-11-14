@@ -20,6 +20,8 @@ const fakeService = {
   getState: () => ({ mode: 'live', connected: linkUp }),
   updateMachineStates: () => undefined,
   updateOperationalValues: () => undefined,
+  // The bridge binds the mills' roll-speed setpoints to the line rate.
+  writeSetpoint: async () => true,
   stop: async () => undefined,
 };
 

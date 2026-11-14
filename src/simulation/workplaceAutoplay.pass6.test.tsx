@@ -4,6 +4,7 @@ import { useWorkplaceStore } from '../stores/workplaceStore';
 import { createWorkplace } from './bilateralWorkplace';
 import { useWorkplaceAutoplay } from './workplaceAutoplay';
 import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
+import { fulfilFirstDelivery } from '../test/firstDelivery';
 import { endReplayClock } from './workplaceReplayRuntime';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { useUIStore } from '../stores/uiStore';
@@ -22,6 +23,8 @@ beforeEach(() => {
   });
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
   useOperationsCampaignStore.getState().initializeCampaign();
+  // D4: a season starts only after the first delivery.
+  fulfilFirstDelivery();
 });
 afterEach(() => {
   act(() => useWorkplaceAutoplay.getState().pause());
@@ -68,7 +71,8 @@ describe('a manual action takes the season over without pausing the plant (pass 
     vi.useFakeTimers();
     useWorkplaceAutoplay.getState().start('team');
     vi.advanceTimersByTime(1200);
-    useWorkplaceStore.getState().object('quality', 'privacy');
+    // Packing's own voice (5b: in a solo season the player raises only Packing's).
+    useWorkplaceStore.getState().object('packing', 'privacy');
     for (let i = 0; i < 2; i++) {
       useWorkplaceAutoplay.getState().start('team');
       vi.advanceTimersByTime(500);

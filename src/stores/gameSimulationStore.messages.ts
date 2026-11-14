@@ -20,7 +20,8 @@ export const gameSimulationStoreMessages = defineMessages({
     facilityStopRecovery: 'Awaiting explicit interlock clearance.',
     facilityStopCleared: 'Interlock cleared after state verification.',
     drillCause: 'Automated emergency egress verification',
-    drillResponse: 'All equipment stopped while egress sensors run their verification sequence.',
+    drillResponse:
+      'All equipment stopped while each egress zone’s step-free route is checked clear of stopped forklifts.',
     drillRecovery: 'Awaiting all service egress zones.',
     drillCleared: 'Automated egress verification closed.',
     crisisCause: (p: { type: string }) => `${p.type.replaceAll('_', ' ')} condition`,
@@ -28,6 +29,8 @@ export const gameSimulationStoreMessages = defineMessages({
     crisisMonitoredResponse: 'Condition isolated for autonomous monitoring.',
     crisisRecovery: 'Awaiting verified recovery state.',
     crisisCleared: 'Recovery state verified and interlocks released.',
+    lineRestartTitle: 'Line ready to restart',
+    lineRestartMessage: 'The stop is cleared. The machines stay idle until the line is restarted.',
   },
   'pt-BR': {
     egressFront: 'Rota de saída de serviço frontal',
@@ -41,7 +44,7 @@ export const gameSimulationStoreMessages = defineMessages({
     facilityStopCleared: 'Intertravamento liberado após a verificação do estado.',
     drillCause: 'Verificação automatizada das rotas de saída de emergência',
     drillResponse:
-      'Todos os equipamentos parados enquanto os sensores das rotas de saída executam a sequência de verificação.',
+      'Todos os equipamentos parados enquanto a rota sem degraus de cada zona de saída é verificada para confirmar que nenhuma empilhadeira parada a bloqueia.',
     drillRecovery: 'Aguardando todas as zonas de saída de serviço.',
     drillCleared: 'Verificação automatizada das rotas de saída encerrada.',
     crisisCause: (p: { type: string }) =>
@@ -50,5 +53,8 @@ export const gameSimulationStoreMessages = defineMessages({
     crisisMonitoredResponse: 'Condição isolada para monitoramento autônomo.',
     crisisRecovery: 'Aguardando estado de recuperação verificado.',
     crisisCleared: 'Estado de recuperação verificado e intertravamentos liberados.',
+    lineRestartTitle: 'Linha pronta para reiniciar',
+    lineRestartMessage:
+      'A parada foi liberada. As máquinas ficam paradas até a linha ser reiniciada.',
   },
 });

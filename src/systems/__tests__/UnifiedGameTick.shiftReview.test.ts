@@ -9,6 +9,17 @@ import { useUIStore } from '../../stores/uiStore';
 import { createTranslator, setLocale } from '../../i18n';
 import { keyedText } from '../../i18n/alertCopy';
 import { unifiedGameTickMessages } from '../UnifiedGameTick.messages';
+import { usePartnerProposalStore } from '../../stores/partnerProposalStore';
+import { PROPOSAL_KIND_IDS } from '../../simulation/partnerProposals';
+
+// Written with every proposal kind asking (a programme waits its card's
+// window); a kind's default now follows the delegation rule, so "ask me" is
+// set here, as the card's toggle sets it.
+beforeEach(() => {
+  usePartnerProposalStore.getState().reset();
+  for (const kind of PROPOSAL_KIND_IDS)
+    usePartnerProposalStore.getState().setDelegation(kind, 'ask');
+});
 
 let tickCount = 0;
 function tickAt(gameSpeed: number, deltaSeconds = 1) {

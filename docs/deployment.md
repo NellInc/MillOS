@@ -13,7 +13,8 @@ Building and deploying MillOS to various hosting platforms.
 3. [Static Hosting](#static-hosting)
 4. [Environment Variables](#environment-variables)
 5. [Production Optimization](#production-optimization)
-6. [Troubleshooting](#troubleshooting)
+6. [Rolling back](#rolling-back)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -408,6 +409,24 @@ export default defineConfig({
 - **Images**: Use WebP format, appropriate sizes
 - **Fonts**: Self-host with font-display: swap
 - **3D Assets**: Compress GLTF/GLB files
+
+---
+
+## Rolling back
+
+The saved shift (`localStorage['millos-physical-session']`) is a one-way door. Since the
+2026-11 mechanics release, `capturePhysicalSession` writes **version 2**, with lot contributions
+stored compactly (`src/utils/physicalSession.ts`, the `version: 2` comment). This build reads
+versions 1 and 2. Builds before it accept only version 1 (`origin/main` before the merge:
+`value.version !== 1` throws `Unsupported physical save`), and they cannot parse the compact
+lists. On that refusal they hold the clock, stop saving, and offer a fresh start: choose a pace
+to play on without the saved shift, or reset in Settings.
+
+So a rollback past this release must ship a build that reads version 2 saves. Either revert
+only the changes you need and keep the reader, or backport the version 2 reader to the older
+build. Redeploying an older build as it stands costs every returning player their saved shift
+in that build. The older build stops writing once it refuses, so the record survives unless
+the player resets, and a later build that reads version 2 restores it.
 
 ---
 

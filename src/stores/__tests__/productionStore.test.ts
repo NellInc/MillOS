@@ -554,15 +554,6 @@ describe('ProductionStore - Bag Production Accounting', () => {
     useProductionStore.setState({
       totalBagsProduced: 0,
       dailyBagsProduced: 0,
-      productionTarget: {
-        id: 'accounting-target',
-        date: '2026-08-20',
-        targetBags: 10,
-        producedBags: 0,
-        targetThroughput: 1500,
-        actualThroughput: 0,
-        status: 'in_progress',
-      },
     });
   });
 
@@ -572,8 +563,6 @@ describe('ProductionStore - Bag Production Accounting', () => {
     const state = useProductionStore.getState();
     expect(state.totalBagsProduced).toBe(0);
     expect(state.dailyBagsProduced).toBe(0);
-    expect(state.productionTarget?.producedBags).toBe(0);
-    expect(state.productionTarget?.status).toBe('in_progress');
   });
 
   it.each(invalidCounts)(
@@ -587,8 +576,6 @@ describe('ProductionStore - Bag Production Accounting', () => {
       const state = useProductionStore.getState();
       expect(state.totalBagsProduced).toBe(2);
       expect(state.dailyBagsProduced).toBe(2);
-      expect(state.productionTarget?.producedBags).toBe(2);
-      expect(state.productionTarget?.status).toBe('in_progress');
       expect(vi.getTimerCount()).toBe(0);
     }
   );
@@ -677,7 +664,13 @@ describe('production maintenance work-order lockout', () => {
         expect(production.performMaintenance(machine.id).success).toBe(false);
         expect(production.performMaintenance(machine.id, 'wrong-work-order').success).toBe(false);
         expect(production.performMaintenance(machine.id, fault.workOrderId).success).toBe(true);
-        expect(useProductionStore.getState().machines[0].status).toBe('running');
+        // A repair is not a service (plan item 3.3): a unit that failed on
+        // wear comes back just below its breakdown wear, still in warning; a
+        // fault raised at low wear comes back at the wear it had.
+        expect(useProductionStore.getState().machines[0].metrics.wear).toBe(Math.min(wear, 85));
+        expect(useProductionStore.getState().machines[0].status).toBe(
+          wear > 0 ? 'warning' : 'running'
+        );
         repairs.confirmMachineRestart(fault.id);
         expect(production.performMaintenance(machine.id, fault.workOrderId).success).toBe(false);
       } finally {

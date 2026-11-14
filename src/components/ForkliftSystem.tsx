@@ -81,6 +81,9 @@ import {
   MANUAL_FORK_MAXIMUM_METRES,
   createLaneReturnState,
   findLaneRejoinTarget,
+  manualPedestrianAhead,
+  pedestrianClosingAtSpeed,
+  pedestrianGiveWaySpeed,
   stepLaneReturn,
   type LaneReturnState,
   stepManualForklift,
@@ -115,7 +118,9 @@ import {
   FORKLIFT_FLEET_TAGS,
   forkliftBoardable,
   manualForkliftInput,
+  manualForkliftWork,
   useForkliftDriveStore,
+  type ForkliftWorkOffer,
 } from '../stores/forkliftDriveStore';
 import { sampleWalkingGroundHeight } from '../utils/castleNavigation';
 import { getTerrainGridSegments } from './terrain/terrainTypes';
@@ -144,6 +149,8 @@ import {
   forkliftWorkAlong,
   forkliftWorkOffset,
   isSpurMarker,
+  manualWorkLinedUp,
+  manualWorkRefusal,
   markerArrivalHeading,
   nearestPedestrianAhead,
   type PedestrianPoint,
@@ -250,6 +257,32 @@ const markerSpurTwins = (plan: ForkliftRoutePlan): (number | null)[] => {
   );
   spurTwinsByPlan.set(plan, twins);
   return twins;
+};
+
+/**
+ * Per marker, where its pick or drop begins: a metre short of it on the
+ * forks' line, as the autopilot starts one (null for any other marker). A
+ * driver lined up here is offered the job (mechanics 6.2). One entry per plan.
+ */
+interface MarkerWorkStart {
+  x: number;
+  z: number;
+  heading: number;
+  distance: number;
+}
+const workStartsByPlan = new WeakMap<ForkliftRoutePlan, (MarkerWorkStart | null)[]>();
+const markerWorkStarts = (plan: ForkliftRoutePlan): (MarkerWorkStart | null)[] => {
+  const cached = workStartsByPlan.get(plan);
+  if (cached) return cached;
+  const total = plan.path.totalLength;
+  const starts = plan.markers.map((marker) => {
+    if (marker.action.type !== 'pickup' && marker.action.type !== 'dropoff') return null;
+    const distance = (((marker.distance - FORKLIFT_INSERT_METRES) % total) + total) % total;
+    const at = sampleArcLengthPath(plan.path, distance);
+    return { x: at.x, z: at.z, heading: markerArrivalHeading(plan, marker.distance), distance };
+  });
+  workStartsByPlan.set(plan, starts);
+  return starts;
 };
 
 /** Distance along the route to approach or leave a raised work surface with forks at its height. */
@@ -1343,8 +1376,24 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       halted: false,
       detour: dockPlatformDetour,
     },
-    drive: { loaded: false, deltaSeconds: 0, blocked: NEVER_BLOCKED, maximumSpeed: Infinity },
+    drive: {
+      loaded: false,
+      deltaSeconds: 0,
+      blocked: NEVER_BLOCKED,
+      maximumSpeed: Infinity,
+      maximumForwardSpeed: Infinity,
+      maximumReverseSpeed: Infinity,
+    },
   });
+  // A near miss is logged once per closing: set when logged, cleared once
+  // nobody is within the look-ahead either way.
+  const nearMissLatchRef = useRef(false);
+  // A pick or drop the driver asked for is under way: the autopilot's own
+  // operation runs it (below) with the driver still in the seat.
+  const manualWorkRef = useRef(false);
+  // Where the driver lined up, against where the operation starts: eased out
+  // over the creep in, so nothing jumps (forkliftWork.test.ts).
+  const workEaseRef = useRef({ active: false, x: 0, z: 0, heading: 0, fork: 0, forkDelta: 0 });
   // Rewritten every frame (forkliftCrewDuty): no allocation per frame.
   const crewDutyScratch = useRef({
     duty: { works: false, station: null as ForkliftCrewStation | null, walkingPace: false },
@@ -1641,6 +1690,8 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
             useForkliftDriveStore.getState().exit();
           manualModeRef.current = 'none';
           manualStateRef.current = null;
+          manualWorkRef.current = false;
+          workEaseRef.current.active = false;
           rejoinBlendRef.current = null;
           motionStateRef.current = snapshot.motionStateRef;
           actionMarkerIndexRef.current = snapshot.actionMarkerIndexRef;
@@ -1724,6 +1775,23 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     [data.id, pickupStation, dropoffStation]
   );
 
+  // The seat carries the camera, and the view turns with the truck: while
+  // driven, and through a pick or drop the driver started.
+  const carrySeatCamera = (camera: THREE.Camera, vehicle: THREE.Object3D): void => {
+    const heading = vehicle.rotation.y;
+    const sin = Math.sin(heading);
+    const cos = Math.cos(heading);
+    const [seatX, seatY, seatZ] = FORKLIFT_SEAT_EYE;
+    camera.position.set(
+      vehicle.position.x + cos * seatX + sin * seatZ,
+      vehicle.position.y + seatY,
+      vehicle.position.z - sin * seatX + cos * seatZ
+    );
+    camera.rotateOnWorldAxis(WORLD_UP, shortestVehicleAngle(manualHeadingRef.current, heading));
+    manualHeadingRef.current = heading;
+    if (labelGroupRef.current) labelGroupRef.current.visible = false;
+  };
+
   useFrame((state, delta) => {
     if (!ref.current || !isTabVisible) return;
     const routePlan = routePlanRef.current;
@@ -1794,7 +1862,12 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
     // Manual control. Boardable only between load operations, so the player
     // never interrupts a lift half-way.
     const drivenHere = useForkliftDriveStore.getState().drivenId === data.id;
-    if (drivenHere && manualModeRef.current !== 'driven') {
+    // A driver who steps down mid-lift leaves the operation to finish on autopilot.
+    if (!drivenHere) manualWorkRef.current = false;
+    // A pick or drop the driver started runs to its end; the seat is theirs again after.
+    if (drivenHere && manualModeRef.current !== 'driven' && operationRef.current === 'traveling') {
+      manualWorkRef.current = false;
+      nearMissLatchRef.current = false;
       manualStateRef.current = createManualForkliftState({
         x: vehicle.position.x,
         z: vehicle.position.z,
@@ -1831,6 +1904,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       const mode = manualModeRef.current;
 
       let next = manualState;
+      let manualYield = false;
       if (mode === 'lane' && !held) {
         const laneOptions = manualOptionsRef.current.lane;
         laneOptions.loaded = hasCargoRef.current;
@@ -1888,11 +1962,131 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
           zoneRules.safetyConfig.speedZoneSlowdown,
           data.speed
         );
-        next = stepManualForklift(
-          manualState,
-          emergency ? ZERO_INPUT : manualForkliftInput,
-          driveOptions
-        );
+        // Anyone on foot on the line the driver is taking has the right of
+        // way, as on the autopilot's route: it slows within the look-ahead and
+        // stops within the stop distance (pedestrianGiveWaySpeed). Ahead caps
+        // driving on, behind caps reversing, so it can always back away.
+        let ahead = Infinity;
+        let behind = Infinity;
+        if (state.scene && state.camera) {
+          const count = gatherPedestrians(
+            state.scene,
+            state.camera,
+            state.clock?.elapsedTime ?? Number.NaN,
+            crewLive.operatorRoot
+          );
+          ahead = manualPedestrianAhead(manualState, 1, pedestrianScratch, count);
+          behind = manualPedestrianAhead(manualState, -1, pedestrianScratch, count);
+        }
+        driveOptions.maximumForwardSpeed = pedestrianGiveWaySpeed(ahead);
+        driveOptions.maximumReverseSpeed = pedestrianGiveWaySpeed(behind);
+        const input = emergency ? ZERO_INPUT : manualForkliftInput;
+        next = stepManualForklift(manualState, input, driveOptions);
+        // Held for someone it is being driven at: the autopilot's stop reason.
+        manualYield =
+          (input.throttle > 0 && ahead <= FORKLIFT_PEDESTRIAN_STOP) ||
+          (input.throttle < 0 && behind <= FORKLIFT_PEDESTRIAN_STOP);
+        if (manualYield && stopReasonRef.current !== 'pedestrian-yield') {
+          const nowMs = performance.now();
+          if (nowMs - lastHornRef.current >= HORN_COOLDOWN_MS) {
+            lastHornRef.current = nowMs;
+            audioManager.playHorn(data.id);
+          }
+        }
+        // Closing on someone at speed is a near miss: in the log and on the
+        // heat map where it happened, once per closing.
+        const travelling = manualState.speed < 0 ? behind : ahead;
+        if (!nearMissLatchRef.current && pedestrianClosingAtSpeed(travelling, manualState.speed)) {
+          nearMissLatchRef.current = true;
+          useSafetyStore.getState().recordDriverNearMiss({
+            location: { x: manualState.x, z: manualState.z },
+            forkliftId: data.id,
+          });
+        } else if (Math.min(ahead, behind) > FORKLIFT_PEDESTRIAN_LOOKAHEAD) {
+          nearMissLatchRef.current = false;
+        }
+
+        // Its own pick or drop, lined up at one of its stations (D-060): the
+        // driver's activation runs the autopilot's operation from here.
+        let offerIndex = -1;
+        if (!emergency) {
+          const starts = markerWorkStarts(routePlan);
+          for (let index = 0; index < starts.length; index += 1) {
+            const start = starts[index];
+            const action = routePlan.markers[index]?.action.type;
+            if (!start || (action !== 'pickup' && action !== 'dropoff')) continue;
+            if ((action === 'pickup') === hasCargoRef.current) continue;
+            if (!manualWorkLinedUp(next.x, next.z, next.heading, start)) continue;
+            const entry = action === 'pickup' ? pickupStation : dropoffStation;
+            if (
+              !canPerformWaypointAction(action) ||
+              !cargoStationWorkable(action, entry?.pose ? entry.station : null)
+            )
+              continue;
+            offerIndex = index;
+            break;
+          }
+        }
+        const drive = useForkliftDriveStore.getState();
+        const offerMarker = offerIndex >= 0 ? routePlan.markers[offerIndex] : undefined;
+        const offer = (offerMarker?.action.type ?? null) as ForkliftWorkOffer | null;
+        if (drive.workOffer !== offer) drive.setWorkOffer(offer);
+        if (manualForkliftWork.requested) {
+          manualForkliftWork.requested = false;
+          const start = offerIndex >= 0 ? markerWorkStarts(routePlan)[offerIndex] : null;
+          if (offer && offerMarker && start) {
+            const surface = offerMarker.action.surfaceForkHeight ?? 0;
+            const refusal = manualWorkRefusal(offer, next.forkHeight, surface, next.speed);
+            if (refusal) drive.setWorkRefusal(refusal);
+            else {
+              // The autopilot's pick or drop from where the insert begins,
+              // with the driver aboard; the difference from where they lined
+              // up eases out over the creep in.
+              workRef.current = {
+                markerDistance: offerMarker.distance,
+                heading: start.heading,
+                spur: isSpurMarker(routePlan, offerMarker.distance),
+                station: offer,
+                surface,
+              };
+              const ease = workEaseRef.current;
+              ease.active = true;
+              ease.x = next.x - start.x;
+              ease.z = next.z - start.z;
+              ease.heading = shortestVehicleAngle(start.heading, next.heading);
+              ease.fork = next.forkHeight;
+              ease.forkDelta = Number.NaN;
+              // It counts as the trip it replaces: the route goes on from here.
+              actionMarkerIndexRef.current = offerIndex;
+              actionCommittedRef.current = false;
+              motionStateRef.current = {
+                ...motionStateRef.current,
+                routeDistance: start.distance,
+                x: start.x,
+                z: start.z,
+                heading: start.heading,
+                speed: 0,
+                acceleration: 0,
+                wheelTravel: next.wheelTravel,
+                stopReason: 'load-operation',
+              };
+              rejoinBlendRef.current = null;
+              operationTimerRef.current = 0;
+              operationDurationRef.current = offerMarker.action.duration;
+              operationRef.current = offer === 'pickup' ? 'loading' : 'unloading';
+              loadPhaseRef.current = 'aligning';
+              stopReasonRef.current = 'load-operation';
+              currentSpeedRef.current = 0;
+              setCurrentOperation(operationRef.current);
+              manualModeRef.current = 'none';
+              manualStateRef.current = null;
+              manualWorkRef.current = true;
+              drive.setWorkOffer(null);
+              publishMotionTelemetry();
+              return;
+            }
+          }
+        }
       }
 
       // Not counted toward the layout's vehicle metres: a player's drive, and
@@ -1912,7 +2106,11 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       currentSpeedRef.current = next.speed;
       forkHeightRef.current = next.forkHeight;
       loadPhaseRef.current = hasCargoRef.current ? 'carrying' : 'idle';
-      stopReasonRef.current = emergency ? 'emergency-stop' : 'none';
+      stopReasonRef.current = emergency
+        ? 'emergency-stop'
+        : manualYield
+          ? 'pedestrian-yield'
+          : 'none';
       motionStateRef.current = {
         ...motionStateRef.current,
         x: next.x,
@@ -1933,6 +2131,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       const manualStopped =
         held ||
         emergency ||
+        manualYield ||
         (manualModeRef.current === 'lane' && laneReturnRef.current.mode === 'parked');
       if (stoppedMirrorRef.current !== manualStopped) {
         stoppedMirrorRef.current = manualStopped;
@@ -1951,24 +2150,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       );
       publishMotionTelemetry(held);
 
-      if (manualModeRef.current === 'driven') {
-        // The seat carries the camera, and the view turns with the truck.
-        const camera = state.camera;
-        const sin = Math.sin(next.heading);
-        const cos = Math.cos(next.heading);
-        const [seatX, seatY, seatZ] = FORKLIFT_SEAT_EYE;
-        camera.position.set(
-          next.x + cos * seatX + sin * seatZ,
-          vehicle.position.y + seatY,
-          next.z - sin * seatX + cos * seatZ
-        );
-        camera.rotateOnWorldAxis(
-          WORLD_UP,
-          shortestVehicleAngle(manualHeadingRef.current, next.heading)
-        );
-        manualHeadingRef.current = next.heading;
-        if (labelGroup) labelGroup.visible = false;
-      }
+      if (manualModeRef.current === 'driven') carrySeatCamera(state.camera, vehicle);
       return;
     }
     vehicle.userData.manualControl = 'none';
@@ -2198,8 +2380,15 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         FORK_LIFT_HEIGHT,
         work.surface ?? marker?.action.surfaceForkHeight ?? 0
       );
+      // A driver's pick or drop starts where they lined up, not on the
+      // marker's line: the difference fades out over the creep in.
+      const workOffset = forkliftWorkOffset(action, progress, workOffsetScratch.current);
+      const ease = workEaseRef.current;
+      const easeFade = ease.active ? 1 - workOffset.insert : 0;
+      if (ease.active && Number.isNaN(ease.forkDelta))
+        ease.forkDelta = ease.fork - loadPose.forkHeight;
       loadPhaseRef.current = loadPose.phase;
-      forkHeightRef.current = loadPose.forkHeight;
+      forkHeightRef.current = loadPose.forkHeight + (ease.active ? ease.forkDelta * easeFade : 0);
       mastTiltRef.current = loadPose.mastTilt;
       stopReasonRef.current = 'load-operation';
 
@@ -2221,13 +2410,12 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         : loadPose.cargoPresence;
 
       // In along the forks' line, then straight back out (forkliftWork.ts).
-      const along = forkliftWorkAlong(
-        forkliftWorkOffset(action, progress, workOffsetScratch.current)
-      );
+      const along = forkliftWorkAlong(workOffset);
       const total = routePlan.path.totalLength;
       const markerSample = sampleArcLengthPath(routePlan.path, work.markerDistance);
-      const workX = markerSample.x + workDirX * along;
-      const workZ = markerSample.z + workDirZ * along;
+      const workX = markerSample.x + workDirX * along + (ease.active ? ease.x * easeFade : 0);
+      const workZ = markerSample.z + workDirZ * along + (ease.active ? ease.z * easeFade : 0);
+      const workHeading = work.heading + (ease.active ? ease.heading * easeFade : 0);
       const travelled = Math.hypot(workX - motionBefore.x, workZ - motionBefore.z);
       const workSpeed = simulationDelta > 0 ? travelled / simulationDelta : 0;
       motionStateRef.current = {
@@ -2235,7 +2423,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
         routeDistance: (((work.markerDistance + along) % total) + total) % total,
         x: workX,
         z: workZ,
-        heading: work.heading,
+        heading: workHeading,
         speed: workSpeed,
         acceleration: 0,
         wheelTravel: motionBefore.wheelTravel + travelled,
@@ -2243,8 +2431,9 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
       };
       vehicle.position.x = workX;
       vehicle.position.z = workZ;
-      vehicle.rotation.y = work.heading;
+      vehicle.rotation.y = workHeading;
       currentSpeedRef.current = workSpeed;
+      if (manualWorkRef.current && drivenHere) carrySeatCamera(state.camera, vehicle);
       positionRegistry.register(
         data.id,
         workX,
@@ -2257,6 +2446,7 @@ const Forklift: React.FC<{ data: Forklift; onSelect?: (forklift: ForkliftData) =
 
       if (loadPose.operationComplete) {
         if (action === 'dropoff') useLogisticsLayoutStore.getState().recordVehicle(dock, 0, true);
+        ease.active = false;
         operationTimerRef.current = 0;
         operationRef.current = 'traveling';
         loadPhaseRef.current = hasCargoRef.current ? 'carrying' : 'idle';

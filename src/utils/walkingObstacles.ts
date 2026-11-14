@@ -8,6 +8,7 @@ import {
 import { CANAL_FOOTBRIDGE_ACCESS } from '../constants/publicRealmLayout';
 import { RIVERBANK_HEDGE_TRANSLATION_XZ } from '../components/exterior/riverbankHedgeGrounding';
 import { facilityWalkingSolids } from '../components/facilities/facilityLayout';
+import { PERSONNEL_DOOR, PERSONNEL_DOORS } from '../constants/accessibilityLayout';
 
 /**
  * WALKING SOLIDS THE OTHER PREDICATES DO NOT KNOW.
@@ -381,15 +382,21 @@ export function villageShopPose(placement: (typeof VILLAGE_SHOP_PLACEMENTS)[numb
  * The town hall's privet runs (`TOWN_HALL_HEDGE_GEOMETRY`, `VillageGardens.tsx`)
  * in the town hall's frame: `run(x, z, length, side)`, along z when `side`.
  * `addCivicPrivet`'s profile is 0.46 m either side of the run's line at its
- * widest and its leaf blades reach 0.511 m; it rounds each end 0.36 m past
- * `length / 2`.
+ * widest and its leaf blades reach 0.509 m; it rounds each end 0.36 m past
+ * `length / 2`. The east side (-x) moved out to x -8.3 and its back return
+ * was cut short for the Approved Document M ramp (2026-11-13,
+ * `TOWN_HALL_PRIVET_RUNS`).
  */
 export const TOWN_HALL_PRIVET = {
-  runs: [-1, 1].flatMap((side) => [
-    { x: side * 8, z: 0, length: 12, alongZ: true },
-    ...[-1, 1].map((end) => ({ x: side * 5.9, z: end * 8.2, length: 3.4, alongZ: false })),
-  ]),
-  halfWidth: 0.511,
+  runs: [
+    { x: -8.3, z: 0, length: 12, alongZ: true },
+    { x: -4.67, z: -8.2, length: 0.94, alongZ: false },
+    { x: -5.9, z: 8.2, length: 3.4, alongZ: false },
+    { x: 8, z: 0, length: 12, alongZ: true },
+    { x: 5.9, z: -8.2, length: 3.4, alongZ: false },
+    { x: 5.9, z: 8.2, length: 3.4, alongZ: false },
+  ],
+  halfWidth: 0.509,
   endReach: 0.36,
 } as const;
 
@@ -653,8 +660,113 @@ function perimeterSolids(): WalkingSolid[] {
   return [...runs, ...gatePosts];
 }
 
-function buildWalkingObstacles(): WalkingSolid[] {
+/** The hall's wall plinth depth (OptimizedFactoryInfrastructure's lower wall segments). */
+export const HALL_WALL_DEPTH = 0.55;
+
+/**
+ * THE HALL SHELL (report 04 F4, P6). The four walls on `SITE_LAYOUT.factory`'s
+ * bounds, plinth below and glazing to the eaves above, so a body cannot pass
+ * or jump them. Openings are what the shell leaves open: each dock and service
+ * portal, open its full width, and the clear 1.0 m between each personnel
+ * door's jambs (PERSONNEL_DOORS; the jambs themselves are solid). The doors
+ * stand open: the drill's step-free routes go through them
+ * (systems/accessibleEgress.ts). `hallWalls.test.ts` holds these runs to the
+ * plinth segments the shell draws.
+ */
+export function hallWallSolids(): WalkingSolid[] {
+  const half = HALL_WALL_DEPTH / 2;
+  const { minX, maxX, minZ, maxZ } = SITE_LAYOUT.factory.bounds;
   const solids: WalkingSolid[] = [];
+  for (const [key, portal] of Object.entries(SITE_LAYOUT.portals)) {
+    const front = portal.normal[2] !== 0;
+    const centre = front ? portal.centre[0] : portal.centre[2];
+    const gaps: [number, number][] = [[centre - portal.halfWidth, centre + portal.halfWidth]];
+    if (front)
+      for (const door of PERSONNEL_DOORS)
+        if (Math.sign(door.wallZ) === Math.sign(portal.centre[2]))
+          gaps.push([
+            door.x - PERSONNEL_DOOR.clearWidth / 2,
+            door.x + PERSONNEL_DOOR.clearWidth / 2,
+          ]);
+    gaps.sort((a, b) => a[0] - b[0]);
+    let start = front ? minX : minZ;
+    const runs: [number, number][] = [];
+    for (const [from, to] of gaps) {
+      runs.push([start, from]);
+      start = to;
+    }
+    runs.push([start, front ? maxX : maxZ]);
+    runs.forEach(([from, to], index) => {
+      const line = front ? portal.centre[2] : portal.centre[0];
+      solids.push(
+        front
+          ? {
+              id: `hall-wall-${key}-${index}`,
+              minX: from,
+              maxX: to,
+              minZ: line - half,
+              maxZ: line + half,
+            }
+          : {
+              id: `hall-wall-${key}-${index}`,
+              minX: line - half,
+              maxX: line + half,
+              minZ: from,
+              maxZ: to,
+            }
+      );
+    });
+  }
+  // Each personnel door's frame and its leaf, as StepFreeExits draws them: the
+  // jambs run the frame's depth through the plinth, and the leaf stands open
+  // 90 degrees outward, hinged at the east jamb, clear of the 1.0 m opening.
+  for (const door of PERSONNEL_DOORS) {
+    const depth = PERSONNEL_DOOR.depth / 2;
+    const jambOuter = PERSONNEL_DOOR.openingHalfWidth + 0.02;
+    const inner = PERSONNEL_DOOR.clearWidth / 2;
+    for (const side of [-1, 1] as const)
+      solids.push({
+        id: `hall-door-${door.id}-jamb-${side < 0 ? 'west' : 'east'}`,
+        minX: side < 0 ? door.x - jambOuter : door.x + inner,
+        maxX: side < 0 ? door.x - inner : door.x + jambOuter,
+        minZ: door.wallZ - depth,
+        maxZ: door.wallZ + depth,
+      });
+    const leafX = door.x + inner + 0.01;
+    const [near, far] = [depth, depth + PERSONNEL_DOOR.clearWidth].map(
+      (d) => door.wallZ + door.outward * d
+    );
+    solids.push({
+      id: `hall-door-${door.id}-leaf`,
+      minX: leafX,
+      maxX: leafX + PERSONNEL_DOOR.leafThickness,
+      minZ: Math.min(near, far),
+      maxZ: Math.max(near, far),
+    });
+  }
+  return solids;
+}
+
+const HALL_WALLS: readonly WalkingSolid[] = hallWallSolids();
+
+/**
+ * True when a body of `radius` at (x, z) would overlap a hall wall. For a
+ * driven forklift, which treats the walls as walkers do (report 04 P6).
+ */
+export function hallWallBlocks(x: number, z: number, radius: number): boolean {
+  for (const box of HALL_WALLS)
+    if (
+      x + radius > box.minX &&
+      x - radius < box.maxX &&
+      z + radius > box.minZ &&
+      z - radius < box.maxZ
+    )
+      return true;
+  return false;
+}
+
+function buildWalkingObstacles(): WalkingSolid[] {
+  const solids: WalkingSolid[] = [...HALL_WALLS];
   VILLAGE_HOME_PLOTS.forEach((plot, index) => {
     const toVillage = groupToParent(plot.position, plot.rotation);
     for (const box of villagePlotLocalSolids(index))
