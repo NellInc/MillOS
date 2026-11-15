@@ -26,6 +26,8 @@ const TIMBER_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'staged-pallet-timber',
   color: '#90704b',
   roughness: 0.88,
+  // The pallet's timbers carry their own tone as a vertex colour.
+  vertexColors: true,
 });
 // The shared ink plate is white so conveyor instances can supply their own
 // colour. Staging uses the established dark pallet ink and small-print cutoff.

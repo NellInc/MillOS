@@ -538,3 +538,32 @@ _Updated as the run proceeds._
   scripts/blender/authored/*.py, assets/source/models/**/*-authored-v2.glb,
   src/utils/walkingObstacles.ts (+tests), capsuleWalk.routes.test.ts,
   firstPersonSpawn.sweep.test.tsx, canopyBounce.ts, docs/ASSET_JUDGE.md, .claude/commands/asset-loop.md.
+
+- **Own-models run (2026-11-12, Fable 5.2 lead, Opus 5.5 builders, Sonnet 5.5 judges).** Nell
+  asked for our own better versions of the models she saw in a third-party library (forklift,
+  silo, pallet, conveyor, hopper, truck, windmill, sack, wheat) and liked its earth and moss.
+  Decisions D-064 to D-069.
+  - **Windmill** (`97f0394d`): improved, preferred blind. One judge PASS, one FAIL (surface 6).
+    Sail band narrowed in `GeneratedWindmill.tsx`; model and runtime ship together.
+  - **Forklift** (`997565c5`) and **chassis unit** (`364182e8`): improved, preferred blind
+    after three rounds; judges still at 6 to 7 on form and construction. Body shell and guard
+    roof are authored (`scripts/blender/authored/forklift-chassis-unit.py`,
+    `forklift-guard-roof.py`); `normalize-models -- --only=forklift` now exists, and
+    `write-model-provenance.mjs --pack=<id>` rewrites one pack.
+  - **Sack**: no change. Two candidates tied with the original; parked as
+    `output/asset-loop-20261104/parked/flour-sack-sewn-ends.patch` (local, not in git).
+  - **Pallet** timber rebuilt in `src/utils/flourSacks.ts`; **earth** tile (512 px, medium and
+    up) is loam with moss. Neither has a turntable asset; game-frame A/B: pallet invisible at
+    yard distance, earth tied at low confidence.
+  - **Retained untouched**: silos, truck cab and trailer (judge PASS); conveyors, machine
+    hoppers and the cereal crop (runtime geometry, already authored in detail).
+  - **Blind A/B protocol changed (D-064)**: both orders, describe-then-choose prompt. Six of
+    six sack judges picked side B before the change.
+  - **Lessons**: under heavy machine load a game capture's 30 s screenshot limit fails often;
+    one scene per run with retries got every scene eventually. A "before" build must finish
+    before any edit, or it mixes old code with new models. Regenerating the sack from HEAD
+    does not reproduce the committed bytes (the committed file was built from an older
+    revision of the same source).
+  - **Open**: rear-axle steering yaws the whole axle, so the rear tyres cut the counterweight
+    at full lock (steering code, not the model). `reconcile-farm-models.test.mjs` has a 60 s
+    per-test cap that fails under load.

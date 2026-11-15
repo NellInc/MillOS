@@ -19,7 +19,12 @@ import {
 } from './endOfLineLayout';
 import { END_OF_LINE_CRAFT, END_OF_LINE_MATERIALS } from './endOfLineCraft';
 
-const TIMBER = new THREE.MeshStandardMaterial({ color: '#8d6d48', roughness: 0.88 });
+// The pallet's timbers carry their own tone as a vertex colour.
+const TIMBER = new THREE.MeshStandardMaterial({
+  color: '#8d6d48',
+  roughness: 0.88,
+  vertexColors: true,
+});
 const INK = FLOUR_STRIPE_MATERIAL.clone();
 INK.color.set('#39352d');
 INK.alphaTest = PALLET_PRINT_ALPHA_TEST;

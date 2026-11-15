@@ -7,6 +7,7 @@ import { useAnnouncementsStore } from '../../stores/announcementsStore';
 import { useSafetyStore } from '../../stores/safetyStore';
 import { resetFaultEscalation, useEventAnnouncementScheduler } from './shared';
 import { sharedMessages } from './shared.messages';
+import { audioManager } from '../../utils/audioManager';
 
 vi.mock('../../scada/SCADAService', () => ({ peekSCADAService: () => null }));
 
@@ -58,6 +59,7 @@ describe('the PA stays quiet while the plant is nominal', () => {
   afterEach(() => {
     vi.useRealTimers();
     useGameSimulationStore.getState().resetGameState();
+    audioManager.muted = false;
   });
 
   const lines = () =>
@@ -152,13 +154,12 @@ describe('the PA stays quiet while the plant is nominal', () => {
     hook.unmount();
   });
 
-  // D-061 and D-098: muted, a fault is captioned once and builds no urgency
-  // until the sound is back.
-  it('captions a fault once while muted and builds no urgency until the sound is back', async () => {
-    const { audioManager } = await import('../../utils/audioManager');
+  // D-061 [Nell] and D-098 (D-070): muted, a fault is captioned once and
+  // builds no urgency until the sound is back; its rising repeats wait for it.
+  it('captions a fault once while muted and builds no urgency until the sound is back', () => {
     const hook = renderHook(() => useEventAnnouncementScheduler());
     vi.advanceTimersByTime(5_000);
-    (audioManager as { muted: boolean }).muted = true;
+    audioManager.muted = true;
     try {
       useProductionStore.setState({
         machines: [
@@ -168,11 +169,39 @@ describe('the PA stays quiet while the plant is nominal', () => {
       } as never);
       vi.advanceTimersByTime(20 * MINUTE);
       expect(lines()).toEqual([sharedMessages.en.machineWarning.replace('{machine}', 'R.M. 101')]);
-      (audioManager as { muted: boolean }).muted = false;
-      vi.advanceTimersByTime(3 * MINUTE + 10_000);
+      audioManager.muted = false;
+      vi.advanceTimersByTime(3 * MINUTE - 10_000);
+      expect(lines()).toHaveLength(1);
+      vi.advanceTimersByTime(20_000);
       expect(lines()).toHaveLength(2);
+      expect(lines()[1]).toBe(
+        sharedMessages.en.machineWarningStill.replace('{machine}', 'R.M. 101')
+      );
     } finally {
-      (audioManager as { muted: boolean }).muted = false;
+      audioManager.muted = false;
+      hook.unmount();
+    }
+  });
+
+  it('captions a drill and a facility stop and its clear while muted', () => {
+    audioManager.muted = true;
+    const hook = renderHook(() => useEventAnnouncementScheduler());
+    try {
+      const game = () => useGameSimulationStore.getState();
+      game().startEmergencyDrill();
+      expect(lines()).toEqual([sharedMessages.en.drillStarted]);
+      game().endEmergencyDrill();
+      expect(lines()).toContain(sharedMessages.en.drillEndedEarly);
+      vi.advanceTimersByTime(20_000);
+      const before = lines().length;
+      game().triggerEmergency('E-STOP');
+      const stopKeys = ['emergencyStopActivated', 'facilityStopEngaged', 'vehiclesSecure'] as const;
+      expect(stopKeys.map((key) => sharedMessages.en[key])).toContain(lines()[before]);
+      vi.advanceTimersByTime(20_000);
+      game().resolveEmergency();
+      expect(lines().at(-1)).toBe(sharedMessages.en.facilityStopCleared);
+    } finally {
+      audioManager.muted = false;
       hook.unmount();
     }
   });

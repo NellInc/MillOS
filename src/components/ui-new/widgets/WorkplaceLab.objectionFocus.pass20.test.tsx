@@ -9,7 +9,9 @@ import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { setLocale } from '../../../i18n';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 // Browsers run the focus fixup rule: a focused control that becomes disabled
 // loses focus to <body>. jsdom does not, so the test does what the browser does.

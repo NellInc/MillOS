@@ -9,7 +9,9 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { setLocale, type Locale } from '../../../i18n';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 // The lab held its role decisions outside deliberation, and in a pilot, with
 // nothing saying why. Each held control now names its reason (the engine's

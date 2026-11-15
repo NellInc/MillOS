@@ -14,7 +14,9 @@ import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 import { setLocale } from '../../../i18n';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 const openCampaign = () => {
   useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);

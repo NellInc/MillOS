@@ -9,7 +9,9 @@ import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { setLocale } from '../../../i18n';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 // A seed out of range held every control that needs one, with nothing saying
 // why. The refusal now shows at the seed and describes each held control.

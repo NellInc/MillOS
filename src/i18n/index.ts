@@ -13,8 +13,9 @@ import { create } from 'zustand';
  * formatFixed()/formatGrouped(): pt-BR reads "6,000" as six, so it needs
  * "6.000" and "2,5".
  *
- * Working if a pt-BR visitor sees Portuguese without touching anything, a
- * choice survives reload and Reset Simulation, and English output is
+ * Working if the interface is English until someone chooses Portuguese (by a
+ * `?lang=pt-BR` link or the switcher; the browser language is never read,
+ * D-048), a choice survives reload and Reset Simulation, and English output is
  * byte-identical to the original copy.
  */
 

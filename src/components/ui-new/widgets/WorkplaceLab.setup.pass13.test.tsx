@@ -15,7 +15,9 @@ import { useOperationsCampaignStore } from '../../../stores/operationsCampaignSt
 import { setLocale } from '../../../i18n';
 import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 beforeEach(() => {
   setLocale('en');

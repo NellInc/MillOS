@@ -5615,25 +5615,25 @@
         "parent": "assets/source/models/farm/windmill-pre-precision.glb",
         "parentSHA256": "c2c99cbc01377a0da385b0eec5db7b6efad0d39d77bbddc5c41a6afde1541790",
         "builder": "scripts/craft-precise-windmill.mjs",
-        "builderSHA256": "a4d665946ff7aba052646d1f286cedfc0e3a23033834ac6cee5e93155e987252",
-        "outputSHA256": "986a7ea9ff95e6396db801b5c43796a2288e7c6ef8bc1f20d0b643a2b7a48da5",
+        "builderSHA256": "4204848c8af2da156f26c49a9918fa5106930b1cbd3fbf859616cc27b962e0da",
+        "outputSHA256": "97f0394dbd6a9ad08ff31f2dcd4e82d37eef75c27800eb61e9768f5b99847ca5",
         "ancestor": {
           "method": "accepted-normalized-parent",
           "sha256": "c2c99cbc01377a0da385b0eec5db7b6efad0d39d77bbddc5c41a6afde1541790"
         },
         "authoring": {
-          "receiptSHA256": "6bec9a25f5a3ef6542d33e939c234fca635cda420239cb6bbcf5bab68a40a3b8",
-          "vertices": 6306,
-          "triangles": 4200,
-          "parts": 177,
-          "rotorRadius": 0.5350336686685495,
+          "receiptSHA256": "30fab04b6b0bd29ee7289027a101b65a44cd1dc60f872333b349d2e966b42516",
+          "vertices": 6805,
+          "triangles": 4748,
+          "parts": 179,
+          "rotorRadius": 0.5350336753271754,
           "panelContract": "Individually fitted straight panels retain the source asymmetry; no exact fourfold-balance claim"
         }
       },
       "runtimeDerivative": {
         "file": "public/models/farm/windmill.glb",
-        "sha256": "986a7ea9ff95e6396db801b5c43796a2288e7c6ef8bc1f20d0b643a2b7a48da5",
-        "bytes": 261716
+        "sha256": "97f0394dbd6a9ad08ff31f2dcd4e82d37eef75c27800eb61e9768f5b99847ca5",
+        "bytes": 307832
       },
       "normalization": {
         "sizedBy": "longest axis",
@@ -5654,8 +5654,8 @@
         "clips": [],
         "materials": 1,
         "textures": 3,
-        "textureBytes": 32548,
-        "renderVertices": 12600
+        "textureBytes": 59408,
+        "renderVertices": 14244
       }
     },
     {

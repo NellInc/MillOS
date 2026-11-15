@@ -11,7 +11,8 @@
  * tangent normals. Individually fitted panels retain source asymmetry; this
  * does not claim exact fourfold geometry or rotational balance.
  *
- * The raw hub Y/Z and X/radius gates below remain unchanged. Every authored
+ * The raw hub Y/Z and radius gates below are the original ones; the X band was
+ * narrowed (2026-11-12) so the fixed collar meets the rotor flange. Every authored
  * rotor vertex evaluates exactly one and every static vertex exactly zero;
  * every triangle is rigid, with no blended bridge between moving and fixed
  * parts. The narrow bearing separation is inside the hub assembly. Static foot
@@ -42,8 +43,15 @@ import { WindmillInterior } from './WindmillInterior';
 export const SAIL_HUB_Y = 0.0948;
 /** Mesh-local Z of the sail axis. The sails turn about model-local +X. */
 export const SAIL_HUB_Z = 0.031;
-/** Weight ramps in across this x band, which is the retained bearing separation behind the sails. */
-export const SAIL_X_IN = 0.216;
+/**
+ * Weight ramps in across this x band. The authored weights are binary, so the band
+ * only has to separate the fixed bearing collar (which stops just short of SAIL_X_IN)
+ * from the rotor flange (which starts just past SAIL_X_OUT). It is 0.0003 raw wide so
+ * that running joint is 2.7 mm delivered: the collar meets the hub instead of leaving
+ * an 8 cm air gap. `scripts/craft-precise-windmill.mjs` mirrors these two values and
+ * must change with them.
+ */
+export const SAIL_X_IN = 0.2277;
 export const SAIL_X_OUT = 0.228;
 /** Weight ramps back out across this radius band, which separates the authored rotor and static foot. */
 export const SAIL_R_IN = 0.55;
@@ -241,20 +249,21 @@ export function prepareWindmillModel(scene: THREE.Group, angle: THREE.IUniform<n
  * Windshaft, mesh-local units (x along the shaft, radius about the sail
  * axis), lathed into one geometry and drawn as one mesh.
  *
- * Measured on the shipped GLB: the static bearing stub ends at x 0.215 and the
- * rotor's hub block starts at x 0.228 (the SAIL_X gate) and ends at 0.292,
- * radius 0.027. Nothing bridged the 0.013 gap (0.13 m at the farm's 1.5
- * scale), which the turntable judge read as a broken shaft. The shaft (r 0.016)
- * runs from inside the stub to inside the hub block, so the hub's own wooden
- * face stays the visible end. A dark iron boss and nose cap on that face lost
- * a blind A/B to the plain wooden hub (ab-rt6-2) and was removed. The binary
- * sail weights are untouched; nothing here is part of the GLB.
+ * Added when the GLB's static bearing stub ended at x 0.215 and the rotor
+ * started at 0.228, a 0.013 gap the turntable judge read as a broken shaft.
+ * The GLB now closes that itself: its fixed collar (r 0.0275) runs to x 0.22765
+ * and the rotor flange (r 0.035) starts at 0.22805, so this shaft (r 0.016,
+ * x 0.198-0.278) lies wholly inside the collar, flange, poll end and turned boss
+ * (which tapers past r 0.016 at x 0.284) and only backs the 0.0004 running
+ * joint. A dark iron boss and nose cap on the hub face lost a blind A/B to the
+ * plain wooden hub (ab-rt6-2) and was removed. The binary sail weights are
+ * untouched; nothing here is part of the GLB.
  */
 export const WINDMILL_HUB_PROFILE: readonly (readonly [radius: number, x: number])[] = [
   [0, 0.198],
   [0.016, 0.198],
-  [0.016, 0.286],
-  [0, 0.286],
+  [0.016, 0.278],
+  [0, 0.278],
 ];
 
 function createWindmillHubGeometry(): THREE.BufferGeometry {

@@ -1,4 +1,4 @@
-import type { AgentRuntimeApi } from '../../contracts/commandContracts';
+import type { AgentOperatorRuntime, AgentRuntimeApi } from '../../contracts/commandContracts';
 import type { AgentObservationEnvelope } from '../../contracts/queryContracts';
 import {
   AgentAuthorityEngine,
@@ -7,7 +7,9 @@ import {
   createDefaultPolicy,
   DEFAULT_AGENT_ACTOR_URI,
   HUMAN_OPERATOR_URI,
+  isAgentSideActor,
 } from '../../command/authority';
+import { bindAgentRuntime } from '../../client/operatorRuntime';
 import { AgentCausalLedger } from '../../command/causalLedger';
 import { createAgentCommandKernel } from '../../command/commandKernel';
 import { createAgentQueryService } from '../../query/queryService.js';
@@ -29,21 +31,36 @@ declare global {
  * each re-install would silently restore revoked grants, drop objections and
  * lessons, reset the command budget, empty the causal ledger, and invalidate
  * any open preview, so the composition outlives the install and is reused.
+ *
+ * The composition has two faces. The handle goes on the window, where any
+ * script can call or replace it, so it cannot approve or attest a person. The
+ * operator runtime, which can, is bound in module scope
+ * (`src/agent/client/operatorRuntime.ts`) for the interface to use.
  */
-const compositions = new WeakMap<Window, AgentRuntimeApi>();
+const compositions = new WeakMap<
+  Window,
+  { handle: AgentRuntimeApi; setInstalled: (installed: boolean) => void; installs: number }
+>();
 
 /**
  * Install the versioned agent plane without altering the legacy runtime
- * telemetry object. The global property is read-only; every mutation still
+ * telemetry object. The global property is not writable, but it is
+ * configurable so a re-install can redefine it, which means a script can also
+ * replace it; the interface therefore never reads it. Every mutation still
  * passes a capability, revision, authority, preview, receipt, and verifier.
  */
 export function installMillOSAgentRuntime(target: Window = window): () => void {
   let composed = compositions.get(target);
   if (!composed) {
-    composed = composeMillOSAgentRuntime();
+    // Composes only when this window has no bound runtime. After a development
+    // hot update this module's map is empty but the binding survives, and the
+    // runtime built before is reused.
+    const bound = bindAgentRuntime(target, composeMillOSAgentRuntime);
+    composed = { handle: bound.handle, setInstalled: bound.setInstalled, installs: 0 };
     compositions.set(target, composed);
   }
-  const service = composed;
+  const entry = composed;
+  const service = entry.handle;
 
   Object.defineProperty(target, '__MILLOS_AGENT__', {
     configurable: true,
@@ -51,13 +68,23 @@ export function installMillOSAgentRuntime(target: Window = window): () => void {
     writable: false,
     value: service,
   });
+  entry.installs += 1;
+  entry.setInstalled(true);
 
+  let removed = false;
   return () => {
+    if (removed) return;
+    removed = true;
+    entry.installs = Math.max(0, entry.installs - 1);
+    if (entry.installs === 0) entry.setInstalled(false);
     if (target.__MILLOS_AGENT__ === service) delete target.__MILLOS_AGENT__;
   };
 }
 
-function composeMillOSAgentRuntime(): AgentRuntimeApi {
+function composeMillOSAgentRuntime(): {
+  handle: AgentRuntimeApi;
+  operator: AgentOperatorRuntime;
+} {
   const now = () => new Date();
   const capture = () => captureMillOSAgentState();
   const readService = createAgentQueryService({
@@ -79,6 +106,10 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
     authority,
     ledger,
     now,
+    // RuntimeController's diagnostic recorder appends to the incident replay
+    // log in the same tick as a speed, weather, safety-event, AI-decision or
+    // truck change; that log is projected as evidence.commands.
+    observerWrittenPaths: { evidence: ['commands'] },
   });
 
   /**
@@ -96,7 +127,7 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
     policyRevision: authority.policy.revision,
   });
 
-  const service: AgentRuntimeApi = {
+  const shared: Omit<AgentRuntimeApi, 'approve' | 'resolveObjection' | 'promoteLesson'> = {
     version: 2,
     brief: (request) => {
       const observation = readService.brief(request);
@@ -118,7 +149,9 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
               (capability) => capability.status === 'implemented'
             ).length,
             reason:
-              'Scoped simulation command execution is installed. External writes, commit, push, and deploy remain denied.',
+              'Scoped simulation command execution is installed. High- and critical-risk previews ' +
+              'are approved by the person at the controls in the Agent Cockpit; this handle cannot ' +
+              'approve. External writes, commit, push, and deploy remain denied.',
           },
         },
       }) as AgentObservationEnvelope;
@@ -135,7 +168,8 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
             executable: capability.status === 'implemented',
             authorityReason:
               capability.risk === 'high' || capability.risk === 'critical'
-                ? 'Executable after an exact current preview receives bound human approval.'
+                ? 'Executable after the person at the controls approves the exact current ' +
+                  'preview in the Agent Cockpit. This handle cannot approve.'
                 : 'Executable through a current scoped simulation grant.',
           })),
         },
@@ -186,7 +220,6 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
     legalOptions: kernel.legalOptions,
     draft: kernel.draft,
     preview: kernel.preview,
-    approve: (previewId, reason) => kernel.approve(previewId, reason, HUMAN_OPERATOR_URI),
     commit: kernel.commit,
     actors: () => immutable(authority.actors),
     grants: () => immutable(authority.grants),
@@ -213,15 +246,68 @@ function composeMillOSAgentRuntime(): AgentRuntimeApi {
       }
       return immutable(objection);
     },
-    resolveObjection: (objectionId, resolution) =>
-      authority.resolveObjection(objectionId, resolution),
     evidence: () => immutable(ledger.export()),
+    // The ledger imports events only; it never brings a lesson in, so an
+    // export cannot introduce a 'human-reviewed' lesson.
     importEvidence: (value) => immutable(ledger.import(value)),
-    promoteLesson: (statement, evidenceEventIds, promotedBy, humanReviewed = false) =>
-      immutable(ledger.promoteLesson(statement, evidenceEventIds, promotedBy, humanReviewed)),
   };
 
-  return Object.freeze(service);
+  // Any script on the page can call the handle, so nothing it does may attest
+  // a person: it cannot approve, cannot close an objection a person raised,
+  // and cannot mint a reviewed lesson. Restrictions (revokeGrant, object) stay.
+  const handle: AgentRuntimeApi = {
+    ...shared,
+    approve: () => {
+      throw new Error(
+        'APPROVAL_NOT_AVAILABLE_ON_HANDLE: this handle cannot approve. A high- or critical-risk ' +
+          'preview is approved by the person at the controls, in the Agent Cockpit. Leave the ' +
+          'preview for them, or narrow the intent.'
+      );
+    },
+    resolveObjection: (objectionId, resolution) => {
+      const objection = authority.policy.objections.find(
+        (candidate) => candidate.id === objectionId
+      );
+      if (
+        objection &&
+        !isAgentSideActor(authority.actors.find((actor) => actor.uri === objection.raisedBy))
+      ) {
+        throw new Error(
+          `OBJECTION_NOT_RESOLVABLE_ON_HANDLE: ${objectionId} was raised by ${objection.raisedBy}. ` +
+            'Only its raiser or the person at the controls can resolve it, in the interface; ' +
+            'this handle resolves objections the agent side raised.'
+        );
+      }
+      return authority.resolveObjection(objectionId, resolution);
+    },
+    promoteLesson: (statement, evidenceEventIds, promotedBy, humanReviewed = false) => {
+      if (humanReviewed) {
+        throw new Error(
+          'LESSON_REVIEW_NOT_AVAILABLE_ON_HANDLE: this handle promotes advisory lessons only. ' +
+            'A human-reviewed lesson is promoted by the person at the controls, in the interface.'
+        );
+      }
+      if (!isAgentSideActor(authority.actors.find((actor) => actor.uri === promotedBy))) {
+        throw new Error(
+          `LESSON_PROMOTER_NOT_ALLOWED_ON_HANDLE: promotedBy must be a registered non-human ` +
+            `actor, not ${promotedBy}.`
+        );
+      }
+      return immutable(ledger.promoteLesson(statement, evidenceEventIds, promotedBy, false));
+    },
+  };
+
+  // The person at the controls, acting in the interface. Never put on window.
+  const operator: AgentOperatorRuntime = {
+    ...shared,
+    approve: (previewId, reason) => kernel.approve(previewId, reason, HUMAN_OPERATOR_URI),
+    resolveObjection: (objectionId, resolution) =>
+      authority.resolveObjection(objectionId, resolution),
+    promoteReviewedLesson: (statement, evidenceEventIds) =>
+      immutable(ledger.promoteLesson(statement, evidenceEventIds, HUMAN_OPERATOR_URI, true)),
+  };
+
+  return { handle: Object.freeze(handle), operator: Object.freeze(operator) };
 }
 
 function immutable<T>(value: T): T {

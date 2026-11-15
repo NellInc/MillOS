@@ -7,7 +7,9 @@ import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
 import { useGameSimulationStore } from '../../../stores/gameSimulationStore';
 import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 beforeEach(() => {
   useMaterialFlowStore.setState(useMaterialFlowStore.getInitialState(), true);

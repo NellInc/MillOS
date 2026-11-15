@@ -5,6 +5,12 @@ import { AgentCockpit } from './AgentCockpit';
 import { SYSTEM_REGISTRY_SOURCE } from '../../../agent/registry/systemRegistrySource.js';
 import { useWorkplaceStore } from '../../../stores/workplaceStore';
 
+// The cockpit reads the operator runtime from module scope, not from window.
+const mocks = vi.hoisted(() => ({ runtime: null as Record<string, unknown> | null }));
+vi.mock('../../../agent/client/operatorRuntime', () => ({
+  peekOperatorRuntime: () => mocks.runtime,
+}));
+
 // The typed registry carries every command descriptor unchanged.
 const drill = SYSTEM_REGISTRY_SOURCE.capabilities.find(
   (item) => item.id === 'simulation.start-fire-drill'
@@ -23,7 +29,7 @@ describe('the agent cockpit command form', () => {
   }));
 
   beforeEach(() => {
-    (window as unknown as { __MILLOS_AGENT__: unknown }).__MILLOS_AGENT__ = {
+    mocks.runtime = {
       capabilities: () => ({ data: { items: [drill] } }),
       brief: () => ({
         data: { status: 'ok', health: { exceptions: [] }, authority: { activeGrantIds: [] } },
@@ -41,7 +47,7 @@ describe('the agent cockpit command form', () => {
     cleanup();
     draft.mockClear();
     preview.mockClear();
-    delete (window as unknown as { __MILLOS_AGENT__?: unknown }).__MILLOS_AGENT__;
+    mocks.runtime = null;
   });
 
   // A cleared number input read Number('') = 0, so an optional field the player
@@ -70,8 +76,7 @@ describe('the agent cockpit command form', () => {
     const plan = SYSTEM_REGISTRY_SOURCE.capabilities.find(
       (item) => item.id === 'workplace.activate-plan'
     )!;
-    const api = (window as unknown as { __MILLOS_AGENT__: Record<string, unknown> })
-      .__MILLOS_AGENT__;
+    const api = mocks.runtime!;
     api.capabilities = () => ({ data: { items: [drill, plan] } });
     const revision = useWorkplaceStore.getState().workplace.revision;
     render(<AgentCockpit />);

@@ -325,6 +325,7 @@ const FlourPallet: React.FC<{
           ref={keepMaterial(0, 'vehicle')}
           color="#90704b"
           roughness={0.88}
+          vertexColors
           transparent={!!materialRefs}
           opacity={opacity}
         />

@@ -15,15 +15,17 @@ import { WORKPLACE_CHECKS, requiredChecks } from '../../../simulation/workplaceC
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import { CAMERA_PRESETS, useCameraStore } from '../../CameraController';
-import { executeAgentCommand } from '../../../agent/client/executeAgentCommand';
+import { executeOperatorCommand } from '../../../agent/client/executeOperatorCommand';
 import type { AgentCommandClientResult } from '../../../agent/client/executeAgentCommand';
 import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 import { setLocale, type Locale } from '../../../i18n';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 // Behind the plant disclosure either way; its own tests cover it.
 vi.mock('./AgentCockpit', () => ({ AgentCockpit: () => null }));
-const execute = vi.mocked(executeAgentCommand);
+const execute = vi.mocked(executeOperatorCommand);
 
 beforeEach(() => {
   setLocale('en');

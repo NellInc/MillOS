@@ -18,12 +18,14 @@ import {
   requiredChecks,
   campaignRecord,
 } from '../../../simulation/workplaceCampaign';
-import { executeAgentCommand } from '../../../agent/client/executeAgentCommand';
+import { executeOperatorCommand } from '../../../agent/client/executeOperatorCommand';
 import type { AgentCommandClientResult } from '../../../agent/client/executeAgentCommand';
 import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
-const execute = vi.mocked(executeAgentCommand);
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
+const execute = vi.mocked(executeOperatorCommand);
 /** 5.1: in a solo season the tabs sit behind the facilitator disclosure; open it. */
 const openTools = () => {
   const tools = screen.queryByText('Facilitator tools')?.closest('details');
@@ -455,7 +457,6 @@ describe('Workplace laboratory interface', () => {
         parameters: { revision },
       }),
       expect.objectContaining({
-        approveIfRequired: true,
         approvalReason: expect.stringContaining(`revision ${revision}`),
       })
     );

@@ -26,6 +26,8 @@ const SUPPLY_MATERIALS = (() => {
     name: 'supply-pallet-timber',
     color: '#90704b',
     roughness: 0.88,
+    // The pallet's timbers carry their own tone as a vertex colour.
+    vertexColors: true,
   });
   // Kraft paper sacks under stretch film: a slightly glossy pale brown.
   const wrapped = new THREE.MeshStandardMaterial({

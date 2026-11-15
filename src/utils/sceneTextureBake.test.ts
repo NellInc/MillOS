@@ -62,10 +62,10 @@ const GOLDEN_4DD77779: Record<string, string> = {
 const GOLDEN_0DBB4ED6: Record<string, string> = {
   'terrainSurfaceMaps.grass': '512x512::ea751c120c4ab22e',
   'terrainSurfaceMaps.tarmac': '256x256::d47e0b6cebee615f',
-  'terrainSurfaceMaps.dirt': '512x512::7ed8608d38e288bf',
+  'terrainSurfaceMaps.dirt': '512x512::761929a8e798f8ae',
   'terrainSurfaceMaps.macro': '256x256::0b30e730098c7b3e',
   terrainDirt: '256x256:srgb:678f35f8c71e0485',
-  terrainDirtDetail: '512x512:srgb:79ea8734e65e8b0d',
+  terrainDirtDetail: '512x512:srgb:e6aa7c6704f9c48f',
   // Grass albedo v2 (2026-11-06, maps2 near-grass pass): jittered blade layers
   // replace the v1 leaf grid; re-pinned with Nell's 2026-11-06 instruction.
   terrainGrass: '1024x1024:srgb:591f3796e4c6d87a',

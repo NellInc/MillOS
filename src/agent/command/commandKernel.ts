@@ -58,6 +58,20 @@ interface KernelDependencies {
   ledger: AgentCausalLedger;
   now?: () => Date;
   idFactory?: () => string;
+  /**
+   * Accept approval from a registered `stand-in` actor (a lab or a test,
+   * D-073). Off unless set: the product composition never sets it.
+   */
+  allowStandInApproval?: boolean;
+  /**
+   * Top-level keys of a domain that observers of plant changes write, in the
+   * same tick, as a consequence of whatever changed the plant (the mounted
+   * app's diagnostic recorder writes `evidence.commands`). A changed domain
+   * outside a handler's allowed domains is not a scope violation when it is
+   * equal before and after once these keys are set aside; the receipt then
+   * names the keys as the observer's.
+   */
+  observerWrittenPaths?: Partial<Record<AgentDomainId, string[]>>;
 }
 
 const PREVIEW_LIFETIME_MS = 5 * 60 * 1000;
@@ -348,8 +362,16 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
     // runtime handle and the receipt would record an approval nobody gave.
     if (approvedBy === stored.command.actorUri)
       throw new Error('A command cannot be approved by the actor that requested it.');
+    // A stand-in approves in a person's place only where the composition says
+    // so (a lab or test), and is then recorded as a stand-in, never a person.
     const approver = dependencies.authority.actors.find((actor) => actor.uri === approvedBy);
-    if (!approver || approver.kind !== 'human')
+    const approvedByKind =
+      approver?.kind === 'human'
+        ? 'human'
+        : approver?.kind === 'stand-in' && dependencies.allowStandInApproval === true
+          ? 'stand-in'
+          : null;
+    if (!approvedByKind)
       throw new Error(`Approval must come from a registered human actor, not ${approvedBy}.`);
     const token: AgentApprovalToken = {
       schemaVersion: 1,
@@ -358,6 +380,7 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
       previewRevision: stored.observedRevision,
       materialFingerprint: stored.materialFingerprint,
       approvedBy,
+      approvedByKind,
       reason: reason.trim(),
       issuedAt: now().toISOString(),
       expiresAt: stored.expiresAt,
@@ -369,7 +392,7 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
       dependencies.capture(),
       stored.observedRevision,
       stored.observedRevision,
-      jsonValue({ approvalId: token.approvalId, approvedBy, reason: token.reason })
+      jsonValue({ approvalId: token.approvalId, approvedBy, approvedByKind, reason: token.reason })
     );
     return immutable(token);
   }
@@ -471,8 +494,10 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
       approval,
       now().getTime()
     );
+    // The receipt names the approver's kind from the kernel's own stored
+    // approval, never from the token the caller handed in.
+    const storedApproval = approval ? approvals.get(approval.approvalId) : undefined;
     if (approval) {
-      const storedApproval = approvals.get(approval.approvalId);
       if (!storedApproval || canonicalStringify(storedApproval) !== canonicalStringify(approval)) {
         problems.push(
           blocking('APPROVAL_UNKNOWN', 'Approval token is unknown or has been altered.')
@@ -527,18 +552,29 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
     const captureAfter = dependencies.capture();
     const afterRevision = revisionFor(captureAfter.domains[capability.ownerDomainId]);
     const changedDomains = changedDomainIds(captureBefore, captureAfter);
-    const unexpectedDomains = changedDomains.filter(
-      (domainId) => !handler.allowedDomains.includes(domainId)
+    const scope = domainScope(
+      changedDomains.filter((domainId) => !handler.allowedDomains.includes(domainId)),
+      captureBefore,
+      captureAfter,
+      dependencies.observerWrittenPaths ?? {}
     );
     const verification =
       executionProblems.length === 0
         ? await handler.verify(command, captureBefore, captureAfter, result)
         : [];
-    if (unexpectedDomains.length > 0) {
+    if (scope.unexpected.length > 0) {
       verification.push({
         id: 'INV.COMMAND.DOMAIN_SCOPE',
         passed: false,
-        detail: `Unexpected domain mutations: ${unexpectedDomains.join(', ')}.`,
+        detail: `Unexpected domain mutations: ${scope.unexpected.join(', ')}.`,
+      });
+    } else if (scope.observerWritten.length > 0) {
+      // Said in the receipt, so a reader sees the domain changed and why it
+      // was not this command's doing.
+      verification.push({
+        id: 'INV.COMMAND.DOMAIN_SCOPE',
+        passed: true,
+        detail: `Domain scope held: an observer of the plant wrote ${scope.observerWritten.join(', ')}, not this command.`,
       });
     }
     const verified = executionProblems.length === 0 && verification.every((item) => item.passed);
@@ -557,6 +593,7 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
       correlationId: command.commandId,
       previewId: activePreview?.previewId ?? null,
       approvalId: approval?.approvalId ?? null,
+      approvedByKind: storedApproval?.approvedByKind ?? null,
       beforeRevision: ownerRevision,
       afterRevision,
       changedDomains,
@@ -613,6 +650,7 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
       correlationId: command.commandId,
       previewId,
       approvalId,
+      approvedByKind: null,
       beforeRevision: revision,
       afterRevision: revision,
       changedDomains: [],
@@ -938,6 +976,47 @@ function validateSchema(
       problems.push(blocking('PARAMETER_MAXIMUM', `${key} exceeds its maximum.`));
   }
   return problems;
+}
+
+/**
+ * Split the changed domains a handler did not declare into those changed only
+ * at observer-written keys (`domain.key`) and real scope violations, each named
+ * with the top-level keys that changed (`domain (key, key)`; a domain that is
+ * not a record is named alone).
+ */
+function domainScope(
+  outsideDomains: AgentDomainId[],
+  before: AgentDomainCapture,
+  after: AgentDomainCapture,
+  observerWrittenPaths: Partial<Record<AgentDomainId, string[]>>
+): { unexpected: string[]; observerWritten: string[] } {
+  const unexpected: string[] = [];
+  const observerWritten: string[] = [];
+  for (const domainId of outsideDomains) {
+    const keys = changedTopLevelKeys(before.domains[domainId], after.domains[domainId]);
+    if (!keys || keys.length === 0) {
+      unexpected.push(domainId);
+      continue;
+    }
+    const observerKeys = observerWrittenPaths[domainId] ?? [];
+    const own = keys.filter((key) => !observerKeys.includes(key));
+    if (own.length > 0) unexpected.push(`${domainId} (${own.join(', ')})`);
+    else observerWritten.push(...keys.map((key) => `${domainId}.${key}`));
+  }
+  return { unexpected, observerWritten };
+}
+
+/** Sorted top-level keys whose values differ, or null when either side is not a record. */
+function changedTopLevelKeys(
+  before: AgentJsonValue | undefined,
+  after: AgentJsonValue | undefined
+): string[] | null {
+  const isRecord = (value: AgentJsonValue | undefined): value is Record<string, AgentJsonValue> =>
+    !!value && typeof value === 'object' && !Array.isArray(value);
+  if (!isRecord(before) || !isRecord(after)) return null;
+  return [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .filter((key) => revisionFor(before[key]) !== revisionFor(after[key]))
+    .sort();
 }
 
 function changedDomainIds(before: AgentDomainCapture, after: AgentDomainCapture): AgentDomainId[] {

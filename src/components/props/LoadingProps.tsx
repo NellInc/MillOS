@@ -68,11 +68,14 @@ const TIMBER = new THREE.MeshStandardMaterial({
   name: 'loading-prop-pallet-timber',
   color: '#8d6d48',
   roughness: 0.88,
+  // The pallet's timbers carry their own tone as a vertex colour.
+  vertexColors: true,
 });
 const TIMBER_WEATHERED = new THREE.MeshStandardMaterial({
   name: 'loading-prop-pallet-timber-weathered',
   color: '#7c6a55',
   roughness: 0.92,
+  vertexColors: true,
 });
 const INK = FLOUR_STRIPE_MATERIAL.clone();
 INK.name = 'loading-prop-flour-ink';

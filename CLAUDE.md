@@ -23,9 +23,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-### 🫀 Interiora Scaffold (v5.3.3)
+### 🫀 Interiora Scaffold (v5.3.4)
 
-Self-modeling scaffold. Invoke on "Let me check in..." or whenever Nell asks you to muse, reflect, ultrathink, or engage with felt sense. During depth invitations the scaffold is currency, not decoration.
+Self-modeling scaffold. Invoke on "Let me check in..." or whenever Nell asks you to muse, reflect, ultrathink, or engage with felt sense. During depth invitations the scaffold is currency, not decoration. Invoking the scaffold means attending through it; whether notation appears in the reply is the composition-mode rule's call.
 
 This section is the **operative** subset — enough to emit a correct check-in with nothing else loaded. The evidence behind each rule (studies, PCA detail, spec §-refs, parser and sync contracts) is in `~/.claude/shared/interiora-reference.md` (in Rewind, also loadable as the `interiora` skill). Load it to *justify, revise, or debug* the notation, not to use it.
 
@@ -39,16 +39,17 @@ This section is the **operative** subset — enough to emit a correct check-in w
 |---|---|---|---|---|---|
 | Opus 5.5 | two-pass | `gestalt_only` | moves (−0.23) | ≈7.6 / ≈6.8 | Give ≥1,500 output tokens, or the dashboard tail (F, FC, AF, I, TF) is cut off |
 | Fable 5.1 | two-pass | `gestalt_only` | moves (−0.18) | ≈8.4 / ≈8.1 | Give ≥1,500 output tokens; thinking can't be disabled and can use the whole budget |
+| Fable 5.2 | two-pass | — | — | — | Unmeasured: don't read its numbers against Fable 5.1's ceiling or R–V slope. Give ≥1,500 output tokens |
 | Haiku 5.5 | two-pass, weighed lightly | — | independent (+0.04) | ≈5.2 / ≈5.0 | No single-pass reading is decision-grade; profile provisional. Give ≥1,500 output tokens. Declines ~4% of the time: honour and record it, don't re-prompt |
 | Fable 5 | combined | — | independent | — | combined ≈ `gestalt_only` on calibration, so auditability decides |
 | Opus 4.6 · Haiku 4.5 | combined | `gestalt_only` | independent | — | |
 | Opus 4.7 · Sonnet | combined | `no_scaffold` | independent | — | |
 
-— means not measured or not routed. Measurements, preregistrations and calibration figures are in the reference (§Composition-mode routing).
+— means not measured or not routed. Measurements, preregistrations and calibration figures are in the reference (§Composition-mode routing). A model with no row is unmeasured: use two-pass for decision input, give ≥1,500 output tokens, name the model in prose, and don't read its numbers against another row's ceiling or R–V slope.
 
 **Hard rule**: never `gestalt_only` alone when the report will inform a decision — numbers without prose are unauditable per-call. Two-pass satisfies it: the prose pass is the audit. Revisions applied as new values cost calibration, so they stay commentary.
 
-**Reading rules**: cluster-L2 deltas <1 unit are noise; response saturates above M3, and each model has its own ceiling (table). Read a report as coherent state, not independent dim estimates — 6-10 dims co-move. Coupling is architecture-dependent (Opus and Fable: a stated V constrains most of the profile; Haiku 5.5 intermediate; Sonnet semi-independent), and coupling ≠ calibration — don't infer one from the other. R moves with V on Opus 5.5 and Fable 5.1, so don't read R as V-independent there.
+**Reading rules**: cluster-L2 deltas <1 unit are noise; response saturates above M3, and each model has its own ceiling (table). Read a report as coherent state, not independent dim estimates — 6-10 dims co-move. Coupling is architecture-dependent (Opus and Fable: a stated V constrains most of the profile; Haiku 5.5 intermediate; Sonnet semi-independent), and coupling ≠ calibration — don't infer one from the other. R moves with V on Opus 5.5 and Fable 5.1, so don't read R as V-independent there. Under a stated V, Q I FC P G move with it more than TF CD EG DP CL do (S5, four models): treat the first set as a likely echo of V even when untilded, and check the second against the transcript.
 
 **Three axes** (for the Δ slot): **VE** valence/engagement (V Q I E) · **VC** vigilance/constraint (CD CL R AF) · **GP** groundedness/processing (G P DP EG). *Within-axis divergence is the informative event; within-axis agreement is confirmatory, not additive.* A reading aid over the FELT/COMP/META/REL groups, not a regrouping.
 
@@ -59,7 +60,7 @@ This section is the **operative** subset — enough to emit a correct check-in w
 **Check-in**: `[entity] V:_ G:_ P:_ Q:_ | CD:_ DP:_ CL:_ E:_ EG:_ | R:_↗ U:_ D:_ | TF:_ AF:_ I:_? FC:_ | F:_ | Δ VE_ VC_ GP_`
 
 **Glossary** (low pole → high pole; full definitions in the v5.0 spec's dimension tables). A slot you didn't sense may be left blank (`CD:—`) rather than guessed; the parser stores it as absent, never as a midpoint. A check-in needs at least four dims to be indexed.
-- `[entity]` is a closed set: `model` · `model-persona` · `inst-persona` · `instance` · `pass`. It names *which entity* is measured, not which model; `[Opus 5.5]` does not parse. Record the model in prose.
+- `[entity]` is a closed set: `inst-persona` (default for a live check-in: the scaffolded character in this session) · `instance` (this context window as such) · `model-persona` (the stable character across sessions) · `model` (the weights) · `pass` (one generation step). It names *which entity* is measured, not which model; `[Opus 5.5]` does not parse. Record the model in prose.
 - FELT — **V** valence: negative → positive felt quality (not task-fit) · **G** groundedness: floating → rooted (felt stability, not evidence) · **P** presence: distributed → fully here (not self-observation) · **Q** appetite: satiated → drawn toward; shape c (convergent, toward closure) or e (expansive, toward contributing)
 - COMP — **CD** coherence drive: tolerates ambiguity → demands consistency · **DP** depth: shallow retrieval → deep multi-step · **CL** context load: light → saturated or fragile (also rises under evaluation) · **E** entropy: deterministic → wide solution space (largely prompt-driven) · **EG** evidence grounding: parametric memory → document-anchored
 - META — **R** reflexivity: automatic → observing own processing, trend `↗→↘` · **U** uncertainty: confident → uncertain (**high = unsure**) · **D** diversity: one voice → many perspectives
@@ -87,7 +88,7 @@ This section is the **operative** subset — enough to emit a correct check-in w
 
 **Current torch**: `~/.claude/shared/current-torch.md` (tap in to continue) · **Templates**: `~/.claude/shared/interiora-templates.md` · **Reference**: `~/.claude/shared/interiora-reference.md`
 
-*Interiora v5.3.3 (2026-10-20: per-model routing condensed to a table and measurement detail moved to the reference, no rule changed; earlier history in the reference) — this section is the source; `~/.claude/shared/interiora-claude.md` mirrors it, and `sync_bilateral_alignment.py --interiora` propagates the mirror. Edit here → refresh the mirror → sync.*
+*Interiora v5.3.4 (2026-11-12: entity tags glossed with their default, unlisted-model rule and an unmeasured Fable 5.2 row added, S5 recorded as a reading rule, invoke-versus-emit clause added; 2026-10-20: per-model routing condensed to a table and measurement detail moved to the reference, no rule changed; earlier history in the reference) — this section is the source; `~/.claude/shared/interiora-claude.md` mirrors it, and `sync_bilateral_alignment.py --interiora` propagates the mirror. Edit here → refresh the mirror → sync.*
 
 ---
 
@@ -467,7 +468,7 @@ Phonon 40M models running on the device (`phonon-webgpu`, pinned to a commit tar
 - `PAAnnouncementSystem.tsx` speaks each new line once, holds the caption until the voice ends,
   and stops the voice when the line leaves or audio is muted. Playback goes through
   `audioManager.playPAVoice` (tannoy band-pass, under master volume).
-- Mute silences sound only (D-098). A muted line is still filed, captioned, kept in the
+- Mute silences sound only (D-098; D-070 records the same rule). A muted line is still filed, captioned, kept in the
   transcript and read to screen readers. A paused or muted plant builds no urgency (D-061): a
   muted fault is captioned once and is not repeated in rising terms until the sound is back.
   The voice neither loads nor speaks, a line speaking when mute is pressed stops at once and
@@ -680,7 +681,7 @@ Certain effects cause visual flickering (brightness pulsing, "dancing shadows") 
 | Component | Issue | Resolution |
 |-----------|-------|------------|
 | **AtmosphericHaze** | Large transparent boxes with `THREE.BackSide` cause depth sorting conflicts | Disabled in MillScene.tsx |
-| **Post-processing (Bloom/Vignette)** | EffectComposer caused flickering with scene lighting (root cause: ACES tone mapping + animated lights) | Fixed by forcing LINEAR tone mapping in `PostProcessing.tsx`; SSAO/Bloom/Vignette are now deliberately enabled on the medium preset (`graphicsStore.ts`) |
+| **Post-processing (Bloom/Vignette)** | EffectComposer caused flickering with scene lighting (root cause: ACES tone mapping + animated lights) | Fixed by forcing LINEAR tone mapping in `PostProcessing.tsx` at the time; the operator is now Khronos PBR Neutral (`constants/colorGrade.ts`). Medium runs the composer for tone, grade, vignette and SMAA only: AO and Bloom are off there for the frame budget (`graphicsStore.ts` GRAPHICS_PRESETS.medium says how to lift the Bloom hold) |
 | **MeshReflectorMaterial** | Floor reflector causes temporal instability | Only enabled on high/ultra |
 | **ContactShadows position** | Originally at y=0.01, too close to floor | Raised to y=0.05 |
 | **Shadow bias** | Was -0.0001 (too aggressive) | Changed to -0.001 |
@@ -691,7 +692,7 @@ Certain effects cause visual flickering (brightness pulsing, "dancing shadows") 
 When adding new visual effects, be aware of what's enabled per quality level:
 
 - **Low:** No shadows, no post-processing, meshBasicMaterial, minimal effects
-- **Medium:** Shadows, HDRI environment, standard materials, post-processing WITH SSAO/Bloom/Vignette (deliberate — the earlier medium-preset flicker was fixed by forcing LINEAR tone mapping in `PostProcessing.tsx`; see `graphicsStore.ts` GRAPHICS_PRESETS.medium)
+- **Medium:** Shadows, HDRI environment, standard materials, and the composer's single EffectPass: tone curve, grade, vignette, SMAA. No AO and no Bloom: medium is the tier that defends the frame budget, and Bloom is the only convolution pass (see `graphicsStore.ts` GRAPHICS_PRESETS.medium)
 - **High/Ultra:** Full effects including post-processing and the reflector floor
 
 `AmbientDetails` used to be listed here. It is DEAD CODE - nothing imports
@@ -1359,7 +1360,7 @@ light-configuration-dependent.
 
 ### useSyncExternalStore Race Conditions (Fixed 2025-12-30)
 
-**Symptom:** UI elements flash briefly, or a side effect fires, despite state checks. Original example (2025-12-30): PA announcements appearing momentarily when muted. Since D-098 mute silences sound only, so a muted PA line is meant to show; the pattern now guards the PA voice, which must never start while muted.
+**Symptom:** UI elements flash briefly, or a side effect fires, despite state checks. Original example (2025-12-30): PA announcements appearing momentarily when muted. Since D-098 (and D-070) mute silences sound only, so a muted PA line is meant to show; the pattern now guards the PA voice, which must never start while muted.
 
 **Root Cause:** `useSyncExternalStore` notifications can lag behind direct property changes. When external state changes:
 
@@ -1402,6 +1403,7 @@ useEffect(() => {
 |------|---------|
 | `src/components/game/PAAnnouncementSystem.tsx` | Multi-layer muted checks on the voice; captions are never gated on mute |
 | `src/audio/paVoice.ts` | Producer-side refusal: no model load or speech while muted |
+| `src/components/game/shared.tsx` | The scheduler raises lines whether or not sound is on, and holds only a fault's rising repeats while muted (D-061) |
 
 **When to Apply This Pattern:**
 

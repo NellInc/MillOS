@@ -664,27 +664,28 @@
       "attribution": "Forklift by Mantas Stankaitis; chassis normal/roughness treatment by Tripo3D",
       "taskId": "6a0e7b0b-abc6-4427-9f40-fec5db5ce723",
       "pipeline": [
-        "Blender authored atlas",
-        "texture v3.0-20250812, pbr:true, bake:false",
-        "Source attribute and shadow restoration"
+        "Original Sketchfab body mesh and Tripo3D atlas retained as historical source only",
+        "Independent authored replacement: scripts/blender/authored/forklift-chassis-unit.py"
       ],
       "preservedAs": "forklift-chassis-unit-tripo-original.glb",
       "sha256": "54e0fdf56998c6b663ba3ae7c049146908df808f9fe6b43c41d1fcb919324efe",
       "blenderPreparation": {
-        "file": "assets/source/models/world/forklift-chassis-unit-crafted-surface.glb",
-        "sha256": "7751483b9abbea17607c593801a46174bc3924b3fb9b50e5e96f45ce0c8ea846",
-        "script": "scripts/refine-authored-surfaces.mjs",
-        "method": "Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly."
+        "file": "assets/source/models/world/forklift-chassis-unit-authored-v2.glb",
+        "sha256": "43130f49611a345f682faf6bad1987ef9b4c53da5e0109967cfd33a207fc440b",
+        "script": "scripts/blender/authored/forklift-chassis-unit.py",
+        "method": "Asset-loop 2026-11-12: new body shell (counterweight, tub, cowl, hood, wheel housings) and panel-seam normal atlas built from scratch by the authoring script, in the forklift body mesh frame; no provider geometry or texture."
       },
       "runtimeDerivative": {
         "file": "public/models/world/forklift-chassis-unit.glb",
-        "sha256": "7997b418492889542e9bad68af6a2f0f794008ae3b7fe12e877223805784dbd1",
-        "bytes": 111168
+        "sha256": "364182e8c9b10631b652edc685179d0ea838400ab3ab0e4a870ea6b9184ebb39",
+        "bytes": 86408,
+        "license": "MillOS project-authored geometry and normal atlas",
+        "attribution": "Authored for MillOS (scripts/blender/authored/forklift-chassis-unit.py); replaces the body shell of Forklift by Mantas Stankaitis (CC BY 4.0), whose original is retained in source provenance"
       },
       "normalization": {
         "sizedBy": "height",
         "targetMetres": 0.808435320854187,
-        "scaleFactor": 2,
+        "scaleFactor": 1,
         "facingYawRadians": 0,
         "authoredYawRadians": 0,
         "bounds": {
@@ -699,9 +700,9 @@
         "joints": 0,
         "clips": [],
         "materials": 1,
-        "textures": 2,
-        "textureBytes": 18145,
-        "renderVertices": 4977
+        "textures": 1,
+        "textureBytes": 8122,
+        "renderVertices": 4098
       }
     },
     {

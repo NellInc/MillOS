@@ -97,7 +97,24 @@
  *   --toggle-key=<flag> The perfDebug flag both arms differ by. Default
  *                       disableSurfaceTreatment; disableWaterCaustics isolates
  *                       the bed caustics (scenes lakeside and river; the far
- *                       water and lake cameras read 0 by design).
+ *                       water and lake cameras read 0 by design). A comma list
+ *                       (or --toggle-keys=) measures each flag in turn in the
+ *                       same page load, against the same held instant: the
+ *                       leave-one-out ablation of the finished frame. The
+ *                       lighting layers are disableSunShadows, disableSunLight,
+ *                       disableSkyFill and disableFog
+ *                       (performance/LightingLayerIsolation.tsx); for those the
+ *                       lever's own report is read back and a reading where it
+ *                       did not take is flagged rather than called inert.
+ *   --time=<hour>       Game hour, 0-24, passed to the page as ?time=.
+ *   --frame-pairs=<n>   After the shots, time each key in n interleaved
+ *                       control/treatment window pairs, order flipped each
+ *                       pair (default 0: off). At least 3 for a result; a cost
+ *                       smaller than the control windows' own spread is
+ *                       reported as not a result. Timing runs at DPR 1.
+ *   --frame-warmup=<s>  Seconds after each toggle before a window. Default 3:
+ *                       shadow and fog keys recompile every lit program.
+ *   --frame-window=<s>  Seconds per timing window. Default 4.
  *
  * Serving and readiness follow run-performance-benchmark.mjs, which is the
  * harness that has kept working: the preview gets the build's own VERSION and
@@ -190,9 +207,33 @@ const options = {
   crop: parseCrop(arg('crop', '')),
   toggle: !flag('no-toggle'),
   control: flag('control'),
-  // The perfDebug flag the paired control pulls. Each is one shared uniform.
-  toggleKey: arg('toggle-key', 'disableSurfaceTreatment'),
+  // The perfDebug flags the paired control pulls, one A/B each, all in the same
+  // page load and against the same held instant. `--toggle-keys` is an alias.
+  toggleKeys: (arg('toggle-keys', '') || arg('toggle-key', 'disableSurfaceTreatment'))
+    .split(',')
+    .map((key) => key.trim())
+    .filter(Boolean),
   camera: parseCamera(arg('camera', '')),
+  // Game hour for every scene; the page's own default when omitted.
+  time: arg('time', '') === '' ? null : Number(arg('time', '')),
+  // Timing arm: interleaved control/treatment windows per key after the shots.
+  framePairs: Number(arg('frame-pairs', '0')),
+  frameWarmup: Number(arg('frame-warmup', '3')),
+  frameWindow: Number(arg('frame-window', '4')),
+};
+
+/**
+ * Keys whose lever is a render-time swap (`LightingLayerIsolation`), with the
+ * report field that proves the last render took it. A zero pixel delta on one
+ * of these is checked against this before it is reported as inert.
+ */
+const LEVER_READBACK = {
+  disableSunShadows: (rig) => rig.isolation.sunShadowRemoved === true,
+  disableSunLight: (rig) => (rig.isolation.sunIntensityRemoved ?? 0) > 0,
+  disableSkyFill: (rig) => rig.isolation.skyFillRemoved !== null,
+  disableFog: (rig) => rig.isolation.fogRemoved === true,
+  // An ENABLE flag: its "off" frames are the experiment, its "on" the default.
+  enableIndoorSkyOcclusion: (rig) => rig.indoorSky.tagged > 0,
 };
 
 if (!options.label) {
@@ -278,6 +319,22 @@ async function lumaPlane(buffer) {
  * clamped, because a clamped border invents a zero-contrast ring whose size
  * depends on resolution.
  */
+/**
+ * Mean luma, 0-255, over a mask (null for the whole frame or crop). The
+ * brightness side of a change: a lighting experiment that holds a target
+ * level is checked against this, which `changedFraction` cannot say.
+ */
+function maskedMeanLuma(plane, mask) {
+  let total = 0;
+  let counted = 0;
+  for (let index = 0; index < plane.luma.length; index += 1) {
+    if (mask && !mask[index]) continue;
+    total += plane.luma[index];
+    counted += 1;
+  }
+  return counted ? total / counted : 0;
+}
+
 function maskedLaplacian(plane, mask) {
   const { luma, width, height } = plane;
   let total = 0;
@@ -297,6 +354,66 @@ function maskedLaplacian(plane, mask) {
     }
   }
   return { mean: counted ? total / counted : 0, counted };
+}
+
+const formatMs = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(2)} ms`;
+
+/**
+ * The cost side, in the same page load as the pixels (CLAUDE.md: a
+ * separate-process A/B cannot resolve under ~2 ms on this machine).
+ *
+ * Control and treatment windows alternate, and the order flips every pair,
+ * because the drift is monotonic and a fixed order flatters whichever arm
+ * runs second. Each window warms up after the toggle first: the shadow and fog
+ * keys recompile every lit program. A layer's cost is control minus treatment,
+ * so a positive number is what the layer costs. It is a result only when it
+ * exceeds the spread of the control windows themselves.
+ */
+async function timeKey(page, key, setKey) {
+  const sampleWindow = async (disabled) => {
+    await setKey(key, disabled);
+    await page.waitForTimeout(options.frameWarmup * 1000);
+    await page.evaluate(() => window.__MILLOS_RUNTIME__.reset());
+    await page.waitForTimeout(options.frameWindow * 1000);
+    return page.evaluate(() => {
+      const snapshot = window.__MILLOS_RUNTIME__.snapshot();
+      return {
+        averageMs: snapshot.averageFrameMs,
+        p95Ms: snapshot.p95FrameMs,
+        samples: snapshot.sampleCount,
+      };
+    });
+  };
+  const pairs = [];
+  for (let index = 0; index < options.framePairs; index += 1) {
+    // In --control both arms are the removed configuration.
+    const arms = [
+      ['control', options.control],
+      ['treatment', true],
+    ];
+    if (index % 2 === 1) arms.reverse();
+    const pair = {};
+    for (const [arm, disabled] of arms) pair[arm] = await sampleWindow(disabled);
+    pairs.push(pair);
+  }
+  await setKey(key, options.control);
+  const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  const controls = pairs.map((pair) => pair.control.averageMs);
+  const costAverageMs = mean(
+    pairs.map((pair) => pair.control.averageMs - pair.treatment.averageMs)
+  );
+  const costP95Ms = mean(pairs.map((pair) => pair.control.p95Ms - pair.treatment.p95Ms));
+  const controlSpreadMs = Math.max(...controls) - Math.min(...controls);
+  return {
+    pairs: pairs.length,
+    warmupSeconds: options.frameWarmup,
+    windowSeconds: options.frameWindow,
+    costAverageMs,
+    costP95Ms,
+    controlSpreadMs,
+    resolved: pairs.length >= 3 && Math.abs(costAverageMs) > controlSpreadMs,
+    windows: pairs,
+  };
 }
 
 async function main() {
@@ -333,6 +450,11 @@ async function main() {
       '--mute-audio',
       '--enable-automation',
       ...(process.platform === 'darwin' ? ['--use-gl=angle', '--use-angle=metal'] : []),
+      // Headless Chrome paces requestAnimationFrame at 60 Hz, so a scene that
+      // finishes inside 16.7 ms reads 16.66 ms in both arms and any layer's cost
+      // is hidden under the cap (village did exactly that). The timing arm
+      // needs the frame loop GPU-bound; the held shots are unaffected.
+      ...(options.framePairs > 0 ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : []),
     ]),
   });
   const results = [];
@@ -362,7 +484,8 @@ async function main() {
       });
       try {
         await page.goto(
-          `${baseUrl}/?benchmark=${scene}&quality=${options.quality}&duration=300&art=1`,
+          `${baseUrl}/?benchmark=${scene}&quality=${options.quality}&duration=300&art=1` +
+            (options.time === null ? '' : `&time=${options.time}`),
           { waitUntil: 'domcontentloaded', timeout: 90000 }
         );
         for (const stage of READINESS_STAGES) {
@@ -394,10 +517,15 @@ async function main() {
         }
         // Lazily mounted branches land seconds after the reveal; the settle
         // keeps the first shot clear of them.
+        // In --control every key is off for every shot, so each key's two arms
+        // are the same configuration and only the instrument is left.
         if (options.control) {
           await page.evaluate(
-            (key) => window.__MILLOS_RUNTIME__?.setPerfDebug({ [key]: true }),
-            options.toggleKey
+            (keys) =>
+              window.__MILLOS_RUNTIME__?.setPerfDebug(
+                Object.fromEntries(keys.map((key) => [key, true]))
+              ),
+            options.toggleKeys
           );
         }
         await page.waitForTimeout(options.settle * 1000);
@@ -423,71 +551,118 @@ async function main() {
           Boolean(window.__MILLOS_RUNTIME__?.setPerfDebug)
         );
         if (!supported) throw new Error('runtime hook has no setPerfDebug');
+        const setKey = (key, disabled) =>
+          page.evaluate(
+            ({ key: flag, disabled: value }) =>
+              window.__MILLOS_RUNTIME__.setPerfDebug({ [flag]: value }),
+            { key, disabled }
+          );
 
-        await page.evaluate(
-          (key) => window.__MILLOS_RUNTIME__.setPerfDebug({ [key]: true }),
-          options.toggleKey
-        );
-        // The uniform is shared and needs no recompile, but the store write has
-        // to commit and its effect run before the held frame is redrawn.
-        await page.waitForTimeout(400);
-        await hold();
-        const offPath = path.join(outputDir, `${scene}-off.png`);
-        await page.screenshot({ path: offPath, timeout: 30000 });
-        // The off arm's own second shot, at the same 400 ms spacing: whatever
-        // moves between these two moves without the frame clock (see changeMask
-        // on swaying foliage, which did before the hold).
-        await page.waitForTimeout(400);
-        await hold();
-        const offLatePath = path.join(outputDir, `${scene}-off-late.png`);
-        await page.screenshot({ path: offLatePath, timeout: 30000 });
-        // In --control the "on" arm stays off, so every shot is the same arm.
-        await page.evaluate(
-          ({ key, disabled }) => window.__MILLOS_RUNTIME__.setPerfDebug({ [key]: disabled }),
-          { key: options.toggleKey, disabled: options.control }
-        );
-        // The last shot closes the ABBA bracket at the same spacing, so the
-        // self-motion it measures is the motion the on-off pair also contains.
-        await page.waitForTimeout(400);
-        const heldLate = await hold();
-        if (heldLate !== heldAt) {
-          throw new Error(`${scene}: frame clock moved during the hold (${heldAt} -> ${heldLate})`);
+        for (const [keyIndex, key] of options.toggleKeys.entries()) {
+          // One file stem per key; a single-key run keeps the old names.
+          const stem = options.toggleKeys.length > 1 ? `${scene}-${key}` : scene;
+          let keyOnPath = onPath;
+          if (keyIndex > 0) {
+            await hold();
+            keyOnPath = path.join(outputDir, `${stem}-on.png`);
+            await page.screenshot({ path: keyOnPath, timeout: 30000 });
+          }
+
+          await setKey(key, true);
+          // The store write has to commit and its effect run before the held
+          // frame is redrawn. A key that recompiles does so inside hold().
+          await page.waitForTimeout(400);
+          await hold();
+          // The lever's own record of the render just drawn, for the keys
+          // that have one: an exact zero is believed only if the lever took.
+          const leverTook = LEVER_READBACK[key]
+            ? await page.evaluate(() => {
+                const rig = window.__MILLOS_RUNTIME__.lightRig();
+                return { isolation: rig.isolation, indoorSky: rig.indoorSky };
+              })
+            : null;
+          const offPath = path.join(outputDir, `${stem}-off.png`);
+          await page.screenshot({ path: offPath, timeout: 30000 });
+          // The off arm's own second shot, at the same 400 ms spacing: whatever
+          // moves between these two moves without the frame clock (see changeMask
+          // on swaying foliage, which did before the hold).
+          await page.waitForTimeout(400);
+          await hold();
+          const offLatePath = path.join(outputDir, `${stem}-off-late.png`);
+          await page.screenshot({ path: offLatePath, timeout: 30000 });
+          // In --control the "on" arm stays off, so every shot is the same arm.
+          await setKey(key, options.control);
+          // The last shot closes the ABBA bracket at the same spacing, so the
+          // self-motion it measures is the motion the on-off pair also contains.
+          await page.waitForTimeout(400);
+          const heldLate = await hold();
+          if (heldLate !== heldAt) {
+            throw new Error(
+              `${scene}: frame clock moved during the hold (${heldAt} -> ${heldLate})`
+            );
+          }
+          const latePath = path.join(outputDir, `${stem}-on-late.png`);
+          await page.screenshot({ path: latePath, timeout: 30000 });
+
+          const [onPlane, offPlane, offLatePlane, latePlane] = await Promise.all([
+            lumaPlane(await sharp(keyOnPath).toBuffer()),
+            lumaPlane(await sharp(offPath).toBuffer()),
+            lumaPlane(await sharp(offLatePath).toBuffer()),
+            lumaPlane(await sharp(latePath).toBuffer()),
+          ]);
+          const change = changeMask(onPlane, offPlane, latePlane, offLatePlane);
+          const contrastOn = maskedLaplacian(onPlane, change.mask);
+          const contrastOff = maskedLaplacian(offPlane, change.mask);
+          const ratio = contrastOff.mean > 0 ? contrastOn.mean / contrastOff.mean : 0;
+          const lever =
+            leverTook === null ? null : { took: LEVER_READBACK[key](leverTook), report: leverTook };
+
+          results.push({
+            scene,
+            key,
+            mode: 'toggle',
+            changedFraction: change.changedFraction,
+            motionFraction: change.motionFraction,
+            changedPixels: change.changedPixels,
+            meanAbsDelta: change.meanAbsDelta,
+            maxAbsDelta: change.maxAbsDelta,
+            contrastOn: contrastOn.mean,
+            contrastOff: contrastOff.mean,
+            contrastRatio: ratio,
+            // "on" is the default arm, "off" the flag's true arm.
+            lumaOn: maskedMeanLuma(onPlane, change.mask),
+            lumaOff: maskedMeanLuma(offPlane, change.mask),
+            frameLumaOn: maskedMeanLuma(onPlane, null),
+            frameLumaOff: maskedMeanLuma(offPlane, null),
+            inert: change.changedPixels === 0,
+            lever,
+          });
+          console.log(
+            `${scene.padEnd(18)} ${key.padEnd(26)} changed ${(change.changedFraction * 100).toFixed(2)}%` +
+              `  (self-motion ${(change.motionFraction * 100).toFixed(2)}% excluded)` +
+              `  meanΔ ${change.meanAbsDelta.toFixed(2)}` +
+              `  maxΔ ${change.maxAbsDelta.toFixed(0)}` +
+              `  contrast ${contrastOff.mean.toFixed(3)} -> ${contrastOn.mean.toFixed(3)}` +
+              `  (x${ratio.toFixed(3)})` +
+              `  luma ${maskedMeanLuma(onPlane, null).toFixed(1)} -> ${maskedMeanLuma(offPlane, null).toFixed(1)}` +
+              (change.changedPixels === 0 ? '   *** INERT ***' : '') +
+              (lever && !lever.took && !options.control ? '   *** LEVER DID NOT TAKE ***' : '')
+          );
         }
-        const latePath = path.join(outputDir, `${scene}-on-late.png`);
-        await page.screenshot({ path: latePath, timeout: 30000 });
 
-        const [onPlane, offPlane, offLatePlane, latePlane] = await Promise.all([
-          lumaPlane(await sharp(onPath).toBuffer()),
-          lumaPlane(await sharp(offPath).toBuffer()),
-          lumaPlane(await sharp(offLatePath).toBuffer()),
-          lumaPlane(await sharp(latePath).toBuffer()),
-        ]);
-        const change = changeMask(onPlane, offPlane, latePlane, offLatePlane);
-        const contrastOn = maskedLaplacian(onPlane, change.mask);
-        const contrastOff = maskedLaplacian(offPlane, change.mask);
-        const ratio = contrastOff.mean > 0 ? contrastOn.mean / contrastOff.mean : 0;
-
-        results.push({
-          scene,
-          mode: 'toggle',
-          changedFraction: change.changedFraction,
-          motionFraction: change.motionFraction,
-          changedPixels: change.changedPixels,
-          meanAbsDelta: change.meanAbsDelta,
-          maxAbsDelta: change.maxAbsDelta,
-          contrastOn: contrastOn.mean,
-          contrastOff: contrastOff.mean,
-          contrastRatio: ratio,
-          inert: change.changedPixels === 0,
-        });
-        console.log(
-          `${scene.padEnd(18)} changed ${(change.changedFraction * 100).toFixed(2)}%` +
-            `  (self-motion ${(change.motionFraction * 100).toFixed(2)}% excluded)` +
-            `  meanΔ ${change.meanAbsDelta.toFixed(2)}` +
-            `  maxΔ ${change.maxAbsDelta.toFixed(0)}` +
-            `  contrast ${contrastOff.mean.toFixed(3)} -> ${contrastOn.mean.toFixed(3)}` +
-            `  (x${ratio.toFixed(3)})${change.changedPixels === 0 ? '   *** INERT ***' : ''}`
-        );
+        if (options.framePairs > 0) {
+          await page.evaluate(() => window.__MILLOS_RUNTIME__.holdFrame(false));
+          for (const key of options.toggleKeys) {
+            const timing = await timeKey(page, key, setKey);
+            const row = results.find((entry) => entry.scene === scene && entry.key === key);
+            if (row) row.timing = timing;
+            console.log(
+              `${scene.padEnd(18)} ${key.padEnd(26)} cost ${formatMs(timing.costAverageMs)} avg` +
+                `  ${formatMs(timing.costP95Ms)} p95  control spread ${timing.controlSpreadMs.toFixed(2)} ms` +
+                `  (${timing.pairs} pairs)${timing.resolved ? '' : '   below spread: not a result'}`
+            );
+          }
+        }
       } finally {
         await context.close();
       }
@@ -501,10 +676,17 @@ async function main() {
           generatedAt: new Date().toISOString(),
           label: options.label,
           quality: options.quality,
+          time: options.time,
           settleSeconds: options.settle,
           crop: options.crop,
           toggle: options.toggle,
           control: options.control,
+          toggleKeys: options.toggleKeys,
+          framePairs: options.framePairs,
+          // Timing is at DPR 1 (the 1280x720 frames the pixel arm needs);
+          // per-pixel layers cost less here than at the benchmark's DPR 2.
+          deviceScaleFactor: 1,
+          frameRateUncapped: options.framePairs > 0,
           baseUrl,
           // Pixel fractions do not depend on load, but readiness timing does.
           loadPerCore: Number((os.loadavg()[0] / os.cpus().length).toFixed(2)),
@@ -518,7 +700,7 @@ async function main() {
       console.log(
         `\n${results.length - inert.length}/${results.length} scenes moved. ` +
           (inert.length
-            ? `INERT in: ${inert.map((row) => row.scene).join(', ')}`
+            ? `INERT in: ${inert.map((row) => `${row.scene}/${row.key}`).join(', ')}`
             : 'No exactly-zero readings.')
       );
     }

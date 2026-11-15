@@ -1297,11 +1297,11 @@ function chamferStrip(
 // transformed out, not written as a world constant. `local` below is the
 // offset from a half's centre measured along the tilted deck.
 
-const ROOF_PITCH = 0.05;
+export const ROOF_PITCH = 0.05;
 /** X of each half's centre. */
-const ROOF_HALF_CENTRE = FLOOR_WIDTH / 4;
+export const ROOF_HALF_CENTRE = FLOOR_WIDTH / 4;
 /** Roof deck height follows the shared shell and navigation envelope. */
-const ROOF_DECK_TOP = SITE_LAYOUT.factory.bounds.maxY + 0.63;
+export const ROOF_DECK_TOP = SITE_LAYOUT.factory.bounds.maxY + 0.63;
 /** Half length of a full-width batten, in deck-local units. */
 const ROOF_BATTEN_REACH = ROOF_HALF_CENTRE - 0.75;
 const ROOF_BATTEN_HEIGHT = 0.12;

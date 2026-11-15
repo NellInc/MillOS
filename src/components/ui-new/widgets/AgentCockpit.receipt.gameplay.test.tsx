@@ -5,6 +5,12 @@ import { AgentCockpit } from './AgentCockpit';
 import { SYSTEM_REGISTRY_SOURCE } from '../../../agent/registry/systemRegistrySource.js';
 import { setLocale } from '../../../i18n';
 
+// The cockpit reads the operator runtime from module scope, not from window.
+const mocks = vi.hoisted(() => ({ runtime: null as unknown }));
+vi.mock('../../../agent/client/operatorRuntime', () => ({
+  peekOperatorRuntime: () => mocks.runtime,
+}));
+
 const drill = SYSTEM_REGISTRY_SOURCE.capabilities.find(
   (item) => item.id === 'simulation.start-fire-drill'
 )!;
@@ -18,7 +24,7 @@ describe('a refused commit in the agent cockpit', () => {
   const commit = vi.fn();
   beforeEach(() => {
     setLocale('en');
-    (window as unknown as { __MILLOS_AGENT__: unknown }).__MILLOS_AGENT__ = {
+    mocks.runtime = {
       capabilities: () => ({ data: { items: [drill] } }),
       brief: () => ({
         data: { status: 'nominal', health: { exceptions: [] }, authority: { activeGrantIds: [] } },
@@ -45,7 +51,7 @@ describe('a refused commit in the agent cockpit', () => {
     cleanup();
     commit.mockReset();
     setLocale('en');
-    delete (window as unknown as { __MILLOS_AGENT__?: unknown }).__MILLOS_AGENT__;
+    mocks.runtime = null;
   });
 
   const previewAndCommit = async () => {

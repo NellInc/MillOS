@@ -72,6 +72,59 @@ const ROOF = {
   residual: 0.1,
 };
 
+/**
+ * 3. THE SKY'S INDIRECT LIGHT UNDER THE ROOF (experiment, D-063, off by default).
+ *
+ *    Ambient, hemisphere and diffuse IBL reach every fragment at the open
+ *    sky's strength, so at noon the hall took most of its light from a sky it
+ *    can only see through its walls: removing the sky fill changed 97.7% of the
+ *    `interior` frame, removing the sun 31% (layer ablation, 2026-11-09). The
+ *    fill also flattened the skylight sun patches, the hall's one directional
+ *    read. With `MILLOS_INDOOR_SKY` defined (`IndoorSkyOcclusion` tags the
+ *    materials), that indirect diffuse is scaled by a sky-visibility term: 1 at
+ *    the glazed wall planes, falling over `ramp` metres to `floor` in the
+ *    middle of the hall, and 1 anywhere outside the footprint or above the roof
+ *    underside, so no exterior pixel can change.
+ *
+ *    Diffuse only. Metals that adopted the PMREM have no diffuse term, and
+ *    darkening their sky reflection indoors is a separate experiment. The
+ *    skylights are not modelled: the sun through them is direct light under
+ *    the shadow map already, and six 9 x 11 m apertures are ~7% of the roof.
+ *    `indoorBounce` divides `indirectDiffuse` by albedo after this chunk; the
+ *    scale is linear, so that division stays exact.
+ */
+export const INDOOR_SKY = {
+  /** Share of the open sky's indirect diffuse reaching the middle of the hall. */
+  floor: 0.3,
+  /**
+   * The roof is pitched (0.05 rad from a ridge at x 0) and its top face is at
+   * the flat `ROOF.underside` only at the eaves, so a flat height gate counted
+   * the plant and skylight kerbs standing on the deck near the eaves as
+   * indoors. The gate follows the deck instead: these mirror `ROOF_DECK_TOP`,
+   * `ROOF_HALF_CENTRE` and `ROOF_PITCH` in `OptimizedFactoryInfrastructure`
+   * (pinned equal by `indoorSky.test.ts`), and anything on or above the top
+   * face is outdoors.
+   */
+  deckTop: SITE_LAYOUT.factory.bounds.maxY + 0.63,
+  deckHalfCentre: SITE_LAYOUT.factory.floor.width / 4,
+  deckPitch: 0.05,
+  /** Metres inside the wall plane where the ramp starts: clear of the outer face and glazing. */
+  inset: 0.6,
+  /** Metres over which visibility falls from the walls to `floor`. */
+  ramp: 12,
+} as const;
+
+/**
+ * Ceiling-bank multiplier while the experiment is on. The banks are dimmed by
+ * day (`zoneWorkLightIntensity`) because the sky fill was lighting the hall;
+ * with that fill cut they hold their night level. A starting value, tuned
+ * against the interior floor luma target, not derived.
+ */
+export const INDOOR_SKY_BANK_GAIN = 1.85;
+
+/** The define `IndoorSkyOcclusion` sets on a material to compile the term in. */
+export const INDOOR_SKY_DEFINE = 'MILLOS_INDOOR_SKY';
+
 const smoothstep = (edge0: number, edge1: number, value: number): number => {
   const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
   return t * t * (3 - 2 * t);
@@ -83,6 +136,38 @@ export function roofSunOcclusion(x: number, y: number, z: number): number {
   const inZ = smoothstep(ROOF.maxZ + 0.5, ROOF.maxZ - 1, Math.abs(z));
   const under = smoothstep(ROOF.underside + 0.3, ROOF.underside - 0.3, y);
   return 1 - (1 - ROOF.residual) * inX * inZ * under;
+}
+
+/** World height of the roof deck's top face above world x. */
+export function indoorSkyDeckTop(x: number): number {
+  return (
+    INDOOR_SKY.deckTop - (Math.abs(x) - INDOOR_SKY.deckHalfCentre) * Math.tan(INDOOR_SKY.deckPitch)
+  );
+}
+
+/**
+ * 1 for a receiver the banks can reach, 0 for one on or above the roof deck
+ * inside the hall footprint. The banks are unshadowed points under the roof,
+ * so without this the rooftop plant and skylight kerbs took the hall's light
+ * through the deck (brighter by up to 3 luma at night, and by day once the
+ * indoor sky experiment holds the banks at their night level). Outside the
+ * footprint it is 1: light through the glazing onto the yard is real.
+ */
+export function bankDeckPass(x: number, y: number, z: number): number {
+  const inside = Math.abs(x) < ROOF.maxX && Math.abs(z) < ROOF.maxZ ? 1 : 0;
+  const deckTop = indoorSkyDeckTop(x);
+  return 1 - inside * smoothstep(deckTop - 0.2, deckTop, y);
+}
+
+/** Share of the sky's indirect diffuse a world point receives with the experiment on. */
+export function indoorSkyVisibility(x: number, y: number, z: number): number {
+  const startX = ROOF.maxX - INDOOR_SKY.inset;
+  const startZ = ROOF.maxZ - INDOOR_SKY.inset;
+  const inX = smoothstep(startX, startX - INDOOR_SKY.ramp, Math.abs(x));
+  const inZ = smoothstep(startZ, startZ - INDOOR_SKY.ramp, Math.abs(z));
+  const deckTop = indoorSkyDeckTop(x);
+  const under = smoothstep(deckTop - 0.1, deckTop - 0.45, y);
+  return 1 - (1 - INDOOR_SKY.floor) * inX * inZ * under;
 }
 
 /**
@@ -234,9 +319,9 @@ export function bankLineIncident(
   const terms = bankLineTerms(light, intensity, point, normal, cutoff, true);
   const total = new THREE.Vector3(0, -terms.bounce / Math.max(terms.facingDown, 0.05), 0);
   if (terms.line) total.addScaledVector(terms.line.vector, terms.line.scale);
-  const radiance = total.length();
+  const radiance = total.length() * bankDeckPass(point.x, point.y, point.z);
   return {
-    direction: radiance > 1e-8 ? total.divideScalar(radiance) : new THREE.Vector3(0, 1, 0),
+    direction: radiance > 1e-8 ? total.normalize() : new THREE.Vector3(0, 1, 0),
     radiance,
   };
 }
@@ -269,6 +354,21 @@ float millosRoofOcclusion( const in vec3 viewPosition ) {
   float inZ = smoothstep( ${f(ROOF.maxZ + 0.5)}, ${f(ROOF.maxZ - 1)}, abs( world.z ) );
   float under = smoothstep( ${f(ROOF.underside + 0.3)}, ${f(ROOF.underside - 0.3)}, world.y );
   return 1.0 - ${f(1 - ROOF.residual)} * inX * inZ * under;
+}
+float millosIndoorSkyVisibility( const in vec3 viewPosition ) {
+  vec3 world = ( viewPosition - viewMatrix[ 3 ].xyz ) * mat3( viewMatrix );
+  float inX = smoothstep( ${f(ROOF.maxX - INDOOR_SKY.inset)}, ${f(ROOF.maxX - INDOOR_SKY.inset - INDOOR_SKY.ramp)}, abs( world.x ) );
+  float inZ = smoothstep( ${f(ROOF.maxZ - INDOOR_SKY.inset)}, ${f(ROOF.maxZ - INDOOR_SKY.inset - INDOOR_SKY.ramp)}, abs( world.z ) );
+  float deckTop = ${f(INDOOR_SKY.deckTop)} - ( abs( world.x ) - ${f(INDOOR_SKY.deckHalfCentre)} ) * ${f(Math.tan(INDOOR_SKY.deckPitch))};
+  float under = smoothstep( deckTop - 0.1, deckTop - 0.45, world.y );
+  return 1.0 - ${f(1 - INDOOR_SKY.floor)} * inX * inZ * under;
+}
+// Mirror of bankDeckPass: no bank light on or above the deck inside the hall.
+float millosBankDeckPass( const in vec3 viewPosition ) {
+  vec3 world = ( viewPosition - viewMatrix[ 3 ].xyz ) * mat3( viewMatrix );
+  float inside = ( abs( world.x ) < ${f(ROOF.maxX)} && abs( world.z ) < ${f(ROOF.maxZ)} ) ? 1.0 : 0.0;
+  float deckTop = ${f(INDOOR_SKY.deckTop)} - ( abs( world.x ) - ${f(INDOOR_SKY.deckHalfCentre)} ) * ${f(Math.tan(INDOOR_SKY.deckPitch))};
+  return 1.0 - inside * smoothstep( deckTop - 0.2, deckTop, world.y );
 }
 #if NUM_POINT_LIGHTS > 0
 // The slab's irradiance from one row at a floor point, given light - point.
@@ -330,7 +430,7 @@ void millosBankIncident( const in PointLight light, const in vec3 x, const in ve
   if ( t1 <= t0 ) {
     // Only the bounce reaches this face; it arrives from the slab below.
     incident.direction = -up;
-    incident.color = light.color * ( bounce / max( facingDown, 0.05 ) );
+    incident.color = light.color * ( bounce / max( facingDown, 0.05 ) ) * millosBankDeckPass( x );
     incident.visible = bounce > 0.0;
     return;
   }
@@ -354,7 +454,7 @@ void millosBankIncident( const in PointLight light, const in vec3 x, const in ve
     - up * ( bounce / max( facingDown, 0.05 ) );
   float radiance = length( arriving );
   incident.direction = radiance > 1e-8 ? arriving / radiance : up;
-  incident.color = light.color * radiance;
+  incident.color = light.color * radiance * millosBankDeckPass( x );
   incident.visible = radiance > 0.0;
 }
 #endif
@@ -393,6 +493,30 @@ export function patchInteriorLightingBegin(source: string): string {
     .replace(DIRECTIONAL_INCIDENT, `${DIRECTIONAL_INCIDENT}${ROOF_TERM}`);
 }
 
+const INDOOR_SKY_MARKER = 'millosIndoorSkyVisibility( geometryPosition )';
+const INDIRECT_DIFFUSE_CALL = 'RE_IndirectDiffuse( irradiance,';
+const INDOOR_SKY_TERM = /* glsl */ `
+#if defined( ${INDOOR_SKY_DEFINE} ) && defined( RE_IndirectDiffuse )
+	{
+		float millosSkyVisibility = ${INDOOR_SKY_MARKER};
+		irradiance *= millosSkyVisibility;
+		iblIrradiance *= millosSkyVisibility;
+	}
+#endif
+`;
+
+/**
+ * Prepended to `lights_fragment_end`, before anything reads the indirect
+ * diffuse. The `#include <lights_fragment_end>` line that six material hooks
+ * anchor on is untouched, so they still land after it.
+ */
+export function patchIndoorSkyEnd(source: string): string {
+  if (source.includes(INDOOR_SKY_MARKER)) return source;
+  if (source.split(INDIRECT_DIFFUSE_CALL).length !== 2)
+    throw new Error('Three light assembly changed; review the indoor sky visibility term.');
+  return `${INDOOR_SKY_TERM}${source}`;
+}
+
 /** Install after `installPunctualLightCulling`, before any program compiles. */
 export function installInteriorLighting(): void {
   const begin = patchInteriorLightingBegin(THREE.ShaderChunk.lights_fragment_begin);
@@ -400,4 +524,5 @@ export function installInteriorLighting(): void {
     THREE.ShaderChunk.lights_pars_begin
   );
   THREE.ShaderChunk.lights_fragment_begin = begin;
+  THREE.ShaderChunk.lights_fragment_end = patchIndoorSkyEnd(THREE.ShaderChunk.lights_fragment_end);
 }

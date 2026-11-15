@@ -33,6 +33,8 @@ const TIMBER_MATERIAL = new THREE.MeshStandardMaterial({
   name: 'station-pallet-timber',
   color: '#90704b',
   roughness: 0.88,
+  // The pallet's timbers carry their own tone as a vertex colour.
+  vertexColors: true,
 });
 applyWorldSurface(TIMBER_MATERIAL, 'vehicle');
 const INK_MATERIAL = new THREE.MeshStandardMaterial({

@@ -194,7 +194,7 @@ function activateOrderHandler(): AgentCommandHandler {
     execute: (command) => {
       const orderId = localId(command.targetUri, 'order');
       const before = useOperationsCampaignStore.getState();
-      before.activateOrder(orderId, 'agent');
+      before.activateOrder(orderId, commandActor(command));
       const after = useOperationsCampaignStore.getState();
       return {
         changed: before.activeOrderId !== after.activeOrderId,
@@ -236,21 +236,21 @@ function activateOrderHandler(): AgentCommandHandler {
 }
 
 function acknowledgeIncidentHandler(): AgentCommandHandler {
-  return incidentHandler('incident.acknowledge', 'raised', (id) =>
-    useOperationsCampaignStore.getState().acknowledgeIncident(id, 'agent')
+  return incidentHandler('incident.acknowledge', 'raised', (id, actor) =>
+    useOperationsCampaignStore.getState().acknowledgeIncident(id, actor)
   );
 }
 
 function mitigateIncidentHandler(): AgentCommandHandler {
-  return incidentHandler('incident.mitigate', 'unmitigated', (id) =>
-    useOperationsCampaignStore.getState().mitigateIncident(id, 'agent')
+  return incidentHandler('incident.mitigate', 'unmitigated', (id, actor) =>
+    useOperationsCampaignStore.getState().mitigateIncident(id, actor)
   );
 }
 
 function incidentHandler(
   capabilityId: 'incident.acknowledge' | 'incident.mitigate',
   requiredPhase: 'raised' | 'unmitigated',
-  action: (incidentId: string) => void
+  action: (incidentId: string, actor: 'operator' | 'agent') => void
 ): AgentCommandHandler {
   const finalPhase = capabilityId === 'incident.acknowledge' ? 'acknowledged' : 'mitigated';
   return {
@@ -309,7 +309,7 @@ function incidentHandler(
       const before = useOperationsCampaignStore
         .getState()
         .incidents.find((item) => item.id === id)?.phase;
-      action(id);
+      action(id, commandActor(command));
       const after = useOperationsCampaignStore
         .getState()
         .incidents.find((item) => item.id === id)?.phase;
@@ -428,7 +428,7 @@ function respondToDecisionHandler(): AgentCommandHandler {
                 stringParameter(command, 'modifiedAction')
               );
         if (!optionId) return json({ changed: false, reason: 'proposal_option_required' });
-        const answered = answerPartnerProposal(id, optionId, 'agent');
+        const answered = answerPartnerProposal(id, optionId, commandActor(command));
         return json(
           answered
             ? { changed: true, disposition, optionId }
@@ -1038,6 +1038,15 @@ function check(id: string, satisfied: boolean, detail: string) {
 
 function verify(id: string, passed: boolean, detail: string): AgentVerificationResult {
   return { id, passed, detail };
+}
+
+/**
+ * Who the record names: the human operator's command is the player's own, any
+ * other actor's the agent's. The kernel refuses a draft whose actor does not
+ * own its grant, so the window handle cannot name the person (D-077).
+ */
+function commandActor(command: AgentCommandEnvelope): 'operator' | 'agent' {
+  return command.actorUri === HUMAN_OPERATOR_URI ? 'operator' : 'agent';
 }
 
 function localId(uri: string, expectedKind: string): string {

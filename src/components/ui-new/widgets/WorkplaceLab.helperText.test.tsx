@@ -10,7 +10,9 @@ import { WORKPLACE_PLANS, createWorkplace } from '../../../simulation/bilateralW
 import { setLocale, translate, type Locale } from '../../../i18n';
 import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 beforeEach(() => {
   setLocale('en');

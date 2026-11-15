@@ -60,7 +60,7 @@ import {
   seasonSobrasPool,
   sobrasSettlement,
 } from '../../../simulation/workplaceCampaign';
-import { executeAgentCommand } from '../../../agent/client/executeAgentCommand';
+import { executeOperatorCommand } from '../../../agent/client/executeOperatorCommand';
 import { formatFixed, formatGrouped, getLocale, translate, useT } from '../../../i18n';
 import { workplaceLabMessages as messages } from './WorkplaceLab.messages';
 import { bilateralWorkplaceMessages } from '../../../simulation/bilateralWorkplace.messages';
@@ -481,7 +481,9 @@ export const WorkplaceLab: React.FC = () => {
     setFeedback(null);
     setReceipt(null);
     try {
-      const result = await executeAgentCommand(
+      // Only a person's press of an approve button reaches here (the lab's,
+      // the step's, the handoff panel's): the approval is theirs (D-077).
+      const result = await executeOperatorCommand(
         {
           capabilityId: 'workplace.activate-plan',
           targetUri: 'millos://simulation/local',
@@ -489,7 +491,6 @@ export const WorkplaceLab: React.FC = () => {
           reason: `Run the ${plan.title} agreement at workplace revision ${state.revision}, with recorded role understanding, policy votes and separate optional-cover consent.`,
         },
         {
-          approveIfRequired: true,
           approvalReason: `Explicit approval of the ${plan.title} workplace agreement at revision ${state.revision}.`,
         }
       );

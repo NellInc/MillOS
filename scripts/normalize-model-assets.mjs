@@ -320,11 +320,154 @@ async function simplifyForkliftWheels(root) {
   return applied;
 }
 
+/**
+ * The forklift's painted body shell is MillOS-authored geometry, not the provider's.
+ *
+ * `scripts/blender/authored/forklift-chassis-unit.py` writes the shell already in
+ * the mesh-local frame of the provider's body mesh (`Object_23`, delivered as
+ * `forklift-base-24`) and snapped to that mesh's int16 grid, and the same file is
+ * the prepared source of `world-forklift-chassis-unit`. One file feeding both is
+ * what keeps the runtime attachment (GeneratedGeometrySurface matching the chassis
+ * unit's triangles against this mesh) exact.
+ *
+ * Only that primitive's accessors change. Its node, transform, material, mesh
+ * order and every other mesh, node and animation stay the provider's, and the
+ * local envelope must equal the old one exactly, so `centreSceneBelow` derives
+ * the same Pivot translations and nothing else in the rig moves.
+ */
+/**
+ * The overhead guard's roof is authored the same way and swapped the same way:
+ * `scripts/blender/authored/forklift-guard-roof.py` replaces the provider's flat
+ * plate (`Object_27`, delivered as `forklift-roof-28`) with a slatted guard on the
+ * same envelope, keeping a solid plate under the beacon.
+ */
+const FORKLIFT_AUTHORED_PARTS = [
+  {
+    label: 'body shell',
+    meshIndex: 23,
+    sourceMaterial: 'base',
+    file: path.join(SOURCE_ROOT, 'world', 'forklift-chassis-unit-authored-v2.glb'),
+  },
+  {
+    label: 'guard roof',
+    meshIndex: 27,
+    sourceMaterial: 'roof',
+    file: path.join(SOURCE_ROOT, 'forklift', 'forklift-guard-roof-authored.glb'),
+  },
+];
+
+async function installAuthoredForkliftPart(io, document, part) {
+  const root = document.getRoot();
+  const mesh = root.listMeshes()[part.meshIndex];
+  const primitives = mesh?.listPrimitives() ?? [];
+  const primitive = primitives[0];
+  const fail = (message) => new Error(`Forklift ${part.label}: ${message}`);
+  if (primitives.length !== 1 || primitive.getMaterial()?.getName() !== part.sourceMaterial)
+    throw fail(
+      `source mesh ${part.meshIndex + 1} is no longer the single-primitive ${part.sourceMaterial}`
+    );
+  const oldPosition = primitive.getAttribute('POSITION');
+  const oldValues = oldPosition?.getArray();
+  if (!(oldValues instanceof Int16Array) || !oldPosition.getNormalized())
+    throw fail('expected int16 normalized positions');
+
+  const shellBytes = await readFile(part.file);
+  const shell = await io.readBinary(new Uint8Array(shellBytes));
+  const shellNodes = shell
+    .getRoot()
+    .listNodes()
+    .filter((node) => node.getMesh());
+  const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  if (
+    shellNodes.length !== 1 ||
+    shellNodes[0].getMesh().listPrimitives().length !== 1 ||
+    shellNodes[0].getWorldMatrix().some((value, i) => value !== identity[i])
+  )
+    throw fail('expected one untransformed single-primitive mesh');
+  const shellPrimitive = shellNodes[0].getMesh().listPrimitives()[0];
+  const floats = shellPrimitive.getAttribute('POSITION').getArray();
+  const normals = shellPrimitive.getAttribute('NORMAL').getArray();
+  const shellIndices = shellPrimitive.getIndices().getArray();
+
+  const positions = new Int16Array(floats.length);
+  for (let i = 0; i < floats.length; i++) {
+    const scaled = floats[i] * 32767;
+    positions[i] = Math.round(scaled);
+    // float32(k / 32767) * 32767 lies within ~0.004 of k.
+    if (Math.abs(scaled - positions[i]) > 0.01)
+      throw fail('a vertex is off the int16 grid of the mesh it replaces');
+  }
+  const extent = (values) =>
+    [0, 1, 2].map((axis) => {
+      let low = Infinity;
+      let high = -Infinity;
+      for (let i = axis; i < values.length; i += 3) {
+        low = Math.min(low, values[i]);
+        high = Math.max(high, values[i]);
+      }
+      return [low, high];
+    });
+  const before = extent(oldValues);
+  const after = extent(positions);
+  if (JSON.stringify(before) !== JSON.stringify(after))
+    throw fail(
+      `local envelope ${JSON.stringify(after)} differs from the rig's ${JSON.stringify(before)}`
+    );
+  const normal8 = new Int8Array(normals.length);
+  for (let i = 0; i < normals.length; i++)
+    normal8[i] = Math.max(-127, Math.min(127, Math.round(normals[i] * 127)));
+  if (shellIndices.some((index) => index > 65535)) throw fail('indices exceed uint16');
+
+  const buffer = root.listBuffers()[0];
+  const replaced = primitive.listAttributes().concat(primitive.getIndices() ?? []);
+  primitive
+    .setAttribute(
+      'POSITION',
+      document
+        .createAccessor(`forklift-${slug(part.label)}-position`)
+        .setType('VEC3')
+        .setArray(positions)
+        .setNormalized(true)
+        .setBuffer(buffer)
+    )
+    .setAttribute(
+      'NORMAL',
+      document
+        .createAccessor(`forklift-${slug(part.label)}-normal`)
+        .setType('VEC3')
+        .setArray(normal8)
+        .setNormalized(true)
+        .setBuffer(buffer)
+    )
+    .setAttribute('TEXCOORD_0', null)
+    .setAttribute('TANGENT', null)
+    .setIndices(
+      document
+        .createAccessor(`forklift-${slug(part.label)}-indices`)
+        .setType('SCALAR')
+        .setArray(Uint16Array.from(shellIndices))
+        .setBuffer(buffer)
+    );
+  for (const accessor of replaced)
+    if (accessor.listParents().every((parent) => parent.propertyType === PropertyType.ROOT))
+      accessor.dispose();
+  return {
+    part: part.label,
+    source: path.relative(ROOT, part.file),
+    sha256: createHash('sha256').update(shellBytes).digest('hex'),
+    triangles: shellIndices.length / 3,
+    vertices: positions.length / 3,
+  };
+}
+
 async function normalizeForklift(io, source, output) {
   const document = await io.read(source);
   const root = document.getRoot();
   const scene = root.listScenes()[0];
   if (!scene) throw new Error('Forklift source has no scene');
+  const authoredParts = [];
+  for (const part of FORKLIFT_AUTHORED_PARTS)
+    authoredParts.push(await installAuthoredForkliftPart(io, document, part));
 
   const material = (name, color, metallic, roughness) =>
     document
@@ -412,7 +555,8 @@ async function normalizeForklift(io, source, output) {
 
   Object.assign(root.getAsset(), {
     generator: `MillOS asset pipeline, glTF-Transform ${GLTF_TRANSFORM_VERSION}`,
-    copyright: 'Forklift by Mantas Stankaitis, CC BY 4.0',
+    copyright:
+      'Forklift by Mantas Stankaitis, CC BY 4.0; modified for MillOS: body shell and overhead-guard roof replaced by MillOS-authored geometry',
   });
 
   await writeBinaryGLB(io, output, document);
@@ -422,6 +566,7 @@ async function normalizeForklift(io, source, output) {
     textures: root.listTextures().length,
     animations: root.listAnimations().map((animation) => animation.getName()),
     simplified,
+    authoredParts,
   };
 }
 
@@ -839,22 +984,30 @@ export const GENERATED_ASSETS = [
     id: 'world-forklift-chassis-unit',
     slug: 'forklift-chassis-unit',
     area: 'world',
+    // Built in the forklift body mesh's local frame by its authoring script: target is
+    // its own height (2 x float32(13245 / 32767), scale exactly 1), so every position
+    // ships byte-exact and still matches `forklift-base-24`, which normalizeForklift
+    // fills from this same prepared source. Its encoded atlas ships byte-exact.
     target: 0.808435320854187,
     axis: 'y',
-    texture: 512,
+    // The seam atlas needs ~290 px/m to keep a 10 mm groove steep; it is mostly flat
+    // and encodes to about 23 KB.
+    texture: 1024,
+    authoredTextures: true,
     yaw: 0,
-    preparedSource: 'forklift-chassis-unit-crafted-surface.glb',
-    preparationScript: 'scripts/refine-authored-surfaces.mjs',
+    preparedSource: 'forklift-chassis-unit-authored-v2.glb',
+    preparationScript: 'scripts/blender/authored/forklift-chassis-unit.py',
+    runtimeLicense: 'MillOS project-authored geometry and normal atlas',
+    runtimeAttribution:
+      'Authored for MillOS (scripts/blender/authored/forklift-chassis-unit.py); replaces the body shell of Forklift by Mantas Stankaitis (CC BY 4.0), whose original is retained in source provenance',
     preparationMethod:
-      'Satin coating with restrained broad manufacturing undulation; remove false triangular bulges. Metre-aware normal-atlas refinement only; authored geometry, UVs, palettes, rig and other textures preserved exactly.',
+      'Asset-loop 2026-11-12: new body shell (counterweight, tub, cowl, hood, wheel housings) and panel-seam normal atlas built from scratch by the authoring script, in the forklift body mesh frame; no provider geometry or texture.',
     surface: {
-      normalScale: 0.2,
       doubleSided: false,
     },
     pipeline: [
-      'Blender authored atlas',
-      'texture v3.0-20250812, pbr:true, bake:false',
-      'Source attribute and shadow restoration',
+      'Original Sketchfab body mesh and Tripo3D atlas retained as historical source only',
+      'Independent authored replacement: scripts/blender/authored/forklift-chassis-unit.py',
     ],
     taskId: '6a0e7b0b-abc6-4427-9f40-fec5db5ce723',
     retrievedAt: '2026-09-08',
@@ -4208,11 +4361,16 @@ async function main() {
     // A typo in `--only=` that silently normalizes nothing, prints a cheerful
     // summary and leaves the old derivative in place is the exact failure this
     // whole flag is supposed to make safe.
-    const unknown = ONLY.filter((id) => !GENERATED_ASSETS.some((spec) => spec.id === id));
+    // `forklift` is the one rig outside the table: it is normalized by
+    // normalizeForklift, and selecting it here is the only way to rebuild it
+    // without a bare run.
+    const unknown = ONLY.filter(
+      (id) => id !== 'forklift' && !GENERATED_ASSETS.some((spec) => spec.id === id)
+    );
     if (unknown.length > 0) {
       throw new Error(
         `--only= names ${unknown.join(', ')}, which is not in GENERATED_ASSETS. ` +
-          `Known ids: ${GENERATED_ASSETS.map((spec) => spec.id).join(', ')}`
+          `Known ids: forklift, ${GENERATED_ASSETS.map((spec) => spec.id).join(', ')}`
       );
     }
   }
@@ -4253,6 +4411,13 @@ async function main() {
         },
         generated: [],
       };
+
+  if (ONLY?.includes('forklift')) {
+    results.forklift = await normalizeForklift(io, paths.forklift.source, paths.forklift.output);
+    results.forklift.sourceSha256 = await sha256(paths.forklift.source);
+    results.forklift.outputSha256 = await sha256(paths.forklift.output);
+    results.forklift.outputBytes = (await stat(paths.forklift.output)).size;
+  }
 
   // Keyed, not appended: a filtered run REPLACES the row for the asset it
   // rebuilt and leaves every other row exactly as the last full run wrote it.
