@@ -10,7 +10,9 @@ import { bilateralWorkplaceMessages as wm } from '../../../simulation/bilateralW
 import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import { setLocale } from '../../../i18n';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 beforeEach(() => {
   setLocale('en');

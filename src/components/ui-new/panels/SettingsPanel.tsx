@@ -997,8 +997,10 @@ export const SettingsPanel: React.FC<{
           // storage, so it is suspended separately. Sound (mute, volume, music),
           // language and reduced motion are the person's preferences, not
           // simulation state.
-          // Working if: no millos-* key survives the reload except those three
-          // and the interface scale, and the SCADA trend history is empty after it.
+          // Working if: no millos-* key survives the reload except those three,
+          // the interface scale and the PA preferences (captions, voice, the
+          // chosen voices, On or Off) with an empty transcript, and the SCADA
+          // trend history is empty after it.
           useGameSimulationStore.getState().setGameSpeed(0);
           suspendPersistence();
           suspendResourcePersistence();
@@ -1019,6 +1021,31 @@ export const SettingsPanel: React.FC<{
           } catch {
             uiScale = undefined;
           }
+          // The PA's switches (captions, voice, the chosen voices, On or Off)
+          // are the person's too (D-070), but millos-pa also holds the
+          // transcript, which goes. Read through the store's own merge, so
+          // only values it would restore are carried; an unreadable record
+          // costs the PA preferences, never the sweep.
+          let paCarried: { key: string; record: string } | undefined;
+          try {
+            const { name, merge, version } = useAnnouncementsStore.persist.getOptions();
+            const saved = name ? JSON.parse(localStorage.getItem(name) ?? 'null')?.state : null;
+            if (name && merge && saved && typeof saved === 'object') {
+              const { mode, captionsEnabled, voiceEnabled, voiceNames } = merge(
+                saved,
+                useAnnouncementsStore.getState()
+              );
+              paCarried = {
+                key: name,
+                record: JSON.stringify({
+                  state: { mode, captionsEnabled, voiceEnabled, voiceNames },
+                  version: version ?? 0,
+                }),
+              };
+            }
+          } catch {
+            paCarried = undefined;
+          }
           // Blocked site data throws on the first read. Nothing was saved then,
           // so the reload alone is the reset; it must still happen.
           try {
@@ -1031,6 +1058,7 @@ export const SettingsPanel: React.FC<{
                 JSON.stringify({ state: { uiScale }, version: UI_STORAGE_VERSION })
               );
             }
+            if (paCarried) localStorage.setItem(paCarried.key, paCarried.record);
           } catch {
             // Nothing to sweep: storage is unavailable.
           }

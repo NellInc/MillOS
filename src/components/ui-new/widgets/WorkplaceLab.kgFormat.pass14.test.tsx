@@ -10,7 +10,9 @@ import { endReplayClock } from '../../../simulation/workplaceReplayRuntime';
 import type { WorkplaceMission } from '../../../types/workplace';
 import { setLocale } from '../../../i18n';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 const mission = (overrides: Partial<WorkplaceMission> = {}): WorkplaceMission => ({
   orderId: 'order-1',

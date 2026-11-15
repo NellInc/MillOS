@@ -906,6 +906,335 @@ the ramp. Tests: `accessibleEgress.test.ts`, `aiAccommodation.test.ts`,
 `capsuleWalk.routes.test.ts` (ramp and door walks), `agreedAdjustments.test.ts`,
 `firstPersonSpawn.sweep.test.tsx`, `civicLampShadows.test.ts`.
 
+### D-063 · Indoor sky visibility: an experiment, off by default · [proposed] · 2026-11-09
+
+Hypothesis: the hall is lit mostly by a sky it cannot see. A leave-one-out ablation at noon
+on medium (`measure:surfaces --toggle-keys=`, `performance/LightingLayerIsolation.tsx`)
+found removing the sky fill (ambient, hemisphere, diffuse IBL) changed 97.7% of the
+`interior` frame and removing the sun 31%; at 22:00 the sky fill still moved 90%. The fill
+also flattened the skylight sun patches, the hall's one directional read.
+The experiment, `perfDebug.enableIndoorSkyOcclusion` (default false): inside the hall
+footprint and below the pitched roof deck, the sky's indirect diffuse is scaled by a
+visibility term, 1 at the glazed wall planes falling over 12 m to 0.3 in the middle
+(`shaders/interiorLighting.ts` part 3, `MILLOS_INDOOR_SKY`, tagged onto materials by
+`performance/IndoorSkyOcclusion.tsx`). Diffuse only: metals keep their sky reflection, a
+separate experiment. Skylights are not modelled. While it is on, the ceiling banks hold one
+level around the clock (`INDOOR_SKY_BANK_GAIN` 1.85 times the noon level, against the
+current 1.0 by day and 1.65 by night), because their daytime dimming existed to give way
+to the sky fill.
+Accept criteria, set before the A/B: hall brightness held within a few luma levels; the
+blind A/B judge prefers it on the hall cameras at 12:00 and 22:00; operational legibility
+not worse; no exterior pixel changes.
+Measured (gain 1.85): hall mean luma at noon `interior` 76.0 to 74.8, `milling` 88.7 to
+85.9, `sifting` 83.3 to 83.3, `packing` 82.0 to 82.6; at 22:00 within 1.1 either way; local
+contrast where it changes up 7 to 15%. A null control reads exactly 0, as do scenes with no
+view of the hall. Exterior changes are confined to the hall seen through its glazing, with
+one exception: by day the brighter banks spill through the glass onto the shaded apron
+outside the west wall, mean +2.8 luma, and exactly 0 at night. That follows from brighter
+lamps behind clear glass and is recorded rather than masked.
+Fixed on the way, in the default build: the banks are unshadowed points and lit the rooftop
+plant and skylight kerbs through the deck (`bankDeckPass`); bank light now stops at the
+deck's top face inside the footprint. Rooftop plant reads darker in the default build by
+2 to 5 luma at noon and 8 to 14 at 22:00 (`overview`, compared across the two builds); nothing
+else in that frame moved beyond the animation between page loads. Revert: drop the two
+`* millosBankDeckPass( x )` factors in `millosBankIncident` and the `bankDeckPass` factor
+in `bankLineIncident`.
+Blind A/B (blind-ab-judge, 2026-11-09, five hall cameras at 12:00 and 22:00, key held back
+until it reported): at noon the experiment won `interior` (low), `milling` (low) and
+`sifting` (medium); the default won `packing` (low). At 22:00 no pair showed a meaningful
+difference. Legibility: workers, floor lines, forklifts and conveyors equal; one trade,
+covered vertical faces darker, worst on the hanging electrical cabinet in `milling` (front
+62 to 40 luma, outline still reads). So the night criterion is neutral, not met, and the
+noon win is low-confidence and, on unblinding, confounded: the judge picked B in every noon
+pair, and the experiment sat on B in three of the four distinct cameras; the one pair with
+the default on B is the one the default won. Re-judged with sides swapped by a fresh judge
+on the same brief, rule set beforehand: experiment side on 3 of 4 again means a content
+preference (ship as default); B on 3 or 4 again means position bias (A/B void, leave off,
+counterbalance the protocol); no difference means noon is neutral too (leave off).
+Swapped re-judge (2026-11-09): experiment `interior` (low-med) and `sifting` (med), default
+`packing` (med), `milling` a tie; the judge picked A three times and B never, so the first
+run was not position bias and the per-camera preferences held across the swap. The
+experiment reached 2 of 4, not 3: by the rule it stays off. The `packing` loss is specific:
+with the cool sky fill cut, the warm banks (`ZONE_LIGHT_COLOR`) dominate and the floor takes
+a brown cast (saturation 19 to 30), so the sack stacks lose separation from it (17 luma to
+7 on one patch). A further arm would have to fix that hue shift, not the brightness, and
+be judged afresh.
+`milling` and `process-floor` share one pose since
+`0c225d5b`, so they count as one camera.
+Outcome (Nell left both calls to the agent's judgement, 2026-11-09): the deck fix stays.
+At 22:00 the rooftop plant had glowed warm white on a dark roof, lit from below through the
+steel; with the fix it reads as dim moonlit shapes, outlines intact. The experiment is
+parked, off, with its code in place: the rule set before the swapped re-judge said off, the
+win it showed is low-to-medium confidence on two cameras, and iterating arms against the
+same judge until one passes would overfit the judge. A future arm starts from the
+`packing` hue finding above, with its own rule written first.
+Source: Nell, 2026-11-09, asked for the toggle and the judged A/B on the recommendation;
+whether it becomes the default is hers. Tests: `indoorSky.test.ts`.
+
+### D-064 · A blind A/B is run in both orders, and one-sided wins count as ties · [proposed] · 2026-11-12
+
+Every blind comparison (model sheets or game frames) is judged twice by fresh judges with
+the sides swapped. A version wins only if it is picked in both orders; the same side
+winning both times is position bias and counts as a tie. Ties go to Nell, as
+`scripts/asset-loop/resolve-ab.mjs` already rules. The judge writes each version's
+strengths and weaknesses before choosing.
+Why: on 2026-11-12 six blind Sonnet judges of the flour sack all picked side B, across
+three pairings and both orders, giving a cycle (D-063 saw the same bias in game frames).
+With "describe each version first" added to the prompt, the forklift, its chassis and
+the windmill were each picked by content in both orders.
+Source: Nell's delegation of 2026-11-06 (D-031); verdicts in
+`test-results/asset-loop/ab-*` and `test-results/art-review/own-blind-{1,2}`.
+
+### D-065 · The farm windmill is rebuilt with windows, a framed door, a curb and a bearing · [proposed] · 2026-11-12
+
+`farm-windmill` keeps its identity (white plaster tower, jointed stone base, copper-brown
+cap with battens and drip ring, four lattice sails, wooden door) and gains five deep-set
+windows, a 0.9 x 2.0 m plank door in a stone surround, a taller three-course plinth, a
+timber curb under the cap, two through-stocks, and a timber neck bearing with a bronze
+collar and boss. The sail-weight band narrows (`SAIL_X_IN` 0.216 to 0.2277 in
+`GeneratedWindmill.tsx`) so the fixed collar meets the turning flange across 2.7 mm
+instead of floating 5 to 10 cm clear. The model and the runtime band ship together: the
+new model under the old band would blend the collar's weights. `public/sw.js` gives each
+build its own cache namespace, so one deploy cannot serve a mixed pair. No budget changed.
+Outcome under D-031: improved, preferred blind. One fresh judge passed it (every view and
+axis at 8 or more) and one failed it (surface 6), so it is not "accepted"; it won the
+model A/B in both orders and the game-frame A/B in both orders (D-064), both on the final
+file. Not checked in pixels: the windmill learning view's cutaway, where the wider door
+and the bearing block meet the section plane.
+Source: Nell, 2026-11-12: "Make our own better versions of those same models please,
+inspired by them." Evidence: `test-results/asset-loop/j-97f0394dbd`,
+`test-results/art-review/own-blind-fin-{1,2}`.
+
+### D-066 · The flour sack keeps its 84-triangle shape; a sewn-end sack is parked · [proposed] · 2026-11-12
+
+Two candidates were built: the same 84 triangles reshaped, and a 208-triangle sack with
+pinched sewn ends (which needs `maxRenderVertices` 252 to 624 and moves the wordmark off
+the ends). Four turntable judges scored them level with the original (form 6 to 7,
+artefacts 6 to 7), and every blind pairing tied under D-064. Nothing demonstrated an
+improvement, so the committed sack is restored byte for byte and no budget changed. The
+candidate is kept as `output/asset-loop-20261104/parked/flour-sack-sewn-ends.patch` for
+Nell to choose by eye; a tie is hers to break. To take it: apply the patch, set the
+sack's `maxRenderVertices` to 624, run `node scripts/refine-flour-sack-geometry.mjs` and
+`npm run normalize-models -- --only=world-flour-sack-unit`, and update the flour-sack
+golden in `GeneratedGeometrySurface.startup.test.ts`.
+Source: Nell, 2026-11-12 (as D-065). Evidence: `test-results/asset-loop/j-e0cfa38e88`,
+`j-a078679a5a` and the six `ab-*` sack pairs.
+
+### D-067 · The shared pallet is a block pallet with planed boards and its own tone · [proposed] · 2026-11-12
+
+`getFlourPalletGeometry().pallet` (`src/utils/flourSacks.ts`) is five deck boards with
+planed top edges, nine blocks flush with the pallet's edges and three runners, in place
+of seventeen plain boxes with inset blocks. Each timber carries a tone as a vertex colour
+and sawn ends are darker, so the eight materials that draw it set `vertexColors`. The
+envelope (0.9 x 0.12 x 0.8 m), deck top, fork channels and bearing heights are unchanged,
+as its tests pin. At yard camera distance the blind judges saw no difference; the change
+shows at walking distance.
+Source: Nell, 2026-11-12 (as D-065). Evidence:
+`test-results/asset-loop/own-pallet-preview`.
+
+### D-068 · High-definition verge earth is loam with moss and litter; Low keeps packed earth · [proposed] · 2026-11-12
+
+The 512 px earth tile that medium quality and above use (`generateDirtGravel` and
+`generateDirtSurface` in `terrainTextures.ts`) is a warmer loam in soft lumps, with small
+moss beds where it holds damp and sparse leaf litter. Nothing added is paler than the
+old pebbles, so the "no pale gravel carpet" intent of the packed-earth tile holds, and
+the 128 and 256 px tiles (Low) are unchanged, as `terrainSurfaces.test.ts` pins. It is
+procedural: no photo-scan texture enters the repo. [Inference] It costs about one more
+second of one-off worker time at first load: the new tile took 2.5 times the old one in
+one timing on a heavily loaded machine, and the old pair was documented at 1.5 s.
+Outcome: a tie, so Nell's to break (D-064). It is left in the tree because it is what
+she asked for and one edit removes it; that is not a claim that it is better. In the
+game-frame A/B the road verge tied twice: first by position at low confidence (one judge
+called the new earth "closer to a real roadside", the other preferred the old finer grain
+and said the new pattern "tiles visibly"), then, after the tile was made less orange, as
+one tie and one medium-confidence pick of the new earth. To go back, remove the two
+`size > 256` branches and restore the two fingerprints in `sceneTextureBake.test.ts`.
+Source: Nell, 2026-11-12: "I quite liked some of the earth textures, moss etc also."
+Evidence: `test-results/art-review/own-blind-{1,2}` and `own-blind-fin-{1,2}`.
+
+### D-069 · The forklift's body shell and guard roof are our own geometry; the rest is the provider rig · [proposed] · 2026-11-12
+
+`forklift` keeps the CC-BY rig (57 nodes, five animations, bounds, every other mesh byte
+for byte) and replaces two meshes with authored ones: the body shell
+(`scripts/blender/authored/forklift-chassis-unit.py`: a raked, rounded cast counterweight
+with corner tail lamps and a bumper casting, closed wheel housings cut to the rig's own
+wheels, rear arches, a closed belly) and the overhead guard roof
+(`forklift-guard-roof.py`: rim, slats, cross-ribs). `world-forklift-chassis-unit` is the
+same shell with a procedurally authored seam atlas, so the runtime's triangle match
+holds; `ForkliftModel.test.ts` now tests the real pair. The two files are position-locked
+and ship together. The manifest still credits the rig as CC-BY-4.0, modified. No manifest
+budget changed; the chassis atlas is now normalized at 1024 px, up from 512, to hold the
+seam grooves (a spec field in `normalize-model-assets.mjs`; the file is 86 KB of a
+402 KB budget). This supersedes the asset loop's
+"provider-retain: never a geometry rebuild" disposition for this model only.
+Outcome under D-031 after three rounds: improved, preferred blind. Fresh judges still
+score it below 8 (forklift form 7, construction 7; chassis form 6), naming the tail, the
+tucked rear wheels and the plain roof; both won the blind A/B against the originals in
+both orders (D-064), at medium to high confidence. In game frames at 10 m and more the
+judges saw no difference either way.
+Not fixed, and outside this decision: the rig yaws the whole rear axle to steer, so at
+full lock the rear tyres cut the counterweight. That is in the steering code. Measured
+on every tyre vertex, the new shell is cut slightly less than the original: 173 mm
+against 186 mm at full lock, 64 mm against 78 mm at half lock.
+Source: Nell, 2026-11-12 (as D-065). Evidence: `test-results/asset-loop/j-997565c517`
+and `j-364182e8c9`.
+
+### D-070 · Muting stops the PA's sound; its captions keep their own switch · [proposed] · 2026-11-13
+
+Master mute silences the PA voice and every other sound. It no longer hides the caption or
+empties the screen-reader region. A line raised while muted is captioned, kept in the
+transcript and read to a screen reader as it is with sound on. Captions answer to the
+captions switch (off hides the lines that are not urgent) and the PA to its On or Off mode,
+as before. The voice never starts while muted.
+Before this, mute stopped PA lines being raised at all (`src/components/game/shared.tsx`), so
+someone who is deaf, or who keeps sound off, received no PA, a facility stop included.
+D-061 `[Nell]` says "a paused or muted plant builds no urgency". That stands: a muted plant
+captions a fault once and does not say it again in rising terms. The tension is real (the
+people this serves are the ones who would miss the second notice) and is Nell's to settle.
+Reset Simulation carries the captions switch, the voice switch, the chosen voices and the PA
+mode across, as it carries language, sound and reduced motion. The transcript is still
+cleared.
+This reverses what the project `CLAUDE.md` recorded on 2025-12-30, when a PA line appearing
+while muted was the defect. That note predates captions, the transcript and the PA voice.
+Two things follow from it. Unmuting does not speak a line already on screen; the next line is
+spoken. And `scripts/capture-operational-review.mjs` runs muted with the PA off, so a critical
+line raised during one of its captures is now captioned in the frame, as it always was with
+sound on.
+To revert: restore the mute checks in `shared.tsx` and `PAAnnouncementSystem.tsx`.
+Source: Nell, 2026-11-13: "FIX ALL ISSUES PLEASE", on a list carrying the recommendation that
+mute stop sound only; `src/components/game/PAAnnouncementSystem.muted.gameplay.test.tsx`,
+`src/components/game/shared.test.ts` ("captions a fault once while muted and builds no urgency
+until the sound is back"),
+`src/components/ui-new/panels/SettingsPanel.resetPAPreferences.gameplay.test.tsx`.
+Note, 2026-11-15: D-098 records the same rule from another session. The implementation on main
+is D-098's; this entry's captions switch and its Reset Simulation carry-over of the PA
+preferences are carried onto it (both in the code on 2026-11-15, `PAAnnouncementSystem.tsx` and
+`SettingsPanel.tsx`).
+
+### D-071 · The interface may notice difficulty and offer one adjustment; it keeps nothing · [proposed] · 2026-11-13
+
+For the planned adaptation work, in which the interface notices difficulty and offers one
+adjustment; nothing is built yet. Fixed rules in the interface, never a model, may count a few
+signs of difficulty during the current session: presses that land just outside a control,
+repeated back-outs, page zoom, an alarm acknowledged late with sound off, keyboard-only use. A
+sign makes one offer of one adjustment, as a control with two actions, and is then cleared.
+Nothing is stored, logged or exported. A declined offer is not made again. With a standing
+permission the change is applied, announced and reversible. The counters are outside the agent
+contract: no AI can read them.
+This sits beside D-058 `[Nell]` and does not supersede it. D-058 says the factory AI acts on
+the register and on schedules, "never by watching anyone"; it concerns the AI and the people
+of the mill. This concerns the player's own interface responding to how it is being used, with
+no AI involved and no record kept. If Nell reads D-058 as ruling this out as well, D-058 wins,
+and offers come only from the register a person fills in.
+It follows D-052 and D-048: the system may notice and offer; the person decides.
+Source: Nell, 2026-11-13: "FIX ALL ISSUES PLEASE", on a list carrying this recommendation.
+
+### D-072 · A spoken request may become a command draft; ballots and consent stay typed · [proposed] · 2026-11-13
+
+For the planned voice input (technical plan, section 4); nothing is built yet. A person may
+hold a control and speak a request. Recognition runs on the device, the audio is never stored
+or sent, and the words heard are shown before they become a draft. A draft is never a commit.
+When this ships, `validate:community` will ban the host `SpeechRecognition` API by name, as
+it bans host speech synthesis today, because that API sends audio to a vendor; and
+`HUMAN_PRESENCE_POLICY` will gain a `voiceCommandInput` flag. Neither exists yet.
+The policy comment that the workplace laboratory "accepts only typed synthetic role inputs"
+(`src/config/featureFlags.ts`) is kept: a ballot, a confirmation of understanding, consent to
+cover and an objection are never taken by voice.
+Source: Nell, 2026-11-13: "FIX ALL ISSUES PLEASE", on a list naming voice input.
+
+### D-073 · Stand-in operators are test fixtures, never part of the game · [proposed] · 2026-11-13
+
+For the planned lab (technical plan, section 13). Synthetic operators live under `scripts/`
+and nowhere in product state, copy or saves. They may carry ability parameters (reach,
+precision, vision, hearing, reading speed) because they are fixtures, which keeps D-008 and
+D-058's "no number about anyone" intact for every person in the game. A language model may
+play an operator to vary wording, language and brevity only. No model is prompted into
+distress, fear or pain: stress and fatigue appear as timing parameters in the analytic
+models, never as role-played affect. A stand-in's approval is always recorded as a
+stand-in's, never as a person's. Results from stand-ins are not evidence about people, and
+every export says so.
+Source: Nell, 2026-11-13: "FIX ALL ISSUES PLEASE", on a list naming stand-in operators;
+`~/.claude/CLAUDE.md`, "No negative-valence induction without explicit approval".
+
+### D-074 · A task signed off in practice widens what cover a role may be asked for · [proposed] · 2026-11-13
+
+For the planned practice mode (technical plan, section 7); nothing is built yet. A sign-off
+belongs to a workplace role within a season. It is earned by doing the task in practice as
+that role and is acknowledged by whoever plays it. A role's eligible tasks become the authored
+list (`src/simulation/bilateralWorkplace.ts`, `createWorkplace`) plus its sign-offs. There is
+no grade, rank or score, and no record of attempts. The authored lists do not change, and a
+season saved before this restores as it does today.
+Source: Nell, 2026-11-13: "FIX ALL ISSUES PLEASE", on a list carrying this recommendation.
+
+### D-075 · Plant variability stays off in ordinary play · [proposed] · 2026-11-13
+
+For the planned rehearsal work (technical plan, AD-3); nothing is built yet. The plant is
+nearly deterministic, so a copy of it predicts it exactly. Seeded noise on throughput and
+wear is added as a simulation feature, on in lab mode and in Practice, and off in ordinary
+play so that balance, saves, recipe thresholds and the gameplay tests are unchanged.
+Source: Nell, 2026-11-13: "FIX ALL ISSUES PLEASE"; `src/chronicle/modules.test.ts` (the pinned
+crop years and thresholds).
+
+### D-076 · Conventions are chosen or offered, never inferred; direction is its own setting · [proposed] · 2026-11-13
+
+For the planned conventions work (technical plan, section 10); nothing is built yet. Units,
+clock, date order, currency, numerals and forms of address come as a pack that a person
+chooses or is offered. Nothing is taken from the browser's language, following D-048.
+Reading direction is a setting of its own, not a locale. Painted signage in the world stays
+as it is (`src/i18n/GLOSSARY.md`, the never-translate list).
+Source: Nell, 2026-11-13: "FIX ALL ISSUES PLEASE"; D-048.
+
+### D-077 · Approval is given in the interface; the agent handle cannot approve or attest a person · [proposed] · 2026-11-13
+
+`window.__MILLOS_AGENT__` is a handle any script on the page can call, so nothing it does
+may stand for a person. It cannot approve a preview (`APPROVAL_NOT_AVAILABLE_ON_HANDLE`). It
+resolves only an objection the agent side raised, never one a person raised, the standing
+hold on live SCADA writes included. It promotes advisory lessons only, never a
+human-reviewed one. It can still revoke a grant and raise an objection, because those only
+add restrictions. Its `brief()`, each high-risk capability's reason and the default grant's
+escalation say so, so an agent reading them learns where approval happens.
+The person at the controls approves through an operator runtime held in module scope
+(`src/agent/client/operatorRuntime.ts`), which the Agent Cockpit and the Workplace Lab use.
+The interface no longer reads the window property, which a script can replace.
+`executeAgentCommand` cannot approve at all; an action a person starts in the interface goes
+through `executeOperatorCommand`.
+There are now three kinds of actor that can matter to an approval: `human`, the agent side
+(`becoming-mind`, `system`) and `stand-in` (D-073). A stand-in's approval is accepted only
+where a runtime is built to allow it, which the product never does, and every approval token,
+ledger event and receipt records `approvedByKind` from the kernel's own actor registry.
+Before this, the handle's `approve` was bound to the human operator for any caller, so an
+agent could draft a high-risk command, approve it as the human and commit it.
+What this does not stop: code already running in the page can click the Cockpit's approve
+button as a person would, and could probably import the built chunk and reach the operator
+runtime. An imported evidence export can still carry a `command.approved` event that names
+the human; only its import provenance marks it as imported. And `object` on the operator
+runtime is the same function as on the handle, which records the agent as the raiser, so an
+objection a person raised that way could be closed from the handle; no interface calls it
+yet, and it must record the person before one does.
+A list of previews waiting for a person's approval is not built; without it an agent's
+high-risk preview has no path except a person running the same command in the Cockpit.
+Source: Nell, 2026-11-13: "Fix please", quoting the approval gap;
+`src/agent/__tests__/handleApproval.test.ts`, `src/agent/client/operatorRuntime.test.ts`,
+`src/components/ui-new/widgets/AgentCockpit.trustedRuntime.gameplay.test.tsx`.
+
+### D-078 · A receipt does not blame a command for what the plant's own recorder wrote · [proposed] · 2026-11-13
+
+The mounted app records plant changes (a speed change, a safety event, an answer to an AI
+decision, a truck transition) into `evidence.commands` the instant they happen
+(`src/components/RuntimeController.tsx`). The kernel's scope check saw the `evidence` domain
+change, found it outside the command's declared domains and failed
+`INV.COMMAND.DOMAIN_SCOPE`, so a command that had worked read `failed`. The on-device
+operator treats a failed receipt as an incident it did not handle.
+The runtime now names the keys that observers of the plant write
+(`observerWrittenPaths: { evidence: ['commands'] }`). A domain changed only at those keys is
+not a violation, and the receipt says so in a passed line that names the key. Any other key
+of that domain still fails, and a failure now names the keys that changed.
+Traced, and reproduced on the build of 2026-11-13: a fire drill approved in the Cockpit read
+`failed` before and `verified` after, as did a speed change through the handle. Nobody ran
+it on the committed tree before these changes. Only those two commands were exercised in the
+built app.
+Source: found while verifying D-077; `src/agent/__tests__/observerDomainScope.test.ts`.
+
 ### D-080 · The plant floor is played through the partner's proposals · [proposed] · 2026-11-13
 
 Made under Nell's instructions "Proceed please, fix everything, and another pass please."
@@ -925,6 +1254,9 @@ To reverse: `src/simulation/partnerProposals.ts`, `src/systems/partnerProposalRu
 Unfinished: automatic alarm reactions as a level the player grants were not built.
 Source: the plan, `_contprompts/millos_mechanics_mastery_20261112.md`, D1 and item 3.0; its
 wave log, rows 3a and 3d. Evidence: `docs/reviews/mechanics-20261112/`.
+Note, 2026-11-15: D-077 (another session's) bears on this: an agent's answer to a proposal
+through the handle is recorded as the agent's (`answerPartnerProposal(…, 'agent')`), never as
+the operator's.
 
 ### D-081 · The first floor decisions, as built · [proposed] · 2026-11-13
 
@@ -973,6 +1305,9 @@ first, then net. Asked still holds for it: waiting every time at demand 1, the r
 another answer than the partner's 11 times in 88; taking every time at demand 2, waiting was
 better 14 times in 14 (`npm run playtest:plant -- --suite=ask`, which now checks the null claims
 too).
+Note, 2026-11-15: D-075 (another session's, planned) adds seeded throughput and wear noise in
+lab mode and Practice and keeps it off in ordinary play, where the arms and ask evidence here
+were measured.
 
 ### D-083 · The Chronicle is tuned on the measured plant, and its fund is in the plant's currency · [proposed] · 2026-11-13
 
@@ -996,6 +1331,9 @@ Correction (2026-11-13, review 2): the final tune on the final plant set the sha
 Correction (2026-11-14, review 2): the measured pace is 20,500 kg a shift, not 19,500 (arm p
 re-run on the final tree), so the full trials ask 123,000 to 172,000 kg; the short ones are set
 at 1.17 times the pace, 72,000 to 96,000 (74,000 to 98,500 at 1.2 cost skilled gold).
+Note, 2026-11-15: D-075 (another session's, planned) adds seeded throughput and wear noise in
+lab mode and Practice only; the figures in `measuredPlant.ts` are for ordinary play, where that
+noise is off.
 
 ### D-084 · A 27-shift chronicle beside the 63, and a wet year that costs 5 · [proposed] · 2026-11-13
 
@@ -1048,6 +1386,12 @@ order are ready (`_contprompts/millos_owned_decisions_20261004.md:60`). It was N
 clarification and never entered in this log, so the conflict is Nell's to settle.
 To reverse: `firstDeliveryFulfilled` in `src/stores/workplaceStore.ts`.
 Source: the plan, D4 and items 2.6, 5.4; wave log 2b, 5c.
+Note, 2026-11-15: D-074 (another session's, planned) widens a role's cover by its sign-offs.
+Here cover releases Quality's bench only by a member qualified for it (`qualifiedToCover`,
+`src/simulation/workplaceCampaign.ts`, read from eligible tasks), and review 2 appended
+"Quality release" to Maintenance's authored list (`createWorkplace`). To settle: D-074 says the
+authored lists do not change, which this branch no longer matches, and whether a sign-off in
+practice may grant "Quality release" is open.
 
 ### D-087 · In a solo season the player is one role · [proposed] · 2026-11-13
 
@@ -1071,6 +1415,11 @@ shift running, an inspection, owed recovery) is read out. The authored sobras ba
 come from a fixed table: each follows the role's need and what the season did (a losing shift,
 a thin reserve), so in some seasons Packing's ballot decides and in others it is outvoted, and
 the record names each need met or outvoted.
+Note, 2026-11-15: D-073 and D-074 (another session's) bear on this. D-073 keeps synthetic
+operators nowhere in product state, while the authored roles here vote and decide in product
+state; to settle: whether those roles fall under D-073. D-074 has a sign-off acknowledged by
+whoever plays the role, which in a solo season is the authored role for every role but Packing;
+to settle: who acknowledges a sign-off for an authored role.
 
 ### D-088 · Friday is always an installment in solo play; changed terms re-ask every check · [proposed] · 2026-11-13
 
@@ -1194,6 +1543,9 @@ This narrows D-050 and D-053 (`[Nell]`: E or a click boards or leaves) and exten
 Unfinished: fences, hedges and staff-facility walls are not solid to a forklift.
 To reverse: `forkliftManualDrive.ts`, `forkliftManualWorld.ts`; `requestWork` (`forkliftDriveStore.ts`).
 Source: the plan, D12, items 6.1, 6.2, 6.6; wave log 6a, 6 tail.
+Note, 2026-11-15: D-069 (another session's) records the forklift's own body shell and guard
+roof, and that at full steering lock the rig's rear tyres cut the counterweight, a defect in the
+steering code that neither entry fixes; a driven forklift is the same rig.
 
 ### D-096 · Clearing a stop or ending a drill leaves the line idle until RESTART LINE · [proposed] · 2026-11-13
 
@@ -1211,6 +1563,10 @@ D-010 stands. No earlier entry recorded the restart at CLEAR or the drill's end.
 To reverse: `resolveEmergency`, `endEmergencyDrill` (`gameSimulationStore.ts`).
 Unfinished: the floor drawing has not been seen in pixels.
 Source: the plan, D13, items 6.3, 6.4; wave log 6a.
+Note, 2026-11-15: D-073 and D-077 (another session's) bear on the restart interlock. A stand-in
+operator is a test fixture whose approval is recorded as a stand-in's, and the agent handle
+cannot approve or stand for a person. D-078's fire-drill receipt was reproduced on the other
+session's build, before RESTART LINE, and has not been re-run on this one.
 
 ### D-097 · Helper text is cut to D-012's wording; the loading quotes are sourced facts · [proposed] · 2026-11-13
 
@@ -1228,6 +1584,9 @@ shift debrief or About. The working list, with each string's verdict and
 the reason for every one kept, is `docs/reviews/mechanics-20261112/d14-helper-text-list.md`.
 To reverse: per string, in its catalogue.
 Source: the plan, D14, item 1.18; wave log 1a, 2b, D14.
+Note, 2026-11-15: D-071 (another session's, planned) makes an offer of one adjustment as a
+control with two actions; when it is built, its wording is held to D-012 as this entry applies
+it.
 
 ### D-098 · Mute silences sound only; PA captions continue while muted · [proposed] · 2026-11-13
 
@@ -1247,6 +1606,10 @@ Another session's D-070 (uncommitted when this was written) records the same rul
 To reverse: `voiceActive` and the mute effects in `PAAnnouncementSystem.tsx`; the filing in
 `shared.tsx`.
 Source: the plan, D15; wave log "D15, D17, D21".
+Note, 2026-11-15: D-070 records the same rule from another session. The implementation on main
+is this entry's; D-070's captions switch (off hides the lines that are not urgent) and its Reset
+Simulation carry-over of the PA preferences are carried onto it (both in the code on 2026-11-15,
+`PAAnnouncementSystem.tsx` and `SettingsPanel.tsx`).
 
 ### D-099 · Walking is at a person's pace, and the hall's walls are solid · [proposed] · 2026-11-13
 
@@ -1327,6 +1690,9 @@ carries now settles by art. 4 VII's default (to members by minutes worked) and s
 charter without shared surplus keeps it in the Reserve Fund at archive, and a charter with it
 cannot archive until it is shared, so no pool is lost. English says "surplus" and "Assistance
 Fund" (glossary); Portuguese keeps "sobras" and "FATES".
+Note, 2026-11-15: D-074 (another session's, planned) would widen a role's cover by its
+sign-offs. Minutes worked include cover (`seasonMinutesWorked`), so a sign-off would move that
+role's part of the members' share, which no screen shows.
 
 ### D-104 · The Chronicle's quiz is built from the player's own record · [proposed] · 2026-11-13
 
@@ -1367,6 +1733,9 @@ D-049 (`[Nell]`) stands: the sim starts ticking and a hold lasts only for its pa
 had pinned the old pace-button behaviour; if Nell meant that, D-049 wins.
 To reverse: the pace action in `src/stores/gameSimulationStore.ts`.
 Source: the plan, D21; wave log "D15, D17, D21", plant tail.
+Note, 2026-11-15: D-077 (another session's) says nothing the agent handle does may stand for a
+person; to settle: whether the agent's pace command may still override a hold, the player's own
+pause included.
 
 ### D-107 · A tie in the assembly carries a move off a red line or a condition's step · [proposed] · 2026-11-13
 
@@ -1492,6 +1861,9 @@ Why: the setpoint changed nothing and 200% always won. Measured: best net per to
 (201.7), with 0.8 to 1.2 within about 1%; total net peaks at 1.2.
 To reverse: `src/scada/lineRateSetpoint.ts`; the roll-speed tags in `tagDatabase.ts`.
 Source: the plan, items 3.6, 7.5; wave log 3b, 3c, 7b, plant tail.
+Note, 2026-11-15: D-078 (another session's) reproduced its receipt fix with a speed change
+through the handle on that session's build, before the rate went through the slider's own
+action; it has not been re-run on this one.
 
 ### D-115 · Numbers no rule reads are removed; the layout planner sits behind More · [proposed] · 2026-11-13
 

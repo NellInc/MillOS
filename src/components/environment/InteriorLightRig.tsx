@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 import { SITE_LAYOUT } from '../../constants/siteLayout';
 import { useGraphicsStore, type GraphicsQuality } from '../../stores/graphicsStore';
+import { INDOOR_SKY_BANK_GAIN } from '../../shaders/interiorLighting';
 
 /**
  * Fifteen real ceiling fittings and additive floor pools, lit by one source per
@@ -47,8 +48,12 @@ const REFERENCE_LIGHT_INTENSITY = 380;
 export function zoneWorkLightIntensity(
   daylight: number,
   _quality: GraphicsQuality = 'medium',
-  referenceBanks = false
+  referenceBanks = false,
+  indoorSkyOcclusion = false
 ): number {
+  // With the indoor sky experiment on (D-063) nothing lights the hall by day
+  // for the banks to give way to, so they hold one level around the clock.
+  if (indoorSkyOcclusion && !referenceBanks) return ZONE_LIGHT_INTENSITY * INDOOR_SKY_BANK_GAIN;
   const t = Number.isFinite(daylight) ? THREE.MathUtils.clamp(daylight, 0, 1) : 1;
   const darkness = 1 - t * t * (3 - 2 * t);
   const base = referenceBanks ? REFERENCE_LIGHT_INTENSITY : ZONE_LIGHT_INTENSITY;
@@ -144,6 +149,9 @@ export function InteriorLightRig() {
   const referenceBanks = useGraphicsStore(
     (state) => state.graphics.perfDebug.disableInteriorLightBanks
   );
+  const indoorSkyOcclusion = useGraphicsStore(
+    (state) => state.graphics.perfDebug.enableIndoorSkyOcclusion
+  );
   const zoneLights = zoneLightPositions(quality, referenceBanks);
   const poolsRef = useRef<THREE.InstancedMesh>(null);
   const rigRef = useRef<THREE.Group>(null);
@@ -153,7 +161,7 @@ export function InteriorLightRig() {
     const daylight = referenceLighting
       ? 1
       : sampleAtmosphere(gameDay, gameTime, weather, atmosphere).daylight;
-    const intensity = zoneWorkLightIntensity(daylight, quality, referenceBanks);
+    const intensity = zoneWorkLightIntensity(daylight, quality, referenceBanks, indoorSkyOcclusion);
     for (const child of rigRef.current?.children ?? []) {
       if (child instanceof THREE.PointLight) child.intensity = intensity;
     }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installMillOSAgentRuntime } from '../adapters/runtime/installAgentRuntime';
+import { getOperatorRuntime } from '../client/operatorRuntime';
 import {
   useOperationsCampaignStore,
   type OperationalIncident,
@@ -56,6 +57,8 @@ vi.mock('../../scada/SCADAService', async (importOriginal) => ({
 }));
 
 const api = () => window.__MILLOS_AGENT__!;
+// The person approves through the operator runtime; the window handle cannot.
+const operator = () => getOperatorRuntime(window);
 
 const alarm = (id: string, value: number) => ({
   id,
@@ -146,7 +149,7 @@ describe('a previewed command whose live list moves while the player reads it', 
     }));
     const approval =
       shown.status === 'requires-approval'
-        ? api().approve(shown.previewId, 'Approved as shown.')
+        ? operator().approve(shown.previewId, 'Approved as shown.')
         : undefined;
     const receipt = await api().commit(shown, approval);
     expect(receipt.problems.map((problem) => problem.code)).not.toContain('STALE_REVISION');
@@ -167,7 +170,10 @@ describe('a previewed command whose live list moves while the player reads it', 
     );
     useOperationsCampaignStore.getState().mitigateIncident('incident-0902', 'controller');
     useOperationsCampaignStore.getState().resolveIncident('incident-0902', 'controller');
-    const receipt = await api().commit(shown, api().approve(shown.previewId, 'Approved as shown.'));
+    const receipt = await api().commit(
+      shown,
+      operator().approve(shown.previewId, 'Approved as shown.')
+    );
     expect(receipt.problems.map((problem) => problem.code)).not.toContain('STALE_REVISION');
     expect(receipt.status).toBe('verified');
   });

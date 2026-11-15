@@ -385,6 +385,10 @@ const PT_AGENT_PATTERNS: ReadonlyArray<readonly [RegExp, (match: RegExpMatchArra
     (m) => `Gravar ${ptNumber(m[1])} na tag simulada ${m[2]} e ler o valor de volta.`,
   ],
   [/^Unexpected domain mutations: (.+)\.$/, (m) => `Mutações inesperadas de domínio: ${m[1]}.`],
+  [
+    /^Domain scope held: an observer of the plant wrote (.+), not this command\.$/,
+    (m) => `Escopo de domínio mantido: um observador da fábrica gravou ${m[1]}, não este comando.`,
+  ],
   [/^Unknown capability: (.+)\.$/, (m) => `Capacidade desconhecida: ${m[1]}.`],
   [
     /^Observed revision (.+) is stale\. Current revision is (.+)\.$/,

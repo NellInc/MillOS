@@ -24,6 +24,7 @@
  * files, which is why `.prettierignore` excludes them.
  */
 import console from 'node:console';
+import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -140,6 +141,45 @@ const main = async () => {
   const report = JSON.parse(await readFile(NORMALIZATION, 'utf8'));
   const specs = GENERATED_ASSETS;
   const byId = new Map(report.generated.map((entry) => [entry.id, entry]));
+  // `--pack=<id>[,<id>]`: rewrite only these source packs, for rows a scoped
+  // `normalize-models -- --only=` just rebuilt. A whole-area write would also
+  // re-emit every other pack from whatever rows the shared report holds, which on a
+  // tree with other sessions' filtered runs is not what their files carry. The
+  // delivered bytes must match the row before anything is written, and the
+  // manifest is left alone (budgets and bounds are not this mode's business).
+  const packs = process.argv
+    .find((arg) => arg.startsWith('--pack='))
+    ?.slice(7)
+    .split(',');
+  if (packs) {
+    if (!packs.length || new Set(packs).size !== packs.length)
+      throw new Error('--pack requires unique asset ids');
+    const byArea = new Map();
+    for (const id of packs) {
+      const spec = specs.find((entry) => entry.id === id);
+      if (!spec) throw new Error(`${id}: not in GENERATED_ASSETS`);
+      if (RECONCILED_FARM_MODELS[id] || PRECISION_FARM_MODELS[id] || RECONCILED_WORLD_MODELS[id])
+        throw new Error(`${id}: reconciled rows are written with --only`);
+      const rows = report.generated.filter((entry) => entry.id === id);
+      if (rows.length !== 1) throw new Error(`${id}: exactly one normalization row required`);
+      const delivered = createHash('sha256')
+        .update(await readFile(path.join(ROOT, 'public/models', rows[0].file)))
+        .digest('hex');
+      if (delivered !== rows[0].outputSha256)
+        throw new Error(`${id}: delivered GLB does not match its normalization row`);
+      const records = byArea.get(spec.area) ?? new Map();
+      records.set(id, packFor(spec, rows[0]));
+      byArea.set(spec.area, records);
+    }
+    const texts = new Map();
+    for (const [area, records] of byArea) {
+      const file = path.join(SOURCE_ROOT, area, 'PROVENANCE.json');
+      texts.set(file, replaceYardRecords(await readFile(file, 'utf8'), 'sourcePacks', records));
+    }
+    for (const [file, text] of texts) await writeFile(file, text);
+    console.log(`Updated only ${packs.join(', ')} provenance`);
+    return;
+  }
   const only = process.argv
     .find((arg) => arg.startsWith('--only='))
     ?.slice(7)

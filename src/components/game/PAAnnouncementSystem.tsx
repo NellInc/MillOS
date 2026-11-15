@@ -261,13 +261,28 @@ export const PAAnnouncementSystem: React.FC = () => {
   const showForMsRef = useRef(showForMs);
   showForMsRef.current = showForMs;
 
-  // Mute stops the voice at once (D15). The caption stays: the hold the voice
-  // placed on it goes, so it leaves at its own reading time.
+  // When the line on screen is due to go at its own reading time, without the
+  // voice's hold.
+  const shownUntilRef = useRef<{ id: string; at: number } | null>(null);
+
+  // Mute stops the voice at once (D15, D-070). The caption stays: the hold the
+  // voice placed on it goes, so it leaves at its own reading time, and one
+  // already past that time, kept up only by the voice, goes now.
+  // Working if muting mid-line silences it at once and the caption stays.
   useEffect(() => {
     if (!isMuted) return;
     if (spokenIdRef.current !== null) stopPAVoice();
+    const hold = voiceHoldRef.current;
     voiceHoldRef.current = null;
-  }, [isMuted]);
+    const shown = shownUntilRef.current;
+    if (hold && shown?.id === hold.id && Date.now() >= shown.at) {
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = null;
+      }
+      dismissAnnouncement(hold.id);
+    }
+  }, [isMuted, dismissAnnouncement]);
 
   // A line shown is spoken once; the caption waits for the voice to finish.
   // No browser or operating-system speech API is used.
@@ -323,6 +338,7 @@ export const PAAnnouncementSystem: React.FC = () => {
         dismissAnnouncement(announcementId);
       }, delayMs);
     };
+    shownUntilRef.current = { id: announcementId, at: Date.now() + showForMsRef.current };
     armDismiss(showForMsRef.current);
 
     // Offered to the voice once, as it is first shown: a line shown while muted
@@ -353,7 +369,7 @@ export const PAAnnouncementSystem: React.FC = () => {
 
     return () => {
       if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
-      // The line left (dismissed, displaced, or muted): its voice stops with it.
+      // The line left (dismissed or displaced): its voice stops with it.
       if (spokenIdRef.current === announcementId) stopPAVoice();
     };
   }, [currentAnnouncement?.id, isStartupSuppressed, dismissAnnouncement]);

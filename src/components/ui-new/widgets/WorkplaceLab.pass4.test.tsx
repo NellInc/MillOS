@@ -16,7 +16,9 @@ import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { setLocale } from '../../../i18n';
 import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 const open = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
 

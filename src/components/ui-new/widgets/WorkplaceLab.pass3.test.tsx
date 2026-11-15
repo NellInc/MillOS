@@ -11,7 +11,9 @@ import { createWorkplace } from '../../../simulation/bilateralWorkplace';
 import { setLocale } from '../../../i18n';
 import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 const PT_DISCLOSURE =
   'A Qualidade contesta o compartilhamento obrigatório de explicações. A recusa não exige nenhum motivo particular.';

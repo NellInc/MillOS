@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { installMillOSAgentRuntime } from '../adapters/runtime/installAgentRuntime';
+import { getOperatorRuntime } from '../client/operatorRuntime';
 import { captureMillOSAgentState } from '../adapters/runtime/runtimeProjection';
 import { useWorkplaceStore } from '../../stores/workplaceStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -14,6 +15,8 @@ function fixture() {
   const target = {} as Window;
   const remove = installMillOSAgentRuntime(target);
   const api = target.__MILLOS_AGENT__!;
+  // The person approves through the operator runtime; the window handle cannot.
+  const operator = getOperatorRuntime(target);
   const draft = () =>
     api.draft({
       capabilityId: 'workplace.activate-plan',
@@ -21,7 +24,7 @@ function fixture() {
       parameters: { revision: useWorkplaceStore.getState().workplace.revision },
       reason: 'Approve the exact current fictional team agreement.',
     });
-  return { api, draft, remove };
+  return { api, operator, draft, remove };
 }
 
 function prepareCover() {
@@ -34,7 +37,7 @@ function prepareCover() {
 describe('workplace far-side authority and consent', () => {
   it('requires explicit high-risk approval and verifies the actual funded agreement', async () => {
     prepareCover();
-    const { api, draft, remove } = fixture();
+    const { api, operator, draft, remove } = fixture();
     try {
       const preview = await api.preview(draft());
       expect(preview.status).toBe('requires-approval');
@@ -44,7 +47,7 @@ describe('workplace far-side authority and consent', () => {
       expect(useWorkplaceStore.getState().workplace.activeCoverMemberId).toBeNull();
       const receipt = await api.commit(
         preview,
-        api.approve(preview.previewId, 'Visible terms approved.')
+        operator.approve(preview.previewId, 'Visible terms approved.')
       );
       expect(receipt.status).toBe('verified');
       expect(receipt.changedDomains).toEqual(['experience']);
@@ -71,10 +74,10 @@ describe('workplace far-side authority and consent', () => {
 
   it('rejects a preview after every volunteer withdraws, without reserving or spending money', async () => {
     prepareCover();
-    const { api, draft, remove } = fixture();
+    const { api, operator, draft, remove } = fixture();
     try {
       const preview = await api.preview(draft());
-      const approval = api.approve(preview.previewId, 'Preview approved before withdrawal.');
+      const approval = operator.approve(preview.previewId, 'Preview approved before withdrawal.');
       for (const m of useWorkplaceStore.getState().workplace.members) {
         if (m.coverConsent) useWorkplaceStore.getState().withdraw(m.id);
       }
@@ -102,9 +105,9 @@ describe('workplace far-side authority and consent', () => {
     }
     useWorkplaceStore.setState({ workplace: createWorkplace() });
     prepareCover();
-    const { api, draft, remove } = fixture();
+    const { api, operator, draft, remove } = fixture();
     const preview = await api.preview(draft());
-    const approval = api.approve(preview.previewId, 'Before emergency.');
+    const approval = operator.approve(preview.previewId, 'Before emergency.');
     const funds = structuredClone(useWorkplaceStore.getState().workplace.finance);
     useGameSimulationStore.setState({ emergencyActive: true });
     const blocked = await api.commit(preview, approval);
@@ -117,9 +120,9 @@ describe('workplace far-side authority and consent', () => {
 
   it('revocation stops deferred optional work and retains already earned compensation', async () => {
     prepareCover();
-    const { api, draft, remove } = fixture();
+    const { api, operator, draft, remove } = fixture();
     const preview = await api.preview(draft());
-    await api.commit(preview, api.approve(preview.previewId, 'Bounded local agreement.'));
+    await api.commit(preview, operator.approve(preview.previewId, 'Bounded local agreement.'));
     useWorkplaceStore.getState().tick(3, 0, false);
     const paid = useWorkplaceStore.getState().workplace.finance.compensationPaid;
     expect(paid).toBeCloseTo(2.4);
@@ -148,9 +151,9 @@ describe('workplace far-side authority and consent', () => {
 
   it('an authority objection stops future work and requires explicit resolution', async () => {
     prepareCover();
-    const { api, draft, remove } = fixture();
+    const { api, operator, draft, remove } = fixture();
     const preview = await api.preview(draft());
-    await api.commit(preview, api.approve(preview.previewId, 'Local agreement.'));
+    await api.commit(preview, operator.approve(preview.previewId, 'Local agreement.'));
     useWorkplaceStore.getState().tick(2, 0, false);
     const paid = useWorkplaceStore.getState().workplace.finance.compensationPaid;
     const objection = api.object(['workplace.activate-plan'], 'Review voluntary cover.', 'pause');

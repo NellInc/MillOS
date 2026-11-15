@@ -8,10 +8,12 @@
 
 MillOS currently combines deterministic tactical decision logic with optional strategic model reasoning. The target architecture preserves that dual-speed design and gives every consequence-bearing decision the same typed capability, authority, receipt, and evidence path used by human operators.
 
-Phases 0 and 1 now provide the semantic identity, domain, invariant, and candidate-capability
-registry used by that migration. They add no model invocation, command execution, permission,
-or browser agent API. Current AI effects continue through the compatibility paths documented
-below until a later phase is separately authorized.
+Phases 0 and 1 provide the semantic identity, domain, invariant, and capability registry used by
+that migration. Since 2026-08-31 the installed runtime also carries a command kernel, an authority
+engine, a causal ledger and a browser agent API (`window.__MILLOS_AGENT__`, version 2); see
+[the agent contract spine](./agent/README.md). Tactical and strategic AI effects still run through
+the compatibility paths documented below. (Corrected 2026-11-13: this paragraph previously said no
+command execution or browser agent API existed.)
 
 ## Current system
 
@@ -20,7 +22,7 @@ domain stores and alerts
   -> tactical heuristic engine
        -> provenance-bearing AIDecision
   -> strategic context builder
-       -> Gemini or WebGPU backend
+       -> cloud, ChatGPT companion or WebGPU backend
        -> structured strategic priorities and decision
   -> production decision history
        -> AI Command Center
@@ -54,11 +56,16 @@ The active backend is configured in `src/stores/aiConfigStore.ts`:
 | Setting           | Values                                                           |
 | ----------------- | ---------------------------------------------------------------- |
 | AI mode           | `heuristic`, `gemini`, `hybrid`                                  |
-| strategic backend | `gemini`, `webgpu`                                               |
+| strategic backend | a cloud backend, `chatgpt`, or `webgpu` (`LLMBackend`)           |
 | strategic state   | weighted priorities, readiness, timing, current thinking state   |
 | cost state        | request count, input and output tokens, session and request cost |
 
-Gemini uses `src/utils/geminiClient.ts`. The on-device backend uses `src/utils/webgpuClient.ts` and stays out of the eager bundle until selected.
+The AI mode value `gemini` is a legacy id meaning strategy only; it does not name a provider.
+Cloud backends (`haiku`, `luna`, `sol`, `gemini` and their OpenRouter twins) use
+`src/utils/cloudAIClient.ts`, and the ChatGPT companion uses `src/utils/chatgptClient.ts`. The
+on-device backend uses `src/utils/webgpuClient.ts` and stays out of the eager bundle until
+selected. (Corrected 2026-11-13: this section previously cited `src/utils/geminiClient.ts`, which
+does not exist.)
 
 With the fast lane on, on-device incident routing runs on a Qwen3.5-0.8B build tuned for it (`scripts/local-router-tune/`, D-017, D-021) while strategy stays on the official Qwen3.5-4B build.
 

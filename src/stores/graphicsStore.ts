@@ -68,6 +68,31 @@ export interface PerfDebugSettings {
   disableComposerMsaa: boolean;
   /** Same-page control for the grade's black toe (`DISPLAY_TOE`): stock contrast when true. */
   disableDisplayToe: boolean;
+  /**
+   * Lighting-layer ablation (`performance/LightingLayerIsolation`). A/B
+   * instruments only, never quality settings: each removes one layer for the
+   * duration of a render and restores it after, so the per-frame writers that
+   * damp from the current value are never left holding a zero.
+   *
+   * - `disableSunShadows`: the sun keeps its direction and colour, casts nothing.
+   *   Changes the shadow count, so every receiving program recompiles.
+   * - `disableSunLight`: the sun's direct light at zero, shadow pass included.
+   * - `disableSkyFill`: ambient, hemisphere and `scene.environmentIntensity` at
+   *   zero. Metals that adopted their own `envMap` keep their reflections.
+   * - `disableFog`: `scene.fog` null, so fog compiles out (recompiles).
+   */
+  disableSunShadows: boolean;
+  disableSunLight: boolean;
+  disableSkyFill: boolean;
+  disableFog: boolean;
+  /**
+   * Indoor sky visibility experiment (D-063, `[proposed]`): scales the sky's
+   * indirect diffuse under the hall roof (`shaders/interiorLighting.ts` part 3)
+   * and holds the ceiling banks at one level by day. ENABLE, not disable: its
+   * `true` arm is the change, so an ablation's sign reads the other way.
+   * Default off until the judged A/B decides.
+   */
+  enableIndoorSkyOcclusion: boolean;
   disableAllAnimations: boolean; // Master toggle - disable all useFrame hooks
   showPerfOverlay: boolean; // Show performance metrics overlay
 }
@@ -224,6 +249,11 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableSMAA: false,
   disableComposerMsaa: false,
   disableDisplayToe: false,
+  disableSunShadows: false,
+  disableSunLight: false,
+  disableSkyFill: false,
+  disableFog: false,
+  enableIndoorSkyOcclusion: false,
   disableAllAnimations: false,
   showPerfOverlay: false,
 };

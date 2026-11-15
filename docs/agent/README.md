@@ -56,8 +56,10 @@ executable inputs.
 
 ## Live read surface
 
-`RuntimeController` installs a non-writable `window.__MILLOS_AGENT__` beside the unchanged
-`window.__MILLOS_RUNTIME__` diagnostics object.
+`RuntimeController` installs `window.__MILLOS_AGENT__` beside the unchanged
+`window.__MILLOS_RUNTIME__` diagnostics object. The property is not writable, but it is
+configurable so a re-install can redefine it, which also means a script can replace it. The
+interface therefore never reads it (see the authority boundary below).
 
 ```javascript
 const brief = window.__MILLOS_AGENT__.brief();
@@ -100,7 +102,29 @@ The manifest describes owners, identities, invariants, query budgets, and fourte
 simulation-scoped capabilities. The installed browser runtime executes them through
 `draft → preview → (approve) → commit`, each step checked against actor grants, observed
 revision, idempotency key, and invariants, and each commit produces a receipt and causal events.
-It does not contact an external endpoint or write to live SCADA; `scada.write-setpoint` runs in
+
+Approval attests a person, so the window handle cannot give it. Any script on the page, including
+an agent driving the handle, can call `window.__MILLOS_AGENT__`, so on the handle:
+
+| Call                    | On the window handle                                                                                                                         |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `approve`               | Always throws `APPROVAL_NOT_AVAILABLE_ON_HANDLE`. A high- or critical-risk preview waits for the person at the controls.                     |
+| `resolveObjection`      | Resolves only an objection the agent side raised; one a person raised throws `OBJECTION_NOT_RESOLVABLE_ON_HANDLE`.                          |
+| `promoteLesson`         | Advisory lessons only, from a registered non-human actor (`LESSON_REVIEW_NOT_AVAILABLE_ON_HANDLE`, `LESSON_PROMOTER_NOT_ALLOWED_ON_HANDLE`). |
+| `importEvidence`        | Imports events only; lessons in an export are never brought in, so none arrives as human-reviewed.                                           |
+| `revokeGrant`, `object` | Unchanged: they only add restrictions.                                                                                                       |
+
+The person approves in the Agent Cockpit (or, for the workplace agreement, with "Approve and run
+agreement"). Those read the operator runtime that `src/agent/client/operatorRuntime.ts` holds in
+module scope for the same composition, never the window property; it alone can approve as the
+human operator, resolve any objection and promote a human-reviewed lesson.
+`executeAgentCommand` (agents and the on-device operator) never approves; `executeOperatorCommand`
+is for an action the person started in the interface. Every approval token, `command.approved`
+event and receipt records `approvedByKind`, read from the kernel's actor registry. A `stand-in`
+actor (D-073) can approve only in a kernel composed with `allowStandInApproval: true`, which the
+product does not set, and is then recorded as a stand-in, never as a person.
+
+The runtime does not contact an external endpoint or write to live SCADA; `scada.write-setpoint` runs in
 simulation and shadow modes only. SCADA connection state is marked uncertain when the
 compatibility live flag is set because the projection does not directly observe adapter health.
 

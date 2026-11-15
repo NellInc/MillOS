@@ -246,6 +246,37 @@ describe('review 2, finding 5: cover never releases Quality’s work', () => {
     expect(crewAway(s, 'maintenance')).toBe(true);
   });
 
+  it('qualification is the task list, not the role: a widened list releases the bench (the D-074 seam)', () => {
+    const seed = (() => {
+      for (let n = 1; n < 500; n++) {
+        const d = seasonDraw(n);
+        if (d.decliner === 'coordinator' && d.pressures.indexOf('repeat-cover') === 1) return n;
+      }
+      throw new Error('no seed');
+    })();
+    const c = season('cooperative', seed);
+    c.play([0, 0, 0]);
+    const s = structuredClone(c.state) as WorkplaceState;
+    s.campaign!.shift = 1;
+    s.phase = 'active';
+    s.minute = 1;
+    s.planId = 'cover';
+    const packing = s.members.find((m) => m.id === 'packing')!;
+    packing.coverConsent = true;
+    s.activeCoverMemberId = 'packing';
+    s.coverRemainingMinutes = 9;
+    expect(shiftAbsentee(s)).toBe('quality');
+    expect(absenceCovered(s)).toBe(false);
+    // D-074: a role's eligible tasks become the authored list plus its
+    // sign-offs. Nothing earns a sign-off yet; this pins that the cover rule
+    // reads the list, not the role. Restore still rejects a widened list as
+    // tampering (bilateralWorkplace.test.ts), so sign-offs need their own
+    // saved, validated record before they can widen it.
+    packing.eligibleTasks = [...packing.eligibleTasks, 'Quality release'];
+    expect(absenceCovered(s)).toBe(true);
+    expect(crewAway(s, 'quality')).toBe(false);
+  });
+
   it('a save from before Maintenance was qualified for release still loads, and gains it', () => {
     const c = season('cooperative', 17);
     const saved = saveWorkplace(c.state) as WorkplaceState;

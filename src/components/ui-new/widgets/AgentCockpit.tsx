@@ -21,6 +21,7 @@ import type {
 } from '../../../agent/contracts/systemManifest';
 import type { AgentJsonValue } from '../../../agent/contracts/queryContracts';
 import { formatSemanticUri, parseSemanticUri } from '../../../agent/ontology/semanticUri.js';
+import { peekOperatorRuntime } from '../../../agent/client/operatorRuntime';
 import { useOperationsCampaignStore } from '../../../stores/operationsCampaignStore';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useBreakdownStore } from '../../../stores/breakdownStore';
@@ -37,7 +38,9 @@ type FieldValues = Record<string, string | number>;
 
 export const AgentCockpit: React.FC = () => {
   const t = useT(agentCockpitMessages);
-  const api = globalThis.window?.__MILLOS_AGENT__;
+  // The person approves here, so the cockpit reads the operator runtime held in
+  // module scope, never window.__MILLOS_AGENT__, which any script can replace.
+  const api = peekOperatorRuntime();
   // tickCampaign rebuilds `orders` on every central tick (0.5 s). Subscribing
   // to the ids and a primitive id:status key, rather than the array itself,
   // keeps the brief below from recapturing and rehashing the whole agent plane

@@ -16,7 +16,9 @@ import {
 } from '../../../simulation/workplaceReplayRuntime';
 import { fulfilFirstDelivery } from '../../../test/firstDelivery';
 
-vi.mock('../../../agent/client/executeAgentCommand', () => ({ executeAgentCommand: vi.fn() }));
+vi.mock('../../../agent/client/executeOperatorCommand', () => ({
+  executeOperatorCommand: vi.fn(),
+}));
 
 let unregister: Array<() => void> = [];
 beforeEach(() => {

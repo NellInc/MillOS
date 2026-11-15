@@ -33,6 +33,10 @@ const PERF_SYSTEMS = {
   smaa: 'disableSMAA',
   msaa: 'disableComposerMsaa',
   'display-toe': 'disableDisplayToe',
+  'sun-shadows': 'disableSunShadows',
+  sun: 'disableSunLight',
+  'sky-fill': 'disableSkyFill',
+  fog: 'disableFog',
 };
 const NETWORK_PROFILES = {
   native: null,

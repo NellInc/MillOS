@@ -187,6 +187,74 @@ export const PALLET_SACK_LAYOUT = Array.from({ length: 6 }, (_, layer) => {
   }));
 }).flat();
 
+/**
+ * One sawn timber: a flat-sided prism of the given cross-section, laid along
+ * x or z. `section` is [across, up] in metres, anticlockwise seen from the
+ * far end. Faces are flat-shaded, because sawn timber has arrises, and each
+ * carries `tint` as a vertex colour (the sawn ends darker) for materials that
+ * read it.
+ */
+const timberPrism = (
+  section: readonly (readonly [number, number])[],
+  length: number,
+  axis: 'x' | 'z',
+  centre: readonly [number, number, number],
+  tint: number
+): THREE.BufferGeometry => {
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+  const colors: number[] = [];
+  const half = length / 2;
+  // Local frame is [across, up, along]; a timber laid along x is that frame
+  // turned a quarter turn about the vertical.
+  const place = (across: number, up: number, along: number): [number, number, number] =>
+    axis === 'z' ? [across, up, along] : [along, up, -across];
+  const corner = (
+    point: readonly [number, number],
+    along: number,
+    normal: readonly [number, number, number],
+    shade: number,
+    u: number,
+    v: number
+  ) => {
+    const p = place(point[0], point[1], along);
+    positions.push(p[0] + centre[0], p[1] + centre[1], p[2] + centre[2]);
+    normals.push(...place(normal[0], normal[1], normal[2]));
+    uvs.push(u, v);
+    colors.push(shade, shade, shade);
+  };
+  section.forEach((from, i) => {
+    const to = section[(i + 1) % section.length];
+    const run = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    const normal = [(to[1] - from[1]) / run, -(to[0] - from[0]) / run, 0] as const;
+    const v0 = i / section.length;
+    const v1 = (i + 1) / section.length;
+    corner(from, half, normal, tint, 1, v0);
+    corner(from, -half, normal, tint, 0, v0);
+    corner(to, -half, normal, tint, 0, v1);
+    corner(from, half, normal, tint, 1, v0);
+    corner(to, -half, normal, tint, 0, v1);
+    corner(to, half, normal, tint, 1, v1);
+  });
+  for (const end of [1, -1]) {
+    const normal = [0, 0, end] as const;
+    for (let i = 1; i < section.length - 1; i++) {
+      const fan =
+        end > 0
+          ? [section[0], section[i], section[i + 1]]
+          : [section[0], section[i + 1], section[i]];
+      for (const point of fan) corner(point, end * half, normal, tint * 0.8, point[0], point[1]);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  return geometry;
+};
+
 interface FlourPalletGeometry {
   pallet: THREE.BufferGeometry;
   sacks: THREE.BufferGeometry;
@@ -206,16 +274,59 @@ export function getFlourPalletGeometry(): FlourPalletGeometry {
     return merged;
   };
   const timber: THREE.BufferGeometry[] = [];
-  // Open deck, bearers and feet leave genuine fork-entry gaps.
-  for (const x of [-0.36, -0.18, 0, 0.18, 0.36]) {
-    timber.push(new THREE.BoxGeometry(0.16, 0.035, 0.8).translate(x, 0.0425, 0));
-  }
-  for (const z of [-0.3, 0, 0.3]) {
-    timber.push(new THREE.BoxGeometry(0.9, 0.025, 0.1).translate(0, -0.0475, z));
-    for (const x of [-0.34, 0, 0.34]) {
-      timber.push(new THREE.BoxGeometry(0.12, 0.06, 0.1).translate(x, -0.005, z));
-    }
-  }
+  // Open deck, blocks and runners leave genuine fork-entry gaps. Five deck
+  // boards run the way the forks enter, their top edges planed off; nine
+  // blocks stand flush with the pallet's edges, as a block pallet's do; three
+  // runners tie the blocks together underneath. Each piece carries its own
+  // tone, and sawn ends are darker, so the boards read one by one.
+  const chamfer = 0.006;
+  const deckSection = (halfWidth: number, halfHeight: number) =>
+    [
+      [-halfWidth, -halfHeight],
+      [halfWidth, -halfHeight],
+      [halfWidth, halfHeight - chamfer],
+      [halfWidth - chamfer, halfHeight],
+      [-halfWidth + chamfer, halfHeight],
+      [-halfWidth, halfHeight - chamfer],
+    ] as const;
+  const rectSection = (halfWidth: number, halfHeight: number) =>
+    [
+      [-halfWidth, -halfHeight],
+      [halfWidth, -halfHeight],
+      [halfWidth, halfHeight],
+      [-halfWidth, halfHeight],
+    ] as const;
+  [-0.37, -0.18, 0, 0.18, 0.37].forEach((x, board) => {
+    timber.push(
+      timberPrism(
+        deckSection(0.08, 0.0175),
+        0.8,
+        'z',
+        [x, 0.0425, 0],
+        [1, 0.92, 0.98, 0.9, 0.96][board]
+      )
+    );
+  });
+  [-0.35, 0, 0.35].forEach((z, row) => {
+    timber.push(
+      timberPrism(rectSection(0.05, 0.0125), 0.9, 'x', [0, -0.0475, z], [0.94, 0.88, 0.97][row])
+    );
+    [
+      [-0.365, 0.085],
+      [0, 0.06],
+      [0.365, 0.085],
+    ].forEach(([x, halfWidth], column) => {
+      timber.push(
+        timberPrism(
+          rectSection(halfWidth, 0.03),
+          0.1,
+          'z',
+          [x, -0.005, z],
+          0.8 + ((row * 3 + column) % 4) * 0.035
+        )
+      );
+    });
+  });
   const sacks: THREE.BufferGeometry[] = [];
   const ink: THREE.BufferGeometry[] = [];
   for (const { position, scale, rotationY } of PALLET_SACK_LAYOUT) {

@@ -44,8 +44,12 @@ export const PRECISION_FARM_MODELS = {
     prepared: 'assets/source/models/farm/windmill-crafted.glb',
     preparedSHA256: 'ace4d30d3c1e580658a05a27b8e0bd141759b42e7139c5b15932cef7ca51741f',
     builder: 'scripts/craft-precise-windmill.mjs',
-    builderSHA256: 'a4d665946ff7aba052646d1f286cedfc0e3a23033834ac6cee5e93155e987252',
-    outputSHA256: '986a7ea9ff95e6396db801b5c43796a2288e7c6ef8bc1f20d0b643a2b7a48da5',
+    builderSHA256: '4204848c8af2da156f26c49a9918fa5106930b1cbd3fbf859616cc27b962e0da',
+    outputSHA256: '97f0394dbd6a9ad08ff31f2dcd4e82d37eef75c27800eb61e9768f5b99847ca5',
+    // Asset loop 2026-11-12: the rebuilt windmill (bearing collar meets the hub
+    // under the narrowed runtime sail band) replaces this reviewed delivery,
+    // the only other output it may overwrite.
+    previousOutputSHA256: '986a7ea9ff95e6396db801b5c43796a2288e7c6ef8bc1f20d0b643a2b7a48da5',
     manifestSHA256: '96dba790de11e35565d0c3b770acf0f4e15ba3906c216c25889cde249f7734f2',
     scaleFactor: 6.79571,
   },

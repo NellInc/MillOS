@@ -125,7 +125,7 @@ const tileVoronoi = (
   u: number,
   v: number,
   cells: number
-): { dist: number; edge: number; border: number } => {
+): { dist: number; edge: number; border: number; id: number } => {
   const x = u * cells;
   const y = v * cells;
   const ix = Math.floor(x);
@@ -139,6 +139,8 @@ const tileVoronoi = (
   let ay = 0;
   let bx = 0;
   let by = 0;
+  let nearestX = 0;
+  let nearestY = 0;
 
   for (let ox = -1; ox <= 1; ox++) {
     for (let oy = -1; oy <= 1; oy++) {
@@ -154,6 +156,8 @@ const tileVoronoi = (
         minDist = d;
         ax = dx;
         ay = dy;
+        nearestX = ix + ox;
+        nearestY = iy + oy;
       } else if (d < secondDist) {
         secondDist = d;
         bx = dx;
@@ -164,7 +168,53 @@ const tileVoronoi = (
 
   const separation = Math.max(1e-4, Math.hypot(bx - ax, by - ay));
   const border = (secondDist * secondDist - minDist * minDist) / (2 * separation);
-  return { dist: minDist, edge: secondDist - minDist, border };
+  // `id` is a stable 0..1 value per cell, for giving each cell its own tone.
+  return {
+    dist: minDist,
+    edge: secondDist - minDist,
+    border,
+    id: tileHash(nearestX + 17, nearestY + 91, cells),
+  };
+};
+
+const smoothRamp = (edge0: number, edge1: number, x: number): number => {
+  const t = clamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * What turns the high-definition verge from packed grit into earth: lumps,
+ * moss and litter, shared by the albedo and the relief so they register.
+ * Feature sizes on the 4.5 m tile at 512 px: clods 32 cm (37 px) with 12 cm
+ * crumbs (14 px) between them, moss in 17 cm beds (20 px) gathered where the
+ * ground holds damp, leaf litter 11 cm (12 px).
+ *
+ * Two things keep it soil and not paving. The lattices are bent by a slow
+ * warp, so no clod edge runs straight; and a lump is shaded by a wide soft
+ * fall from crown to hollow, never by a line drawn round it.
+ * Everything is small and scattered on purpose: the tile repeats every 4.5 m,
+ * and one large patch of anything would be seen as a row of patches.
+ */
+const sampleEarthCover = (u: number, v: number) => {
+  const wu = u + (tileFbm(u + 0.2, v + 0.6, 10, 2) - 0.5) * 0.035;
+  const wv = v + (tileFbm(u + 0.9, v + 0.4, 10, 2) - 0.5) * 0.035;
+  const clod = tileVoronoi(wu + 0.31, wv + 0.57, 14);
+  const crumb = tileVoronoi(wu + 0.67, wv + 0.13, 37);
+  const damp = tileFbm(u + 0.41, v + 0.09, 7, 2);
+  const tuft = tileFbm(u + 0.7, v + 0.2, 96, 2);
+  const moss =
+    smoothRamp(0.53, 0.63, damp) *
+    smoothRamp(0.47, 0.6, tileFbm(u + 0.12, v + 0.77, 26, 2)) *
+    (0.7 + 0.3 * tuft);
+  return {
+    /** 1 on the crown of a lump, 0 in the hollow between lumps. */
+    lump: smoothRamp(0, 0.3, clod.border) * 0.65 + smoothRamp(0, 0.28, crumb.border) * 0.35,
+    /** Each lump's own 0..1 tone. */
+    tone: clod.id * 0.6 + crumb.id * 0.4,
+    moss,
+    tuft,
+    litter: smoothRamp(0.7, 0.78, tileFbm(u + 0.83, v + 0.29, 42, 2)) * (1 - moss),
+  };
 };
 
 interface SurfaceSample {
@@ -437,23 +487,37 @@ export const generateTarmacSurface = (size: number = 256): THREE.DataTexture =>
  * Feature periods at the default 256px: pebbles ~5.6px, ruts ~32px.
  */
 export const generateDirtSurface = (size: number = 256): THREE.DataTexture =>
-  buildSurfaceTexture(`terrain-dirt-surface-v3-${size}`, size, 0.45, (u, v) => {
-    const pebble = tileVoronoi(u, v, 46);
-    const stone = clamp01(1 - pebble.dist * 2.1);
-    const earth = tileFbm(u, v, 8, 3);
-    const rut = tileFbm(u + 0.23, v + 0.87, 5, 2);
-    const grit = tileFbm(u + 0.66, v + 0.12, 40, 2);
+  buildSurfaceTexture(
+    `terrain-dirt-surface-${size > 256 ? 'v4' : 'v3'}-${size}`,
+    size,
+    0.45,
+    (u, v) => {
+      const pebble = tileVoronoi(u, v, 46);
+      const stone = clamp01(1 - pebble.dist * 2.1);
+      const earth = tileFbm(u, v, 8, 3);
+      const rut = tileFbm(u + 0.23, v + 0.87, 5, 2);
+      const grit = tileFbm(u + 0.66, v + 0.12, 40, 2);
 
-    let height = 0.4 + stone * 0.38 + (earth - 0.5) * 0.3 + (grit - 0.5) * 0.1;
-    height -= Math.max(0, rut - 0.58) * 0.6;
-    // Fine quartz/soil grains resolve at 512px without enlarging the stones.
-    height += (tileFbm(u + 0.17, v + 0.43, 128, 1) - 0.5) * 0.07;
+      let height = 0.4 + stone * 0.38 + (earth - 0.5) * 0.3 + (grit - 0.5) * 0.1;
+      height -= Math.max(0, rut - 0.58) * 0.6;
+      // Fine quartz/soil grains resolve at 512px without enlarging the stones.
+      height += (tileFbm(u + 0.17, v + 0.43, 128, 1) - 0.5) * 0.07;
 
-    // Damp ruts are smoother; dry gritty earth is very rough.
-    const roughness = 0.94 - Math.max(0, rut - 0.58) * 0.22 + (grit - 0.5) * 0.04;
+      // Damp ruts are smoother; dry gritty earth is very rough.
+      let roughness = 0.94 - Math.max(0, rut - 0.58) * 0.22 + (grit - 0.5) * 0.04;
 
-    return { height, roughness: Math.max(0.78, Math.min(0.99, roughness)) };
-  });
+      if (size > 256) {
+        // Lumps stand proud of the hollows between them, moss cushions sit on
+        // top, and a fallen leaf is a thin flat thing lying on both.
+        const cover = sampleEarthCover(u, v);
+        height += cover.lump * 0.3 + (cover.tone - 0.5) * 0.1;
+        height += cover.moss * (0.1 + cover.tuft * 0.1) + cover.litter * 0.04;
+        roughness = roughness * (1 - cover.moss) + 0.97 * cover.moss;
+      }
+
+      return { height, roughness: Math.max(0.78, Math.min(0.99, roughness)) };
+    }
+  );
 
 /**
  * Dirt / gravel verge albedo. Quiet umber earth with embedded aggregate and
@@ -466,7 +530,7 @@ export const generateDirtSurface = (size: number = 256): THREE.DataTexture =>
  * makes the GPU decode it, so this must NOT be pre-linearised.
  */
 export const generateDirtGravel = (size: number = 256): THREE.DataTexture =>
-  getTexture(`terrain-dirt-gravel-${size > 256 ? 'v4' : 'v3'}-${size}`, () => {
+  getTexture(`terrain-dirt-gravel-${size > 256 ? 'v5' : 'v3'}-${size}`, () => {
     const data = new Uint8Array(size * size * 4);
 
     for (let y = 0; y < size; y++) {
@@ -508,6 +572,32 @@ export const generateDirtGravel = (size: number = 256): THREE.DataTexture =>
         r *= 1 - wet * 0.3;
         g *= 1 - wet * 0.27;
         b *= 1 - wet * 0.18;
+
+        if (size > 256) {
+          // The high-definition tile is earth, not packed grit: a warmer loam
+          // in soft lumps, lit on their crowns and dark in the hollows, with
+          // moss where it holds damp and a little leaf litter. The crowns stay
+          // under the old pebble tone, so no gravel carpet comes back.
+          const cover = sampleEarthCover(u, v);
+          const tone = 1 + (cover.tone - 0.5) * 0.14 + (cover.lump - 0.6) * 0.3;
+          r *= 0.9 * tone;
+          g *= 0.85 * tone;
+          b *= 0.79 * tone;
+          if (cover.litter > 0) {
+            const k = cover.litter * 0.7;
+            r += (0.4 - r) * k;
+            g += (0.3 - g) * k;
+            b += (0.17 - b) * k;
+          }
+          if (cover.moss > 0) {
+            const k = cover.moss * 0.9;
+            // Moss near the soil's own brightness: it changes the hue of the
+            // ground, and does not stand out as a row of bright patches.
+            r += (0.15 + cover.tuft * 0.13 - r) * k;
+            g += (0.21 + cover.tuft * 0.14 - g) * k;
+            b += (0.08 + cover.tuft * 0.06 - b) * k;
+          }
+        }
 
         data[i] = Math.round(clamp01(r) * 255);
         data[i + 1] = Math.round(clamp01(g) * 255);

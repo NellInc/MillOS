@@ -4,6 +4,12 @@ import '@testing-library/jest-dom';
 import { AgentCockpit } from './AgentCockpit';
 import { SYSTEM_REGISTRY_SOURCE } from '../../../agent/registry/systemRegistrySource.js';
 
+// The cockpit reads the operator runtime from module scope, not from window.
+const mocks = vi.hoisted(() => ({ runtime: null as unknown }));
+vi.mock('../../../agent/client/operatorRuntime', () => ({
+  peekOperatorRuntime: () => mocks.runtime,
+}));
+
 // The typed registry carries every command descriptor unchanged.
 const drill = SYSTEM_REGISTRY_SOURCE.capabilities.find(
   (item) => item.id === 'simulation.start-fire-drill'
@@ -13,7 +19,7 @@ const drill = SYSTEM_REGISTRY_SOURCE.capabilities.find(
 // fell to <body>. The next step the line names is a fresh preview.
 describe('committing a preview from the cockpit', () => {
   beforeEach(() => {
-    (window as unknown as { __MILLOS_AGENT__: unknown }).__MILLOS_AGENT__ = {
+    mocks.runtime = {
       capabilities: () => ({ data: { items: [drill] } }),
       brief: () => ({
         data: { status: 'nominal', health: { exceptions: [] }, authority: { activeGrantIds: [] } },
@@ -44,7 +50,7 @@ describe('committing a preview from the cockpit', () => {
   });
   afterEach(() => {
     cleanup();
-    delete (window as unknown as { __MILLOS_AGENT__?: unknown }).__MILLOS_AGENT__;
+    mocks.runtime = null;
   });
 
   it('moves focus to the preview button once the receipt replaces Commit', async () => {

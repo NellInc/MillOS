@@ -6,7 +6,7 @@
  *   (both recommended), or Sol 6.1 High and Gemini 3.8 Flash.
  * - Localhost: the same four models direct (Anthropic, OpenAI, Google BYOK),
  *   plus ChatGPT companion sign-in.
- * - Local (WebGPU): on-device Qwen3-4B neural core via @mlc-ai/web-llm — no
+ * - Local (WebGPU): on-device Qwen3.5-4B neural core via @mlc-ai/web-llm — no
  *   API key, no cost, no data leaving the device after the one-time weight
  *   download. Mirrors the CABAL workspace WebGPU brain.
  */

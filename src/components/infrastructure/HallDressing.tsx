@@ -224,6 +224,14 @@ const PALLET_TIMBER = new THREE.MeshStandardMaterial({
   color: '#8d6d48',
   roughness: 0.88,
 });
+// The shared pallet's timbers carry their own tone as a vertex colour; the
+// plain timber block above has none, so the two cannot share one material.
+const PALLET_BOARDS = new THREE.MeshStandardMaterial({
+  name: 'hall-pallet-boards',
+  color: '#8d6d48',
+  roughness: 0.88,
+  vertexColors: true,
+});
 const SACK_INK = FLOUR_STRIPE_MATERIAL.clone();
 SACK_INK.name = 'hall-sack-ink';
 SACK_INK.color.set('#39352d');
@@ -950,7 +958,7 @@ const HallSackStacks: React.FC = () => {
       <InstancedSet
         name="hall-pallets"
         geometry={pallet}
-        material={PALLET_TIMBER}
+        material={PALLET_BOARDS}
         matrices={pallets}
       />
       <InstancedSet

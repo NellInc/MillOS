@@ -79,7 +79,12 @@ export interface AgentActorDescriptor {
   id: string;
   uri: string;
   label: string;
-  kind: 'human' | 'becoming-mind' | 'system';
+  /**
+   * `stand-in` is an actor that approves in a person's place in a lab or test
+   * (D-073). Its approval is always recorded as a stand-in's, never as a
+   * person's, and a kernel accepts it only when composed to allow it.
+   */
+  kind: 'human' | 'becoming-mind' | 'system' | 'stand-in';
   status: 'active' | 'suspended';
   purposes: string[];
 }
@@ -163,6 +168,11 @@ export interface AgentApprovalToken {
   previewRevision: string;
   materialFingerprint: string;
   approvedBy: string;
+  /**
+   * The approver's kind, read from the kernel's own actor registry, never from
+   * the caller. A stand-in's approval is recorded as a stand-in's (D-073).
+   */
+  approvedByKind: 'human' | 'stand-in';
   reason: string;
   issuedAt: string;
   expiresAt: string;
@@ -188,6 +198,8 @@ export interface AgentExecutionReceipt {
   correlationId: string;
   previewId: string | null;
   approvalId: string | null;
+  /** Kind of the actor whose stored approval backed this execution; null when none did. */
+  approvedByKind: AgentApprovalToken['approvedByKind'] | null;
   beforeRevision: string;
   afterRevision: string;
   changedDomains: AgentDomainId[];
@@ -280,9 +292,11 @@ export interface AgentRuntimeApi extends Omit<AgentRuntimeReadApi, 'version' | '
   draft: (request: AgentCommandDraftRequest) => AgentCommandEnvelope;
   preview: (command: AgentCommandEnvelope) => Promise<AgentCommandPreview>;
   /**
-   * Approvals recorded through the browser runtime are always attributed to
-   * the human operator; the surface takes no approver argument, so a script
-   * holding the runtime handle cannot assert a different identity.
+   * On the window handle this always throws APPROVAL_NOT_AVAILABLE_ON_HANDLE.
+   * Any script on the page can call the handle, so it cannot attest a person:
+   * a high- or critical-risk preview is approved by the person at the controls
+   * in the Agent Cockpit, through the module-scoped operator runtime
+   * (`src/agent/client/operatorRuntime.ts`).
    */
   approve: (previewId: string, reason: string) => AgentApprovalToken;
   commit: (
@@ -299,13 +313,41 @@ export interface AgentRuntimeApi extends Omit<AgentRuntimeReadApi, 'version' | '
     requestedDisposition?: AgentPolicyObjection['requestedDisposition'],
     modes?: AgentRuntimeMode[]
   ) => AgentPolicyObjection;
+  /**
+   * On the window handle: resolves only an objection the agent side raised.
+   * One raised by a person (or a stand-in) throws
+   * OBJECTION_NOT_RESOLVABLE_ON_HANDLE; only its raiser or the person closes it.
+   */
   resolveObjection: (objectionId: string, resolution: string) => boolean;
   evidence: () => AgentEvidenceExport;
+  /** Imports events only; lessons in the export are checked by fingerprint and never brought in. */
   importEvidence: (value: unknown) => { imported: number; problems: AgentStructuredProblem[] };
+  /**
+   * On the window handle: advisory lessons only, promoted by a registered
+   * non-human actor. `humanReviewed: true` throws
+   * LESSON_REVIEW_NOT_AVAILABLE_ON_HANDLE; a human, stand-in or unknown
+   * `promotedBy` throws LESSON_PROMOTER_NOT_ALLOWED_ON_HANDLE.
+   */
   promoteLesson: (
     statement: string,
     evidenceEventIds: string[],
     promotedBy: string,
     humanReviewed?: boolean
   ) => AgentLesson;
+}
+
+/**
+ * The operator side of the same composition: the person at the controls,
+ * acting in the interface. Held in module scope, never on window.
+ */
+export interface AgentOperatorRuntime extends Omit<
+  AgentRuntimeApi,
+  'approve' | 'resolveObjection' | 'promoteLesson'
+> {
+  /** Approve as the human operator. */
+  approve: (previewId: string, reason: string) => AgentApprovalToken;
+  /** Resolve any objection, including one a person raised. */
+  resolveObjection: (objectionId: string, resolution: string) => boolean;
+  /** Promote a lesson as reviewed by the human operator. */
+  promoteReviewedLesson: (statement: string, evidenceEventIds: string[]) => AgentLesson;
 }

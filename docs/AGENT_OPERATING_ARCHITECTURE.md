@@ -10,8 +10,14 @@
 **Source authority:** current code remains authoritative for behaviour that exists today.
 
 **Implementation status:** the semantic contract spine and read-only query plane in Phases 0
-through 2 are current. The command, authority-grant, cockpit mutation, causal event, and learning
-planes remain target design.
+through 2 are current. So are a command kernel, an authority engine, a causal ledger and fourteen
+runtime command handlers, added from 2026-08-31 and running in simulation and shadow modes only
+(`src/agent/command/`, `src/agent/adapters/runtime/`; see [`docs/agent/README.md`](./agent/README.md)).
+Where this document describes those planes it describes the target, which the implementation
+does not yet meet in full: the ledger is in memory, there is no list of previews waiting for a
+person's approval, and the learning plane is a bounded lesson list. Since 2026-11-13 the runtime
+handle cannot approve or attest a person; approval is given in the interface (D-077). (Status
+corrected 2026-11-13; it previously called all of these target design.)
 
 ## Reading routes
 

@@ -27,6 +27,29 @@ export const HUMAN_OPERATOR_URI = 'millos://actor/human-operator';
 /** The browser's own model running the plant lights-out (src/utils/onDeviceOperator.ts). */
 export const ON_DEVICE_OPERATOR_URI = 'millos://actor/on-device-operator';
 export const ON_DEVICE_OPERATOR_GRANT_ID = 'grant.on-device-operator.incidents.v1';
+/**
+ * A stand-in operator approves in a person's place in a lab or a test (D-073).
+ * The product composition registers none, and a kernel accepts its approval
+ * only when composed with `allowStandInApproval: true`; the approval is then
+ * recorded as a stand-in's, never as a person's.
+ */
+export const STAND_IN_OPERATOR_URI = 'millos://actor/stand-in-operator';
+
+export function createStandInOperatorActor(): AgentActorDescriptor {
+  return {
+    id: 'stand-in-operator',
+    uri: STAND_IN_OPERATOR_URI,
+    label: 'Stand-in operator',
+    kind: 'stand-in',
+    status: 'active',
+    purposes: ["Approve previews in a person's place in a lab or test, recorded as a stand-in's"],
+  };
+}
+
+/** Actors on the agent side: neither a person nor a stand-in for one. */
+export function isAgentSideActor(actor: AgentActorDescriptor | undefined): boolean {
+  return actor?.kind === 'becoming-mind' || actor?.kind === 'system';
+}
 
 export function createDefaultActors(): AgentActorDescriptor[] {
   return [
@@ -105,7 +128,8 @@ export function createDefaultGrants(now: Date): AgentAuthorityGrant[] {
       revokedAt: null,
       revocationReason: null,
       escalation:
-        'Ask the human operator to approve the exact current preview or narrow the intent.',
+        'Leave the exact current preview for the person at the controls to approve in the Agent ' +
+        'Cockpit, or narrow the intent. The window.__MILLOS_AGENT__ handle cannot approve.',
     },
     {
       // Lights-out play (2026-10-25): the on-device model acts on the incidents

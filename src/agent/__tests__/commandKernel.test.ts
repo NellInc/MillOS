@@ -4,8 +4,10 @@ import {
   createDefaultActors,
   createDefaultGrants,
   createDefaultPolicy,
+  createStandInOperatorActor,
   ON_DEVICE_OPERATOR_GRANT_ID,
   ON_DEVICE_OPERATOR_URI,
+  STAND_IN_OPERATOR_URI,
 } from '../command/authority';
 import { AgentCausalLedger } from '../command/causalLedger';
 import { createAgentCommandKernel, type AgentCommandHandler } from '../command/commandKernel';
@@ -214,7 +216,7 @@ describe('agent command kernel', () => {
 
 type Fixture = ReturnType<typeof createFixture>;
 
-function createFixture() {
+function createFixture(options: { standIn?: boolean; allowStandInApproval?: boolean } = {}) {
   const state = {
     orders: [{ id: 'order-001', status: 'planned' }],
     incidents: [{ id: 'incident-001', phase: 'raised' }],
@@ -308,7 +310,9 @@ function createFixture() {
     },
   ];
   const authority = new AgentAuthorityEngine({
-    actors: createDefaultActors(),
+    actors: options.standIn
+      ? [...createDefaultActors(), createStandInOperatorActor()]
+      : createDefaultActors(),
     grants: createDefaultGrants(now()),
     policy: createDefaultPolicy(),
     now,
@@ -326,6 +330,7 @@ function createFixture() {
       ledger,
       now,
       idFactory: () => String(++id).padStart(4, '0'),
+      allowStandInApproval: options.allowStandInApproval,
     }),
   };
 }
@@ -400,6 +405,70 @@ describe('agent command kernel regressions', () => {
     expect(() => fixture.kernel.approve(preview.previewId, 'ok', 'millos://actor/nobody')).toThrow(
       /registered human actor/
     );
+    // Another Becoming Mind is not a person either.
+    expect(() => fixture.kernel.approve(preview.previewId, 'ok', ON_DEVICE_OPERATOR_URI)).toThrow(
+      /registered human actor/
+    );
+  });
+
+  // D-073: a stand-in's approval is always recorded as a stand-in's, never as a
+  // person's, and a kernel accepts it only when composed to.
+  it('refuses a registered stand-in approver unless the kernel allows stand-in approval', async () => {
+    const fixture = createFixture({ standIn: true });
+    const preview = await fixture.kernel.preview(
+      fixture.kernel.draft({
+        capabilityId: 'incident.mitigate',
+        targetUri: 'millos://incident/incident-001',
+        parameters: { incidentUri: 'millos://incident/incident-001' },
+        reason: 'Stand-in approval attempt.',
+      })
+    );
+    expect(() => fixture.kernel.approve(preview.previewId, 'ok', STAND_IN_OPERATOR_URI)).toThrow(
+      /registered human actor/
+    );
+    expect(fixture.state.mitigationCount).toBe(0);
+  });
+
+  it('records an allowed stand-in approval as a stand-in on the token, event and receipt', async () => {
+    const fixture = createFixture({ standIn: true, allowStandInApproval: true });
+    const command = fixture.kernel.draft({
+      capabilityId: 'incident.mitigate',
+      targetUri: 'millos://incident/incident-001',
+      parameters: { incidentUri: 'millos://incident/incident-001' },
+      reason: 'Lab run with a stand-in operator.',
+    });
+    const preview = await fixture.kernel.preview(command);
+    const approval = fixture.kernel.approve(
+      preview.previewId,
+      'Stand-in approved.',
+      STAND_IN_OPERATOR_URI
+    );
+    expect(approval).toMatchObject({
+      approvedBy: STAND_IN_OPERATOR_URI,
+      approvedByKind: 'stand-in',
+    });
+    const approved = fixture.ledger
+      .trace({ correlationId: command.commandId })
+      .records.find((event) => event.kind === 'command.approved');
+    expect(approved?.payload).toMatchObject({ approvedByKind: 'stand-in' });
+    const receipt = await fixture.kernel.commit(preview, approval);
+    expect(receipt.status).toBe('verified');
+    expect(receipt.approvedByKind).toBe('stand-in');
+  });
+
+  it('still records a person approving as a person when stand-ins are allowed', async () => {
+    const fixture = createFixture({ standIn: true, allowStandInApproval: true });
+    const preview = await fixture.kernel.preview(
+      fixture.kernel.draft({
+        capabilityId: 'incident.mitigate',
+        targetUri: 'millos://incident/incident-001',
+        parameters: { incidentUri: 'millos://incident/incident-001' },
+        reason: 'A person approves.',
+      })
+    );
+    const approval = fixture.kernel.approve(preview.previewId, 'Reviewed.');
+    expect(approval.approvedByKind).toBe('human');
+    expect((await fixture.kernel.commit(preview, approval)).approvedByKind).toBe('human');
   });
 
   it('consumes an approval on its first execution and rejects a re-keyed replay', async () => {

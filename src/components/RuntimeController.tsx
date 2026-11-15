@@ -27,6 +27,14 @@ import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { audioManager } from '../utils/audioManager';
 import { installMillOSAgentRuntime } from '../agent/adapters/runtime/installAgentRuntime';
 import { registerSceneCapture } from '../utils/sceneCapture';
+import {
+  readLightingLayerIsolationReport,
+  type LightingLayerIsolationReport,
+} from './performance/LightingLayerIsolation';
+import {
+  readIndoorSkyOcclusionReport,
+  type IndoorSkyOcclusionReport,
+} from './performance/IndoorSkyOcclusion';
 
 interface RuntimeRendererStats {
   vendor: string;
@@ -429,6 +437,10 @@ export interface RuntimeLightRig {
     shadowMapEnabled: boolean;
     shadowMapType: number;
   };
+  /** What `LightingLayerIsolation` removed from the last render, if anything. */
+  isolation: LightingLayerIsolationReport;
+  /** Materials compiled with the indoor sky term (D-063 experiment). */
+  indoorSky: IndoorSkyOcclusionReport;
 }
 
 export interface RuntimeObjectReport {
@@ -1041,6 +1053,8 @@ function reportLights(scene: THREE.Scene, gl: THREE.WebGLRenderer): RuntimeLight
       shadowMapEnabled: gl.shadowMap.enabled,
       shadowMapType: gl.shadowMap.type,
     },
+    isolation: readLightingLayerIsolationReport(),
+    indoorSky: readIndoorSkyOcclusionReport(),
   };
 }
 
