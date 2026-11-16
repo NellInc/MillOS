@@ -1966,14 +1966,33 @@ class AudioManager {
   // === SPATIAL AUDIO SUPPORT ===
 
   // Update camera position for spatial audio calculations
-  updateCameraPosition(x: number, y: number, z: number) {
+  updateCameraPosition(x: number, y: number, z: number, refreshAmbient = true) {
+    const refresh =
+      refreshAmbient ||
+      this.cameraAcousticRegion(this.cameraPosition.x, this.cameraPosition.z) !==
+        this.cameraAcousticRegion(x, z);
     // Mutated in place: this runs on every tracked camera move.
     this.cameraPosition.x = x;
     this.cameraPosition.y = y;
     this.cameraPosition.z = z;
+    if (!refresh) return;
     // Update ambient factory sounds based on distance from factory
     this.updateAmbientSpatialVolumes();
     this.adjustAmbientForTimeOfDay();
+  }
+
+  /** No allocation: detect the discontinuities that must bypass the 10 Hz bed mix.
+   * Working if crossing a wall or dock boundary changes the bed on that frame.
+   */
+  private cameraAcousticRegion(x: number, z: number): number {
+    const { minX, maxX, minZ, maxZ } = this.FACTORY_BOUNDS;
+    const { dockHalfWidth, dockTransitionDepth } = this.ACOUSTICS;
+    const inside = x > minX && x < maxX && z > minZ && z < maxZ;
+    const dock =
+      Math.abs(x) < dockHalfWidth &&
+      ((z > maxZ - 8 && z < maxZ + dockTransitionDepth) ||
+        (z < minZ + 8 && z > minZ - dockTransitionDepth));
+    return Number(inside) + Number(dock) * 2;
   }
 
   /**

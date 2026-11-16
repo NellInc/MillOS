@@ -54,6 +54,8 @@ export interface PerfDebugSettings {
    * uniform, no recompile. Pull it with `measure:surfaces --toggle-key=`.
    */
   disableWaterCaustics: boolean;
+  /** Same-page old-cadence reference for the time-based spatial audio experiment. */
+  disableTimeBasedAudio: boolean;
   /**
    * Force every distance LOD (`performance/DistanceLod`) to its nearest level.
    * A/B instrument only, never a quality setting: the paired control for what
@@ -243,6 +245,7 @@ const DEFAULT_PERF_DEBUG: PerfDebugSettings = {
   disableInteriorLightBanks: false,
   disableSurfaceTreatment: false,
   disableWaterCaustics: false,
+  disableTimeBasedAudio: false,
   disableDistanceLod: false,
   disableAmbientOcclusion: false,
   disableBloom: false,
