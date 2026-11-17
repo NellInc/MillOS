@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useFrame, useThree, type RootState } from '@react-three/fiber';
+import { addAfterEffect, useFrame, useThree, type RootState } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { PersistStorage } from 'zustand/middleware';
 import { useAdaptiveQuality } from '../hooks/useAdaptiveQuality';
@@ -25,6 +25,7 @@ import { inspectCommunityPresence } from '../simulation/communityLife';
 import { sampleAtmosphere, sampleCelestial } from '../simulation/atmosphere';
 import { STANDARD_GAME_SPEED } from '../simulation/pace';
 import { audioManager } from '../utils/audioManager';
+import { createGpuTiming, type GpuTimingSnapshot } from './performance/gpuTiming';
 import { installMillOSAgentRuntime } from '../agent/adapters/runtime/installAgentRuntime';
 import { registerSceneCapture } from '../utils/sceneCapture';
 import {
@@ -178,6 +179,7 @@ interface RuntimeMotionState {
 }
 
 export interface RuntimeTelemetrySnapshot {
+  gpuTiming: GpuTimingSnapshot;
   capturedAt: number;
   ready: boolean;
   firstFrameAt: number | null;
@@ -235,6 +237,7 @@ export interface RuntimeTelemetrySnapshot {
 }
 
 export interface RuntimeFramePacingSnapshot extends FramePacingSummary {
+  gpuTiming: GpuTimingSnapshot;
   capturedAt: number;
   firstFrameAt: number | null;
   longTasks: RuntimeTelemetrySnapshot['longTasks'];
@@ -261,6 +264,8 @@ export interface MillOSRuntimeTelemetry {
   reset: () => void;
   snapshot: () => RuntimeTelemetrySnapshot;
   framePacingSnapshot: () => RuntimeFramePacingSnapshot;
+  /** Opt-in sampled GPU elapsed timing; never persisted or used to alter quality. */
+  setGpuTiming: (enabled: boolean) => void;
   motionSnapshot: () => RuntimeMotionState;
   checkpointSnapshot: () => RuntimeCheckpointState[];
   namedObjectsSnapshot: (names: string[]) => RuntimeNamedObjectPose[];
@@ -1549,6 +1554,9 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
   const drawingBufferSizeRef = useRef(new THREE.Vector2());
   const raycasterRef = useRef(new THREE.Raycaster());
   const lastReplayCaptureRef = useRef(0);
+  const gpuTimingRef = useRef<ReturnType<typeof createGpuTiming> | null>(null);
+
+  useFrame(() => gpuTimingRef.current?.beginFrame(), -10000);
 
   useAdaptiveQuality(adaptiveEnabled && !mode.benchmark);
 
@@ -1769,6 +1777,8 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
 
   useEffect(() => {
     let observer: PerformanceObserver | null = null;
+    const gpuTiming = createGpuTiming(gl, addAfterEffect);
+    gpuTimingRef.current = gpuTiming;
     // Only benchmark runs read longTasks, and only they call reset(); observing
     // on an ordinary visit would grow the buffer for the whole session.
     if (mode.benchmark && typeof PerformanceObserver !== 'undefined') {
@@ -1788,6 +1798,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
     }
 
     const reset = (): void => {
+      gpuTiming.reset();
       frameTimesRef.current = [];
       renderedFramesRef.current = 0;
       longTasksRef.current = [];
@@ -1884,6 +1895,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
     // Working if frame timing can be latched before the heavy diagnostic export,
     // with every slow frame and long task inside that window retained.
     const framePacingSnapshot = (): RuntimeFramePacingSnapshot => ({
+      gpuTiming: gpuTiming.snapshot(),
       capturedAt: rounded(performance.now()),
       firstFrameAt: firstFrameAtRef.current,
       ...summarizeFramePacing(frameTimesRef.current),
@@ -2065,6 +2077,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       });
 
       return {
+        gpuTiming: gpuTiming.snapshot(),
         capturedAt: rounded(performance.now()),
         ready: firstFrameAtRef.current !== null,
         firstFrameAt: firstFrameAtRef.current,
@@ -2146,6 +2159,7 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
       reset,
       snapshot,
       framePacingSnapshot,
+      setGpuTiming: (enabled) => gpuTiming.setEnabled(enabled),
       motionSnapshot,
       materialAudit: () => auditMaterials(scene),
       lightRig: () => reportLights(scene, gl),
@@ -2215,6 +2229,8 @@ export const RuntimeController: React.FC<RuntimeControllerProps> = ({
 
     return () => {
       observer?.disconnect();
+      gpuTiming.dispose();
+      if (gpuTimingRef.current === gpuTiming) gpuTimingRef.current = null;
       removeAgentRuntime();
       // A hold must not outlive the hook that can release it.
       window.__MILLOS_RUNTIME__?.holdFrame(false);

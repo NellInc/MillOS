@@ -304,8 +304,11 @@ describe('actual native benchmark motion measurements', () => {
       'frameTimesRef',
       'firstFrameAtRef',
       'longTasksRef',
+      'gpuTiming',
       `${js};return capture;`
-    )(frames, { current: 123 }, tasks) as () => {
+    )(frames, { current: 123 }, tasks, {
+      snapshot: () => ({ status: 'disabled', averageMs: null }),
+    }) as () => {
       sampleCount: number;
       worstFrameMs: number;
       framesOver50Ms: number;
@@ -321,6 +324,7 @@ describe('actual native benchmark motion measurements', () => {
       worstFrameMs: 70,
       framesOver50Ms: 1,
       firstFrameAt: 123,
+      gpuTiming: { status: 'disabled', averageMs: null },
       longTasks: [{ startTime: 10, duration: 70 }],
     });
     expect(capture().sampleCount).toBe(4);

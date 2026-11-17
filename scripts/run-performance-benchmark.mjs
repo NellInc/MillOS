@@ -86,6 +86,7 @@ const flagArguments = new Set([
   'art',
   'compare-scada',
   'startup-only',
+  'gpu-timing',
   'headed',
   'report-only',
   'help',
@@ -131,6 +132,8 @@ Options:
   --network-profile=<name>  native or fast-3g; default native
   --startup-only            Capture startup marks at the complete first reveal,
                             without the subsequent steady-state sample
+  --gpu-timing              Opt in to non-blocking sampled GPU elapsed timing
+                            during the steady-state window (not a budget gate)
   --output=<directory>      Evidence directory
   --headed                  Show the browser window
   --report-only             Write evidence without failing the process on a missed budget
@@ -167,6 +170,7 @@ const options = {
   artMode: hasFlag('art'),
   compareScada: hasFlag('compare-scada'),
   startupOnly: hasFlag('startup-only'),
+  gpuTiming: hasFlag('gpu-timing'),
   output: path.resolve(readArgument('output', DEFAULT_OUTPUT)),
   headed: hasFlag('headed'),
   browserChannel: readArgument('channel', 'chrome'),
@@ -984,6 +988,12 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     });
   }
   const startup = await captureStartup(page);
+  // Opt in only after startup; reset below drops all earlier query results.
+  // Working if --gpu-timing reports bounded asynchronous samples in the same
+  // latched window, while ordinary benchmarks leave the render path unwrapped.
+  if (options.gpuTiming) {
+    await page.evaluate(() => window.__MILLOS_RUNTIME__.setGpuTiming(true));
+  }
   // Screenshot capture can synchronously composite the WebGL surface for
   // hundreds of milliseconds. It is evidence collection, not application
   // frame work, so reset telemetry after the capture and before sampling.
@@ -1007,6 +1017,9 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     throw new Error(`Runtime frame-window telemetry was unavailable for scene ${scene}`);
   const postExportSnapshot = await page.evaluate(() => window.__MILLOS_RUNTIME__?.snapshot());
   if (!postExportSnapshot) throw new Error(`Runtime telemetry was unavailable for scene ${scene}`);
+  if (options.gpuTiming) {
+    await page.evaluate(() => window.__MILLOS_RUNTIME__.setGpuTiming(false));
+  }
   // World, renderer and readiness diagnostics keep their full-inspection time.
   // Only the explicitly latched timing fields feed the frame-pacing budgets.
   const { capturedAt: frameWindowCapturedAt, ...frameMetrics } = framePacing;
@@ -1283,6 +1296,13 @@ async function main() {
       console.log(
         `${result.scene}${options.compareScada ? ` (${result.variant})` : ''}: ${metric.averageFps.toFixed(1)} FPS, 1% low ${metric.onePercentLowFps.toFixed(1)} FPS, p95 ${metric.p95FrameMs.toFixed(1)} ms, p99 ${metric.p99FrameMs.toFixed(1)} ms, ${metric.renderer.calls} calls, DPR ${metric.canvas.effectiveDpr.toFixed(2)}, world ${metric.worldIntegrity?.passed ? 'continuous' : options.disabledSystems.length > 0 ? 'isolated' : 'BROKEN'}, ${options.motionEnabled ? `motion ${result.motionAcceptance.passed ? 'valid' : 'INVALID'}, ` : ''}${passed ? 'PASS' : 'FAIL'}`
       );
+      if (options.gpuTiming) {
+        const timing = metric.gpuTiming;
+        console.log(
+          `  GPU elapsed: ${timing.averageMs === null ? timing.status : `${timing.averageMs.toFixed(2)} ms`}, ` +
+            `${timing.sampleCount} samples, ${timing.pendingQueries} pending (sampled, not exclusive busy time)`
+        );
+      }
     }
     // Print the page's own complaints. A `pageClean` failure with no visible
     // reason sends the next reader to the frame timings, which is the wrong
