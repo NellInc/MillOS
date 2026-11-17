@@ -133,6 +133,10 @@ function projectStationUV(source: THREE.BufferGeometry, target: THREE.BufferGeom
   }
 }
 
+// A delivered GLB geometry is immutable and shared by every pump clone.
+// Keep only its projected UVs; each cabinet owns its own attribute and buffers.
+const pumpCabinetUVs = new WeakMap<THREE.BufferGeometry, THREE.BufferAttribute>();
+
 /** The grill's twelve source triangles occupy separate atlas islands. Split
  * only this derivative at those actual chart edges before assigning UVs, so a
  * new triangle can never interpolate through another island. */
@@ -378,7 +382,13 @@ export function createPosterStationGeometry(
       .rotateY(-Math.PI / 2)
       .scale(scale, scale, scale)
       .translate(...centre.toArray());
-    projectStationUV(original, cabinet);
+    const cached = pumpCabinetUVs.get(source);
+    if (cached) {
+      cabinet.setAttribute('uv', cached.clone());
+    } else {
+      projectStationUV(original, cabinet);
+      pumpCabinetUVs.set(source, cabinet.getAttribute('uv').clone());
+    }
     original.dispose();
     cabinet.computeBoundingBox();
     cabinet.computeBoundingSphere();

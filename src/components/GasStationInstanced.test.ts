@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as THREE from 'three';
 import { NodeIO } from '@gltf-transform/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RETAIL_GEOMETRY, STATION_APPLIANCE_SHIFT } from './scenery/StationRetailDetails';
 import {
   createPosterStationGeometry,
@@ -932,6 +932,29 @@ describe('poster-matched live station bodies', () => {
     // sampled the atlas from arbitrary, non-existent triangles.
     source.setIndex(Array.from(p.getIndices()!.getArray()!));
     const result = createPosterStationGeometry(source, 'fuelPumpShell');
+    // The next cabinet must get identical attributes without searching the
+    // atlas again. It remains safe to edit or dispose either instance.
+    const project = vi.spyOn(THREE.Triangle.prototype, 'closestPointToPoint');
+    try {
+      const repeated = createPosterStationGeometry(source, 'fuelPumpShell');
+      expect(project).not.toHaveBeenCalled();
+      expect(repeated).not.toBe(result);
+      for (const name of ['position', 'normal', 'uv', 'color']) {
+        const first = result.getAttribute(name).array;
+        const second = repeated.getAttribute(name).array;
+        expect(second).toEqual(first);
+        expect(second).not.toBe(first);
+      }
+      expect(repeated.boundingBox).toEqual(result.boundingBox);
+      expect(repeated.boundingSphere).toEqual(result.boundingSphere);
+      repeated.getAttribute('uv').setXY(0, -1, -1);
+      repeated.dispose();
+      const reopened = createPosterStationGeometry(source, 'fuelPumpShell');
+      expect(reopened.getAttribute('uv').array).toEqual(result.getAttribute('uv').array);
+      reopened.dispose();
+    } finally {
+      project.mockRestore();
+    }
     // Every projected coordinate interpolates inside one real delivered
     // triangle's atlas chart, iterated through that index.
     const sourceIndex = source.index!.array,
