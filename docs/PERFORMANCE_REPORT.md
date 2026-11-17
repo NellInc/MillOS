@@ -7,7 +7,21 @@
 **Status:** Green. Source, delivery, motion, world, uncrewed, and strict five
 view frame pacing gates pass on the current v0.40 candidate.
 
-## Acceptance budgets
+## Startup metric used today
+
+`npm run benchmark:runtime -- --startup-only --scenes=overview` measures
+navigation to removal of the loading dialog (`startup.coverClearMs`). This
+includes the existing exit transition. The benchmark still requires strict
+world readiness before that removal. Use `--max-cover-clear-ms=<n>` to enforce
+a measured baseline for the same browser, quality and network profile. No
+default latency target has been calibrated for cover removal.
+
+`startup.readyMs` and `startup.firstFrameLoopMs` are diagnostic milestones.
+The loop can tick before any WebGL draw. The figures below are the historical
+August assessment; its 350 ms and 3,200 ms targets timed the first loop tick
+and do not apply to cover removal.
+
+## Historical acceptance budgets
 
 | Gate | Budget |
 |---|---:|
@@ -92,7 +106,7 @@ hash exact native receipt.
 * v0.10, v0.20, and v0.30 remain genuine immutable archives. v0.40 is the
   default selection.
 
-## Current optimization priorities
+## Optimization priorities at the time
 
 1. Keep the five view gate repeatable in quiet host windows, while retaining
    contended misses as diagnostic evidence rather than weakening budgets.

@@ -79,6 +79,7 @@ const valueArguments = new Set([
   'pa',
   'disable-systems',
   'network-profile',
+  'max-cover-clear-ms',
   'output',
 ]);
 const flagArguments = new Set([
@@ -130,8 +131,10 @@ Options:
   --compare-scada           Capture paired SCADA-off and SCADA-on samples
   --disable-systems=<list>  Comma-separated isolation aliases: ${Object.keys(PERF_SYSTEMS).join(', ')}
   --network-profile=<name>  native or fast-3g; default native
-  --startup-only            Capture startup marks at the complete first reveal,
+  --startup-only            Measure navigation to loading cover removal,
                             without the subsequent steady-state sample
+  --max-cover-clear-ms=<n>  Optional startup latency budget; otherwise report the
+                            measured value without an uncalibrated time target
   --gpu-timing              Opt in to non-blocking sampled GPU elapsed timing
                             during the steady-state window (not a budget gate)
   --output=<directory>      Evidence directory
@@ -203,8 +206,17 @@ if (unknownSystems.length > 0) {
   );
 }
 
+const coverClearArgument = readArgument('max-cover-clear-ms', null);
+const coverClearBudgetMs = coverClearArgument === null ? null : Number(coverClearArgument);
+if (
+  coverClearBudgetMs !== null &&
+  (!Number.isFinite(coverClearBudgetMs) || coverClearBudgetMs <= 0)
+) {
+  throw new Error('--max-cover-clear-ms must be a finite positive number.');
+}
+
 const budgets = {
-  firstFrameMs: options.networkProfile === 'native' ? 350 : 3200,
+  coverClearMs: coverClearBudgetMs,
   averageFps: 60,
   p95FrameMs: 16.7,
   p99FrameMs: 25,
@@ -374,7 +386,17 @@ async function stopPreview() {
   });
 }
 
-function evaluateBudgets(snapshot, diagnostics) {
+function coverClearedWithinBudget(startup) {
+  const { coverClearMs, readyMs } = startup;
+  return (
+    Number.isFinite(coverClearMs) &&
+    Number.isFinite(readyMs) &&
+    coverClearMs >= readyMs &&
+    (budgets.coverClearMs === null || coverClearMs <= budgets.coverClearMs)
+  );
+}
+
+function evaluateBudgets(snapshot, startup, diagnostics) {
   const longestTask = Math.max(0, ...snapshot.longTasks.map((task) => task.duration));
   const enforceWorldIntegrity = options.disabledSystems.length === 0;
   const effectiveDpr = evaluateEffectiveDpr(snapshot);
@@ -397,7 +419,7 @@ function evaluateBudgets(snapshot, diagnostics) {
     );
   const triage = classifyDiagnostics(diagnostics);
   const checks = {
-    firstFrame: snapshot.firstFrameAt !== null && snapshot.firstFrameAt <= budgets.firstFrameMs,
+    coverClear: coverClearedWithinBudget(startup),
     averageFps: snapshot.averageFps >= budgets.averageFps,
     p95Frame: snapshot.p95FrameMs <= budgets.p95FrameMs,
     p99Frame: snapshot.p99FrameMs <= budgets.p99FrameMs,
@@ -421,11 +443,11 @@ function evaluateBudgets(snapshot, diagnostics) {
   };
 }
 
-function evaluateStartupBudget(snapshot, diagnostics) {
+function evaluateStartupBudget(snapshot, startup, diagnostics) {
   const triage = classifyDiagnostics(diagnostics);
   const effectiveDpr = evaluateEffectiveDpr(snapshot);
   const checks = {
-    firstFrame: snapshot.firstFrameAt !== null && snapshot.firstFrameAt <= budgets.firstFrameMs,
+    coverClear: coverClearedWithinBudget(startup),
     effectiveDpr: effectiveDpr.passed,
     pageClean: triage.actionable.length === 0,
   };
@@ -459,6 +481,9 @@ async function captureStartup(page) {
         .map((entry) => [entry.name, Number(entry.startTime.toFixed(2))])
     );
     return {
+      coverClearMs: marks['millos:loading-cover-cleared'] ?? null,
+      readyMs: marks['millos:startup-ready'] ?? null,
+      firstFrameLoopMs: marks['millos:first-frame'] ?? null,
       marks,
       navigation: performance.getEntriesByType('navigation').map(compactEntry),
       resources: performance
@@ -480,7 +505,7 @@ async function waitForRuntimeStage(page, label, predicate, timeoutMs, diagnostic
         url: location.href,
         documentReadyState: document.readyState,
         htmlDataset: { ...document.documentElement.dataset },
-        loadingOverlayPresent: document.querySelector('[aria-label="Loading MillOS"]') !== null,
+        loadingOverlayPresent: document.querySelector('[data-millos-loading-cover]') !== null,
         runtimePresent: typeof window.__MILLOS_RUNTIME__ !== 'undefined',
         runtimeReady: window.__MILLOS_RUNTIME__?.ready ?? null,
         marks: Object.fromEntries(
@@ -886,16 +911,15 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     90000,
     { consoleErrors, pageErrors, failedRequests }
   );
-  // The telemetry probe becomes ready on the first rendered frame; the loader
-  // now waits for assets, static batches and settled animation. Working if the
-  // benchmark observes that real signal and never samples through the overlay.
-  // This is only an observation timeout, not a relaxed frame or startup budget.
+  // The runtime's first loop tick can occur before any draw. Require both strict
+  // readiness and the committed removal of the dialog, independent of language.
   await waitForRuntimeStage(
     page,
     'Complete, animation-ready first reveal',
     () =>
       document.documentElement.dataset.millosStartupReady === 'true' &&
-      document.querySelector('[aria-label="Loading MillOS"]') === null,
+      document.querySelector('[data-millos-loading-cover]') === null &&
+      performance.getEntriesByName('millos:loading-cover-cleared', 'mark').length > 0,
     // The first reveal includes the same static batching as the later settle
     // check. Honour a longer existing --settle-timeout here as well. Working
     // if a busy capture can wait for all batches while the default observation
@@ -903,8 +927,8 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     Math.max(120000, options.settleTimeoutSeconds * 1000),
     { consoleErrors, pageErrors, failedRequests }
   );
+  const startup = await captureStartup(page);
   if (options.startupOnly) {
-    const startup = await captureStartup(page);
     const snapshot = startup.runtime;
     if (!snapshot) throw new Error(`Runtime telemetry was unavailable for scene ${scene}`);
     const screenshotPath = path.join(options.output, `${scene}-startup.png`);
@@ -922,10 +946,11 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
       wallClockMs: Math.round(performance.now() - startedAt),
       snapshot,
       domStacks: null,
-      budget: evaluateStartupBudget(snapshot, { consoleErrors, pageErrors, failedRequests }),
-      // Recorded on both paths: first-frame latency is if anything more
-      // load-sensitive than steady-state pacing, since it is dominated by
-      // single-threaded parse, compile and bake work.
+      budget: evaluateStartupBudget(snapshot, startup, {
+        consoleErrors,
+        pageErrors,
+        failedRequests,
+      }),
       load: machineLoad(),
       diagnostics: {
         consoleErrors,
@@ -987,7 +1012,6 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
       timeout: 30000,
     });
   }
-  const startup = await captureStartup(page);
   // Opt in only after startup; reset below drops all earlier query results.
   // Working if --gpu-timing reports bounded asynchronous samples in the same
   // latched window, while ordinary benchmarks leave the render path unwrapped.
@@ -1060,7 +1084,7 @@ async function runScene(context, baseUrl, scene, scadaEnabled = options.scadaEna
     .catch((error) => {
       screenshotError = error instanceof Error ? error.message : String(error);
     });
-  const budget = evaluateBudgets(snapshot, { consoleErrors, pageErrors, failedRequests });
+  const budget = evaluateBudgets(snapshot, startup, { consoleErrors, pageErrors, failedRequests });
   const load = machineLoad();
   const motionSummary = summarizeMotion(motionSamples);
   const motionPacing = summarizeMotionPacing(motionSamples);
@@ -1287,11 +1311,11 @@ async function main() {
 
   for (const result of results) {
     const metric = result.snapshot;
-    if (options.startupOnly) {
-      console.log(
-        `${result.scene} startup: ${metric.firstFrameAt.toFixed(1)} ms first useful frame, DPR ${metric.canvas.effectiveDpr.toFixed(2)}, ${result.budget.passed ? 'PASS' : 'FAIL'}`
-      );
-    } else {
+    const { coverClearMs, firstFrameLoopMs } = result.startup;
+    console.log(
+      `${result.scene}${options.compareScada ? ` (${result.variant})` : ''} startup: ${coverClearMs?.toFixed(1) ?? 'missing'} ms to cover clear, first loop ${firstFrameLoopMs?.toFixed(1) ?? 'missing'} ms, DPR ${metric.canvas.effectiveDpr.toFixed(2)}, ${(options.startupOnly ? result.budget.passed : result.budget.checks.coverClear) ? 'PASS' : 'FAIL'}`
+    );
+    if (!options.startupOnly) {
       const passed = result.budget.passed && result.motionAcceptance.passed;
       console.log(
         `${result.scene}${options.compareScada ? ` (${result.variant})` : ''}: ${metric.averageFps.toFixed(1)} FPS, 1% low ${metric.onePercentLowFps.toFixed(1)} FPS, p95 ${metric.p95FrameMs.toFixed(1)} ms, p99 ${metric.p99FrameMs.toFixed(1)} ms, ${metric.renderer.calls} calls, DPR ${metric.canvas.effectiveDpr.toFixed(2)}, world ${metric.worldIntegrity?.passed ? 'continuous' : options.disabledSystems.length > 0 ? 'isolated' : 'BROKEN'}, ${options.motionEnabled ? `motion ${result.motionAcceptance.passed ? 'valid' : 'INVALID'}, ` : ''}${passed ? 'PASS' : 'FAIL'}`

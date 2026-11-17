@@ -1,4 +1,12 @@
-import React, { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import React, {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import {
   getStartupSnapshot,
   openPreparedStartup,
@@ -135,6 +143,12 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
     return () => window.clearTimeout(hideTimer);
   }, [startup.ready, startup.opened, minimumTimePassed, reducedMotion]);
 
+  // Timestamp the commit that removes the dialog, after the existing exit
+  // transition. The readiness signal and the first frame-loop tick are earlier.
+  useLayoutEffect(() => {
+    if (!showLoading) performance.mark('millos:loading-cover-cleared');
+  }, [showLoading]);
+
   // The bar is every kind of startup work, each by its own count
   // (startupProgress). Totals grow as later work is discovered, so the bar
   // shows the highest value reached this load and never runs back.
@@ -223,6 +237,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
           role="dialog"
           aria-modal="true"
           aria-label={t('dialogLabel')}
+          data-millos-loading-cover
           tabIndex={-1}
           // Scrolls, centred by two flex spacers: on a landscape phone the
           // stalled cover is taller than the screen, and justify-center in a

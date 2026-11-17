@@ -454,6 +454,39 @@ describe('LoadingScreen final readiness', () => {
     expect(screen.queryByRole('button', { name: 'Continue while preparing' })).toBeNull();
   });
 
+  it.each([false, true])(
+    'marks cover removal after readiness and the exit (reduced motion: %s)',
+    async (reducedMotion) => {
+      const mark = vi.spyOn(performance, 'mark').mockImplementation((name) => {
+        if (name === 'millos:loading-cover-cleared') {
+          expect(document.querySelector('[data-millos-loading-cover]')).toBeNull();
+        }
+        return {} as PerformanceMark;
+      });
+      flags.IN_APP_REDUCED_MOTION_ENABLED = true;
+      useMotionPreferenceStore.setState({ mode: reducedMotion ? 'reduce' : 'system' });
+      try {
+        const view = render(<LoadingScreen minimumLoadTimeMs={0} />);
+        await act(async () => vi.advanceTimersByTimeAsync(1));
+        state.ready = true;
+        view.rerender(<LoadingScreen minimumLoadTimeMs={0} />);
+        expect(mark).not.toHaveBeenCalledWith('millos:loading-cover-cleared');
+        if (!reducedMotion) {
+          await act(async () => vi.advanceTimersByTimeAsync(219));
+          expect(mark).not.toHaveBeenCalledWith('millos:loading-cover-cleared');
+          expect(screen.getByRole('dialog', { name: 'Loading MillOS' })).toBeInTheDocument();
+        }
+        await act(async () => vi.advanceTimersByTimeAsync(1));
+        expect(screen.queryByRole('dialog', { name: 'Loading MillOS' })).toBeNull();
+        expect(
+          mark.mock.calls.filter(([name]) => name === 'millos:loading-cover-cleared')
+        ).toHaveLength(1);
+      } finally {
+        mark.mockRestore();
+      }
+    }
+  );
+
   // At Low graphics a load that stops moving (an asset fetch with no timeout)
   // left only the progress bar: no control at all. A slow device still gets no
   // routine reload prompt (the test below), but nothing moving for 90 s is a
