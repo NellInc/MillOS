@@ -23,7 +23,11 @@ import {
   startupAssetManifest,
 } from './startupAssetPreload';
 import { GENERATED_ASSET_PATHS, MODEL_PATHS } from './modelLoader';
-import { BUSINESS_BRANDS, WORKER_ASSET_PATHS } from '../constants/worldAssetUrls';
+import {
+  BUSINESS_BRANDS,
+  CIVIC_PRIVET_TEXTURE_URL,
+  WORKER_ASSET_PATHS,
+} from '../constants/worldAssetUrls';
 import {
   CIVIC_SHADOW_DEPTH_URL,
   CIVIC_SHADOW_METADATA_URL,
@@ -85,6 +89,7 @@ describe('startup world asset preload', () => {
     for (const url of [
       BUSINESS_BRANDS.inn.fascia,
       BUSINESS_BRANDS.townHall.primary,
+      CIVIC_PRIVET_TEXTURE_URL,
       BUSINESS_BRANDS.harvest.primary,
       CIVIC_SHADOW_DEPTH_URL,
     ])

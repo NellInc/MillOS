@@ -46,6 +46,7 @@ import {
 } from './modelLoader';
 import {
   BUSINESS_BRANDS,
+  CIVIC_PRIVET_TEXTURE_URL,
   HERITAGE_PRINT_ART,
   STATION_RETAIL_ART,
   STATION_SOUVENIR_ART,
@@ -196,7 +197,7 @@ const DETAIL_ONLY_MODELS: ReadonlySet<string> = new Set([
   GENERATED_ASSET_PATHS.spoutingCrossbeamUnit,
 ]);
 
-/** Raster prints read through useTexture by the signage, truck and shop components. */
+/** Raster assets read through useTexture or useLoader by startup scenery. */
 const STARTUP_TEXTURES: readonly string[] = [
   BUSINESS_BRANDS.mill.primary,
   BUSINESS_BRANDS.flourExpress.primary,
@@ -213,6 +214,7 @@ const STARTUP_TEXTURES: readonly string[] = [
   BUSINESS_BRANDS.electrical.primary,
   BUSINESS_BRANDS.cafe.primary,
   BUSINESS_BRANDS.townHall.primary,
+  CIVIC_PRIVET_TEXTURE_URL,
   BUSINESS_BRANDS.inn.fascia,
   BUSINESS_BRANDS.inn.primary,
   BUSINESS_BRANDS.school.primary,

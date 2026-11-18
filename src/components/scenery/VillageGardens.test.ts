@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
+import { CIVIC_PRIVET_TEXTURE_URL } from '../../constants/worldAssetUrls';
 import {
   addVillageFlower,
   addVillageShutter,
@@ -13,7 +14,6 @@ import {
   addVillageFoliage,
   addCivicPrivet,
   removeEnclosedVillageFaces,
-  CIVIC_PRIVET_TEXTURE_URL,
   VILLAGE_HOME_PLOTS,
   VILLAGE_HOMES,
   VILLAGE_GARDEN_FOOTPRINTS,

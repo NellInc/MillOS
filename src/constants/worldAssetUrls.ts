@@ -8,6 +8,8 @@
  * re-export these, so their importers are unchanged.
  */
 
+export const CIVIC_PRIVET_TEXTURE_URL = `${import.meta.env.BASE_URL}textures/civic-privet-leaves.png?v=7adbd6b2327e3664d1578e885e18c398859918b939f0a7f7b28d68a8459fd94d`;
+
 export const HERITAGE_ART = {
   dino: `${import.meta.env.BASE_URL}textures/signage/dead-dino.webp`,
   wheat: `${import.meta.env.BASE_URL}textures/signage/wheat-sheaf.webp`,

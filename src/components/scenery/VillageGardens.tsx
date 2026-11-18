@@ -3,6 +3,7 @@ import { useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 import { PlotGeometry } from '../../utils/authoredPlotGeometry';
 import { WORLD_CRAFT_PALETTE } from '../../constants/publicRealmLayout';
+import { CIVIC_PRIVET_TEXTURE_URL } from '../../constants/worldAssetUrls';
 import { applyVillageWindows } from '../models/GeneratedOfficeModel';
 import { VillageHomeEntryLighting } from './VillageSignage';
 import {
@@ -1146,7 +1147,6 @@ export const VILLAGE_HOMES = DESIGNS.map((_, index) => ({
   garden: garden(index),
 }));
 export const VILLAGE_ALLOTMENT_GEOMETRY = allotment();
-export const CIVIC_PRIVET_TEXTURE_URL = `${import.meta.env.BASE_URL}textures/civic-privet-leaves.png?v=7adbd6b2327e3664d1578e885e18c398859918b939f0a7f7b28d68a8459fd94d`;
 const PRIVET_TILE_METRES = 0.72;
 const PRIVET_SOIL_TEXEL = new THREE.Color('#809a59');
 
