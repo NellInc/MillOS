@@ -2,8 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { useGraphicsStore } from '../../stores/graphicsStore';
-
-export type MineralKind = 'fieldstone' | 'limestone';
+import { mineralTextureUrls, type MineralKind } from '../../constants/mineralTextureUrls';
 
 /** Baked authoring detail only on the stone kit's real spherical UVs. The
  * metre-space finish on buildings, workers and shared unit boxes stays intact.
@@ -25,11 +24,7 @@ export function createMineralFinish(base: THREE.MeshStandardMaterial, maps: THRE
   return material;
 }
 function DetailedMineral({ base, kind }: { base: THREE.MeshStandardMaterial; kind: MineralKind }) {
-  const maps = useTexture(
-    ['albedo', 'normal', 'roughness'].map(
-      (role) => `${import.meta.env.BASE_URL}textures/material-maker/${kind}-${role}.png`
-    )
-  );
+  const maps = useTexture(mineralTextureUrls(kind));
   const material = useMemo(() => createMineralFinish(base, maps), [base, maps]);
   useEffect(() => () => material.dispose(), [material]);
   // Loader-cache textures are shared. Only this clone belongs to the component.

@@ -32,7 +32,12 @@ import {
 const BASE = import.meta.env.BASE_URL;
 const everyUrl = (quality: 'low' | 'medium') => {
   const manifest = startupAssetManifest(quality);
-  return [...manifest.models, ...manifest.textures, ...manifest.files];
+  return [
+    ...manifest.models,
+    ...manifest.textures,
+    ...manifest.textureSets.flat(),
+    ...manifest.files,
+  ];
 };
 
 beforeEach(() => {
@@ -95,8 +100,21 @@ describe('startup world asset preload', () => {
     // useTexture(url) and useLoader(TextureLoader, url) share [TextureLoader, url].
     expect(calls.loader).toEqual([
       ...manifest.textures.map((url) => [THREE.TextureLoader, url]),
+      ...manifest.textureSets.map((urls) => [THREE.TextureLoader, urls]),
       ...manifest.files.map((url) => [THREE.FileLoader, url]),
     ]);
+  });
+
+  it('preloads the ordered mineral sets on Medium and above only', () => {
+    expect(startupAssetManifest('low').textureSets).toEqual([]);
+    const sets = ['fieldstone', 'limestone'].map((kind) =>
+      ['albedo', 'normal', 'roughness'].map(
+        (role) => `${BASE}textures/material-maker/${kind}-${role}.png`
+      )
+    );
+    for (const quality of ['medium', 'high', 'ultra']) {
+      expect(startupAssetManifest(quality).textureSets).toEqual(sets);
+    }
   });
 
   it('skips on Low only the models the Low tier never mounts', () => {
@@ -135,6 +153,7 @@ describe('startup world asset preload', () => {
     expect(imports.sort()).toEqual(
       [
         '../constants/civicSquareLighting',
+        '../constants/mineralTextureUrls',
         '../constants/worldAssetUrls',
         './dracoLoader',
         './modelLoader',

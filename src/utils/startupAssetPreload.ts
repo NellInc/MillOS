@@ -18,6 +18,7 @@
  * suspend-react keys every entry on [LoaderClass, url] (fiber's useLoader), so:
  *   useDracoGLTF(path)               <- preloadDracoModel(path)
  *   useTexture(url), useLoader(TextureLoader, url) <- useLoader.preload(TextureLoader, url)
+ *   useTexture([albedo, normal, roughness]) <- preload the same ordered array
  *   useLoader(FileLoader, url)       <- useLoader.preload(FileLoader, url)
  * Every request still passes through THREE.DefaultLoadingManager, so the
  * readiness counts (startupReadiness.ts) see each one; readiness is unchanged.
@@ -35,6 +36,7 @@
 import * as THREE from 'three';
 import { useLoader } from '@react-three/fiber';
 import { preloadDracoModel } from './dracoLoader';
+import { MINERAL_KINDS, mineralTextureUrls } from '../constants/mineralTextureUrls';
 import {
   CREATURE_ASSET_PATHS,
   GENERATED_ASSET_PATHS,
@@ -234,6 +236,8 @@ export interface StartupAssetManifest {
   models: string[];
   /** Images read through useTexture or useLoader(TextureLoader). */
   textures: string[];
+  /** Ordered lists read by one useTexture call per set. */
+  textureSets: string[][];
   /** Text read through useLoader(FileLoader). */
   files: string[];
 }
@@ -249,6 +253,7 @@ export function startupAssetManifest(quality: string): StartupAssetManifest {
   return {
     models,
     textures: [...STARTUP_TEXTURES, ...(CIVIC_SHADOWS_LOADED ? [CIVIC_SHADOW_DEPTH_URL] : [])],
+    textureSets: quality === 'low' ? [] : MINERAL_KINDS.map(mineralTextureUrls),
     files: CIVIC_SHADOWS_LOADED ? [CIVIC_SHADOW_METADATA_URL] : [],
   };
 }
@@ -263,9 +268,11 @@ let started = false;
 export function preloadStartupWorldAssets(quality: string): boolean {
   if (started) return false;
   started = true;
-  const { models, textures, files } = startupAssetManifest(quality);
+  const { models, textures, textureSets, files } = startupAssetManifest(quality);
   for (const path of models) preloadDracoModel(path);
   for (const url of textures) useLoader.preload(THREE.TextureLoader, url);
+  // Preloading the URLs separately would populate different Suspense keys.
+  for (const urls of textureSets) useLoader.preload(THREE.TextureLoader, urls);
   for (const url of files) useLoader.preload(THREE.FileLoader, url);
   return true;
 }
