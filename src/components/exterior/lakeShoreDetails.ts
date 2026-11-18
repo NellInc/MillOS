@@ -120,6 +120,57 @@ export function createLakeShoreStone(width: number, depth: number, phase: number
   return stone;
 }
 
+// Two-metre buckets overlap each triangle's horizontal bounds. Only the
+// private CPU raycast geometry changes indices; the bank mesh stays unchanged.
+function createBankRayIndex(bank: THREE.BufferGeometry, toWorld: THREE.Matrix4) {
+  const index = bank.index;
+  if (!index || bank.drawRange.start !== 0 || bank.drawRange.count < index.count) return;
+  const position = bank.getAttribute('position');
+  const projected = Array.from({ length: position.count }, (_, i) =>
+    new THREE.Vector3().fromBufferAttribute(position, i).applyMatrix4(toWorld)
+  );
+  const cell = (coordinate: number) => Math.floor(coordinate / 2);
+  const key = (x: number, z: number) => `${x}:${z}`;
+  // Pad boundaries so the world/local ray transforms cannot lose edge hits.
+  const pad = 1e-7;
+  const cells = new Map<string, number[]>();
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i),
+      b = index.getX(i + 1),
+      c = index.getX(i + 2);
+    const p = projected[a],
+      q = projected[b],
+      r = projected[c];
+    const xMax = cell(Math.max(p.x, q.x, r.x) + pad);
+    const zMax = cell(Math.max(p.z, q.z, r.z) + pad);
+    for (let x = cell(Math.min(p.x, q.x, r.x) - pad); x <= xMax; x++) {
+      for (let z = cell(Math.min(p.z, q.z, r.z) - pad); z <= zMax; z++) {
+        const id = key(x, z);
+        const list = cells.get(id);
+        if (list) list.push(a, b, c);
+        else cells.set(id, [a, b, c]);
+      }
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  for (const [name, attribute] of Object.entries(bank.attributes))
+    geometry.setAttribute(name, attribute);
+  geometry.boundingSphere = bank.boundingSphere;
+  geometry.boundingBox = bank.boundingBox;
+  const buckets = new Map(
+    [...cells].map(([id, indices]) => [id, new THREE.Uint32BufferAttribute(indices, 1)])
+  );
+  return {
+    geometry,
+    select(x: number, z: number): boolean {
+      const candidates = buckets.get(key(cell(x), cell(z)));
+      if (!candidates) return false;
+      geometry.setIndex(candidates);
+      return true;
+    },
+  };
+}
+
 /** Four irregular habitat pockets, merged into six static material surfaces.
  * Open reaches preserve access and views. Every planting samples the bank itself.
  * Working if roots and minerals contact that bank, with over 70% of shore open.
@@ -146,6 +197,8 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
   support.rotation.x = -Math.PI / 2;
   support.position.y = 0.08;
   support.updateMatrixWorld();
+  const rayIndex = createBankRayIndex(bank, support.matrixWorld);
+  if (rayIndex) support.geometry = rayIndex.geometry;
   const ray = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
   // Uneven spacing and bank-depth offsets make sheaves rather than a planted row.
   const offsets = [
@@ -157,7 +210,10 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
     const p = stone.getAttribute('position');
     let lift = -Infinity;
     for (let vertex = 0; vertex < p.count; vertex++) {
-      ray.ray.origin.set(seat.x + p.getX(vertex), 3, seat.z + p.getZ(vertex));
+      const x = seat.x + p.getX(vertex),
+        z = seat.z + p.getZ(vertex);
+      if (rayIndex && !rayIndex.select(x, z)) continue;
+      ray.ray.origin.set(x, 3, z);
       const hit = ray.intersectObject(support)[0];
       if (hit) lift = Math.max(lift, hit.point.y - p.getY(vertex));
     }
@@ -491,6 +547,7 @@ export function createLakeShoreDetails(bank: THREE.BufferGeometry) {
     }
   });
   supportMaterial.dispose();
+  rayIndex?.geometry.dispose();
   const moss = new THREE.BufferGeometry();
   moss.name = 'lake-rock-facet-moss';
   moss.setAttribute('position', new THREE.Float32BufferAttribute(mossPositions, 3));
