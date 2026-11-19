@@ -6,6 +6,8 @@ import {
   finishStaticBatch,
   collectStaticBatchCandidates,
   createStaticMeshBatches,
+  matchesStaticBatchObservation,
+  observeStaticBatchTree,
   orderStaticBatchCandidatesForChunking,
 } from './StaticMeshBatch';
 import {
@@ -36,6 +38,38 @@ const makeBox = (x: number, color: string = '#778899'): THREE.Mesh => {
 };
 
 describe('StaticMeshBatch', () => {
+  it('shares the early observation only while the same eligible meshes stay still', () => {
+    const root = new THREE.Group();
+    const first = makeBox(1);
+    const second = makeBox(2);
+    root.add(first, second);
+    const early = observeStaticBatchTree(root);
+    const collect = () => collectStaticBatchCandidates(root);
+    expect(root.children).toEqual([first, second]);
+    expect(matchesStaticBatchObservation(root, collect(), early)).toBe(true);
+
+    const candidates = collect();
+    second.position.x += 1;
+    // Movement either before the normal scan or between that scan and admission.
+    expect(matchesStaticBatchObservation(root, collect(), early)).toBe(false);
+    expect(matchesStaticBatchObservation(root, candidates, early)).toBe(false);
+    second.position.x -= 1;
+
+    const material = first.material;
+    first.material = (material as THREE.Material).clone();
+    const swapped = collect();
+    expect(matchesStaticBatchObservation(root, swapped, early)).toBe(false);
+    first.material = material;
+    expect(matchesStaticBatchObservation(root, swapped, early)).toBe(false);
+    first.userData.noStaticBatch = true;
+    expect(matchesStaticBatchObservation(root, candidates, early)).toBe(false);
+    first.userData.noStaticBatch = false;
+
+    root.remove(second);
+    root.add(makeBox(2));
+    expect(matchesStaticBatchObservation(root, collect(), early)).toBe(false);
+  });
+
   it('reports batching as startup work and releases only its own task once', () => {
     const baseline = getStartupSnapshot().pendingTasks;
     const finishOther = beginStartupTask();

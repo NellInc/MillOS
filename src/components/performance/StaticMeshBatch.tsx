@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { beginStartupTask } from '../../utils/startupReadiness';
+import { beginStartupTask, getStartupSnapshot } from '../../utils/startupReadiness';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { applyLampLens, lampLensStyle, type LampStyle } from '../models/GeneratedLampModel';
 import {
@@ -878,6 +878,70 @@ const matrixIsStable = (before: THREE.Matrix4, after: THREE.Matrix4): boolean =>
     (value, index) => Math.abs(value - (after.elements[index] ?? value)) <= MATRIX_EPSILON
   );
 
+/** A provisional snapshot only; leave collecting, finishing and detaching to the batcher. */
+export function observeStaticBatchTree(root: THREE.Group) {
+  root.updateWorldMatrix(true, true);
+  const meshes = new Map<
+    THREE.Mesh,
+    Pick<THREE.Mesh, 'parent' | 'geometry' | 'material' | 'matrixWorld'> & { eligible: boolean }
+  >();
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || !object.visible) return;
+    meshes.set(object, {
+      parent: object.parent,
+      geometry: object.geometry,
+      material: object.material,
+      matrixWorld: object.matrixWorld.clone(),
+      eligible:
+        !(object instanceof THREE.InstancedMesh) &&
+        !(object instanceof THREE.SkinnedMesh) &&
+        !Array.isArray(object.material) &&
+        Boolean(object.geometry) &&
+        Object.keys(object.geometry.morphAttributes).length === 0 &&
+        isSupportedMaterial(object.material) &&
+        !hasExcludedAncestor(object, root),
+    });
+  });
+  return { meshes, at: performance.now() };
+}
+
+export function matchesStaticBatchObservation(
+  root: THREE.Group,
+  candidates: readonly BatchCandidate[],
+  observation: ReturnType<typeof observeStaticBatchTree>
+): boolean {
+  // A stable count alone can hide a same-count replacement or a reparenting.
+  let identical = true;
+  let count = 0;
+  root.traverse((object) => {
+    if (!identical || !(object instanceof THREE.Mesh) || !object.visible) return;
+    const before = observation.meshes.get(object);
+    identical =
+      before !== undefined &&
+      before.parent === object.parent &&
+      before.geometry === object.geometry &&
+      before.material === object.material;
+    count += 1;
+  });
+  if (!identical || count !== observation.meshes.size) return false;
+
+  root.updateWorldMatrix(true, true);
+  return candidates.every(({ mesh, geometry, material, matrixWorld }) => {
+    const before = observation.meshes.get(mesh);
+    return (
+      before !== undefined &&
+      before.eligible &&
+      before.geometry === geometry &&
+      before.material === material &&
+      before.matrixWorld.equals(matrixWorld) &&
+      matrixWorld.equals(mesh.matrixWorld) &&
+      !Array.isArray(mesh.material) &&
+      isSupportedMaterial(mesh.material) &&
+      !hasExcludedAncestor(mesh, root)
+    );
+  });
+}
+
 export const createStaticMeshBatches = (
   root: THREE.Group,
   candidates: BatchCandidate[],
@@ -1269,6 +1333,9 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
     const batchTimers: number[] = [];
     let previousCount = -1;
     let stablePolls = 0;
+    // Quality changes after the loading cover keep the original settle path.
+    const overlap = !getStartupSnapshot().opened;
+    let observation: ReturnType<typeof observeStaticBatchTree> | undefined;
     const batches: StaticBatch[] = [];
     const markFinished = (): void => {
       if (batchFinished) return;
@@ -1282,7 +1349,10 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
       if (cancelled) return;
       const candidateCount = countPotentialStaticMeshes(root);
       if (candidateCount > 0 && candidateCount === previousCount) stablePolls += 1;
-      else stablePolls = 0;
+      else {
+        stablePolls = 0;
+        observation = overlap && candidateCount > 0 ? observeStaticBatchTree(root) : undefined;
+      }
       previousCount = candidateCount;
 
       if (stablePolls >= 2) {
@@ -1296,7 +1366,7 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
           () => cancelled,
           (candidates) => {
             phase('sampling-transforms');
-            sampleTimer = window.setTimeout(() => {
+            const build = (): void => {
               if (cancelled) return;
               const orderedCandidates = orderStaticBatchCandidatesForChunking(root, candidates);
               const candidateChunks: BatchCandidate[][] = [];
@@ -1336,7 +1406,27 @@ export const StaticMeshBatch: React.FC<StaticMeshBatchProps> = ({
                 }
               };
               processChunk(0);
-            }, sampleMilliseconds);
+            };
+            const early = observation;
+            observation = undefined;
+            if (!early) {
+              sampleTimer = window.setTimeout(build, sampleMilliseconds);
+              return;
+            }
+            const scannedAt = performance.now();
+            const normalAt = scannedAt + sampleMilliseconds;
+            // Working if no merge starts before both count stability and the full
+            // observation interval, and a changed tree gets the original deadline.
+            const earlyAt = early.at + sampleMilliseconds;
+            sampleTimer = window.setTimeout(
+              () => {
+                if (cancelled) return;
+                if (matchesStaticBatchObservation(root, candidates, early)) build();
+                else
+                  sampleTimer = window.setTimeout(build, Math.ceil(normalAt - performance.now()));
+              },
+              Math.ceil(earlyAt - scannedAt)
+            );
           },
           Boolean(surface)
         );
