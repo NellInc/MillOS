@@ -4,7 +4,7 @@ Open `index.html` in a browser. Keep `replays.js` beside it. No server or game s
 
 ## What this tests
 
-Can a new player read a dock, make a consequential choice within 30 seconds, and want to make another? The player sees a real partner forecast. Pressing a choice shows the immediate booking and the receipts from that branch. This is a decision replay: the browser reveals the recorded branch without waiting through the simulated shift. There is no simulated reward or shipment at click time.
+Can a new player read a dock, make a consequential choice within 30 seconds, and want to make another? The player sees a real partner forecast. Pressing a choice shows the immediate booking, the recorded results, and one comparison with the other replay. The browser reveals those outcomes without waiting through the simulated shift. No shipment is credited at click time.
 
 | Case | Take now | Wait |
 | --- | --- | --- |

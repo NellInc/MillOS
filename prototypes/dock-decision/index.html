@@ -131,6 +131,10 @@
     #margin {
       margin-block-start: 0.35rem;
     }
+    #comparison {
+      margin-block-start: 0.65rem;
+      font-weight: 650;
+    }
     #next {
       margin-block-start: 0.8rem;
       padding: 0.35rem 0.8rem;
@@ -183,11 +187,12 @@
       <h2 id="decision" tabindex="-1"></h2>
       <p id="summary"></p>
       <p id="margin"></p>
+      <p id="comparison"></p>
+      <button id="next" type="button" hidden></button>
       <details id="details">
         <summary id="receipts-label"></summary>
         <ul id="results" class="list"></ul>
       </details>
-      <button id="next" type="button" hidden></button>
     </section>
   </main>
   <script src="replays.js"></script>
@@ -217,6 +222,11 @@
           receipts: 'Comprovantes dos pedidos',
           summary: 'Simulação: {good}/{total} no prazo, {trucks} saídas em {time}.',
           margin: 'Menor folga entre os pedidos atuais: {time}.',
+          compareFinish: 'Simulação com “{choice}”: {difference}, {trucks} saídas.',
+          compareDeadline: 'Simulação com “{choice}”, prazo mais apertado: {margin}.',
+          sooner: 'terminou {time} antes',
+          later: 'terminou {time} depois',
+          sameTime: 'terminou no mesmo tempo',
           late: '{time} de atraso',
           early: '{time} de folga',
           onTime: 'No prazo',
@@ -245,6 +255,11 @@
           receipts: 'Order receipts',
           summary: 'Replay: {good}/{total} on time, {trucks} departures in {time}.',
           margin: 'Tightest existing deadline: {time}.',
+          compareFinish: 'Replay with “{choice}”: {difference}, {trucks} departures.',
+          compareDeadline: 'Replay with “{choice}”, tightest existing deadline: {margin}.',
+          sooner: 'finished {time} sooner',
+          later: 'finished {time} later',
+          sameTime: 'finished in the same time',
           late: '{time} late',
           early: '{time} to spare',
           onTime: 'On the deadline',
@@ -270,6 +285,13 @@
         : late === 0
           ? m.onTime
           : phrase(late > 0 ? 'late' : 'early', { time: time(Math.abs(late)) });
+    const lastDelivery = (results) => Math.max(...results.map((order) => order.done ?? 0));
+    const tightestDeadline = (results) => {
+      const existing = results.filter((order) => order.current);
+      return existing.some((order) => order.late === null)
+        ? null
+        : Math.max(...existing.map((order) => order.late));
+    };
     const el = (tag, value, className) => {
       const node = document.createElement(tag);
       if (value !== undefined) node.textContent = value;
@@ -349,7 +371,10 @@
     function answer(choice) {
       if (decided) return;
       decided = true;
-      const { addedKg, departures, results } = cases[current].branches[choice];
+      const { branches, offer } = cases[current];
+      const { addedKg, departures, results } = branches[choice];
+      const other = choice === 'take' ? 'wait' : 'take';
+      const alternate = branches[other];
       byId(choice).dataset.selected = '';
       for (const option of choices) byId(option).disabled = true;
       set('decision', addedKg > 0 ? phrase('booked', { kg: kg(addedKg) }) : m.stayed);
@@ -360,14 +385,37 @@
           good,
           total: results.length,
           trucks: departures,
-          time: time(Math.max(...results.map((order) => order.done ?? 0))),
+          time: time(lastDelivery(results)),
         })
       );
-      const currentOrders = results.filter((order) => order.current);
-      const tightest = currentOrders.some((order) => order.late === null)
-        ? null
-        : Math.max(...currentOrders.map((order) => order.late));
-      set('margin', phrase('margin', { time: punctuality(tightest) }));
+      set('margin', phrase('margin', { time: punctuality(tightestDeadline(results)) }));
+      // Show what the choice was about: deadline slack in the tight case,
+      // clearing the order book in the roomy one. Both lines use played outcomes.
+      const finished = [...results, ...alternate.results].every((order) => order.done !== null);
+      if (offer.extraAtRisk || !finished) {
+        set(
+          'comparison',
+          phrase('compareDeadline', {
+            choice: m[other],
+            margin: punctuality(tightestDeadline(alternate.results)),
+          })
+        );
+      } else {
+        const gap = Math.round(lastDelivery(alternate.results) - lastDelivery(results));
+        set(
+          'comparison',
+          phrase('compareFinish', {
+            choice: m[other],
+            difference:
+              gap === 0
+                ? m.sameTime
+                : phrase(gap < 0 ? 'sooner' : 'later', {
+                    time: time(Math.abs(gap)),
+                  }),
+            trucks: number.format(alternate.departures),
+          })
+        );
+      }
       byId('results').replaceChildren(
         ...results.map((order) =>
           row(order.customer, punctuality(order.late), `${kg(order.shipped)} / ${kg(order.owed)}`)
