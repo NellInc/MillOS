@@ -206,6 +206,23 @@ const NUMBER: Record<Locale, RegExp> = {
 const GROUP_MARK: Record<Locale, RegExp> = { en: /,/g, 'pt-BR': /\./g };
 
 const PERCENT: Record<Locale, string> = { en: 'percent', 'pt-BR': 'por cento' };
+const MINUS: Record<Locale, string> = { en: 'minus', 'pt-BR': 'menos' };
+const UNITS: Record<Locale, Record<string, string>> = {
+  en: {
+    kg: 'kilograms',
+    kw: 'kilowatts',
+    rpm: 'R P M',
+    h: 'hours',
+    m: 'minutes',
+  },
+  'pt-BR': {
+    kg: 'quilogramas',
+    kw: 'quilowatts',
+    rpm: 'R P M',
+    h: 'horas',
+    m: 'minutos',
+  },
+};
 
 function replaceNumbers(text: string, locale: Locale): string {
   return text.replace(NUMBER[locale], (match, whole: string, fraction?: string) => {
@@ -220,6 +237,13 @@ function clockTime(hourText: string, minutes: number, locale: Locale): string | 
     const h = integerWords(hours, locale, true);
     const unit = hours === 1 ? 'hora' : 'horas';
     return minutes === 0 ? `${h} ${unit}` : `${h} e ${integerWords(minutes, locale)}`;
+  }
+  // Midnight hour reads "zero hundred" / "zero oh five" (never "oh zero hundred").
+  if (hours === 0) {
+    if (minutes === 0) return 'zero hundred';
+    return minutes < 10
+      ? `zero oh ${integerWords(minutes, locale)}`
+      : `zero ${integerWords(minutes, locale)}`;
   }
   // A written leading zero is spoken, as a 24-hour clock reads: "oh six hundred".
   const h = `${hourText.length === 2 && hours < 10 ? 'oh ' : ''}${integerWords(hours, locale)}`;
@@ -236,10 +260,14 @@ function pounds(amount: string, locale: Locale): string | null {
   const p = pence ? Number(pence.padEnd(2, '0').slice(0, 2)) : 0;
   if (locale === 'pt-BR') {
     const head = `${integerWords(n, locale, true)} ${n === 1 ? 'libra' : 'libras'}`;
-    return p ? `${head} e ${integerWords(p, locale)}` : head;
+    if (!p) return head;
+    return p < 10
+      ? `${head} e ${integerWords(p, locale)} pence`
+      : `${head} e ${integerWords(p, locale)}`;
   }
   const head = `${integerWords(n, locale)} ${n === 1 ? 'pound' : 'pounds'}`;
-  return p ? `${head} ${integerWords(p, locale)}` : head;
+  if (!p) return head;
+  return p < 10 ? `${head} oh ${integerWords(p, locale)}` : `${head} ${integerWords(p, locale)}`;
 }
 
 /** A roller mill's designation as it is said on the floor. */
@@ -288,8 +316,28 @@ export function speakableText(text: string, locale: Locale): string {
     return pounds(amount, locale) ?? match;
   });
   out = out.replace(/(\d)\s?%/g, `$1 ${PERCENT[locale]}`);
+  // Attached measurement units ("5000kg", "80kW", "1200RPM", "3h", "45m").
+  out = out.replace(
+    /(?<![\w.,])(\d[\d.,]*\d|\d)(kg|kW|RPM|h|m)(?![\w])/gi,
+    (match, digits: string, unit: string) => {
+      const spokenUnit = UNITS[locale][unit.toLowerCase()];
+      return spokenUnit ? `${digits} ${spokenUnit}` : match;
+    }
+  );
+  // Signed negative numbers ("-5", "-12.5").
+  out = out.replace(/(?<![\w])-(\d)/g, `${MINUS[locale]} $1`);
   out = replaceNumbers(out, locale);
-  // Dotted capitals ("R.M.") read as letters, without the stops ending a sentence.
+  // Spell AI / IA acronyms so pt-BR Phonon never reads "IA" as the verb "ia".
+  if (locale === 'pt-BR') {
+    out = out.replace(/\bIA\b/g, 'i á');
+  } else {
+    out = out.replace(/\bAI\b/g, 'A I');
+  }
+  // Dotted capitals ("R.M.") read as letters; preserve a sentence-ending stop.
+  out = out.replace(/\b((?:[A-Z]\.){2,})($|\s+[A-Z])/g, (_match, abbr: string, tail: string) => {
+    const spelled = abbr.replace(/\./g, ' ').trim();
+    return tail === '' ? `${spelled}.` : `${spelled} ${tail.trimStart()}`;
+  });
   out = out.replace(/\b((?:[A-Z]\.){2,})/g, (match) => match.replace(/\./g, ' ').trim() + ' ');
   // Dashes read as a pause.
   out = out.replace(/\s*[—–]\s*/g, ', ');

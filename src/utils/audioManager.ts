@@ -236,6 +236,8 @@ class AudioManager {
   // Stable media event handlers for the singleton audio element.
   private musicEndedHandler: (() => void) | null = null;
   private musicErrorHandler: ((e: Event) => void) | null = null;
+  private musicListenersAbort: AbortController | null = null;
+  private musicStallResumeAbort: AbortController | null = null;
   private musicProgressTimer: ReturnType<typeof setInterval> | null = null;
   // Set when the user pressed Pause, so a tab becoming visible again does not
   // restart music they deliberately stopped.
@@ -1040,12 +1042,17 @@ class AudioManager {
     this.musicStallRecoveries += 1;
     audioLog.warn('Music stalled; reloading the song where it stopped');
     const position = audio.currentTime;
+    this.musicStallResumeAbort?.abort();
+    const resumeAbort = new AbortController();
+    this.musicStallResumeAbort = resumeAbort;
     audio.load();
-    const resume = () => {
-      audio.removeEventListener('loadedmetadata', resume);
-      if (position > 0) audio.currentTime = position;
-    };
-    audio.addEventListener('loadedmetadata', resume);
+    audio.addEventListener(
+      'loadedmetadata',
+      () => {
+        if (position > 0) audio.currentTime = position;
+      },
+      { once: true, signal: resumeAbort.signal }
+    );
     this.markMusicActivity();
     audio.play().catch((error) => {
       audioLog.warn('Music playback failed after a stall', error);
@@ -1053,6 +1060,10 @@ class AudioManager {
   }
 
   private configureMusicAudio(audio: HTMLAudioElement): void {
+    this.musicListenersAbort?.abort();
+    const abort = new AbortController();
+    this.musicListenersAbort = abort;
+    const { signal } = abort;
     audio.loop = false;
     this.musicEndedHandler = () => this.nextTrack(true);
     this.musicErrorHandler = (event: Event) => {
@@ -1066,19 +1077,27 @@ class AudioManager {
       this.nextTrack(true);
     };
     const stateHandler = () => this.syncMusicProgressTicker();
-    audio.addEventListener('ended', this.musicEndedHandler);
-    audio.addEventListener('error', this.musicErrorHandler);
-    audio.addEventListener('canplay', () => {
-      this.consecutiveMusicLoadFailures = 0;
-    });
+    audio.addEventListener('ended', this.musicEndedHandler, { signal });
+    audio.addEventListener('error', this.musicErrorHandler, { signal });
+    audio.addEventListener(
+      'canplay',
+      () => {
+        this.consecutiveMusicLoadFailures = 0;
+      },
+      { signal }
+    );
     // Bytes arriving are not a stall, however slowly the playhead starts.
-    audio.addEventListener('progress', () => {
-      this.musicLastActivityAt = Date.now();
-    });
+    audio.addEventListener(
+      'progress',
+      () => {
+        this.musicLastActivityAt = Date.now();
+      },
+      { signal }
+    );
     for (const event of ['play', 'pause', 'seeked', 'loadedmetadata', 'durationchange']) {
-      audio.addEventListener(event, stateHandler);
+      audio.addEventListener(event, stateHandler, { signal });
     }
-    audio.addEventListener('timeupdate', () => this.notifyListeners());
+    audio.addEventListener('timeupdate', () => this.notifyListeners(), { signal });
     this.configureMediaSession();
   }
 
@@ -1127,6 +1146,8 @@ class AudioManager {
   }
 
   stopMusic(): void {
+    this.musicStallResumeAbort?.abort();
+    this.musicStallResumeAbort = null;
     if (this.musicAudio) {
       this.musicAudio.pause();
       this.musicAudio.currentTime = 0;
@@ -4417,6 +4438,16 @@ class AudioManager {
     this.spoutingNodes.forEach((_node, id) => {
       this.stopSpoutingSound(id);
     });
+    this.musicListenersAbort?.abort();
+    this.musicListenersAbort = null;
+    this.musicAudio = null;
+    if (this.audioContext && this.audioContext.state !== 'closed') {
+      const ctx = this.audioContext;
+      this.audioContext = null;
+      if (typeof ctx.close === 'function') {
+        void Promise.resolve(ctx.close()).catch(() => undefined);
+      }
+    }
   }
 }
 

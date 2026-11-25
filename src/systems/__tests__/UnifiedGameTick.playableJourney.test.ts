@@ -47,17 +47,9 @@ import { deriveDeliveryJourney } from '../../components/ui-new/onboarding/delive
 import { useUIStore } from '../../stores/uiStore';
 import { setLocale } from '../../i18n';
 import { usePartnerProposalStore } from '../../stores/partnerProposalStore';
-import { PROPOSAL_KIND_IDS } from '../../simulation/partnerProposals';
+import { PROPOSAL_KIND_IDS, type PartnerProposal } from '../../simulation/partnerProposals';
 import { answerPartnerProposal } from '../../systems/partnerProposalRuntime';
-
-// Written with every proposal kind asking (the player accepts each programme
-// here, before its card's window closes); a kind's default now follows the
-// delegation rule, so "ask me" is set here, as the card's toggle sets it.
-beforeEach(() => {
-  usePartnerProposalStore.getState().reset();
-  for (const kind of PROPOSAL_KIND_IDS)
-    usePartnerProposalStore.getState().setDelegation(kind, 'ask');
-});
+import { customerDisplayName } from '../../stores/customerNames';
 
 // The one-programme case, as a player keeps it: every offer to take the next
 // programme early is answered "Wait" on its card the tick it is raised, so only
@@ -110,7 +102,12 @@ let receivingDwell = 0;
 let fetchCalls = 0;
 let fetchSpy: ReturnType<typeof vi.spyOn>;
 
-beforeEach(() => {
+function resetPlant() {
+  // The operator in this harness answers explicitly, including kinds that
+  // ordinarily delegate. Each branch starts with the same proposal state.
+  usePartnerProposalStore.getState().reset();
+  for (const kind of PROPOSAL_KIND_IDS)
+    usePartnerProposalStore.getState().setDelegation(kind, 'ask');
   resetUnifiedTickState();
   useMaterialFlowStore.getState().resetMaterialFlow();
   useOperationsCampaignStore.getState().resetCampaign();
@@ -129,13 +126,17 @@ beforeEach(() => {
       .machines.map((m) => m.id)
       .sort()
   ).toEqual([...useMaterialFlowStore.getState().machineBuffers.keys()].sort());
+  tickCount = 0;
+  receivingDwell = 0;
+}
+
+beforeEach(() => {
+  resetPlant();
   fetchCalls = 0;
   fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => {
     fetchCalls++;
     return Promise.reject(new Error('Optional services unavailable for offline audit'));
   });
-  tickCount = 0;
-  receivingDwell = 0;
 });
 
 afterEach(() => {
@@ -880,4 +881,154 @@ it('delivers on time while the partner takes programmes early, through real truc
     expect(order.dueAtMinute - order.completedAtMinute!, order.id).toBeGreaterThanOrEqual(20);
   }
   expect(orders.some((o) => o.status === 'late')).toBe(false);
+});
+
+// Opt-in data for the dock greybox. Replay each answer from the same opening,
+// then run the real yard to the receipts. No deadlines, stock or prices are
+// authored in the greybox. The normal test suite does not generate artifacts.
+const dockGreyboxOutput = process.env.MILLOS_DOCK_GREYBOX_OUT;
+it.skipIf(!dockGreyboxOutput)('captures both answers from two real dock states', () => {
+  const cases = (['take', 'wait'] as const).map((wanted, caseIndex) => {
+    const play = (answer: 'take' | 'wait') => {
+      resetPlant();
+      const run = realTruckYard(STANDARD_GAME_SPEED);
+      const read = useOperationsCampaignStore.getState;
+      let selected: PartnerProposal<'commitment'> | undefined;
+      run(
+        48 * 60,
+        () => selected !== undefined,
+        () => {
+          const offer = usePartnerProposalStore
+            .getState()
+            .proposals.find(
+              (p): p is PartnerProposal<'commitment'> =>
+                p.kind === 'commitment' && p.status === 'open'
+            );
+          const take = offer?.options.find((o) => o.id === 'take')?.price;
+          if (
+            offer?.defaultOptionId === wanted &&
+            (wanted === 'take' ? take?.lateOrders === 0 : (take?.lateOrders ?? 0) > 0)
+          ) {
+            selected = offer;
+            return;
+          }
+          waitOnEarlyProgrammes();
+          if (read().orders.every((o) => o.status === 'fulfilled')) read().acceptNextProgramme();
+        }
+      );
+      if (!selected?.facts.dock) throw new Error(`No eligible dock case for ${wanted}`);
+
+      const dock = selected.facts.dock;
+      const before = read();
+      const open = before.orders.filter(
+        (o) => o.status !== 'fulfilled' && o.status !== 'cancelled'
+      );
+      const initial = {
+        minute: before.elapsedMinutes,
+        orders: open.map((o) => ({
+          customer: customerDisplayName(o.customer),
+          product: o.recipe.finishedMaterial,
+          due: o.dueAtMinute - before.elapsedMinutes,
+          owed: o.requiredKg - o.shippedKg,
+        })),
+        truck: { minutes: dock.nextTruckInMinutes, kg: dock.capacityKg },
+        tested: { flour: dock.stock.flour.tested, semolina: dock.stock.semolina.tested },
+        offer: {
+          kg: selected.facts.committedKg,
+          firstDue: Math.min(...selected.facts.orders.map((o) => o.dueInMinutes)),
+          recommended: selected.defaultOptionId,
+          extraAtRisk: selected.options.find((option) => option.id === 'take')?.price.lateOrders,
+        },
+      };
+      const started = useTruckScheduleStore.getState().truckSchedule.shipping.departureCount;
+      expect(answerPartnerProposal(selected.id, answer)).toBe(true);
+      expect(
+        usePartnerProposalStore.getState().proposals.find((p) => p.id === selected?.id)?.resolution
+      ).toMatchObject({ optionId: answer, decidedBy: 'operator', ran: true });
+      const after = read();
+      expect(after.activeOrderId).toBe(before.activeOrderId);
+      expect(after.orders.find((o) => o.id === before.activeOrderId)?.shippedKg).toBe(
+        before.orders.find((o) => o.id === before.activeOrderId)?.shippedKg
+      );
+      const immediate = {
+        addedKg: after.orders
+          .filter((o) => !before.orders.some((prior) => prior.id === o.id))
+          .reduce((kg, o) => kg + o.requiredKg, 0),
+      };
+      expect(immediate.addedKg).toBe(answer === 'take' ? initial.offer.kg : 0);
+      const focus = new Set(open.map((o) => o.id));
+      const includeNext = () =>
+        read()
+          .orders.slice(-3)
+          .forEach((o) => focus.add(o.id));
+      if (answer === 'take') includeNext();
+      const finished = () =>
+        read().programmeCount > before.programmeCount &&
+        read().orders.every(
+          (o) => !focus.has(o.id) || o.status === 'fulfilled' || o.status === 'cancelled'
+        );
+      run(24 * 60, finished, () => {
+        waitOnEarlyProgrammes();
+        if (
+          answer === 'wait' &&
+          read().programmeCount === before.programmeCount &&
+          read().orders.every((o) => o.status === 'fulfilled' || o.status === 'cancelled')
+        ) {
+          expect(read().acceptNextProgramme()).toBe(true);
+          includeNext();
+        }
+      });
+      expect(finished()).toBe(true);
+      expect(Math.abs(useMaterialFlowStore.getState().getMaterialBalance().errorKg)).toBeLessThan(
+        0.001
+      );
+      const results = read()
+        .orders.filter((o) => focus.has(o.id))
+        .map((o) => {
+          if (o.status === 'fulfilled') expect(o.manifestIds.length).toBeGreaterThan(0);
+          return {
+            customer: customerDisplayName(o.customer),
+            shipped: o.shippedKg,
+            owed: o.requiredKg,
+            late: o.completedAtMinute === null ? null : o.completedAtMinute - o.dueAtMinute,
+            done: o.completedAtMinute === null ? null : o.completedAtMinute - initial.minute,
+            manifests: o.manifestIds,
+            current: open.some((prior) => prior.id === o.id),
+          };
+        });
+      return {
+        initial,
+        receipt: {
+          ...immediate,
+          departures:
+            useTruckScheduleStore.getState().truckSchedule.shipping.departureCount - started,
+          results,
+        },
+      };
+    };
+    const take = play('take');
+    const wait = play('wait');
+    expect(take.initial).toEqual(wait.initial);
+    const currentMargin = (branch: typeof take) =>
+      -Math.max(...branch.receipt.results.filter((o) => o.current).map((o) => o.late ?? Infinity));
+    const finish = (branch: typeof take) =>
+      Math.max(...branch.receipt.results.map((o) => o.done ?? Infinity));
+    if (wanted === 'take') {
+      expect(finish(take)).toBeLessThan(finish(wait));
+      expect(currentMargin(take)).toBeGreaterThan(0);
+    } else {
+      expect(currentMargin(wait) - currentMargin(take)).toBeGreaterThan(60);
+    }
+    const late = (branch: typeof take) =>
+      branch.receipt.results.filter((o) => o.late === null || o.late > 0).length;
+    console.log(
+      `Dock case ${caseIndex + 1}, partner ${wanted}, minute ${take.initial.minute}: ` +
+        `take ${late(take)} late or unfulfilled, wait ${late(wait)}`
+    );
+    return { ...take.initial, branches: { take: take.receipt, wait: wait.receipt } };
+  });
+  writeFileSync(
+    dockGreyboxOutput!,
+    `// Generated by the opt-in real-yard test. See README.md.\nglobalThis.dockCases = ${JSON.stringify(cases)};\n`
+  );
 });

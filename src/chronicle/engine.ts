@@ -36,6 +36,7 @@ import {
   cropYearAt,
   cropYearShifts,
   cropYearStart,
+  FULL_CHRONICLE_SHIFTS,
   onSchedule,
   trialsFor,
   trialTelegraphShifts,
@@ -2203,7 +2204,7 @@ function followUpsOf(effect: ChronicleEventEffect) {
  * conventional ruling wins a tie, so a hand-over never spends what the
  * steward did not, and a "Good neighbour" partner docks rather than terminates.
  */
-function briefRuling(
+export function briefRuling(
   state: ChronicleState,
   event: ChronicleEventDefinition,
   conventional: ChronicleEventChoice
@@ -2384,6 +2385,20 @@ function scheduleFollowUp(
   sourceEventId: string
 ): ChronicleState {
   const sequence = state.sequence + 1;
+  const totalShifts = chronicleShifts(state.charter);
+  const lastPlaceableShift = Math.max(1, totalShifts - 1);
+  // Scale follow-up delays proportionally for shorter chronicles so Act II
+  // consequences keep their pacing instead of bunching onto the final shift.
+  const scaledDelay =
+    totalShifts < FULL_CHRONICLE_SHIFTS
+      ? Math.max(1, Math.round(Math.max(1, afterShifts) * (totalShifts / FULL_CHRONICLE_SHIFTS)))
+      : Math.max(1, afterShifts);
+  // The closing shift places nothing; if a reinstatement audit is scheduled on
+  // the penultimate shift, land it immediately so suspension stays recoverable.
+  const dueShift =
+    state.shift >= lastPlaceableShift && eventId === REINSTATEMENT_EVENT_ID
+      ? lastPlaceableShift
+      : Math.min(state.shift + scaledDelay, lastPlaceableShift);
   return {
     ...state,
     sequence,
@@ -2392,11 +2407,7 @@ function scheduleFollowUp(
       {
         id: `follow-${sequence}`,
         eventId,
-        // The closing shift places nothing, so a follow-up lands by the shift before it.
-        dueShift: Math.max(
-          state.shift + 1,
-          Math.min(state.shift + Math.max(1, afterShifts), chronicleShifts(state.charter) - 1)
-        ),
+        dueShift,
         sourceEventId,
       },
     ],
@@ -3259,7 +3270,8 @@ function advanceEra(step: Step): Step {
     trialsPassed(state),
     state.charter!.mode,
     standingOf(state.certifier),
-    state.certifier.suspended
+    state.certifier.suspended,
+    state.charter?.length
   );
   if (era === state.era) return step;
   const definition = eraById(era);
@@ -3765,8 +3777,8 @@ function startAdministration(previous: ChronicleState): ChronicleState {
     'era',
     'The federation sends an administrator',
     (missed
-      ? `The mill missed ${ADMINISTRATION_MISSED_QUOTAS} quotas in a row. For ${ADMINISTRATION_SHIFTS} shifts its policies are locked, upkeep is x1.1 and the AI partner acts at Forecasts or above. Then it leaves.`
-      : `${cool.length} of the valley’s organisations have cooled on the mill. For ${ADMINISTRATION_SHIFTS} shifts its policies are locked, upkeep is x1.1 and the AI partner acts at Forecasts or above. Then it leaves.`) +
+      ? `The mill missed ${ADMINISTRATION_MISSED_QUOTAS} quotas in a row. For ${ADMINISTRATION_SHIFTS} shifts its policies are locked, upkeep is x1.1 (paid by the federation), and the AI partner acts at Forecasts or above. Then it leaves.`
+      : `${cool.length} of the valley’s organisations have cooled on the mill. For ${ADMINISTRATION_SHIFTS} shifts its policies are locked, upkeep is x1.1 (paid by the federation), and the AI partner acts at Forecasts or above. Then it leaves.`) +
       setAside +
       waiting
   );

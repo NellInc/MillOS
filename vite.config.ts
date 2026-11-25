@@ -211,7 +211,8 @@ export default defineConfig((): UserConfig => {
     process.env.VERCEL_GIT_COMMIT_SHA ??
     process.env.CI_COMMIT_SHA ??
     process.env.COMMIT_SHA;
-  const buildId = `${version ?? packageVersion}-${commit?.slice(0, 12) ?? 'local'}`;
+  const localStamp = `local-${Date.now().toString(36)}`;
+  const buildId = `${version ?? packageVersion}-${commit?.slice(0, 12) ?? localStamp}`;
   const cacheVersion = buildId.replace(/[^a-zA-Z0-9._-]/g, '_');
 
   return {

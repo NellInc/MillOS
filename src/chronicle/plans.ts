@@ -4,6 +4,7 @@ import { copy } from './plans.messages';
  * plans (its discovery tree, with Old Kingdom's cost / rent / bonus split).
  */
 import type {
+  ChronicleLength,
   ChronicleMode,
   EraDefinition,
   EraId,
@@ -62,6 +63,30 @@ export function eraById(id: EraId): EraDefinition {
 
 /** Know-how standing in for each trial when the charter has no trials. */
 const KNOW_HOW_PER_TRIAL_WITHOUT_TRIALS = 60;
+/**
+ * Era requirement scale for 27-shift short chronicles so all five eras
+ * (including Federated cooperative) remain reachable within the shorter span.
+ */
+const SHORT_CHRONICLE_ERA_SCALE = 0.75;
+
+/** Improvements an era asks for, scaled down for 27-shift short chronicles. */
+export function eraImprovementTarget(era: EraDefinition, length?: ChronicleLength): number {
+  if (length === 'short') return Math.ceil(era.requires.improvements * SHORT_CHRONICLE_ERA_SCALE);
+  return era.requires.improvements;
+}
+
+/** Know-how an era asks for; without trials it stands in for them. */
+export function eraKnowHowTarget(
+  era: EraDefinition,
+  mode: ChronicleMode,
+  length?: ChronicleLength
+): number {
+  const base =
+    mode === 'historical'
+      ? era.requires.knowHowEarned
+      : era.requires.knowHowEarned + era.requires.trialsPassed * KNOW_HOW_PER_TRIAL_WITHOUT_TRIALS;
+  return length === 'short' ? Math.round(base * SHORT_CHRONICLE_ERA_SCALE) : base;
+}
 
 export function eraRequirementsMet(
   era: EraDefinition,
@@ -69,26 +94,15 @@ export function eraRequirementsMet(
   knowHowEarned: number,
   trialsPassed: number,
   mode: ChronicleMode,
-  standing = 9
+  standing = 9,
+  length?: ChronicleLength
 ): boolean {
   if (era.minStanding !== undefined && standing < era.minStanding) return false;
-  const trialsOk =
-    mode === 'historical'
-      ? trialsPassed >= era.requires.trialsPassed
-      : knowHowEarned >=
-        era.requires.knowHowEarned + era.requires.trialsPassed * KNOW_HOW_PER_TRIAL_WITHOUT_TRIALS;
+  const knowHowNeeded = eraKnowHowTarget(era, mode, length);
+  const trialsOk = mode === 'historical' ? trialsPassed >= era.requires.trialsPassed : true;
   return (
-    installed >= era.requires.improvements &&
-    knowHowEarned >= era.requires.knowHowEarned &&
-    trialsOk
+    installed >= eraImprovementTarget(era, length) && knowHowEarned >= knowHowNeeded && trialsOk
   );
-}
-
-/** Know-how an era asks for; without trials it stands in for them. */
-export function eraKnowHowTarget(era: EraDefinition, mode: ChronicleMode): number {
-  return mode === 'historical'
-    ? era.requires.knowHowEarned
-    : era.requires.knowHowEarned + era.requires.trialsPassed * KNOW_HOW_PER_TRIAL_WITHOUT_TRIALS;
 }
 
 /** The highest era whose requirements are met, never moving backwards. */
@@ -99,7 +113,8 @@ export function reachedEra(
   trialsPassed: number,
   mode: ChronicleMode,
   standing = 9,
-  suspended = false
+  suspended = false,
+  length?: ChronicleLength
 ): EraId {
   let best = eraById(current);
   // A suspended approval holds the mill where it is (docs/CHRONICLE.md, system 23).
@@ -107,7 +122,8 @@ export function reachedEra(
   for (const era of ERAS) {
     if (era.order <= best.order) continue;
     if (era.order !== best.order + 1) break;
-    if (!eraRequirementsMet(era, installed, knowHowEarned, trialsPassed, mode, standing)) break;
+    if (!eraRequirementsMet(era, installed, knowHowEarned, trialsPassed, mode, standing, length))
+      break;
     best = era;
   }
   return best.id;
@@ -123,9 +139,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'village',
     requires: [],
     planCost: 8,
-    installCost: 110,
+    installCost: 35,
     installShifts: 2,
-    upkeep: 3,
+    upkeep: 1,
     effect: { qualityPenalty: -1 },
   },
   {
@@ -136,9 +152,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'village',
     requires: [],
     planCost: 8,
-    installCost: 100,
+    installCost: 30,
     installShifts: 2,
-    upkeep: 3,
+    upkeep: 1,
     effect: { wear: 0.97 },
   },
   {
@@ -149,9 +165,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'village',
     requires: [],
     planCost: 10,
-    installCost: 130,
+    installCost: 35,
     installShifts: 2,
-    upkeep: 3,
+    upkeep: 1,
     effect: {},
     forecastRelief: { severe_rain: 0.25 },
   },
@@ -163,9 +179,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'village',
     requires: [],
     planCost: 6,
-    installCost: 70,
+    installCost: 25,
     installShifts: 1,
-    upkeep: 2,
+    upkeep: 1,
     effect: {},
     knowHowPerShift: 1,
   },
@@ -178,9 +194,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'cooperative',
     requires: ['moisture-meters'],
     planCost: 18,
-    installCost: 240,
+    installCost: 55,
     installShifts: 3,
-    upkeep: 7,
+    upkeep: 2,
     effect: {},
     cropRelief: ['wet'],
   },
@@ -192,10 +208,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'cooperative',
     requires: ['spare-parts-store'],
     planCost: 16,
-    // Priced on what it saves (item 4.3, D8): its share of the parts and work
-    // orders the probe saw it avoid, about 4.9 a shift (credited by the formula,
-    // not shown by a paired control); 1 to 6 shifts in the runs. Was 200 and 5.
-    installCost: 20,
+    // Priced on what it saves (item 4.3, D8) and stepped cleanly above its
+    // Village prerequisite spare-parts-store (30/1).
+    installCost: 40,
     installShifts: 3,
     upkeep: 1,
     effect: { wear: 0.92 },
@@ -208,9 +223,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'cooperative',
     requires: [],
     planCost: 16,
-    installCost: 210,
+    installCost: 45,
     installShifts: 3,
-    upkeep: 5,
+    upkeep: 2,
     effect: {},
     forecastRelief: { dust_filter_pressure: 0.3 },
   },
@@ -223,9 +238,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'district',
     requires: [],
     planCost: 24,
-    installCost: 300,
+    installCost: 65,
     installShifts: 3,
-    upkeep: 9,
+    upkeep: 2,
     effect: {},
     forecastRelief: { power_sag: 0.3 },
   },
@@ -237,9 +252,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'district',
     requires: ['grain-dryer'],
     planCost: 22,
-    installCost: 230,
+    installCost: 55,
     installShifts: 3,
-    upkeep: 6,
+    upkeep: 2,
     effect: {},
     cropRelief: ['sprouted'],
   },
@@ -251,9 +266,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'district',
     requires: ['aspiration-upgrade'],
     planCost: 26,
-    installCost: 290,
+    installCost: 70,
     installShifts: 4,
-    upkeep: 7,
+    upkeep: 2,
     effect: { production: 1.03 },
     noteId: 'history-plansifter',
   },
@@ -265,9 +280,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'district',
     requires: [],
     planCost: 20,
-    installCost: 150,
+    installCost: 45,
     installShifts: 2,
-    upkeep: 6,
+    upkeep: 2,
     effect: {},
     forecastRelief: { delayed_truck: 0.3 },
   },
@@ -297,9 +312,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'regional',
     requires: ['vibration-monitoring'],
     planCost: 30,
-    installCost: 340,
+    installCost: 80,
     installShifts: 4,
-    upkeep: 9,
+    upkeep: 3,
     effect: { wear: 0.9, production: 1.02 },
   },
   {
@@ -327,9 +342,9 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'federated',
     requires: [],
     planCost: 40,
-    installCost: 280,
+    installCost: 70,
     installShifts: 3,
-    upkeep: 3,
+    upkeep: 1,
     effect: { upkeep: 0.85 },
   },
   {
@@ -340,10 +355,10 @@ export const IMPROVEMENTS: readonly ImprovementDefinition[] = [
     era: 'federated',
     requires: ['wind-turbine'],
     planCost: 40,
-    installCost: 460,
+    installCost: 75,
     installShifts: 4,
-    upkeep: 4,
-    effect: { energy: 0.95 },
+    upkeep: 2,
+    effect: { energy: 0.93 },
   },
 ];
 

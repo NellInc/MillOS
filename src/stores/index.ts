@@ -94,8 +94,13 @@ function getCombinedState(): CombinedStoreState {
   return combinedStateCache;
 }
 
+// Track active subscribers so the snapshot cache clears when the last hook
+// unmounts instead of retaining a stale snapshot across remounts.
+let activeCombinedSubscribers = 0;
+
 // Subscribe to all stores and call listener on any change
 function subscribeToAllStores(listener: () => void): () => void {
+  activeCombinedSubscribers += 1;
   const wrappedListener = () => {
     invalidateCombinedState();
     listener();
@@ -108,7 +113,16 @@ function subscribeToAllStores(listener: () => void): () => void {
     useSafetyStore.subscribe(wrappedListener),
     useUIStore.subscribe(wrappedListener),
   ];
-  return () => unsubscribers.forEach((unsub) => unsub());
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    unsubscribers.forEach((unsub) => unsub());
+    activeCombinedSubscribers = Math.max(0, activeCombinedSubscribers - 1);
+    if (activeCombinedSubscribers === 0) {
+      invalidateCombinedState();
+    }
+  };
 }
 
 // Shallow equality check for selector results

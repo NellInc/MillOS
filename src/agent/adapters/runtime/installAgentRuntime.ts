@@ -6,6 +6,7 @@ import {
   createDefaultGrants,
   createDefaultPolicy,
   DEFAULT_AGENT_ACTOR_URI,
+  DEFAULT_AGENT_GRANT_ID,
   HUMAN_OPERATOR_URI,
   isAgentSideActor,
 } from '../../command/authority';
@@ -83,6 +84,7 @@ export function installMillOSAgentRuntime(target: Window = window): () => void {
 
 function composeMillOSAgentRuntime(): {
   handle: AgentRuntimeApi;
+  internalHandle: AgentRuntimeApi;
   operator: AgentOperatorRuntime;
 } {
   const now = () => new Date();
@@ -252,10 +254,25 @@ function composeMillOSAgentRuntime(): {
     importEvidence: (value) => immutable(ledger.import(value)),
   };
 
-  // Any script on the page can call the handle, so nothing it does may attest
-  // a person: it cannot approve, cannot close an objection a person raised,
-  // and cannot mint a reviewed lesson. Restrictions (revokeGrant, object) stay.
-  const handle: AgentRuntimeApi = {
+  // Any script on the page can call window.__MILLOS_AGENT__, so pin it strictly
+  // to the default agent-driver actor and grant: it cannot impersonate the
+  // on-device operator (which bypasses human approval for incident.mitigate) or
+  // attest a person. Trusted module-scoped callers (executeAgentCommand) use
+  // internalHandle, which still cannot approve.
+  const assertHandleActorAndGrant = (actorUri?: string, grantId?: string) => {
+    if (actorUri !== undefined && actorUri !== DEFAULT_AGENT_ACTOR_URI) {
+      throw new Error(
+        `ACTOR_NOT_ALLOWED_ON_HANDLE: window.__MILLOS_AGENT__ acts only as ${DEFAULT_AGENT_ACTOR_URI}, not ${actorUri}.`
+      );
+    }
+    if (grantId !== undefined && grantId !== DEFAULT_AGENT_GRANT_ID) {
+      throw new Error(
+        `GRANT_NOT_ALLOWED_ON_HANDLE: window.__MILLOS_AGENT__ uses only ${DEFAULT_AGENT_GRANT_ID}, not ${grantId}.`
+      );
+    }
+  };
+
+  const internalHandle: AgentRuntimeApi = {
     ...shared,
     approve: () => {
       throw new Error(
@@ -297,17 +314,67 @@ function composeMillOSAgentRuntime(): {
     },
   };
 
+  const handle: AgentRuntimeApi = {
+    ...internalHandle,
+    legalOptions: (request) => {
+      assertHandleActorAndGrant(request.actorUri, request.grantId);
+      return kernel.legalOptions({
+        ...request,
+        actorUri: DEFAULT_AGENT_ACTOR_URI,
+        grantId: DEFAULT_AGENT_GRANT_ID,
+      });
+    },
+    draft: (request) => {
+      assertHandleActorAndGrant(request.actorUri, request.grantId);
+      return kernel.draft({
+        ...request,
+        actorUri: DEFAULT_AGENT_ACTOR_URI,
+        grantId: DEFAULT_AGENT_GRANT_ID,
+      });
+    },
+    preview: (command) => {
+      assertHandleActorAndGrant(command.actorUri, command.grantId);
+      return kernel.preview(command);
+    },
+    commit: (previewOrCommand, approval) => {
+      const command = 'previewId' in previewOrCommand ? previewOrCommand.command : previewOrCommand;
+      assertHandleActorAndGrant(command.actorUri, command.grantId);
+      return kernel.commit(previewOrCommand, approval);
+    },
+  };
+
   // The person at the controls, acting in the interface. Never put on window.
   const operator: AgentOperatorRuntime = {
     ...shared,
     approve: (previewId, reason) => kernel.approve(previewId, reason, HUMAN_OPERATOR_URI),
+    listPendingPreviews: () => kernel.listPendingPreviews(),
+    object: (capabilityIds, statement, requestedDisposition, modes) => {
+      const objection = authority.object(
+        capabilityIds,
+        statement,
+        requestedDisposition,
+        modes,
+        HUMAN_OPERATOR_URI
+      );
+      if (
+        capabilityIds.includes('workplace.activate-plan') &&
+        objection.modes.includes('simulation')
+      ) {
+        useWorkplaceStore.getState().stop();
+      }
+      return immutable(objection);
+    },
     resolveObjection: (objectionId, resolution) =>
       authority.resolveObjection(objectionId, resolution),
     promoteReviewedLesson: (statement, evidenceEventIds) =>
       immutable(ledger.promoteLesson(statement, evidenceEventIds, HUMAN_OPERATOR_URI, true)),
   };
 
-  return { handle: Object.freeze(handle), operator: Object.freeze(operator) };
+  return {
+    handle: Object.freeze(handle),
+    internalHandle: Object.freeze(internalHandle),
+    operator: Object.freeze(operator),
+  };
 }
 
 function immutable<T>(value: T): T {

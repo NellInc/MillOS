@@ -886,14 +886,26 @@ export function surplusDestination(s: WorkplaceState): SurplusDestination | null
  *   each member worked, cover included, paid back, so it votes for the members.
  */
 export function authoredSobrasBallot(s: WorkplaceState, memberId: string): SurplusDestination {
-  if (memberId === 'quality') return seasonHadOperatingLoss(s) ? 'reserve' : 'members';
-  if (memberId === 'coordinator') return reserveThin(s) ? 'reserve' : 'members';
+  const abundant = reserveAbundant(s);
+  if (memberId === 'quality') {
+    if (seasonHadOperatingLoss(s)) return 'reserve';
+    return abundant ? 'community' : 'members';
+  }
+  if (memberId === 'coordinator') {
+    if (reserveThin(s)) return 'reserve';
+    return abundant ? 'community' : 'members';
+  }
   return 'members';
 }
 /** What the reserve would carry with only its statutory share falls short of a season's wages. */
 function reserveThin(s: WorkplaceState): boolean {
   const carried = reserveLeft(s) + seasonSobrasPool(s) * RESERVE_FUND_SHARE;
   return carried + 1e-8 < WAGE * s.durationMinutes * s.members.length * CAMPAIGN_SHIFTS.length;
+}
+/** Reserve plus statutory share already covers at least two full seasons of wages. */
+function reserveAbundant(s: WorkplaceState): boolean {
+  const carried = reserveLeft(s) + seasonSobrasPool(s) * RESERVE_FUND_SHARE;
+  return carried + 1e-8 >= 2 * WAGE * s.durationMinutes * s.members.length * CAMPAIGN_SHIFTS.length;
 }
 /** Whether an authored role's need is met by the destination the season settled on. */
 function sobrasNeedMet(s: WorkplaceState, memberId: string, destination: SurplusDestination) {
@@ -1034,12 +1046,20 @@ const AUTHORED_VALUE_KEYS = {
   coordinator: 'valueCoordinator',
   mind: 'valueAdviser',
 } as const;
-/** Whom each authored role backs for chair, from its value (5.9). */
-const AUTHORED_CHAIR: Record<string, string> = {
-  quality: 'quality',
-  maintenance: 'coordinator',
-  coordinator: 'coordinator',
-};
+/**
+ * Whom each authored role backs for chair, from its value and the season's
+ * cover draw: Maintenance backs Quality when the Coordinator declined cover,
+ * otherwise the Coordinator, so either candidate can reach three votes with
+ * Packing's ballot.
+ */
+function authoredChairBallot(s: WorkplaceState, memberId: string): string {
+  if (memberId === 'quality') return 'quality';
+  if (memberId === 'maintenance') {
+    const decliner = s.campaign ? campaignDraw(s.campaign).decliner : null;
+    return decliner === 'coordinator' ? 'quality' : 'coordinator';
+  }
+  return 'coordinator';
+}
 /** The calls the season's roles make for themselves, and why (5.3). */
 export const AUTHORED_CALL_KEYS = {
   renegotiate: 'callInstallment',
@@ -1124,7 +1144,7 @@ export function authoredSeasonCommand(s: WorkplaceState): WorkplaceCommand | nul
       };
     if (s.governance === 'member-vote' && s.practices.includes('cooperative')) {
       const voter = authored.find((m) => s.chairBallots[m.id] === undefined);
-      if (voter) return { type: 'elect', args: [voter.id, AUTHORED_CHAIR[voter.id]] };
+      if (voter) return { type: 'elect', args: [voter.id, authoredChairBallot(s, voter.id)] };
     }
     return null;
   }

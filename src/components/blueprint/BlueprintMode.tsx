@@ -25,16 +25,16 @@ export const BlueprintMode: React.FC = () => {
   const blueprintMode = useUIStore((state) => state.blueprintMode);
   const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
 
-  // The transition is local: only this subtree reads it, and routing it through
-  // uiStore made the persisted store serialise to localStorage and notify every
-  // subscriber on each frame of the fade.
-  const [blueprintTransition, setBlueprintTransition] = useState(0);
-  const transitionRef = useRef(0);
-  const targetRef = useRef(0);
+  // The transition value lives in a ref so the 500 ms fade never calls React
+  // setState per frame; React state only flips at mount and unmount boundaries.
+  const [mounted, setMounted] = useState(blueprintMode);
+  const transitionRef = useRef(blueprintMode ? 1 : 0);
+  const targetRef = useRef(blueprintMode ? 1 : 0);
 
   // Update target when mode changes
   useEffect(() => {
     targetRef.current = blueprintMode ? 1 : 0;
+    if (blueprintMode) setMounted(true);
   }, [blueprintMode]);
 
   // Smooth transition animation
@@ -42,14 +42,16 @@ export const BlueprintMode: React.FC = () => {
     const target = targetRef.current;
     const current = transitionRef.current;
 
-    // Lerp towards target
     if (Math.abs(current - target) > 0.001) {
       const speed = 1 / TRANSITION_DURATION;
       const step = delta * speed;
       const newValue =
         current < target ? Math.min(current + step, target) : Math.max(current - step, target);
       transitionRef.current = newValue;
-      setBlueprintTransition(newValue);
+      if (newValue < 0.001 && target === 0) {
+        transitionRef.current = 0;
+        setMounted(false);
+      }
     }
   });
 
@@ -57,18 +59,18 @@ export const BlueprintMode: React.FC = () => {
   if (graphicsQuality === 'low') return null;
 
   // Skip rendering if fully transitioned out
-  if (blueprintTransition < 0.001 && !blueprintMode) return null;
+  if (!mounted && !blueprintMode) return null;
 
   return (
     <group name="blueprint-mode">
       {/* Grid overlay with scan effect */}
-      <WireframeOverlay transition={blueprintTransition} />
+      <WireframeOverlay transitionRef={transitionRef} />
 
       {/* Floating zone labels */}
-      <ZoneLabels transition={blueprintTransition} />
+      <ZoneLabels transitionRef={transitionRef} />
 
       {/* Pulsing rings on machines needing attention */}
-      <DecisionPathRings transition={blueprintTransition} />
+      <DecisionPathRings transitionRef={transitionRef} />
     </group>
   );
 };

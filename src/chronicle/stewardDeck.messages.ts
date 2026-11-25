@@ -104,7 +104,7 @@ export const stewardDeckMessages = defineMessages({
       'The promise is broken. The polenta kitchen says so to the federation.',
     'evt-sacks-short-again.title': 'The bales come up short again',
     'evt-sacks-short-again.text':
-      'The packers count a bale by hand for the first time since arbitration day, and it is four sacks short. The supplier has been short-counting for weeks.',
+      'The packers count a bale by hand for the first time since arbitration day, and it is four sacks short. The supplier has been short-counting since arbitration day.',
     'evt-sacks-short-again.choices.claim.label': 'Count every bale and claim the shortfall',
     'evt-sacks-short-again.choices.claim.effect.result':
       'Every bale is counted at the gate and the shortfall is credited.',
@@ -238,7 +238,8 @@ export const stewardDeckMessages = defineMessages({
     'evt-premium-buyer.choices.coop.effect.result':
       'The wholesaler buys on the cooperative’s terms, behind the regular customers.',
     'evt-premium-buyer.choices.decline.label': 'Decline the premium',
-    'evt-premium-buyer.choices.decline.effect.result': 'The wholesaler looks elsewhere.',
+    'evt-premium-buyer.choices.decline.effect.result':
+      'The wholesaler looks elsewhere, and the regular local customers take note.',
     'evt-second-haulier.title': 'A larger haulier calls',
     'evt-second-haulier.text':
       'A larger haulage firm offers to take the mill’s collections at a lower rate, with more lorries and less attention to any one customer. Valley Haulage hears about it the same day.',
@@ -269,7 +270,7 @@ export const stewardDeckMessages = defineMessages({
       'The AI partner holds the intake and grain stores.',
     'evt-federation-administrator.title': 'The federation offers an administrator',
     'evt-federation-administrator.text':
-      'The regional federation offers to send an administrator for four shifts: the policies held where they stand, upkeep x1.1 for its keep, and the AI partner acting at Forecasts or above. The mill is its members’ own, so the assembly can accept the support or refuse it.',
+      'The regional federation offers to send an administrator for four shifts: the policies held where they stand, upkeep x1.1 (paid by the federation), and the AI partner acting at Forecasts or above. The mill is its members’ own, so the assembly can accept the support or refuse it.',
     'evt-federation-administrator.choices.accept.label':
       'Accept the federation’s support: it pays the upkeep for 4 shifts',
     'evt-federation-administrator.choices.accept.effect.result':
@@ -281,10 +282,10 @@ export const stewardDeckMessages = defineMessages({
   'pt-BR': {
     'evt-standby-cover.title': 'Onde fica a equipe de prontidão',
     'evt-standby-cover.text':
-      'A região tem uma única empresa de manutenção de prontidão, e seu contrato permite ao moinho escolher onde os técnicos aguardam durante uma pane: na recepção e nos armazéns de grãos, no setor de moagem ou no pátio de expedição. Divididos entre os três, os técnicos não ficam muito tempo em lugar nenhum. O parceiro de IA os colocaria no setor de moagem.',
-    'evt-standby-cover.choices.intake.label': 'Cobrir a recepção e os armazéns de grãos',
+      'A região tem uma única empresa de manutenção de prontidão, e seu contrato permite ao moinho escolher onde os técnicos aguardam durante uma pane: no recebimento e nos armazéns de grãos, no setor de moagem ou no pátio de expedição. Divididos entre os três, os técnicos não ficam muito tempo em lugar nenhum. O parceiro de IA os colocaria no setor de moagem.',
+    'evt-standby-cover.choices.intake.label': 'Cobrir o recebimento e os armazéns de grãos',
     'evt-standby-cover.choices.intake.effect.result':
-      'Os técnicos ficam na recepção, onde os caminhões dos produtores descarregam.',
+      'Os técnicos ficam no recebimento, onde os caminhões dos produtores descarregam.',
     'evt-standby-cover.choices.floor.label': 'Cobrir o setor de moagem',
     'evt-standby-cover.choices.floor.effect.result':
       'Os técnicos ficam no setor de moagem, ao lado da sala elétrica.',
@@ -381,7 +382,7 @@ export const stewardDeckMessages = defineMessages({
       'A promessa é quebrada. A cozinha de polenta comunica isso à federação.',
     'evt-sacks-short-again.title': 'Voltam a faltar sacos nos fardos',
     'evt-sacks-short-again.text':
-      'As ensacadeiras contam um fardo à mão pela primeira vez desde a arbitragem, e faltam quatro sacos. O fornecedor vem entregando sacos a menos há semanas.',
+      'A equipe de ensaque conta um fardo à mão pela primeira vez desde a arbitragem, e faltam quatro sacos. O fornecedor vem entregando sacos a menos desde a arbitragem.',
     'evt-sacks-short-again.choices.claim.label': 'Contar cada fardo e cobrar a diferença',
     'evt-sacks-short-again.choices.claim.effect.result':
       'Cada fardo é contado na entrada e a diferença é creditada.',
@@ -443,9 +444,9 @@ export const stewardDeckMessages = defineMessages({
     'evt-valley-meeting.echoes.2.text':
       'O comitê da vila fala primeiro. Sua padaria perdeu o antigo celeiro e está guardando farinha em um barracão; pergunta o que o moinho oferece à vila onde está instalado.',
     'evt-valley-meeting.echoes.3.because':
-      'Porque a equipe de prontidão foi colocada longe da recepção',
+      'Porque a equipe de prontidão foi colocada longe do recebimento',
     'evt-valley-meeting.echoes.3.text':
-      'Os produtores perguntam sobre a temporada de tempestades. A recepção não tem cobertura de prontidão, e eles querem saber quem estará lá quando os silos alagarem.',
+      'Os produtores perguntam sobre a temporada de tempestades. O recebimento não tem cobertura de prontidão, e eles querem saber quem estará lá quando os silos alagarem.',
     'evt-valley-meeting.choices.speak.label': 'Responder com base no histórico do moinho',
     'evt-valley-meeting.choices.speak.effect.result':
       'Os presentes ouvem a leitura do histórico e voltam satisfeitos para casa.',
@@ -533,21 +534,21 @@ export const stewardDeckMessages = defineMessages({
     'evt-long-night.title': 'A longa noite',
     'evt-long-night.text':
       'Uma frente de tempestade e uma emergência na rede elétrica chegam na mesma noite. O moinho pode empregar sua própria equipe em uma frente. A outra terá de resistir com o que foi construído para ela.',
-    'evt-long-night.choices.intake.label': 'Defender a recepção e os armazéns de grãos',
+    'evt-long-night.choices.intake.label': 'Defender o recebimento e os armazéns de grãos',
     'evt-long-night.choices.intake.effect.result':
-      'O moinho emprega sua própria equipe na recepção durante a tempestade.',
+      'O moinho emprega sua própria equipe no recebimento durante a tempestade.',
     'evt-long-night.choices.floor.label': 'Defender o setor de moagem',
     'evt-long-night.choices.floor.effect.result':
       'O moinho emprega sua própria equipe no setor de moagem durante a emergência da rede.',
     'evt-long-night.choices.partner.label': 'Deixar com o parceiro de IA',
     'evt-long-night.choices.partner.effect.result': 'O parceiro de IA defende o setor de moagem.',
     'evt-long-night.choices.partner.variants.0.because':
-      'Porque a recepção e os armazéns de grãos eram os menos preparados',
+      'Porque o recebimento e os armazéns de grãos eram os menos preparados',
     'evt-long-night.choices.partner.variants.0.effect.result':
-      'O parceiro de IA defende a recepção e os armazéns de grãos.',
+      'O parceiro de IA defende o recebimento e os armazéns de grãos.',
     'evt-federation-administrator.title': 'A federação oferece um administrador',
     'evt-federation-administrator.text':
-      'A federação regional oferece enviar um administrador por quatro turnos: as políticas ficam onde estão, a manutenção x1,1 para custeá-lo e o parceiro de IA agindo em Previsões ou acima. O moinho pertence aos seus associados, então a assembleia pode aceitar o apoio ou recusá-lo.',
+      'A federação regional oferece enviar um administrador por quatro turnos: as políticas ficam onde estão, a manutenção x1,1 (paga pela federação) e o parceiro de IA agindo em Previsões ou acima. O moinho pertence aos seus cooperados, então a assembleia pode aceitar o apoio ou recusá-lo.',
     'evt-federation-administrator.choices.accept.label':
       'Aceitar o apoio da federação: ela paga a manutenção por 4 turnos',
     'evt-federation-administrator.choices.accept.effect.result':

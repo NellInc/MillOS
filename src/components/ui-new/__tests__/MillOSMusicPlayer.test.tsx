@@ -65,7 +65,7 @@ describe('MillOSMusicPlayer', () => {
     localStorage.removeItem('millos-music-live-lyrics');
   });
 
-  it('scrolls lyrics without animation when reduced motion is requested', () => {
+  it('scrolls lyrics without animation when reduced motion is requested', async () => {
     motionPreference.reduced = true;
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
     const scroll = vi.fn();
@@ -77,7 +77,9 @@ describe('MillOSMusicPlayer', () => {
       render(<MillOSMusicPlayer />);
       fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
       fireEvent.click(screen.getByRole('button', { name: 'Open synchronized lyrics' }));
-      expect(scroll).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' });
+      await vi.waitFor(() =>
+        expect(scroll).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' })
+      );
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original);
       else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
@@ -151,16 +153,18 @@ describe('MillOSMusicPlayer', () => {
     expect(controls.togglePlayback).not.toHaveBeenCalled();
   });
 
-  it('opens synchronized lyrics', () => {
+  it('opens synchronized lyrics', async () => {
     render(<MillOSMusicPlayer />);
     fireEvent.click(screen.getByRole('button', { name: 'Expand playlist' }));
     fireEvent.click(screen.getByRole('button', { name: 'Open synchronized lyrics' }));
 
     expect(screen.getByRole('dialog', { name: 'The Mill Wakes' })).toBeInTheDocument();
     expect(screen.queryByText(/awaits human synchronization review/i)).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /Before the road begins to shine/i })
-    ).toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: /Before the road begins to shine/i })
+      ).toBeInTheDocument()
+    );
   });
 
   it('keeps playback directly available when compact and preserves position on expansion', () => {
@@ -202,7 +206,7 @@ describe('MillOSMusicPlayer', () => {
 
     // positionSeconds is 15: "road" is sung from 14.90 s.
     const line = screen.getByRole('button', { name: 'Open full lyrics' });
-    expect(line).toHaveTextContent('Before the road begins to shine');
+    await vi.waitFor(() => expect(line).toHaveTextContent('Before the road begins to shine'));
     expect(within(line).getByText('road')).toHaveClass('text-cyan-300');
     expect(within(line).getByText('Before')).not.toHaveClass('text-cyan-300');
     expect(screen.queryByRole('region', { name: 'Playlist' })).not.toBeInTheDocument();
@@ -221,14 +225,16 @@ describe('MillOSMusicPlayer', () => {
     expect(controls.togglePlayback).not.toHaveBeenCalled();
   });
 
-  it('keeps the live lyric beside an open sidebar and yields it when attention is held', () => {
+  it('keeps the live lyric beside an open sidebar and yields it when attention is held', async () => {
     localStorage.setItem('millos-music-live-lyrics', 'on');
     const { rerender } = render(<MillOSMusicPlayer />);
     expect(screen.getByRole('button', { name: 'Open full lyrics' })).toBeInTheDocument();
 
     // Sidebar open: the line keeps singing, but the dialog it opens cannot.
     rerender(<MillOSMusicPlayer distractionFree attentionHeld={false} />);
-    expect(screen.getByTestId('live-lyric')).toHaveTextContent('Before the road begins to shine');
+    await vi.waitFor(() =>
+      expect(screen.getByTestId('live-lyric')).toHaveTextContent('Before the road begins to shine')
+    );
     expect(screen.queryByRole('button', { name: 'Open full lyrics' })).not.toBeInTheDocument();
 
     // Safety or a standing critical alert: the line goes too.

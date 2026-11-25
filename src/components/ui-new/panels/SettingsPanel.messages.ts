@@ -104,9 +104,9 @@ export const settingsPanelMessages = defineMessages({
     resetEverything: 'Reset Everything',
     resetting: 'Resetting...',
     resetFullMessage:
-      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound, language and interface scale settings are kept. There is no undo.',
+      'Wipe everything (saved progress, graphics settings, and your saved AI preferences) and reload from scratch. Sound, language and interface scale settings are kept. There is no undo.',
     resetFullMessageWithMotion:
-      'Wipe everything — saved progress, graphics settings, your saved AI preferences — and reload from scratch. Sound, language, motion and interface scale settings are kept. There is no undo.',
+      'Wipe everything (saved progress, graphics settings, and your saved AI preferences) and reload from scratch. Sound, language, motion and interface scale settings are kept. There is no undo.',
 
     toggleOn: 'On',
     toggleOff: 'Off',

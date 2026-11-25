@@ -205,9 +205,9 @@ export const presentationMessages = defineMessages({
     causePolicy: 'the {ladder} policy',
     adminArrives: 'The federation sends an administrator',
     adminMissed:
-      'The mill missed {n0} quotas in a row. For {n1} shifts its policies are locked, upkeep is x{n2} and the AI partner acts at Forecasts or above. Then it leaves.',
+      'The mill missed {n0} quotas in a row. For {n1} shifts its policies are locked, upkeep is x{n2} (paid by the federation), and the AI partner acts at Forecasts or above. Then it leaves.',
     adminCool:
-      '{n0} of the valley’s organisations have cooled on the mill. For {n1} shifts its policies are locked, upkeep is x{n2} and the AI partner acts at Forecasts or above. Then it leaves.',
+      '{n0} of the valley’s organisations have cooled on the mill. For {n1} shifts its policies are locked, upkeep is x{n2} (paid by the federation), and the AI partner acts at Forecasts or above. Then it leaves.',
     adminSetAside: ' The {ladder} change before the assembly is set aside.',
     adminWarningsWait: ' Running warnings wait until it leaves.',
     assemblyCarries: 'The assembly carries the {ladder} change',
@@ -282,7 +282,7 @@ export const presentationMessages = defineMessages({
     t4: 'Manutenção completa restaurada',
     b4: 'Todas as instalações voltam a receber manutenção, com cobrança integral.',
     t5: 'Manutenção forçada',
-    b5: 'Manutenção paga integralmente: {n0} do fundo e {n1} de conhecimento técnico no esforço extra dos membros.',
+    b5: 'Manutenção paga integralmente: {n0} do fundo e {n1} de conhecimento prático no esforço extra dos cooperados.',
     t6: 'Poeira em combustão lenta nos dutos de extração',
     b6: 'A proteção parou a produção e as empilhadeiras. Ninguém está em perigo; o foco deve ser extinto e o duto limpo antes da retomada.',
     t7: 'Combate ao incêndio em andamento',
@@ -349,7 +349,7 @@ export const presentationMessages = defineMessages({
     window: 'O prazo terminou.',
     qualityFail: '{n0} kg ficaram abaixo do limite de qualidade da receita.',
     cleanFail: '{n0} de {n1} encerramentos de turno consecutivos sem falhas.',
-    failDispatch: 'O despacho a fez falhar: {g0} de {g1} kg expedidos.',
+    failDispatch: 'A expedição a fez falhar: {g0} de {g1} kg expedidos.',
     failEnergy: 'A energia a fez falhar: {n0} por kg frente a {n1}.',
     failGrade: 'A nota a fez falhar: média de pontos de nota de {n0} frente a {n1}.',
     failQuality:
@@ -389,7 +389,7 @@ export const presentationMessages = defineMessages({
     quality: 'qualidade +{n0}',
     nightSoon: 'A longa noite chega em {n0} turnos',
     nightBody:
-      'Uma tempestade e uma emergência na rede elétrica chegarão juntas. O moinho pode proteger uma frente; a outra resiste com {n0} de preparação. A recepção e os armazéns de grãos: {n1} de {n2}; o piso dos moinhos: {n3} de {n4}.',
+      'Uma tempestade e uma emergência na rede elétrica chegarão juntas. O moinho pode proteger uma frente; a outra resiste com {n0} de preparação. O recebimento e os armazéns de grãos: {n1} de {n2}; o piso dos moinhos: {n3} de {n4}.',
     held: '{label} resistiu',
     fell: '{label} cedeu',
     heldBody: 'Resistiu apenas com a preparação ({n0} de {n1} preparados).',

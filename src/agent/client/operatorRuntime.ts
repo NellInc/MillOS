@@ -15,6 +15,8 @@ import type { AgentOperatorRuntime, AgentRuntimeApi } from '../contracts/command
  */
 interface AgentRuntimeBinding {
   handle: AgentRuntimeApi;
+  /** Module-private agent handle that can exercise trusted internal grants (on-device operator). */
+  internalHandle: AgentRuntimeApi;
   operator: AgentOperatorRuntime;
   installed: boolean;
 }
@@ -34,11 +36,21 @@ const NOT_INSTALLED = 'MillOS agent runtime v2 is not installed.';
  */
 export function bindAgentRuntime(
   target: object,
-  compose: () => { handle: AgentRuntimeApi; operator: AgentOperatorRuntime }
+  compose: () => {
+    handle: AgentRuntimeApi;
+    internalHandle?: AgentRuntimeApi;
+    operator: AgentOperatorRuntime;
+  }
 ): { handle: AgentRuntimeApi; setInstalled: (installed: boolean) => void } {
   let entry = bindings.get(target);
   if (!entry) {
-    entry = { ...compose(), installed: false };
+    const composed = compose();
+    entry = {
+      handle: composed.handle,
+      internalHandle: composed.internalHandle ?? composed.handle,
+      operator: composed.operator,
+      installed: false,
+    };
     bindings.set(target, entry);
   }
   const bound = entry;
@@ -84,5 +96,5 @@ export function getInstalledAgentRuntime(
 ): AgentRuntimeApi {
   const found = binding(target);
   if (!found) throw new Error(NOT_INSTALLED);
-  return found.handle;
+  return found.internalHandle;
 }

@@ -102,19 +102,25 @@ describe('costs plans avoided', () => {
     expect(avoided['wind-turbine']).toBeGreaterThan(avoided['heat-recovery']);
   });
 
-  it('a wear plan avoided parts and work orders; a production or relief plan avoided nothing', () => {
+  it('a wear plan credits preventive operating wear without rewarding breakdowns; production/relief plans avoid nothing', () => {
     const vibration = improvementById('vibration-monitoring')!.effect.wear!;
-    const avoided = avoidedByPlan(
+    const clean = avoidedByPlan(
       [
         installed('vibration-monitoring'),
         installed('sifter-retrofit'),
         installed('drainage-works'),
       ],
-      { energyCost: 150, maintenanceCost: 90, partsCost: 30 }
+      { energyCost: 150, maintenanceCost: 0, partsCost: 0 }
     );
-    expect(avoided['vibration-monitoring']).toBeCloseTo(120 * (1 / vibration - 1), 6);
-    expect(avoided['sifter-retrofit']).toBeUndefined();
-    expect(avoided['drainage-works']).toBeUndefined();
+    const breakdown = avoidedByPlan([installed('vibration-monitoring')], {
+      energyCost: 150,
+      maintenanceCost: 360,
+      partsCost: 30,
+    });
+    expect(clean['vibration-monitoring']).toBeCloseTo(45 * (1 / vibration - 1), 6);
+    expect(breakdown['vibration-monitoring']).toBeCloseTo(clean['vibration-monitoring'], 6);
+    expect(clean['sifter-retrofit']).toBeUndefined();
+    expect(clean['drainage-works']).toBeUndefined();
   });
 
   it('a Neglectful contractor’s smaller effect avoids less', () => {
@@ -147,8 +153,14 @@ describe('costs plans avoided', () => {
     );
     expect(state.ledger.lastShiftFund.upkeep).toBeLessThan(0);
     const again = closeShift(state, evidence(160, 0, 0), []).state;
-    expect(again.planSavings?.['vibration-monitoring']?.last).toBe(0);
-    expect(again.planSavings?.['vibration-monitoring']?.total).toBe(fund('vibration-monitoring'));
+    expect(again.planSavings?.['vibration-monitoring']?.last).toBe(fund('vibration-monitoring'));
+    expect(again.planSavings?.['vibration-monitoring']?.total).toBeCloseTo(
+      fund('vibration-monitoring') * 2,
+      2
+    );
+    const idle = closeShift(state, evidence(0, 0, 0), []).state;
+    expect(idle.planSavings?.['vibration-monitoring']?.last).toBe(0);
+    expect(idle.planSavings?.['vibration-monitoring']?.total).toBe(fund('vibration-monitoring'));
   });
 
   it('nothing installed, nothing credited; the line reads in both languages', () => {

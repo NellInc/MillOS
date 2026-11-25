@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import {
   useCameraPositionStore,
@@ -286,7 +287,17 @@ export const CameraController: React.FC<CameraControllerProps> = ({
     isAnimating,
     clearAnimation,
     cancelAnimation,
-  } = useCameraStore();
+  } = useCameraStore(
+    useShallow((s) => ({
+      activePreset: s.activePreset,
+      targetPosition: s.targetPosition,
+      targetLookAt: s.targetLookAt,
+      targetFov: s.targetFov,
+      isAnimating: s.isAnimating,
+      clearAnimation: s.clearAnimation,
+      cancelAnimation: s.cancelAnimation,
+    }))
+  );
   const reducedMotion = useReducedMotion();
   const animationProgress = useRef(0);
   const animationStartPosition = useRef(new THREE.Vector3());

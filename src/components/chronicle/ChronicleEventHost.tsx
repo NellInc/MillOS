@@ -1,14 +1,14 @@
 import { EVENT_DECK, getEventDeck, localizedEventText } from '../../chronicle/eventDeck';
-import { formatGrouped } from '../../i18n';
+import { formatGrouped, getLocale, useT } from '../../i18n';
 import { getFronts } from '../../chronicle/longNight';
 import { localizedConditionText, localizedMarkLabel } from '../../chronicle/record';
 import { localizedDescribeEffect } from '../../chronicle/describe';
-import { useT } from '../../i18n';
 import { messages } from './ChronicleEventHost.messages';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Bookmark, Flame, ScrollText, Scale } from 'lucide-react';
 import {
   answerablePending,
+  briefRuling,
   canAfford,
   choiceAvailable,
   effectiveChoice,
@@ -27,6 +27,7 @@ import {
   otherFront,
 } from '../../chronicle/longNight';
 import { INCIDENT_DEFINITIONS } from '../../stores/operationsCampaignStore';
+import { incidentTitle } from '../../stores/incidentText';
 import { hasMark } from '../../chronicle/record';
 import { useChronicleStore } from '../../stores/chronicleStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
@@ -302,7 +303,12 @@ export function ChronicleEventHost({
       const available = choiceAvailable(state, choice);
       // The variant's because comes back in the interface language: `event` is from getEventDeck().
       const { effect, because } = effectiveChoice(state, choice);
-      const parts = [localizedDescribeEffect(effect, { suspended: state.certifier.suspended })];
+      const parts = [
+        localizedDescribeEffect(effect, {
+          suspended: state.certifier.suspended,
+          resolveRuling: (chainEvent, conventional) => briefRuling(state, chainEvent, conventional),
+        }),
+      ];
       if (effect.holdFront) {
         const other = otherFront(effect.holdFront);
         const prepared = frontPreparation(state, other);
@@ -322,7 +328,10 @@ export function ChronicleEventHost({
           const stake = INCIDENT_DEFINITIONS[FRONTS[other].hazard];
           parts.push(
             t('nightRaises', {
-              incident: stake.title.toLowerCase(),
+              incident: incidentTitle(
+                { kind: FRONTS[other].hazard, title: stake.title },
+                getLocale()
+              ).toLowerCase(),
               value: formatGrouped(stake.effect.productionMultiplier),
             })
           );

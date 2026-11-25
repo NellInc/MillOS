@@ -56,6 +56,7 @@ import { WorldCard } from './worldCard/WorldCard';
 import { updateSiloCard } from './worldCard/worldCardStore';
 import { useWindmillLearningStore } from '../stores/windmillLearningStore';
 import { useProcessInspectionStore } from '../stores/processInspectionStore';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 /** View direction scratch for the activation's aim test (no per-frame allocation). */
 const _aimDirection = new THREE.Vector3();
@@ -774,16 +775,25 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
     }
   };
 
+  const exitFps = useCallback(() => useUIStore.getState().setFpsMode(false), []);
+  useFocusTrap(surfaceRef as React.RefObject<HTMLElement>, visible, exitFps);
+
   if (!visible) return null;
 
   return (
     <div
       ref={surfaceRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="fps-instructions-heading"
+      tabIndex={-1}
       onClick={requestCapture}
       className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center pointer-events-auto"
     >
       <div className="millos-glass millos-glass-thick rounded-2xl p-8 max-w-md text-center">
-        <h2 className="text-2xl font-bold text-white mb-4">{t('heading')}</h2>
+        <h2 id="fps-instructions-heading" className="text-2xl font-bold text-white mb-4">
+          {t('heading')}
+        </h2>
         {captureFailed ? (
           <p role="alert" className="text-amber-200 mb-6">
             {t('captureFailed')}
@@ -861,17 +871,16 @@ export const FPSInstructions: React.FC<{ visible: boolean }> = ({ visible }) => 
           </div>
         </div>
 
-        {captureFailed ? (
+        <div className="flex flex-col items-center gap-3">
+          {!captureFailed && <p className="text-slate-500 text-sm">{t('pressEsc')}</p>}
           <button
             type="button"
-            onClick={() => useUIStore.getState().setFpsMode(false)}
+            onClick={exitFps}
             className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300"
           >
             {t('returnToOverview')}
           </button>
-        ) : (
-          <p className="text-slate-500 text-sm">{t('pressEsc')}</p>
-        )}
+        </div>
       </div>
     </div>
   );

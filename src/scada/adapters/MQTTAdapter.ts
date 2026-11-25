@@ -122,7 +122,21 @@ class MQTTWebSocketClient {
       };
 
       try {
-        const activeSocket = new WebSocket(this.url, 'mqtt');
+        let parsedMqttUrl: URL;
+        try {
+          parsedMqttUrl = new URL(this.url);
+        } catch {
+          rejectAttempt(new Error(`Invalid MQTT WebSocket URL: ${this.url}`), false);
+          return;
+        }
+        if (parsedMqttUrl.protocol !== 'wss:' && parsedMqttUrl.protocol !== 'ws:') {
+          rejectAttempt(
+            new Error(`Unsupported MQTT WebSocket protocol: ${parsedMqttUrl.protocol}`),
+            false
+          );
+          return;
+        }
+        const activeSocket = new WebSocket(parsedMqttUrl.toString(), 'mqtt');
         socket = activeSocket;
         this.ws = activeSocket;
         activeSocket.binaryType = 'arraybuffer';

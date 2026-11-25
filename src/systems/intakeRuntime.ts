@@ -74,6 +74,9 @@ function emptiestSiloStoresWheat(flow: MaterialFlowState): string | null {
   return index % 2 === 0 ? chosen.id : null;
 }
 
+/** Minimum free silo capacity (kg) required to split-blend an arriving wheat lot. */
+export const MIN_BLEND_SPACE_KG = 4000;
+
 /**
  * The intake facts for a docked lot, or null when it is not a question: its
  * silo would be a corn silo (the crop year marks only wheat), or no wheat silo
@@ -92,37 +95,32 @@ export function buildIntakeFacts(
     ...context,
     cropOf: (id) => (id === ARRIVING ? lot.crop : context.cropOf(id)),
   };
-  const arriving = { lotId: ARRIVING, amount: lot.amountKg };
-  // What the line mills: every wheat silo holding grain feeds its mills at
-  // the same valve rate whatever it holds, so each counts once, however full.
-  // A lot in a near-empty silo is therefore milled almost unmixed, a third of
-  // the line's wheat; in a full silo it is diluted there first.
-  //
-  // The silos' mean is kept on purpose, though the stamp reads each portion's
-  // own blend and the temper card reads silo by silo (lotQuality.ts
-  // worstBinPenalty). It can price a wet lot taken straight into an empty silo
-  // beside one sound silo as sound (14.3%) while that flour packs at 94
-  // (silosMean.test.ts); the temper card is then raised on that silo, and the
-  // partner dries it. Priced silo by silo instead, intake lost what refusing
-  // buys, diluting the line: on the sprouted year after a sound one (twenty
-  // shifts, MILLOS_PLANT_INTAKE_OUT) the partner made 17 of 25 strong-white
-  // orders, not 21 of 24, forfeited 19, not 7, netted 51,681, not 60,401, and
-  // the record never ranked another answer above its choice, so intake would
-  // no longer be asked (DELEGATION_EVIDENCE).
-  const lineMix = (into: string | null) =>
-    silos.flatMap((silo) => {
-      const grain = silo.id === into ? [...silo.grain, arriving] : silo.grain;
+  const lineMix = (into: string | null) => {
+    const target = into ? silos.find((s) => s.id === into) : null;
+    // When blending into a partly full non-emptiest silo, split the arriving lot:
+    // place what fits in the blend silo and overflow the remainder to the emptiest silo.
+    const primaryShare =
+      target && into !== siloId ? Math.min(lot.amountKg, Math.max(0, target.space)) : lot.amountKg;
+    const overflowShare = into && into !== siloId ? Math.max(0, lot.amountKg - primaryShare) : 0;
+    return silos.flatMap((silo) => {
+      const added: { lotId: string; amount: number }[] = [];
+      if (silo.id === into && primaryShare > 0)
+        added.push({ lotId: ARRIVING, amount: primaryShare });
+      if (silo.id === siloId && overflowShare > 0)
+        added.push({ lotId: ARRIVING, amount: overflowShare });
+      const grain = added.length > 0 ? [...silo.grain, ...added] : silo.grain;
       const mass = grain.reduce((sum, source) => sum + Math.max(0, source.amount), 0);
       return mass > 0
         ? grain.map((source) => ({ lotId: source.lotId, amount: source.amount / mass }))
         : [];
     });
+  };
   const straightPenalty = stampPenaltyFor(lineMix(siloId), withLot);
-  // The blend: the silo with room for the whole lot whose line stamps best;
-  // on a tie, the one holding the most grain (the lot is most diluted there).
+  // The blend: any partly full non-emptiest wheat silo with >= MIN_BLEND_SPACE_KG
+  // free whose split line stamps better than pouring straight into the emptiest silo.
   let blend: { id: string; penalty: number; kg: number } | null = null;
   for (const silo of silos) {
-    if (silo.id === siloId || silo.grain.length === 0 || silo.space < lot.amountKg) continue;
+    if (silo.id === siloId || silo.grain.length === 0 || silo.space < MIN_BLEND_SPACE_KG) continue;
     const penalty = stampPenaltyFor(lineMix(silo.id), withLot);
     if (!blend || penalty < blend.penalty || (penalty === blend.penalty && silo.kg > blend.kg))
       blend = { id: silo.id, penalty, kg: silo.kg };
@@ -210,7 +208,7 @@ export function intakeOutcome(base: number): { base: number; openMinimums: numbe
   return { base: Math.round(base * 100) / 100, openMinimums: openFlourMinimums() };
 }
 
-/** Take a lot in, into a named silo, and buy what the silo took. False when no silo took any. */
+/** Take a lot in, into a named silo (overflowing into the emptiest wheat silo when split-blending). */
 export function receiveLot(effect: {
   siloId: string;
   amountKg: number;
@@ -218,13 +216,23 @@ export function receiveLot(effect: {
   crop: CropAttributes;
 }): boolean {
   const flow = useMaterialFlowStore.getState();
-  const taken = flow.receiveGrainDelivery(effect.amountKg, {
+  const baseDetails = {
     crop: { ...effect.crop },
-    materialType: 'wheat_grain',
-    siloId: effect.siloId,
+    materialType: 'wheat_grain' as const,
     gameClock: readPlantClock(),
     ...(effect.supplier ? { supplier: effect.supplier } : {}),
+  };
+  let taken = flow.receiveGrainDelivery(effect.amountKg, {
+    ...baseDetails,
+    siloId: effect.siloId,
   });
+  const overflow = effect.amountKg - taken;
+  if (overflow > 1e-6) {
+    const fallback = emptiestSiloStoresWheat(useMaterialFlowStore.getState());
+    if (fallback && fallback !== effect.siloId) {
+      taken += flow.receiveGrainDelivery(overflow, { ...baseDetails, siloId: fallback });
+    }
+  }
   if (taken > 0)
     useOperationsCampaignStore
       .getState()

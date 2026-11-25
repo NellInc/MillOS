@@ -6,6 +6,7 @@ import { useGraphicsStore } from '../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { getThrottleLevel, shouldRunThisFrame } from '../../utils/frameThrottle';
 import { MACHINE_MATERIALS } from '../../utils/sharedMaterials';
+import { formatFixed } from '../../i18n';
 import { registerPanel, unregisterPanel } from './shared';
 
 // Blinking control panel with LED indicators
@@ -274,7 +275,7 @@ export const SCADAValueOverlay: React.FC<{
             <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] text-slate-400">Temp</span>
               <span className="text-[10px] font-mono font-bold" style={{ color: temperatureColor }}>
-                {tagValues.temperature.toFixed(1)}&deg;C
+                {formatFixed(tagValues.temperature, 1)}&deg;C
               </span>
             </div>
           )}
@@ -282,7 +283,7 @@ export const SCADAValueOverlay: React.FC<{
             <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] text-slate-400">Vib</span>
               <span className="text-[10px] font-mono font-bold" style={{ color: vibrationColor }}>
-                {tagValues.vibration.toFixed(2)} mm/s
+                {formatFixed(tagValues.vibration, 2)} mm/s
               </span>
             </div>
           )}
@@ -290,7 +291,7 @@ export const SCADAValueOverlay: React.FC<{
             <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] text-slate-400">RPM</span>
               <span className="text-[10px] font-mono font-bold text-cyan-400">
-                {Math.round(tagValues.rpm)}
+                {formatFixed(Math.round(tagValues.rpm), 0)}
               </span>
             </div>
           )}
@@ -298,7 +299,7 @@ export const SCADAValueOverlay: React.FC<{
             <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] text-slate-400">Curr</span>
               <span className="text-[10px] font-mono font-bold text-purple-400">
-                {tagValues.current.toFixed(1)}A
+                {formatFixed(tagValues.current, 1)}A
               </span>
             </div>
           )}

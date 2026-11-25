@@ -5,7 +5,7 @@
  * are explicitly enabled. Visual quality alone never exposes debug geometry.
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { WORLD_RADIUS } from '../../physics/PhysicsConfig';
@@ -61,36 +61,64 @@ export const PhysicsDebug: React.FC = () => {
     return new THREE.BufferGeometry().setFromPoints(points);
   }, []);
 
+  const boundaryLines = useMemo(
+    () => ({
+      bottom: new THREE.Line(boundaryRingGeometry, wireframeMaterial),
+      top: new THREE.Line(boundaryRingGeometry, wireframeMaterial),
+    }),
+    [boundaryRingGeometry, wireframeMaterial]
+  );
+
+  const obstacleGeometries = useMemo(
+    () =>
+      obstacles.map((obs) => {
+        const width = obs.maxX - obs.minX;
+        const height = (obs.maxY ?? 5) - (obs.minY ?? 0);
+        const depth = obs.maxZ - obs.minZ;
+        const box = new THREE.BoxGeometry(width, height, depth);
+        const edges = new THREE.EdgesGeometry(box);
+        box.dispose();
+        return {
+          id: obs.id,
+          position: [
+            (obs.minX + obs.maxX) / 2,
+            ((obs.minY ?? 0) + (obs.maxY ?? 5)) / 2,
+            (obs.minZ + obs.maxZ) / 2,
+          ] as [number, number, number],
+          edges,
+        };
+      }),
+    [obstacles]
+  );
+
+  useEffect(() => {
+    return () => {
+      wireframeMaterial.dispose();
+      boundaryRingGeometry.dispose();
+      for (const obs of obstacleGeometries) obs.edges.dispose();
+    };
+  }, [wireframeMaterial, boundaryRingGeometry, obstacleGeometries]);
+
   // Keep hook order stable while requiring an explicit diagnostics opt-in.
   if (quality !== 'ultra' || !showPerfOverlay) return null;
 
   return (
     <group name="physics-debug">
       {/* Circular world boundary wireframe (bottom ring) */}
-      <primitive object={new THREE.Line(boundaryRingGeometry, wireframeMaterial)} />
+      <primitive object={boundaryLines.bottom} />
 
       {/* Circular world boundary wireframe (top ring at height 35) */}
-      <primitive
-        object={new THREE.Line(boundaryRingGeometry, wireframeMaterial)}
-        position={[0, 35, 0]}
-      />
+      <primitive object={boundaryLines.top} position={[0, 35, 0]} />
 
       {/* Obstacle wireframes */}
-      {obstacles.map((obs) => {
-        const width = obs.maxX - obs.minX;
-        const height = (obs.maxY ?? 5) - (obs.minY ?? 0);
-        const depth = obs.maxZ - obs.minZ;
-        const centerX = (obs.minX + obs.maxX) / 2;
-        const centerY = ((obs.minY ?? 0) + (obs.maxY ?? 5)) / 2;
-        const centerZ = (obs.minZ + obs.maxZ) / 2;
-
-        return (
-          <lineSegments key={obs.id} position={[centerX, centerY, centerZ]}>
-            <edgesGeometry args={[new THREE.BoxGeometry(width, height, depth)]} />
-            <primitive object={wireframeMaterial} attach="material" />
-          </lineSegments>
-        );
-      })}
+      {obstacleGeometries.map((obs) => (
+        <lineSegments
+          key={obs.id}
+          position={obs.position}
+          geometry={obs.edges}
+          material={wireframeMaterial}
+        />
+      ))}
     </group>
   );
 };

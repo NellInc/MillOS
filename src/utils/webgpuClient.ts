@@ -554,6 +554,7 @@ class WebGPUClient {
   private waitingScores = new Set<Promise<unknown>>();
   private engineLostListeners = new Set<() => void>();
   private cancelled = false;
+  private loadEpoch = 0;
   // Resolver for the in-flight load's cancellation race (see initEngine).
   private cancelResolve: (() => void) | null = null;
   private circuitBreaker: CircuitBreakerState = {
@@ -615,9 +616,14 @@ class WebGPUClient {
     if (this.loadingPromise && this.modelId === modelId) {
       return this.loadingPromise;
     }
+    if (this.loadingPromise && this.modelId !== modelId) {
+      this.cancelLoad();
+    }
     if (this.engine !== null && this.modelId === modelId) {
       if ((this.fastLaneId !== null) === fastLane) return true;
       // Adding or dropping the fast lane is a reload of the same weights.
+      await this.disconnect();
+    } else if (this.engine !== null && this.modelId !== modelId) {
       await this.disconnect();
     }
 
@@ -629,14 +635,18 @@ class WebGPUClient {
       return false;
     }
 
+    const epoch = ++this.loadEpoch;
     this.modelId = modelId;
     this.cancelled = false;
-    // Pass modelId explicitly so a concurrent load() of a different model can't
-    // mutate this.modelId out from under an in-flight CreateMLCEngine.
-    this.loadingPromise = this.initEngine(modelId, onProgress, fastLane).finally(() => {
-      this.loadingPromise = null;
+    // Pass modelId and epoch explicitly so a concurrent load() of a different model
+    // cannot orphan an active worker or overwrite this.engine / this.loadingPromise.
+    const promise = this.initEngine(modelId, onProgress, fastLane, undefined, epoch).finally(() => {
+      if (this.loadingPromise === promise) {
+        this.loadingPromise = null;
+      }
     });
-    return this.loadingPromise;
+    this.loadingPromise = promise;
+    return promise;
   }
 
   /**
@@ -679,12 +689,14 @@ class WebGPUClient {
     modelId: string,
     onProgress?: (progress: WebGPULoadProgress) => void,
     fastLane = false,
-    cacheBackend?: ModelCacheBackend
+    cacheBackend?: ModelCacheBackend,
+    epoch: number = this.loadEpoch
   ): Promise<boolean> {
     if (!checkWebGPUSupport()) {
       logger.warn('[WebGPU] navigator.gpu unavailable — cannot load local model');
       return false;
     }
+    const isStale = (): boolean => this.cancelled || this.loadEpoch !== epoch;
 
     // Spin up the engine's worker. The static new URL() literal lets Vite bundle
     // the worker (and web-llm's runtime) as its own lazy chunk.
@@ -702,13 +714,19 @@ class WebGPUClient {
     try {
       // Dynamic import keeps the main-thread web-llm proxy off the eager bundle.
       const { CreateWebWorkerMLCEngine, prebuiltAppConfig } = await import('@mlc-ai/web-llm');
+      if (isStale()) {
+        worker.terminate();
+        if (this.worker === worker) this.teardownWorker();
+        return false;
+      }
       if (cacheBackend === undefined) {
         const cachedBackend = await Promise.race([
           WebGPUClient.cachedModelBackend(modelId),
           cancelSignal,
         ]);
-        if (cachedBackend === 'cancelled' || this.cancelled) {
-          this.teardownWorker();
+        if (cachedBackend === 'cancelled' || isStale()) {
+          worker.terminate();
+          if (this.worker === worker) this.teardownWorker();
           return false;
         }
         cacheBackend = cachedBackend ?? 'cache';
@@ -724,7 +742,7 @@ class WebGPUClient {
       const engineConfig = {
         appConfig,
         initProgressCallback: (report: InitProgressReport) => {
-          if (!this.cancelled) {
+          if (!isStale()) {
             onProgress?.({ text: report.text, progress: report.progress });
           }
         },
@@ -742,8 +760,9 @@ class WebGPUClient {
 
       const result = await Promise.race([enginePromise, cancelSignal]);
 
-      if (result === 'cancelled' || this.cancelled) {
-        this.teardownWorker();
+      if (result === 'cancelled' || isStale()) {
+        worker.terminate();
+        if (this.worker === worker) this.teardownWorker();
         logger.info('[WebGPU] Load cancelled during init; worker terminated');
         return false;
       }
@@ -758,21 +777,26 @@ class WebGPUClient {
       void WebGPUClient.dropUnpinnedCopy(modelId);
       return true;
     } catch (error) {
-      this.teardownWorker();
-      if (cacheBackend === 'cache' && !this.cancelled && isCacheWriteError(error)) {
+      worker.terminate();
+      if (this.worker === worker) this.teardownWorker();
+      if (cacheBackend === 'cache' && !isStale() && isCacheWriteError(error)) {
         // Chrome refuses streamed Cache API writes on a nearly full disk while
         // whole-file stores still succeed: try once more through IndexedDB.
         logger.warn(`[WebGPU] The browser cache refused ${modelId}; retrying with IndexedDB`);
         this.cancelResolve = null;
         // Awaited, so this call's finally cannot clear the retry's cancel hook.
-        return await this.initEngine(modelId, onProgress, fastLane, 'indexeddb');
+        return await this.initEngine(modelId, onProgress, fastLane, 'indexeddb', epoch);
       }
       // Count load failures toward the breaker so OOM / device-lost loops back off.
-      this.recordFailure();
-      logger.error(`[WebGPU] Failed to load model ${modelId}:`, error);
+      if (!isStale()) {
+        this.recordFailure();
+        logger.error(`[WebGPU] Failed to load model ${modelId}:`, error);
+      }
       return false;
     } finally {
-      this.cancelResolve = null;
+      if (this.loadEpoch === epoch) {
+        this.cancelResolve = null;
+      }
     }
   }
 

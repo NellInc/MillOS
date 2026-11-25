@@ -38,6 +38,7 @@ import { LADDER_TOP_TOLERANCE, siloLadderAt } from '../../utils/siloLadders';
 import { clearFirstPersonPose, writeFirstPersonPose } from '../../utils/firstPersonPose';
 import { linkSceneInteractables, unlinkSceneInteractables } from '../../utils/sceneInteractables';
 import { updateSiloCard } from '../worldCard/worldCardStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 // Movement configuration: paces come from utils/walkingPace.ts (D16), as on desktop.
 const PLAYER_HEIGHT = FIRST_PERSON_EYE_HEIGHT;
@@ -434,36 +435,22 @@ export const MobileFPSInstructions: React.FC<{ visible: boolean; onDismiss: () =
   onDismiss,
 }) => {
   const t = useT(mobileFirstPersonControllerMessages);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const dismissButtonRef = useRef<HTMLButtonElement | null>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
-  // Focus management: move focus into the dialog on open, restore on close.
-  useEffect(() => {
-    if (!visible) return;
-    previouslyFocusedRef.current = (document.activeElement as HTMLElement) ?? null;
-    dismissButtonRef.current?.focus();
-    return () => {
-      previouslyFocusedRef.current?.focus?.();
-    };
-  }, [visible]);
+  useFocusTrap(dialogRef as React.RefObject<HTMLElement>, visible, onDismiss);
 
   if (!visible) return null;
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      onDismiss();
-    }
-  };
-
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="mobile-fps-instructions-title"
+      tabIndex={-1}
       className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center pointer-events-auto"
       onClick={onDismiss}
-      onKeyDown={handleKeyDown}
     >
       <div
         className="millos-glass millos-glass-thick rounded-2xl p-4 max-w-xs text-center mx-4"

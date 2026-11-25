@@ -2,6 +2,7 @@ import React from 'react';
 import { Html } from '@react-three/drei';
 import { GrainQuality } from '../../types';
 import { useGraphicsStore } from '../../stores/graphicsStore';
+import { formatFixed } from '../../i18n';
 import { QUALITY_COLORS, QUALITY_LABELS, UNIT_CYLINDER, UNIT_CYLINDER_LOW } from './shared';
 
 // Fill level indicator for silos
@@ -70,7 +71,9 @@ export const SiloFillIndicator: React.FC<{
       {graphicsQuality !== 'low' && (
         <Html position={[radius + 0.8, 0, 0]} center distanceFactor={15}>
           <div className="bg-slate-900/90 backdrop-blur px-2 py-1 rounded-lg border border-slate-700 min-w-[70px]">
-            <div className="text-xs font-mono text-white font-bold">{fillLevel.toFixed(0)}%</div>
+            <div className="text-xs font-mono text-white font-bold">
+              {formatFixed(fillLevel, 0)}%
+            </div>
             <div className="text-[9px] text-slate-400">{grainType}</div>
             <div className="flex items-center gap-1 mt-0.5">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: qualityColor }} />

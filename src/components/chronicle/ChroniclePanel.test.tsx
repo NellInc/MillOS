@@ -279,7 +279,7 @@ describe('Mill Chronicle workspace', () => {
     render(<ChroniclePanel />);
     expect(screen.getByRole('button', { name: /Sign the charter/ })).toBeInTheDocument();
     act(() => setLocale('pt-BR'));
-    fireEvent.click(screen.getByRole('button', { name: /Assinar a carta/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Assinar o estatuto/ }));
     expect(screen.getByRole('tab', { name: /Crônica/ })).toBeInTheDocument();
     const saved = JSON.stringify(useChronicleStore.getState().chronicle);
     act(() => setLocale('en'));

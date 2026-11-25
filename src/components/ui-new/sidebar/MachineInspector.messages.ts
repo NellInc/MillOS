@@ -60,7 +60,7 @@ export const machineInspectorMessages = defineMessages({
 
     hideLogs: 'Hide Maintenance Logs',
     viewLogs: 'View Maintenance Logs',
-    outOfParts: 'Out of spare parts — maintenance needs one to proceed.',
+    outOfParts: 'Out of spare parts: maintenance needs one to proceed.',
     partsAllHeld: 'Every spare part in stock is held for a repair; maintenance needs a free one.',
     wearAndService: 'Wear and service',
     wear: 'Wear',

@@ -346,6 +346,8 @@ export interface AgentOperatorRuntime extends Omit<
 > {
   /** Approve as the human operator. */
   approve: (previewId: string, reason: string) => AgentApprovalToken;
+  /** Non-expired, uncommitted previews awaiting human approval, newest first. */
+  listPendingPreviews: () => readonly AgentCommandPreview[];
   /** Resolve any objection, including one a person raised. */
   resolveObjection: (objectionId: string, resolution: string) => boolean;
   /** Promote a lesson as reviewed by the human operator. */

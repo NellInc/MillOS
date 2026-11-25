@@ -26,8 +26,8 @@ interface AINarrationProps {
 export function AINarration({ narration, onDismiss }: AINarrationProps) {
   const t = useT(aiNarrationMessages);
   const [isExpanded, setIsExpanded] = useState(false);
-  const { markShown } = useAINarrationStore();
-  const { unlockEntry } = useKnowledgeStore();
+  const markShown = useAINarrationStore((s) => s.markShown);
+  const unlockEntry = useKnowledgeStore((s) => s.unlockEntry);
 
   const paragraphs = parseNarrationContent(narration.content);
   const previewParagraphs = paragraphs.slice(0, 2);
@@ -179,7 +179,7 @@ interface AINarrationInlineProps {
 
 export function AINarrationInline({ narration, onDismiss, maxLines = 3 }: AINarrationInlineProps) {
   const t = useT(aiNarrationMessages);
-  const { markShown } = useAINarrationStore();
+  const markShown = useAINarrationStore((s) => s.markShown);
   const paragraphs = parseNarrationContent(narration.content);
 
   useEffect(() => {

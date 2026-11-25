@@ -114,7 +114,7 @@ export const operationsPlayMessages = defineMessages({
     repairLabel: 'Reparar a máquina parada na Visão geral',
     programmeLabel: 'Aceitar o próximo programa de entregas',
     layerSeasonLabel: 'Temporada cooperativa',
-    layerCharterLabel: 'Carta da Crônica',
+    layerCharterLabel: 'Estatuto da Crônica',
     programmeConsequence:
       'Cria três compromissos com clientes, {dayKg} kg no total ({nightKg} kg no turno da noite): um pedido urgente de um caminhão, que paga {premium}% a mais, mas vence em {window} e custa o dobro da multa usual por atraso, um pedido de {standardKg} kg e um pedido a granel de dois caminhões. O cliente urgente muda a cada programa. O estoque existente continua disponível; nenhum produto ou faturamento é criado.',
     qualityLabel: 'Revisar a retenção de qualidade na Visão geral',

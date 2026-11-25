@@ -10,6 +10,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef, type RefObject } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -124,7 +125,14 @@ export function Datalinks({ isOpen, onClose }: DatalinksProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  const { isNew, clearNewBadge, markAsRead } = useKnowledgeStore();
+  const { isNew, clearNewBadge, markAsRead } = useKnowledgeStore(
+    useShallow((s) => ({
+      isNew: s.isNew,
+      clearNewBadge: s.clearNewBadge,
+      markAsRead: s.markAsRead,
+      newEntries: s.newEntries,
+    }))
+  );
 
   // Keep Tab inside the dialog and restore focus on close. Called before the
   // search-focus effect below so that effect runs last and wins initial focus.

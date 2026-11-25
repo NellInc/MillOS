@@ -23,17 +23,31 @@ import {
   X,
 } from 'lucide-react';
 import { formatMusicTime } from '../../audio/millosSoundtrackCatalog';
-import {
-  findActiveMillosLyricWord,
-  getMillosSoundtrackLyrics,
-  type MillosSoundtrackLyrics,
-  type MillosTimedLyricLine,
+import type {
+  MillosSoundtrackLyrics,
+  MillosTimedLyricLine,
 } from '../../audio/millosSoundtrackLyrics';
 import { useMusicPlayerState } from '../../hooks/useAudioState';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useT } from '../../i18n';
 import { millOSMusicPlayerMessages } from './MillOSMusicPlayer.messages';
 import { focusDockItem } from './dock/focusDockItem';
+
+type LyricsModule = typeof import('../../audio/millosSoundtrackLyrics');
+
+let cachedLyricsModule: LyricsModule | null = null;
+let pendingLyricsModule: Promise<LyricsModule> | null = null;
+
+function loadLyricsModule(): Promise<LyricsModule> {
+  if (cachedLyricsModule) return Promise.resolve(cachedLyricsModule);
+  if (!pendingLyricsModule) {
+    pendingLyricsModule = import('../../audio/millosSoundtrackLyrics').then((mod) => {
+      cachedLyricsModule = mod;
+      return mod;
+    });
+  }
+  return pendingLyricsModule;
+}
 
 const LIVE_LYRICS_STORAGE_KEY = 'millos-music-live-lyrics';
 
@@ -159,6 +173,17 @@ export const MillOSMusicPlayer: React.FC<{
   const playlistVisible = expanded && !distractionFree;
   const liveLyricsVisible = liveLyrics && !attentionHeld;
   const lastVisibleTrack = player.availableTracks.length <= 1;
+  const [lyricsModule, setLyricsModule] = useState<LyricsModule | null>(cachedLyricsModule);
+  useEffect(() => {
+    if ((!liveLyricsVisible && !lyricsOpen) || lyricsModule) return;
+    let active = true;
+    void loadLyricsModule().then((mod) => {
+      if (active) setLyricsModule(mod);
+    });
+    return () => {
+      active = false;
+    };
+  }, [liveLyricsVisible, lyricsOpen, lyricsModule]);
 
   return (
     <>
@@ -241,7 +266,12 @@ export const MillOSMusicPlayer: React.FC<{
 
         {liveLyricsVisible && (
           <MiniLyricLine
-            sheet={getMillosSoundtrackLyrics(player.currentTrack.trackNumber ?? 1)}
+            sheet={
+              lyricsModule
+                ? lyricsModule.getMillosSoundtrackLyrics(player.currentTrack.trackNumber ?? 1)
+                : null
+            }
+            findActiveWord={lyricsModule?.findActiveMillosLyricWord ?? null}
             positionSeconds={player.positionSeconds}
             onOpen={distractionFree ? undefined : openLyrics}
             held={heldRef}
@@ -378,7 +408,9 @@ export const MillOSMusicPlayer: React.FC<{
           </div>
         )}
       </section>
-      {lyricsOpen && !distractionFree && <LyricsDialog onClose={closeLyrics} held={heldRef} />}
+      {lyricsOpen && !distractionFree && (
+        <LyricsDialog onClose={closeLyrics} held={heldRef} lyricsModule={lyricsModule} />
+      )}
     </>
   );
 };
@@ -473,7 +505,8 @@ LyricLine.displayName = 'LyricLine';
  * dimmed, so the strip never sits empty through an intro or a break.
  */
 const MiniLyricLine: React.FC<{
-  sheet: MillosSoundtrackLyrics;
+  sheet: MillosSoundtrackLyrics | null;
+  findActiveWord: LyricsModule['findActiveMillosLyricWord'] | null;
   positionSeconds: number;
   /** Absent while the full dialog cannot open; the line is then plain text. */
   onOpen?: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -482,10 +515,11 @@ const MiniLyricLine: React.FC<{
    * way the focused button leaves, so it hands focus on as the playlist does.
    */
   held: React.RefObject<boolean>;
-}> = ({ sheet, positionSeconds, onOpen, held }) => {
+}> = ({ sheet, findActiveWord, positionSeconds, onOpen, held }) => {
   const t = useT(millOSMusicPlayerMessages);
   const shown = useMemo(() => {
-    const active = findActiveMillosLyricWord(sheet, positionSeconds);
+    if (!sheet || !findActiveWord) return null;
+    const active = findActiveWord(sheet, positionSeconds);
     if (active) return { lineIndex: active.lineIndex, wordIndex: active.wordIndex };
     const upcoming = sheet.lines.findIndex(
       (line) =>
@@ -493,8 +527,8 @@ const MiniLyricLine: React.FC<{
         line.words.some((word) => word.startSeconds !== null && word.startSeconds > positionSeconds)
     );
     return upcoming >= 0 ? { lineIndex: upcoming, wordIndex: -1 } : null;
-  }, [positionSeconds, sheet]);
-  const line = shown ? sheet.lines[shown.lineIndex] : null;
+  }, [findActiveWord, positionSeconds, sheet]);
+  const line = shown && sheet ? sheet.lines[shown.lineIndex] : null;
   const sung = shown !== null && shown.wordIndex >= 0;
   const text = (
     <span
@@ -535,19 +569,25 @@ const MiniLyricLine: React.FC<{
   );
 };
 
-const LyricsDialog: React.FC<{ onClose: () => void; held: React.RefObject<boolean> }> = ({
-  onClose,
-  held,
-}) => {
+const LyricsDialog: React.FC<{
+  onClose: () => void;
+  held: React.RefObject<boolean>;
+  lyricsModule: LyricsModule | null;
+}> = ({ onClose, held, lyricsModule }) => {
   const t = useT(millOSMusicPlayerMessages);
   const player = useMusicPlayerState();
   const reducedMotion = useReducedMotion();
   const dialogRef = useRef<HTMLDivElement>(null);
   const activeLineRef = useRef<HTMLButtonElement>(null);
-  const sheet = getMillosSoundtrackLyrics(player.currentTrack.trackNumber ?? 1);
+  const sheet = lyricsModule
+    ? lyricsModule.getMillosSoundtrackLyrics(player.currentTrack.trackNumber ?? 1)
+    : null;
   const activeWord = useMemo(
-    () => findActiveMillosLyricWord(sheet, player.positionSeconds),
-    [player.positionSeconds, sheet]
+    () =>
+      sheet && lyricsModule
+        ? lyricsModule.findActiveMillosLyricWord(sheet, player.positionSeconds)
+        : null,
+    [lyricsModule, player.positionSeconds, sheet]
   );
 
   useEffect(() => {
@@ -621,7 +661,7 @@ const LyricsDialog: React.FC<{ onClose: () => void; held: React.RefObject<boolea
               id="millos-lyrics-title"
               className="truncate text-lg font-bold text-white sm:text-xl"
             >
-              {sheet.title}
+              {sheet?.title ?? player.currentTrack.name}
             </h2>
           </div>
           <button
@@ -679,7 +719,7 @@ const LyricsDialog: React.FC<{ onClose: () => void; held: React.RefObject<boolea
           </aside>
 
           <div className="select-text overflow-y-auto px-4 py-8 sm:px-10 sm:py-12" aria-live="off">
-            {sheet.lines.map((line, lineIndex) => {
+            {(sheet?.lines ?? []).map((line, lineIndex) => {
               if (line.kind === 'blank') return <div key={`blank-${lineIndex}`} className="h-5" />;
               if (line.kind === 'section') {
                 return (

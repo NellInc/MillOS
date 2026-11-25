@@ -67,7 +67,7 @@ export const safetyPanelMessages = defineMessages({
 
     confirmTitle: 'Trigger facility emergency stop?',
     confirmMessage:
-      'Everything stops — machines, forklifts, the lot. The alarm stays on until you clear the interlock from this panel.',
+      'Everything stops: machines, forklifts, the lot. The alarm stays on until you clear the interlock from this panel.',
     confirmLabel: 'Trigger emergency stop',
     facilityStopIncident: 'Facility emergency stop triggered from the Safety panel',
   },
@@ -131,7 +131,7 @@ export const safetyPanelMessages = defineMessages({
 
     confirmTitle: 'Acionar a parada de emergência da unidade?',
     confirmMessage:
-      'Tudo para — máquinas, empilhadeiras, tudo. O alarme continua ligado até você liberar o intertravamento neste painel.',
+      'Tudo para: máquinas, empilhadeiras, tudo. O alarme continua ligado até você liberar o intertravamento neste painel.',
     confirmLabel: 'Acionar parada de emergência',
     facilityStopIncident: 'Parada de emergência da unidade acionada pelo painel de Segurança',
   },

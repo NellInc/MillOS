@@ -17,7 +17,7 @@ export const sharedMessages = defineMessages({
     machineWarningUrgent: '{machine} needs someone now, please. Right away!',
     machineCritical: "Alarm on {machine}! It's stopped and safe.",
     machineCriticalStill: "{machine}'s still down. We need hands on it, please!",
-    machineCriticalUrgent: '{machine} is still stopped! Someone to it right away!',
+    machineCriticalUrgent: '{machine} is still stopped! Get someone there now!',
     machineRecovered: 'Good news! {machine} is back up and running.',
     // The retired daily target's line (D11), kept so a saved transcript still reads.
     milestone100: "Well done, everyone! That's today's target made!",
@@ -43,13 +43,12 @@ export const sharedMessages = defineMessages({
     machineCritical: 'Alarme em {machine}! O equipamento parou com segurança.',
     // No adjective agrees with the name: R.M., Silo and Sifter are masculine,
     // Pack Line feminine (paMachineLines.test.ts).
-    machineCriticalStill:
-      '{machine} continua fora de operação. Precisamos de alguém lá, por favor!',
-    machineCriticalUrgent: '{machine} ainda está fora de operação! Alguém lá agora mesmo!',
+    machineCriticalStill: '{machine} segue fora de operação. Alguém lá, por favor!',
+    machineCriticalUrgent: '{machine} segue sem rodar! Alguém lá agora!',
     machineRecovered: 'Boa notícia! {machine} voltou a funcionar.',
     milestone100: 'Parabéns, pessoal! Batemos a meta do dia!',
     programmeDelivered: 'Parabéns, pessoal! O programa foi entregue!',
-    drillStarted: 'Atenção, isto é um simulado. Os equipamentos vão parar.',
+    drillStarted: 'Atenção, isto é um simulado. Os equipamentos vão parar para checagem de saída.',
     drillComplete: 'Simulado concluído. Todas as saídas estão livres.',
     drillCompleteRerouted: 'Simulado concluído. Uma saída precisou de outra rota.',
     drillCompleteReroutedMany: 'Simulado concluído. Algumas saídas precisaram de outra rota.',

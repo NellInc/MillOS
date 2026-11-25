@@ -3,7 +3,8 @@ import { defineMessages } from '../../i18n';
 export const datalinksMessages = defineMessages({
   en: {
     title: 'DATALINKS',
-    entryCount: (p: { count: string; n: number }) => `${p.count} entries`,
+    entryCount: (p: { count: string; n: number }) =>
+      `${p.count} ${p.n === 1 ? 'entry' : 'entries'}`,
     close: 'Close',
     guideSection: 'Guide section',
     operatingGuide: 'Operating guide',

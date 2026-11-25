@@ -173,14 +173,14 @@ export function nearestPedestrianAhead(
  * and this far off the line's heading. Close enough that the pick or drop the
  * autopilot runs from that pose eases the difference out over the creep in.
  */
-export const MANUAL_WORK_REACH_METRES = 0.4;
-export const MANUAL_WORK_HEADING_RADIANS = 0.2;
+export const MANUAL_WORK_REACH_METRES = 0.65;
+export const MANUAL_WORK_HEADING_RADIANS = 0.28;
 /**
  * How far the forks may stand from the work surface's height (the floor, or
  * the dock deck) and still go in. The driver's lever stops at the floor and at
  * the deck height, so either is a stop the driver holds the lever to.
  */
-export const MANUAL_WORK_FORK_TOLERANCE = 0.06;
+export const MANUAL_WORK_FORK_TOLERANCE = 0.12;
 
 /** Whether a driven forklift at (x, z, heading) is lined up at a work start. */
 export function manualWorkLinedUp(

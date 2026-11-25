@@ -5,6 +5,7 @@
  * Lists where to see each topic in the simulation, and links to related entries
  */
 
+import { useShallow } from 'zustand/react/shallow';
 import {
   Quote,
   Link2,
@@ -89,7 +90,13 @@ interface KnowledgeEntryCardProps {
 
 export function KnowledgeEntryCard({ entry, onClose, onNavigate }: KnowledgeEntryCardProps) {
   const t = useT(knowledgeEntryCardMessages);
-  const { getEntry, isUnlocked } = useKnowledgeStore();
+  const { getEntry, isUnlocked } = useKnowledgeStore(
+    useShallow((s) => ({
+      getEntry: s.getEntry,
+      isUnlocked: s.isUnlocked,
+      unlockedEntries: s.unlockedEntries,
+    }))
+  );
 
   // Convert markdown-like formatting to JSX
   const formatArticle = (text: string) => {

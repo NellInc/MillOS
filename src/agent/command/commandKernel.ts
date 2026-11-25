@@ -703,6 +703,18 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
     });
   }
 
+  function listPendingPreviews(): readonly AgentCommandPreview[] {
+    const currentTime = now().getTime();
+    const pending: AgentCommandPreview[] = [];
+    for (const stored of previews.values()) {
+      if (stored.status !== 'requires-approval') continue;
+      if (Date.parse(stored.expiresAt) <= currentTime) continue;
+      if (receipts.has(stored.command.idempotencyKey)) continue;
+      pending.push(stored);
+    }
+    return immutable(pending.reverse());
+  }
+
   return {
     legalOptions,
     draft,
@@ -710,6 +722,7 @@ export function createAgentCommandKernel(dependencies: KernelDependencies) {
     approve,
     commit,
     getPreview: (previewId: string) => previews.get(previewId),
+    listPendingPreviews,
     authority: dependencies.authority,
     ledger: dependencies.ledger,
   };

@@ -340,7 +340,7 @@ function bell(
     title: translate(bellText, title),
     message: (translate as (c: unknown, k: string, p: unknown) => string)(bellText, key, params),
     timestamp: new Date(),
-    acknowledged: false,
+    acknowledged: !announce,
     ...(announce ? { announce: 'polite' as const } : {}),
     copy: { catalog: ALERT_CATALOG, title, message: key, params },
   });

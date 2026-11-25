@@ -629,7 +629,8 @@ export const STANDING_CONDITIONS: Record<StandingConditionId, StandingConditionD
     id: 'administration',
     label: 'Under the federation’s administrator',
     effect: { upkeep: 1.1 },
-    effectText: 'upkeep x1.1, policies locked, the AI partner acts at Forecasts or above',
+    effectText:
+      'upkeep x1.1 (paid by the federation), policies locked, the AI partner acts at Forecasts or above',
     clearText: 'the administrator leaves after four shifts',
   },
 };

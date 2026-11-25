@@ -107,6 +107,11 @@ export const AgentCockpit: React.FC = () => {
 
     [api, refreshTick]
   );
+  const pendingApprovals = useMemo(
+    () => api?.listPendingPreviews() ?? [],
+
+    [api, refreshTick, receipt]
+  );
   const trace = useMemo(
     () =>
       receipt ? (api?.trace({ correlationId: receipt.correlationId, limit: 20 }) ?? null) : null,
@@ -310,6 +315,60 @@ export const AgentCockpit: React.FC = () => {
           )}
         </div>
       </section>
+
+      {pendingApprovals.length > 0 && (
+        <section
+          className="rounded-xl border border-amber-400/30 bg-amber-950/25 p-3"
+          aria-labelledby="agent-pending-approvals-heading"
+          data-testid="agent-pending-approvals"
+        >
+          <h3
+            id="agent-pending-approvals-heading"
+            className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-amber-200"
+          >
+            <ShieldCheck className="h-4 w-4 text-amber-300" aria-hidden="true" />{' '}
+            {t('pendingApprovals')}
+          </h3>
+          <div className="mt-2 space-y-2">
+            {pendingApprovals.map((pending) => (
+              <div
+                key={pending.previewId}
+                className="rounded-lg border border-amber-300/20 bg-slate-950/70 p-2 text-[10px]"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <strong className="text-amber-100">
+                    {t('capabilityTitle', {
+                      id: pending.capability.id,
+                      title: pending.capability.title,
+                    })}
+                  </strong>
+                  <StatusBadge status={pending.status} />
+                </div>
+                <p className="mt-1 text-slate-300">
+                  {t('agentText', { text: pending.command.reason })}
+                </p>
+                <p className="mt-0.5 text-slate-400">
+                  {t('requestedBy', { actor: pending.command.actorUri })}
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setPreview(pending);
+                      setReceipt(null);
+                      setError(null);
+                    }}
+                    className="min-h-9 flex-1 rounded-lg border border-cyan-400/30 bg-cyan-950/60 px-2 text-[11px] font-medium text-cyan-100 hover:bg-cyan-900/70 disabled:opacity-60"
+                  >
+                    {t('inspectPendingPreview')}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section
         className="rounded-xl border border-violet-400/20 bg-slate-950/65 p-3"

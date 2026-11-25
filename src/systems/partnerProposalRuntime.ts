@@ -743,6 +743,7 @@ function ringProposal(proposal: PartnerProposal): void {
             number: (proposal as PartnerProposal<'commitment'>).facts.programmeNumber,
             kg: (proposal as PartnerProposal<'commitment'>).facts.committedKg,
             late: (proposal as PartnerProposal<'commitment'>).facts.lateMinutes,
+            take: proposal.defaultOptionId === 'take' ? 1 : 0,
           }
         : {
             machine: (proposal as PartnerProposal<'service'>).facts.machineName,
@@ -832,7 +833,9 @@ function ringDecision(proposal: PartnerProposal, ran: boolean): void {
     title: translate(msg, 'bellDecidedTitle'),
     message: (translate as (c: unknown, k: string, p: unknown) => string)(msg, key, params),
     timestamp: new Date(),
-    acknowledged: false,
+    // Completed routine decisions stay readable in the bell list without
+    // flooding the unread badge; a refusal that could not run stays unread.
+    acknowledged: ran,
     // A decision that could not run is a problem, read once; one that ran stays quiet.
     ...(ran ? {} : { announce: 'polite' as const }),
     copy: { catalog: ALERT_CATALOG, title: 'bellDecidedTitle', message: key, params },

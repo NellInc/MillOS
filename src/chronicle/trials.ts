@@ -427,7 +427,7 @@ export function trialFailure(definition: TrialDefinition, progress: TrialProgres
       goal.maxEnergyPerKg
   )
     parts.push(
-      `Energy broke it: ${formatFixed(progress.energyCost / progress.dispatchedKg, ENERGY_DIGITS, 'en')} per kg against ${goal.maxEnergyPerKg}.`
+      `Energy broke it: ${formatFixed(progress.energyCost / progress.dispatchedKg, ENERGY_DIGITS, 'en')} per kg against ${formatFixed(goal.maxEnergyPerKg, ENERGY_DIGITS, 'en')}.`
     );
   const graded = gradedShiftsOf(progress);
   if (
@@ -451,7 +451,7 @@ export function trialShortfall(definition: TrialDefinition, progress: TrialProgr
   ];
   if (goal.maxEnergyPerKg !== undefined && progress.dispatchedKg > 0)
     parts.push(
-      `Energy ${formatFixed(progress.energyCost / progress.dispatchedKg, ENERGY_DIGITS, 'en')} per kg against ${goal.maxEnergyPerKg}.`
+      `Energy ${formatFixed(progress.energyCost / progress.dispatchedKg, ENERGY_DIGITS, 'en')} per kg against ${formatFixed(goal.maxEnergyPerKg, ENERGY_DIGITS, 'en')}.`
     );
   const graded = gradedShiftsOf(progress);
   if (goal.minAverageGrade !== undefined && graded > 0)
@@ -469,7 +469,9 @@ export function trialGoalConditions(definition: TrialDefinition): string {
   if (goal.noQualityFailure) parts.push('no quality failure');
   // The temper card's drying is left out of the measure (engine trialEnergyCost).
   if (goal.maxEnergyPerKg !== undefined)
-    parts.push(`energy at most ${goal.maxEnergyPerKg} per kg, drying excluded`);
+    parts.push(
+      `energy at most ${formatFixed(goal.maxEnergyPerKg, ENERGY_DIGITS, 'en')} per kg, drying excluded`
+    );
   if (goal.minAverageGrade) parts.push(`average grade ${goal.minAverageGrade} or better`);
   return parts.join(', ');
 }
@@ -541,7 +543,7 @@ export function localizedTrialShortfall(
     parts.push(
       copy('Energy {actual} per kg against {target}.', {
         actual: formatFixed(progress.energyCost / progress.dispatchedKg, ENERGY_DIGITS),
-        target: formatGrouped(goal.maxEnergyPerKg),
+        target: formatFixed(goal.maxEnergyPerKg, ENERGY_DIGITS),
       })
     );
   const graded = gradedShiftsOf(progress);
@@ -563,7 +565,7 @@ export function localizedTrialGoalConditions(definition: TrialDefinition): strin
   if (goal.maxEnergyPerKg !== undefined)
     parts.push(
       copy('energy at most {target} per kg, drying excluded', {
-        target: formatGrouped(goal.maxEnergyPerKg),
+        target: formatFixed(goal.maxEnergyPerKg, ENERGY_DIGITS),
       })
     );
   if (goal.minAverageGrade)

@@ -24,7 +24,16 @@ describe('speakableText', () => {
     ['It costs £12.50 per game hour.', 'It costs twelve pounds fifty per game hour.'],
     ['Day 3, 14:05', 'Day three, fourteen oh five'],
     ['Day 3, 06:00', 'Day three, oh six hundred'],
+    ['Day 3, 00:00', 'Day three, zero hundred'],
+    ['Day 3, 00:05', 'Day three, zero oh five'],
     ['Day 3, 6:05', 'Day three, six oh five'],
+    ['It costs £1.01 per sack.', 'It costs one pound oh one per sack.'],
+    [
+      'Load 5000kg at 80kW and 1200RPM.',
+      'Load five thousand kilograms at eighty kilowatts and one thousand two hundred R P M.',
+    ],
+    ['Temperature change -5.', 'Temperature change minus five.'],
+    ['The AI handled it.', 'The A I handled it.'],
     [
       'Mass balance within tolerance — nothing unaccounted for.',
       'Mass balance within tolerance, nothing unaccounted for.',
@@ -55,6 +64,8 @@ describe('speakableText', () => {
     ['Dia 3, 14:05', 'Dia três, catorze e cinco'],
     ['Dia 3, 21:00', 'Dia três, vinte e uma horas'],
     ['Dia 2, 01:00', 'Dia dois, uma hora'],
+    ['A IA já resolveu.', 'A i á já resolveu.'],
+    ['Custa £1,01 por saco.', 'Custa uma libra e um pence por saco.'],
   ])('pt-BR: %s', (input, spoken) => {
     expect(speakableText(input, 'pt-BR')).toBe(spoken);
   });

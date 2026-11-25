@@ -513,11 +513,15 @@ export class RESTAdapter implements IProtocolAdapter {
     options: RequestInit,
     consume: (response: Response) => Promise<T> | T
   ): Promise<T> {
-    // Validate URL format
+    // Validate URL format and scheme; refuse cleartext credentials to non-loopback hosts.
+    let parsedUrl: URL;
     try {
-      new URL(url);
+      parsedUrl = new URL(url);
     } catch {
       throw new Error(`Invalid URL: ${url}`);
+    }
+    if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') {
+      throw new Error(`Unsupported REST protocol: ${parsedUrl.protocol}`);
     }
 
     const headers = new Headers(options.headers);
@@ -525,6 +529,17 @@ export class RESTAdapter implements IProtocolAdapter {
     const authMode = this.config.apiKeyAuth ?? 'bearer';
     if (authMode !== 'bearer' && authMode !== 'x-api-key') {
       throw new Error('Unsupported REST authentication mode');
+    }
+
+    const sendsCredentials =
+      Boolean(this.config.apiKey) || headers.has('authorization') || headers.has('x-api-key');
+    const isLoopback =
+      parsedUrl.hostname === 'localhost' ||
+      parsedUrl.hostname === '127.0.0.1' ||
+      parsedUrl.hostname === '::1' ||
+      parsedUrl.hostname === '[::1]';
+    if (sendsCredentials && parsedUrl.protocol !== 'https:' && !isLoopback) {
+      throw new Error('REST credentials require https:// unless targeting a loopback address');
     }
 
     if (this.config.apiKey) {

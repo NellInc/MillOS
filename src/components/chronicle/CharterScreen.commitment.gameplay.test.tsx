@@ -55,7 +55,7 @@ describe('The charter says what is signed', () => {
   it('says the commitment in Brazilian Portuguese', () => {
     setLocale('pt-BR');
     render(<CharterScreen />);
-    const button = screen.getByRole('button', { name: /Assinar a carta/ });
+    const button = screen.getByRole('button', { name: /Assinar o estatuto/ });
     expect(button).toHaveTextContent(
       '63 turnos, cerca de 16,8 horas em 1x; primeira prova no turno 11'
     );

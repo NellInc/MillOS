@@ -25,7 +25,7 @@ interface LoadingQuoteProps {
 
 export function LoadingQuote({ rotationInterval = 8000, className = '' }: LoadingQuoteProps) {
   const [fact, setFact] = useState<LoadingFact>(getRandomLoadingFact);
-  const { showLoadingQuotes } = useKnowledgeStore();
+  const showLoadingQuotes = useKnowledgeStore((s) => s.showLoadingQuotes);
 
   useEffect(() => {
     if (!showLoadingQuotes) return;

@@ -365,6 +365,10 @@ const ADDED_PHYSICAL_FIELDS: Partial<
   maintenance: {
     servicesAwaitingCrew: () => [],
   },
+  // Pending receiving-bay delay from a refused intake lot (saved from 25 November).
+  tick: {
+    receivingDelay: () => 0,
+  },
 };
 
 // Saved-store fields since deleted from their stores. An older save still

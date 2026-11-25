@@ -1776,6 +1776,7 @@ function CompactMachineSet({
     // blocked beacon colours and buffer-driven fill are restored before
     // anything is drawn, instead of flashing status-green for up to 12 frames.
     flowVisualFrameRef.current = 11;
+    lastAnimatedMovingRef.current = true;
   }, [
     subsets,
     allMachines,
@@ -1786,6 +1787,33 @@ function CompactMachineSet({
     tintAmount,
     inspectionId,
   ]);
+
+  // Pre-index animated decals by machine id so useFrame avoids O(M * D) scans.
+  const millLoadDecalsByMachine = useMemo(() => {
+    const map = new Map<string, Array<{ decal: (typeof decals)[number]; index: number }>>();
+    decals.forEach((decal, index) => {
+      if (decal.cell !== DECAL_CELL.motorLoadDial) return;
+      const list = map.get(decal.machineId);
+      if (list) list.push({ decal, index });
+      else map.set(decal.machineId, [{ decal, index }]);
+    });
+    return map;
+  }, [decals]);
+
+  const sifterDecalsByMachine = useMemo(() => {
+    const map = new Map<string, Array<{ decal: (typeof decals)[number]; index: number }>>();
+    decals.forEach((decal, index) => {
+      const list = map.get(decal.machineId);
+      if (list) list.push({ decal, index });
+      else map.set(decal.machineId, [{ decal, index }]);
+    });
+    return map;
+  }, [decals]);
+
+  const lastAnimatedMovingRef = useRef(true);
+  const millPhasesRef = useRef<Array<number | null>>([]);
+  const sifterPhasesRef = useRef<Array<number | null>>([]);
+  const packerPhasesRef = useRef<Array<number | null>>([]);
 
   // Meshes whose matrices the frame loop rewrites. Built once: refs are stable.
   const animatedMeshRefs = useMemo(
@@ -1842,234 +1870,272 @@ function CompactMachineSet({
       );
     };
 
-    subsets.mills.forEach((machine, index) => {
-      const [x, y, z] = machine.position;
-      const phase = machinePhase(machine);
-      const vibration = phase === null ? 0 : Math.sin(phase * 28 + index) * 0.012;
-      if (machine.id === inspectionId) {
-        inspectionPose.current.phase = phase;
-        inspectionPose.current.offset[0] = 0;
-        inspectionPose.current.offset[1] = vibration;
-        inspectionPose.current.offset[2] = 0;
-      }
-      // Installed about the vibrating anchor, so the shake keeps its real amplitude.
-      const frame = {
-        origin: [x, y + vibration, z] as Vec3Tuple,
-        scale: getMachineAssemblyScale(machine),
-      };
-      setInstanceMatrix(
-        millBodyRef.current,
-        index,
-        object,
-        [x, y + 2.7 + vibration, z],
-        [4.8, 4.7, 3.8],
-        undefined,
-        frame
-      );
-      setInstanceMatrix(
-        millGuardRef.current,
-        index,
-        object,
-        [x, y + vibration, z],
-        [1, 1, 1],
-        undefined,
-        frame
-      );
-      setInstanceMatrix(
-        millRecessRef.current,
-        index,
-        object,
-        [x, y + vibration, z],
-        [1, 1, 1],
-        undefined,
-        frame
-      );
-      setInstanceMatrix(
-        millHardwareRef.current,
-        index,
-        object,
-        [x, y + vibration, z],
-        [1, 1, 1],
-        undefined,
-        frame
-      );
-      if (enableMachineDetail) {
-        decals.forEach((decal, decalIndex) => {
-          if (decal.machineId !== machine.id || decal.cell !== DECAL_CELL.motorLoadDial) return;
-          setInstanceMatrix(
-            decalRef.current,
-            decalIndex,
-            object,
-            [decal.position[0], decal.position[1] + vibration, decal.position[2]],
-            [decal.size[0], decal.size[1], 1],
-            [0, decal.rotationY ?? 0, 0]
-          );
-        });
-      }
-      setInstanceMatrix(
-        millScreenRef.current,
-        index,
-        object,
-        [x, y + vibration + MILL_CONTROL_FACE.position[1], z + MILL_CONTROL_FACE.position[2]],
-        [0.78, 0.52, 0.09],
-        [MILL_CONTROL_FACE.rotationX, 0, 0],
-        frame
-      );
-      for (let ventIndex = 0; ventIndex < 4; ventIndex++) {
+    const millPhases = millPhasesRef.current;
+    millPhases.length = subsets.mills.length;
+    const sifterPhases = sifterPhasesRef.current;
+    sifterPhases.length = subsets.sifters.length;
+    const packerPhases = packerPhasesRef.current;
+    packerPhases.length = subsets.packers.length;
+
+    let anyMoving = false;
+    for (let i = 0; i < subsets.mills.length; i += 1) {
+      const phase = machinePhase(subsets.mills[i]);
+      millPhases[i] = phase;
+      if (phase !== null) anyMoving = true;
+    }
+    for (let i = 0; i < subsets.sifters.length; i += 1) {
+      const phase = machinePhase(subsets.sifters[i]);
+      sifterPhases[i] = phase;
+      if (phase !== null) anyMoving = true;
+    }
+    for (let i = 0; i < subsets.packers.length; i += 1) {
+      const phase = machinePhase(subsets.packers[i]);
+      packerPhases[i] = phase;
+      if (phase !== null) anyMoving = true;
+    }
+
+    const shouldUpdateAnimatedMatrices = anyMoving || lastAnimatedMovingRef.current;
+    if (shouldUpdateAnimatedMatrices) {
+      subsets.mills.forEach((machine, index) => {
+        const [x, y, z] = machine.position;
+        const phase = millPhases[index];
+        const vibration = phase === null ? 0 : Math.sin(phase * 28 + index) * 0.012;
+        if (machine.id === inspectionId) {
+          inspectionPose.current.phase = phase;
+          inspectionPose.current.offset[0] = 0;
+          inspectionPose.current.offset[1] = vibration;
+          inspectionPose.current.offset[2] = 0;
+        }
+        // Installed about the vibrating anchor, so the shake keeps its real amplitude.
+        const frame = {
+          origin: [x, y + vibration, z] as Vec3Tuple,
+          scale: getMachineAssemblyScale(machine),
+        };
         setInstanceMatrix(
-          millVentRef.current,
-          index * 4 + ventIndex,
+          millBodyRef.current,
+          index,
           object,
-          [x + MILL_LOUVRE_FACE_X, y + vibration + 2.25 + ventIndex * 0.38, z - 0.5],
-          [MILL_LOUVRE_THICKNESS, 0.18, 1.35],
+          [x, y + 2.7 + vibration, z],
+          [4.8, 4.7, 3.8],
           undefined,
           frame
         );
-      }
-      for (let rollerIndex = 0; rollerIndex < 2; rollerIndex += 1) {
         setInstanceMatrix(
-          millRollerRef.current,
-          index * 2 + rollerIndex,
+          millGuardRef.current,
+          index,
           object,
-          [x, y + 2.25 + rollerIndex * 1.1, z + 2.05],
-          [0.48, 3.25, 0.48],
-          getMillRollerRotation(millRollerSpin(phase ?? 0, rollerIndex)),
-          frame
-        );
-      }
-    });
-
-    subsets.sifters.forEach((machine, index) => {
-      const [x, y, z] = machine.position;
-      const phase = machinePhase(machine);
-      const offsetX = phase === null ? 0 : Math.sin(phase * 10 + index * 1.7) * 0.055;
-      const offsetZ = phase === null ? 0 : Math.cos(phase * 10 + index * 1.7) * 0.055;
-      if (machine.id === inspectionId) {
-        inspectionPose.current.phase = phase;
-        inspectionPose.current.offset[0] = offsetX;
-        inspectionPose.current.offset[1] = 0;
-        inspectionPose.current.offset[2] = offsetZ;
-      }
-      // Installed about the orbiting anchor, so the gyration keeps its real radius.
-      const frame = {
-        origin: [x + offsetX, y, z + offsetZ] as Vec3Tuple,
-        scale: getMachineAssemblyScale(machine),
-      };
-      writeSifterSockInstance(
-        sifterSockRef.current,
-        index,
-        object,
-        machine,
-        offsetX,
-        offsetZ,
-        frame.scale
-      );
-      writeSifterHangers(
-        sifterBracketRef.current,
-        sifterSuspensionRef.current,
-        index,
-        object,
-        machine,
-        offsetX,
-        offsetZ
-      );
-      setInstanceMatrix(
-        sifterBodyRef.current,
-        index,
-        object,
-        [x + offsetX, y + SIFTER_LAYOUT.bodyCentreY, z + offsetZ],
-        [6.5, SIFTER_LAYOUT.bodyHeight, 5.65],
-        undefined,
-        frame
-      );
-      setInstanceMatrix(
-        sifterHardwareRef.current,
-        index,
-        object,
-        [x + offsetX, y, z + offsetZ],
-        [1, 1, 1],
-        undefined,
-        frame
-      );
-      setInstanceMatrix(
-        sifterAccentRef.current,
-        index,
-        object,
-        [x + offsetX, y, z + offsetZ],
-        [1, 1, 1],
-        undefined,
-        frame
-      );
-      setInstanceMatrix(
-        sifterServicePanelRef.current,
-        index,
-        object,
-        [x + offsetX, y, z + offsetZ],
-        [1, 1, 1],
-        undefined,
-        frame
-      );
-      setInstanceMatrix(
-        sifterScreenRef.current,
-        index,
-        object,
-        [x + offsetX, y + 2.2, z + offsetZ + 3.145],
-        [0.82, 0.5, 0.08],
-        undefined,
-        frame
-      );
-      if (enableMachineDetail) {
-        // The placards travel with their own casing, using the existing atlas batch.
-        // Working if orbiting sifters keep the screen and labels seated at every phase.
-        decals.forEach((decal, decalIndex) => {
-          if (decal.machineId !== machine.id) return;
-          setInstanceMatrix(
-            decalRef.current,
-            decalIndex,
-            object,
-            [decal.position[0] + offsetX, decal.position[1], decal.position[2] + offsetZ],
-            [decal.size[0], decal.size[1], 1],
-            [0, decal.rotationY ?? 0, 0]
-          );
-        });
-      }
-      for (let tray = 0; tray < SIFTER_LAYOUT.trayCount; tray += 1) {
-        setInstanceMatrix(
-          sifterTrayRef.current,
-          index * SIFTER_LAYOUT.trayCount + tray,
-          object,
-          [x + offsetX, y + 0.62 + tray * SIFTER_LAYOUT.trayPitch, z + offsetZ],
-          [6.8, 0.13, 5.95],
+          [x, y + vibration, z],
+          [1, 1, 1],
           undefined,
           frame
         );
-      }
-    });
+        setInstanceMatrix(
+          millRecessRef.current,
+          index,
+          object,
+          [x, y + vibration, z],
+          [1, 1, 1],
+          undefined,
+          frame
+        );
+        setInstanceMatrix(
+          millHardwareRef.current,
+          index,
+          object,
+          [x, y + vibration, z],
+          [1, 1, 1],
+          undefined,
+          frame
+        );
+        if (enableMachineDetail) {
+          const machineDecals = millLoadDecalsByMachine.get(machine.id);
+          if (machineDecals) {
+            for (let d = 0; d < machineDecals.length; d += 1) {
+              const { decal, index: decalIndex } = machineDecals[d];
+              setInstanceMatrix(
+                decalRef.current,
+                decalIndex,
+                object,
+                [decal.position[0], decal.position[1] + vibration, decal.position[2]],
+                [decal.size[0], decal.size[1], 1],
+                [0, decal.rotationY ?? 0, 0]
+              );
+            }
+          }
+        }
+        setInstanceMatrix(
+          millScreenRef.current,
+          index,
+          object,
+          [x, y + vibration + MILL_CONTROL_FACE.position[1], z + MILL_CONTROL_FACE.position[2]],
+          [0.78, 0.52, 0.09],
+          [MILL_CONTROL_FACE.rotationX, 0, 0],
+          frame
+        );
+        for (let ventIndex = 0; ventIndex < 4; ventIndex++) {
+          setInstanceMatrix(
+            millVentRef.current,
+            index * 4 + ventIndex,
+            object,
+            [x + MILL_LOUVRE_FACE_X, y + vibration + 2.25 + ventIndex * 0.38, z - 0.5],
+            [MILL_LOUVRE_THICKNESS, 0.18, 1.35],
+            undefined,
+            frame
+          );
+        }
+        for (let rollerIndex = 0; rollerIndex < 2; rollerIndex += 1) {
+          setInstanceMatrix(
+            millRollerRef.current,
+            index * 2 + rollerIndex,
+            object,
+            [x, y + 2.25 + rollerIndex * 1.1, z + 2.05],
+            [0.48, 3.25, 0.48],
+            getMillRollerRotation(millRollerSpin(phase ?? 0, rollerIndex)),
+            frame
+          );
+        }
+      });
 
-    subsets.packers.forEach((machine, index) => {
-      const phase = machinePhase(machine);
-      const cycle = phase === null ? 0 : (Math.sin(phase * 3.2 + index) + 1) * 0.5;
-      if (machine.id === inspectionId) {
-        inspectionPose.current.phase = phase;
-        inspectionPose.current.cycle = cycle;
-        inspectionPose.current.offset.fill(0);
+      subsets.sifters.forEach((machine, index) => {
+        const [x, y, z] = machine.position;
+        const phase = sifterPhases[index];
+        const offsetX = phase === null ? 0 : Math.sin(phase * 10 + index * 1.7) * 0.055;
+        const offsetZ = phase === null ? 0 : Math.cos(phase * 10 + index * 1.7) * 0.055;
+        if (machine.id === inspectionId) {
+          inspectionPose.current.phase = phase;
+          inspectionPose.current.offset[0] = offsetX;
+          inspectionPose.current.offset[1] = 0;
+          inspectionPose.current.offset[2] = offsetZ;
+        }
+        // Installed about the orbiting anchor, so the gyration keeps its real radius.
+        const frame = {
+          origin: [x + offsetX, y, z + offsetZ] as Vec3Tuple,
+          scale: getMachineAssemblyScale(machine),
+        };
+        writeSifterSockInstance(
+          sifterSockRef.current,
+          index,
+          object,
+          machine,
+          offsetX,
+          offsetZ,
+          frame.scale
+        );
+        writeSifterHangers(
+          sifterBracketRef.current,
+          sifterSuspensionRef.current,
+          index,
+          object,
+          machine,
+          offsetX,
+          offsetZ
+        );
+        setInstanceMatrix(
+          sifterBodyRef.current,
+          index,
+          object,
+          [x + offsetX, y + SIFTER_LAYOUT.bodyCentreY, z + offsetZ],
+          [6.5, SIFTER_LAYOUT.bodyHeight, 5.65],
+          undefined,
+          frame
+        );
+        setInstanceMatrix(
+          sifterHardwareRef.current,
+          index,
+          object,
+          [x + offsetX, y, z + offsetZ],
+          [1, 1, 1],
+          undefined,
+          frame
+        );
+        setInstanceMatrix(
+          sifterAccentRef.current,
+          index,
+          object,
+          [x + offsetX, y, z + offsetZ],
+          [1, 1, 1],
+          undefined,
+          frame
+        );
+        setInstanceMatrix(
+          sifterServicePanelRef.current,
+          index,
+          object,
+          [x + offsetX, y, z + offsetZ],
+          [1, 1, 1],
+          undefined,
+          frame
+        );
+        setInstanceMatrix(
+          sifterScreenRef.current,
+          index,
+          object,
+          [x + offsetX, y + 2.2, z + offsetZ + 3.145],
+          [0.82, 0.5, 0.08],
+          undefined,
+          frame
+        );
+        if (enableMachineDetail) {
+          // The placards travel with their own casing, using the existing atlas batch.
+          // Working if orbiting sifters keep the screen and labels seated at every phase.
+          const machineDecals = sifterDecalsByMachine.get(machine.id);
+          if (machineDecals) {
+            for (let d = 0; d < machineDecals.length; d += 1) {
+              const { decal, index: decalIndex } = machineDecals[d];
+              setInstanceMatrix(
+                decalRef.current,
+                decalIndex,
+                object,
+                [decal.position[0] + offsetX, decal.position[1], decal.position[2] + offsetZ],
+                [decal.size[0], decal.size[1], 1],
+                [0, decal.rotationY ?? 0, 0]
+              );
+            }
+          }
+        }
+        for (let tray = 0; tray < SIFTER_LAYOUT.trayCount; tray += 1) {
+          setInstanceMatrix(
+            sifterTrayRef.current,
+            index * SIFTER_LAYOUT.trayCount + tray,
+            object,
+            [x + offsetX, y + 0.62 + tray * SIFTER_LAYOUT.trayPitch, z + offsetZ],
+            [6.8, 0.13, 5.95],
+            undefined,
+            frame
+          );
+        }
+      });
+
+      subsets.packers.forEach((machine, index) => {
+        const phase = packerPhases[index];
+        const cycle = phase === null ? 0 : (Math.sin(phase * 3.2 + index) + 1) * 0.5;
+        if (machine.id === inspectionId) {
+          inspectionPose.current.phase = phase;
+          inspectionPose.current.cycle = cycle;
+          inspectionPose.current.offset.fill(0);
+        }
+        setInstanceMatrix(
+          packerHeadRef.current,
+          index,
+          object,
+          getPackerHeadPosition(machine.position, cycle, PACKER_STATION_SHIFT_Z),
+          [1, 1, 1]
+        );
+        setInstanceMatrix(
+          bagRef.current,
+          index,
+          object,
+          getPackerSackPosition(machine.position, cycle, PACKER_STATION_SHIFT_Z),
+          PACKER_SACK_LAYOUT.scale
+        );
+        bagPrintRef.current?.setMatrixAt(index, object.matrix);
+      });
+
+      for (let i = 0; i < animatedMeshRefs.length; i += 1) {
+        finishMatrixUpdate(animatedMeshRefs[i].current);
       }
-      setInstanceMatrix(
-        packerHeadRef.current,
-        index,
-        object,
-        getPackerHeadPosition(machine.position, cycle, PACKER_STATION_SHIFT_Z),
-        [1, 1, 1]
-      );
-      setInstanceMatrix(
-        bagRef.current,
-        index,
-        object,
-        getPackerSackPosition(machine.position, cycle, PACKER_STATION_SHIFT_Z),
-        PACKER_SACK_LAYOUT.scale
-      );
-      bagPrintRef.current?.setMatrixAt(index, object.matrix);
-    });
+      lastAnimatedMovingRef.current = anyMoving;
+    }
 
     if (inspected) {
       const buffer = flowState.machineBuffers.get(inspected.id);
@@ -2114,10 +2180,6 @@ function CompactMachineSet({
       if (beaconRef.current?.instanceColor) {
         beaconRef.current.instanceColor.needsUpdate = true;
       }
-    }
-
-    for (let i = 0; i < animatedMeshRefs.length; i += 1) {
-      finishMatrixUpdate(animatedMeshRefs[i].current);
     }
   }, -1);
 

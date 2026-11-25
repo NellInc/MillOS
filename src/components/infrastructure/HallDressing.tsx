@@ -703,6 +703,7 @@ const Hose: React.FC<{ hose: HallHose }> = ({ hose }) => {
       coupling: { position: object.position.toArray(), quaternion: object.quaternion.clone() },
     };
   }, [hose]);
+  useEffect(() => () => tube.dispose(), [tube]);
   return (
     <>
       <mesh geometry={tube} material={HOSE_RUBBER} castShadow receiveShadow />

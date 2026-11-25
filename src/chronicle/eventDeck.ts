@@ -507,7 +507,7 @@ const BASE_DECK: ChronicleEventDefinition[] = [
       },
       {
         id: 'run-on',
-        label: 'Run them another week',
+        label: 'Run them four more shifts',
         effect: {
           modifier: { label: 'Dull flutes', wear: 1.1, energy: 1.06, shifts: 4 },
           result: 'The dull rolls stay in and draw more power for less release.',

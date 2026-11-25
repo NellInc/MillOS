@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useCameraStore, CAMERA_PRESETS } from '../../CameraController';
 import { useUIStore } from '../../../stores/uiStore';
 import type {
@@ -45,6 +45,27 @@ const button =
 const input =
   'min-h-11 w-full min-w-0 rounded-md border border-slate-600 bg-slate-950 px-2 py-2 text-sm text-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-50';
 
+/**
+ * Subscribes to the five physical-plant owner stores only while `active` is
+ * true, avoiding idle re-renders on every simulation tick when no advice or
+ * rehearsal comparison is open.
+ */
+function useObservePackingPlant(active: boolean): void {
+  const [, setVersion] = useState(0);
+  useLayoutEffect(() => {
+    if (!active) return;
+    const bump = () => setVersion((v) => v + 1);
+    const unsubs = [
+      useMaterialFlowStore.subscribe(bump),
+      useOperationsCampaignStore.subscribe(bump),
+      useProductionStore.subscribe(bump),
+      useQCLabStore.subscribe(bump),
+      useTruckScheduleStore.subscribe(bump),
+    ];
+    return () => unsubs.forEach((unsub) => unsub());
+  }, [active]);
+}
+
 export function HandoffEpisodes({
   state,
   report,
@@ -60,14 +81,11 @@ export function HandoffEpisodes({
   const separateTurns = store.participationMode === 'separate-turns';
   const selected = HANDOFF_EPISODES.find((e) => e.id === state.improvement?.episode?.id);
   // Paused owner changes can invalidate a retained stock claim without changing
-  // workplace state. Observe the same direct facts as the matched rehearsal.
-  useMaterialFlowStore();
-  useOperationsCampaignStore();
-  useProductionStore();
-  useQCLabStore();
-  useTruckScheduleStore();
-  useGameSimulationStore((s) => s.gameSpeed);
+  // workplace state. Observe the same direct facts as the matched rehearsal,
+  // only while a non-abstaining advice claim is actually present.
   const advice = state.improvement?.advice;
+  useObservePackingPlant(Boolean(selected && advice && !advice.reasonToAbstain));
+  useGameSimulationStore((s) => s.gameSpeed);
   const outcome = improvementEpisodeOutcome(
     state,
     advice &&
@@ -299,15 +317,10 @@ export function MatchedPackingRehearsal({
   // no plant authority, and the model is only run after an explicit click.
   const pace = useGameSimulationStore((s) => s.gameSpeed);
   // Capture hashes all material data and reads direct order, incident, quality,
-  // setpoint and dock facts. Observe each owner while a result is displayed so
-  // paused changes cannot leave a comparison looking current. Stable snapshot
-  // getters also catch an owner update before the result's passive effects.
-  // Hashing still short-circuits without a result; the model stays click-only.
-  useMaterialFlowStore();
-  useOperationsCampaignStore();
-  useProductionStore();
-  useQCLabStore();
-  useTruckScheduleStore();
+  // setpoint and dock facts. Observe each owner only while a result is
+  // displayed so paused changes cannot leave a comparison looking current, and
+  // idle panels avoid per-tick re-renders.
+  useObservePackingPlant(result !== null);
   const outdated =
     stale || (!!result && captureCurrentPackingPlant(state).fingerprint !== result.fingerprint);
   const run = async () => {

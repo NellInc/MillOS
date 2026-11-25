@@ -774,8 +774,13 @@ function setSimulationSpeedHandler(): AgentCommandHandler {
   return {
     capabilityId: 'simulation.set-speed',
     allowedDomains: ['simulation'],
-    inspect: (command, capture) =>
-      inspection(
+    inspect: (command, capture) => {
+      const sim = useGameSimulationStore.getState();
+      const playerPaused = sim.gameSpeed === 0 && sim.clockHolds.length === 0;
+      const requestedSpeed = Number(command.parameters.speed);
+      const unpausingPlayer =
+        command.actorUri !== HUMAN_OPERATOR_URI && playerPaused && requestedSpeed > 0;
+      return inspection(
         [`Set simulation speed to ${String(command.parameters.speed)}.`],
         ['Changing speed affects future ticks; it does not replay elapsed wall time.'],
         [
@@ -785,6 +790,11 @@ function setSimulationSpeedHandler(): AgentCommandHandler {
               Number.isFinite(command.parameters.speed),
             'Speed must be finite.'
           ),
+          check(
+            'PRE.SPEED.PLAYER_PAUSE',
+            !unpausingPlayer,
+            'The player paused the simulation clock; an agent cannot unpause it.'
+          ),
         ],
         [
           check(
@@ -793,7 +803,8 @@ function setSimulationSpeedHandler(): AgentCommandHandler {
             'Speed control is local to simulation or shadow mode.'
           ),
         ]
-      ),
+      );
+    },
     execute: (command) => {
       // Under the shift handoff's hold a chosen pace waits as the resume pace,
       // as it does for the player's own pace control (selectChosenPace).

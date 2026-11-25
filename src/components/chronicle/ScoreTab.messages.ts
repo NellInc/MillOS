@@ -41,7 +41,7 @@ export const messages = defineMessages({
     m1: 'Desafios de recuperação',
     m2: 'Era',
     m3: 'Notas dos turnos',
-    m4: 'Carta',
+    m4: 'Estatuto',
     m5: 'Reputação',
     m6: 'A longa noite',
     m7: 'Modo de treinamento',

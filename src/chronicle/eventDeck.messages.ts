@@ -143,7 +143,7 @@ export const eventDeckMessages = defineMessages({
     'evt-dull-roll-flutes.choices.worst.effect.modifier.label': 'Refluted pair',
     'evt-dull-roll-flutes.choices.worst.effect.result':
       'The worst pair is refluted and the motor current settles.',
-    'evt-dull-roll-flutes.choices.run-on.label': 'Run them another week',
+    'evt-dull-roll-flutes.choices.run-on.label': 'Run them four more shifts',
     'evt-dull-roll-flutes.choices.run-on.effect.modifier.label': 'Dull flutes',
     'evt-dull-roll-flutes.choices.run-on.effect.result':
       'The dull rolls stay in and draw more power for less release.',
@@ -293,7 +293,7 @@ export const eventDeckMessages = defineMessages({
       'O comitê recebe os agradecimentos, e os drenos ficam para a próxima rodada de manutenção.',
     'evt-federation-grant.title': 'Um subsídio para modernização',
     'evt-federation-grant.text':
-      'A federação regional de cooperativas oferece um pequeno subsídio de modernização aos moinhos associados que apresentarem um relatório completo de energia e rendimento. Prepará-lo exige uma análise cuidadosa dos registros. Um relatório resumido ainda dá direito a parte do subsídio.',
+      'A federação regional de cooperativas oferece um pequeno subsídio de modernização aos moinhos cooperados que apresentarem um relatório completo de energia e rendimento. Prepará-lo exige uma análise cuidadosa dos registros. Um relatório resumido ainda dá direito a parte do subsídio.',
     'evt-federation-grant.choices.full.label': 'Entregar o relatório completo',
     'evt-federation-grant.choices.full.effect.result':
       'A federação aceita o relatório completo e deposita todo o subsídio no fundo.',
@@ -310,9 +310,9 @@ export const eventDeckMessages = defineMessages({
     'evt-college-test-milling.choices.lab.label': 'Compartilhar apenas os dados do laboratório',
     'evt-college-test-milling.choices.lab.effect.result':
       'O moinho de laboratório processa as amostras e as medições seguem para a faculdade.',
-    'evt-wet-intake.title': 'Grãos úmidos na recepção',
+    'evt-wet-intake.title': 'Grãos úmidos no recebimento',
     'evt-wet-intake.text':
-      'O medidor de umidade na recepção indica valores muito acima do limite seguro de armazenamento, carga após carga. O trigo úmido forma pontes nos silos e fica mole e pegajoso na moagem. É possível alugar um secador móvel ou misturar os lotes úmidos com grãos mais secos do estoque.',
+      'O medidor de umidade no recebimento indica valores muito acima do limite seguro de armazenamento, carga após carga. O trigo úmido forma pontes nos silos e fica mole e pegajoso na moagem. É possível alugar um secador móvel ou misturar os lotes úmidos com grãos mais secos do estoque.',
     'evt-wet-intake.choices.dryer.label': 'Alugar um secador móvel',
     'evt-wet-intake.choices.dryer.effect.modifier.label': 'Secador móvel',
     'evt-wet-intake.choices.dryer.effect.result':
@@ -419,7 +419,7 @@ export const eventDeckMessages = defineMessages({
       'Um inspetor de segurança dos alimentos do condado chega sem aviso e pede os registros de rastreabilidade, o cronograma de limpeza e uma visita ao salão de ensaque. A visita permanece aberta até sua aprovação. O relatório depende de como o moinho conduz a visita.',
     'evt-inspector-visit.choices.records.label': 'Apresentar os registros em detalhe',
     'evt-inspector-visit.choices.records.effect.result':
-      'O inspetor acompanha um lote da recepção à expedição e encerra a inspeção sem pendências.',
+      'O inspetor acompanha um lote do recebimento à expedição e encerra a inspeção sem pendências.',
     'evt-inspector-visit.choices.deep-clean.label': 'Fazer uma limpeza profunda antes da visita',
     'evt-inspector-visit.choices.deep-clean.effect.modifier.label': 'Limpeza profunda',
     'evt-inspector-visit.choices.deep-clean.effect.result':
@@ -459,7 +459,7 @@ export const eventDeckMessages = defineMessages({
       'A balança mantém a ordem de chegada e os dois grupos reclamam por igual.',
     'evt-members-meeting.title': 'A assembleia dos cooperados',
     'evt-members-meeting.text':
-      'Os cooperados se reúnem para decidir uma proposta: aumentar a parcela da contribuição de cada turno destinada ao reinvestimento ou mantê-la baixa para preservar os preços aos clientes do moinho. Os dois lados têm argumentos justos. A coordenação também pode adiar a proposta.',
+      'Os cooperados se reúnem para decidir uma proposta: aumentar a parcela da contribuição de cada turno destinada ao reinvestimento ou mantê-la baixa para preservar os preços aos clientes do moinho. Os dois lados têm argumentos justos. A presidência também pode adiar a proposta.',
     'evt-members-meeting.choices.reinvest.label': 'Aumentar a parcela de reinvestimento',
     'evt-members-meeting.choices.reinvest.effect.modifier.label':
       'Proposta de reinvestimento dos cooperados',

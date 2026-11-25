@@ -69,7 +69,7 @@ import { getLadder, getRung } from '../../chronicle/governance';
 import { localizedStakeholderName } from '../../chronicle/stakeholders';
 
 import { knowHowEarned } from '../../chronicle/ledger';
-import { eraKnowHowTarget } from '../../chronicle/plans';
+import { eraImprovementTarget, eraKnowHowTarget } from '../../chronicle/plans';
 import { nextMedalTarget, trialFraction } from '../../chronicle/trials';
 
 import { useChronicleStore } from '../../stores/chronicleStore';
@@ -140,8 +140,9 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
   // A finished chronicle reaches no further era, so it shows nothing to work toward.
   const rawFollowing = state.status === 'active' ? nextEra(state) : null;
   const following = rawFollowing ? getEras().find((entry) => entry.id === rawFollowing.id)! : null;
+  const improvementTarget = following ? eraImprovementTarget(following, state.charter?.length) : 0;
   const knowHowTarget = following
-    ? eraKnowHowTarget(following, state.charter?.mode ?? 'historical')
+    ? eraKnowHowTarget(following, state.charter?.mode ?? 'historical', state.charter?.length)
     : 0;
   const installed = state.improvements.filter((p) => p.phase === 'installed').length;
   const earned = knowHowEarned(state.ledger);
@@ -531,9 +532,9 @@ export function ChronicleOverview({ state }: { state: ChronicleState }) {
       {following && (
         <Section title={t('p55', { era: following.label })}>
           <ul className="space-y-1 text-xs">
-            <li className={installed >= following.requires.improvements ? 'text-emerald-300' : ''}>
+            <li className={installed >= improvementTarget ? 'text-emerald-300' : ''}>
               <Hammer className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
-              {t('m37')} {installed} / {following.requires.improvements}
+              {t('m37')} {installed} / {improvementTarget}
             </li>
             <li className={earned >= knowHowTarget ? 'text-emerald-300' : ''}>
               <KnowHowAmount value={earned} /> {t('m38')} {knowHowTarget}

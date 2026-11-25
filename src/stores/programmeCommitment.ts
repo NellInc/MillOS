@@ -29,9 +29,16 @@ export interface ProgrammeCommitment {
 export function runningProgramme(
   orders: readonly Pick<CustomerOrder, 'id' | 'status' | 'requiredKg' | 'shippedKg'>[]
 ): ProgrammeCommitment | null {
-  const last = orders.at(-1);
-  if (!last) return null;
-  const key = programmeKey(last.id);
+  if (orders.length === 0) return null;
+  // When an early programme is accepted beside a still-running one, keep the
+  // earliest open programme in focus until it finishes; fall back to the newest
+  // programme once all orders are closed.
+  const firstOpen = orders.find(
+    (order) => order.status !== 'fulfilled' && order.status !== 'cancelled'
+  );
+  const anchor = firstOpen ?? orders.at(-1);
+  if (!anchor) return null;
+  const key = programmeKey(anchor.id);
   let committedKg = 0;
   let shippedKg = 0;
   let open = false;

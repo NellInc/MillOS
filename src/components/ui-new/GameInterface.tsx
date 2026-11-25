@@ -408,8 +408,10 @@ export const GameInterface: React.FC<GameInterfaceProps> = ({
   }, [showAIPanel]);
 
   useEffect(() => {
-    if (showSCADAPanel) setSidebarVisible(true);
-    else if (shownPanelRef.current === 'scada') setSidebarVisible(false);
+    if (showSCADAPanel) {
+      setSidebarVisible(true);
+      onCloseSelection();
+    } else if (shownPanelRef.current === 'scada') setSidebarVisible(false);
     setActiveMode((prev) => (showSCADAPanel ? 'scada' : prev === 'scada' ? 'overview' : prev));
   }, [showSCADAPanel]);
 

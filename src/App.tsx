@@ -24,7 +24,8 @@ import { MachineData } from './types';
 import type { ForkliftData } from './components/ForkliftSystem';
 import { audioManager } from './utils/audioManager';
 import { gpuResourceManager } from './utils/GPUResourceManager';
-import { initKTX2Loader } from './utils/textureCompression';
+import { disposeKTX2Loader, initKTX2Loader } from './utils/textureCompression';
+import { disposeDracoLoader } from './utils/dracoLoader';
 import { getGPUSettings } from './utils/resourcePersistence';
 import { useGraphicsStore } from './stores/graphicsStore';
 import { RENDERER_TONE_MAPPING, TONE_EXPOSURE } from './constants/colorGrade';
@@ -275,9 +276,20 @@ const App: React.FC = () => {
   const showZones = useUIStore((state) => state.showZones);
   const setShowZones = useUIStore((state) => state.setShowZones);
 
-  // The line boots at 80% of its rated pace.
+  // The line boots at 80% of its rated pace when no saved speed is already restored.
   useEffect(() => {
-    useProductionStore.getState().setProductionSpeed(0.8);
+    const store = useProductionStore.getState();
+    if (store.productionSpeed === 1) {
+      store.setProductionSpeed(0.8);
+    }
+  }, []);
+
+  // Release shared WebGL texture/mesh decoder worker pools on unmount.
+  useEffect(() => {
+    return () => {
+      disposeKTX2Loader();
+      disposeDracoLoader();
+    };
   }, []);
 
   // New UI handles panels via Dock/Sidebar, but we still need some state for selection

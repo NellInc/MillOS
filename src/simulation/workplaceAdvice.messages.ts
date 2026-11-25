@@ -130,11 +130,11 @@ export const workplaceAdviceMessages = defineMessages({
     evidenceUnavailable:
       'Este ensaio não tem evidências pareadas suficientes para comparar as faixas de ensaque.',
     reflectionUnavailable:
-      'Mantenham o palpite em aberto até que as duas alternativas tenham evidências utilizáveis.',
+      'Mantenham a previsão em aberto até que as duas alternativas tenham evidências utilizáveis.',
     reflectionUnsure:
-      'Deixamos o palpite em aberto. Usem estas faixas para discutir o que testar em seguida.',
-    reflectionSupport: 'Estas faixas de ensaque modeladas sustentam nosso palpite.',
-    reflectionDiffer: 'Estas faixas de ensaque modeladas divergem do nosso palpite.',
+      'Deixamos a previsão em aberto. Usem estas faixas para discutir o que testar em seguida.',
+    reflectionSupport: 'Estas faixas de ensaque modeladas sustentam nossa previsão.',
+    reflectionDiffer: 'Estas faixas de ensaque modeladas divergem da nossa previsão.',
     questionUnavailable: 'Qual fato ausente precisa ser verificado antes de outro ensaio?',
     questionOverlap:
       'Que limite comum poderia impedir que o ritmo extra acrescente estoque ensacado? Verifiquem juntos o abastecimento, as máquinas e as disposições de qualidade.',

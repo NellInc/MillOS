@@ -2026,10 +2026,14 @@ function unifiedGameTick(
   if (!replayActive && !improvementActive && !isBenchmarkRuntime())
     stepPartnerProposals({
       qualityOf: productPathQuality,
-      // The service card prices wear as the tick applies it, overdrive included.
-      wearPace: (machineId: string) =>
-        machineWearPace(machineId) *
-        lineOverdrive(useProductionStore.getState().productionSpeed, OVERDRIVE_WEAR_SLOPE),
+      // The service card prices wear as updateMachineTruth applies it, using each
+      // machine's own load so lightly loaded units at >100% speed stay accurate.
+      wearPace: (machineId: string) => {
+        const prod = useProductionStore.getState();
+        const machine = prod.machines.find((candidate) => candidate.id === machineId);
+        const load = machine?.metrics.load ?? 50;
+        return machineWearPace(machineId) * unitOverdrive(load, prod.productionSpeed);
+      },
       wearMultiplier: chronicleEffect.wearMultiplier,
       qualityPenalty:
         useOperationsCampaignStore.getState().getIncidentEffect().qualityPenalty +
@@ -2145,6 +2149,7 @@ export function captureUnifiedTickState() {
     milestones: _milestonesReachedMask,
     wearCarry: _wearCarry,
     shippingDelay: _pendingShippingDelayMinutes,
+    receivingDelay: _pendingReceivingDelayMinutes,
   });
 }
 
@@ -2158,6 +2163,7 @@ export function restoreUnifiedTickState(state: ReturnType<typeof captureUnifiedT
   _wearCarry.clear();
   saved.wearCarry.forEach((value, key) => _wearCarry.set(key, value));
   _pendingShippingDelayMinutes = saved.shippingDelay;
+  _pendingReceivingDelayMinutes = saved.receivingDelay ?? 0;
 }
 
 export function useUnifiedGameTick(): void {

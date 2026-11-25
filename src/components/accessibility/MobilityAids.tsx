@@ -7,7 +7,7 @@
  * Nothing here decides where anyone goes. CommunityLife steps the routes and
  * calls `advanceMobility` once a frame; these components read that state.
  */
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -404,6 +404,13 @@ export function AlertPager() {
     lamp.translate(0, 0.03, 0.015);
     return { body, lamp };
   }, []);
+  useEffect(
+    () => () => {
+      geometry.body.dispose();
+      geometry.lamp.dispose();
+    },
+    [geometry]
+  );
   useFrame(({ clock }) => {
     const node = group.current,
       root = node?.parent;

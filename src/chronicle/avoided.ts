@@ -34,6 +34,15 @@ function scaled(value: number | undefined, scale: number): number {
   return value === undefined ? 1 : 1 + (value - 1) * scale;
 }
 
+/**
+ * Amortised preventive-wear service value per operating shift (currency).
+ * Crediting wear plans purely on booked breakdown work orders paid £0 when
+ * preventive maintenance prevented breakdowns and inflated rebates during
+ * neglect. Metering operating wear amortization rewards clean upkeep and caps
+ * breakdown-driven inflation.
+ */
+export const PREVENTIVE_WEAR_BASELINE = 45;
+
 /** Plant currency each installed plan avoided in one closed shift, by plan id. */
 export function avoidedByPlan(
   improvements: readonly ImprovementProgress[],
@@ -64,7 +73,15 @@ export function avoidedByPlan(
       out[plan.id] = (out[plan.id] ?? 0) + (total * weights[i]) / sum;
     });
   };
-  share('energy', Math.max(0, ledger.energyCost));
-  share('wear', Math.max(0, ledger.maintenanceCost) + Math.max(0, ledger.partsCost ?? 0));
+  const energyCost = Math.max(0, ledger.energyCost);
+  const partsCost = Math.max(0, ledger.partsCost ?? 0);
+  // Active running shifts amortise preventive wear even with zero breakdowns;
+  // breakdown expenditure never earns a higher wear rebate than clean play.
+  const wearBasis =
+    energyCost > 0
+      ? Math.max(partsCost, PREVENTIVE_WEAR_BASELINE)
+      : partsCost + Math.min(Math.max(0, ledger.maintenanceCost), PREVENTIVE_WEAR_BASELINE);
+  share('energy', energyCost);
+  share('wear', wearBasis);
   return out;
 }

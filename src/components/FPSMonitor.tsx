@@ -454,7 +454,26 @@ export const FPSDisplay: React.FC<FPSDisplayProps> = ({ showDetailed = false }) 
     qualitySuggestionsEnabled,
     setProfilingEnabled,
     setQualitySuggestionsEnabled,
-  } = useFPSStore();
+  } = useFPSStore(
+    useShallow((s) => ({
+      fps: s.fps,
+      avgFps: s.avgFps,
+      minFps: s.minFps,
+      maxFps: s.maxFps,
+      frameTime: s.frameTime,
+      triangles: s.triangles,
+      drawCalls: s.drawCalls,
+      geometries: s.geometries,
+      textures: s.textures,
+      programs: s.programs,
+      memoryUsage: s.memoryUsage,
+      profilingEnabled: s.profilingEnabled,
+      profileData: s.profileData,
+      qualitySuggestionsEnabled: s.qualitySuggestionsEnabled,
+      setProfilingEnabled: s.setProfilingEnabled,
+      setQualitySuggestionsEnabled: s.setQualitySuggestionsEnabled,
+    }))
+  );
   const [history, setHistory] = useState<number[]>([]);
   const currentQuality = useGraphicsStore((state) => state.graphics.quality);
 

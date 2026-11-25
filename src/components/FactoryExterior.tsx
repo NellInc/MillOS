@@ -452,6 +452,9 @@ const FENCE_POST_ROUGHNESS = cloneTiledTexture(FENCE_ORM, 1, 8);
 const FENCE_RAIL_NORMAL = cloneTiledTexture(PROCEDURAL_TEXTURES.panelNormal, 24, 1);
 const FENCE_RAIL_ROUGHNESS = cloneTiledTexture(FENCE_ORM, 24, 1);
 const FENCE_NORMAL_SCALE = new THREE.Vector2(0.2, 0.2);
+const BRICK_CARPORT_NORMAL_SCALE = new THREE.Vector2(0.3, 0.3);
+const ROOF_PANEL_NORMAL_SCALE = new THREE.Vector2(0.15, 0.15);
+const EXTERIOR_WALL_NORMAL_SCALE = new THREE.Vector2(0.2, 0.2);
 
 const FENCE_POST_SURFACE = {
   color: '#37474f',
@@ -4564,7 +4567,7 @@ const BrickCarport: React.FC<{
                   roughness={0.85}
                   map={PROCEDURAL_TEXTURES.brickColor}
                   normalMap={PROCEDURAL_TEXTURES.brickNormal}
-                  normalScale={new THREE.Vector2(0.3, 0.3)}
+                  normalScale={BRICK_CARPORT_NORMAL_SCALE}
                 />
               </mesh>
             ))}
@@ -4576,7 +4579,7 @@ const BrickCarport: React.FC<{
                 color="#6b4423"
                 roughness={0.8}
                 normalMap={PROCEDURAL_TEXTURES.panelNormal}
-                normalScale={new THREE.Vector2(0.15, 0.15)}
+                normalScale={ROOF_PANEL_NORMAL_SCALE}
               />
             </mesh>
 
@@ -8401,7 +8404,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
               metalness={0.2}
               side={THREE.DoubleSide}
               normalMap={PROCEDURAL_TEXTURES.panelNormal}
-              normalScale={new THREE.Vector2(0.2, 0.2)}
+              normalScale={EXTERIOR_WALL_NORMAL_SCALE}
             />
           </mesh>
 
@@ -8428,7 +8431,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
               metalness={0.2}
               side={THREE.DoubleSide}
               normalMap={PROCEDURAL_TEXTURES.panelNormal}
-              normalScale={new THREE.Vector2(0.2, 0.2)}
+              normalScale={EXTERIOR_WALL_NORMAL_SCALE}
             />
           </mesh>
 
@@ -8447,7 +8450,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
               metalness={0.2}
               side={THREE.DoubleSide}
               normalMap={PROCEDURAL_TEXTURES.panelNormal}
-              normalScale={new THREE.Vector2(0.2, 0.2)}
+              normalScale={EXTERIOR_WALL_NORMAL_SCALE}
             />
           </mesh>
 
@@ -8758,7 +8761,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
               metalness={0.2}
               side={THREE.DoubleSide}
               normalMap={PROCEDURAL_TEXTURES.panelNormal}
-              normalScale={new THREE.Vector2(0.2, 0.2)}
+              normalScale={EXTERIOR_WALL_NORMAL_SCALE}
             />
           </mesh>
           {/* Right section - FULL HEIGHT - extends PAST side wall for clean corner */}
@@ -8784,7 +8787,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
               metalness={0.2}
               side={THREE.DoubleSide}
               normalMap={PROCEDURAL_TEXTURES.panelNormal}
-              normalScale={new THREE.Vector2(0.2, 0.2)}
+              normalScale={EXTERIOR_WALL_NORMAL_SCALE}
             />
           </mesh>
           {/* Section above dock opening - matches wall height */}
@@ -8802,7 +8805,7 @@ export const FactoryExterior: React.FC<FactoryExteriorProps> = ({ showFactoryShe
               metalness={0.2}
               side={THREE.DoubleSide}
               normalMap={PROCEDURAL_TEXTURES.panelNormal}
-              normalScale={new THREE.Vector2(0.2, 0.2)}
+              normalScale={EXTERIOR_WALL_NORMAL_SCALE}
             />
           </mesh>
 

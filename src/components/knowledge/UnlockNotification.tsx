@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -92,7 +93,7 @@ export function UnlockNotification({
   autoDismissMs = 8000,
 }: UnlockNotificationProps) {
   const t = useT(unlockNotificationMessages);
-  const { showUnlockNotifications } = useKnowledgeStore();
+  const showUnlockNotifications = useKnowledgeStore((s) => s.showUnlockNotifications);
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
@@ -232,7 +233,14 @@ export function useUnlockNotifications() {
  * Listens for new entries and shows notifications
  */
 export function UnlockNotificationContainer({ onOpenLibrary }: { onOpenLibrary?: () => void }) {
-  const { newEntries, getEntry, clearNewBadge, showUnlockNotifications } = useKnowledgeStore();
+  const { newEntries, getEntry, clearNewBadge, showUnlockNotifications } = useKnowledgeStore(
+    useShallow((s) => ({
+      newEntries: s.newEntries,
+      getEntry: s.getEntry,
+      clearNewBadge: s.clearNewBadge,
+      showUnlockNotifications: s.showUnlockNotifications,
+    }))
+  );
   const [current, setCurrent] = useState<KnowledgeEntry | null>(null);
   const [queue, setQueue] = useState<string[]>([]);
   const processedRef = useState(new Set<string>())[0];

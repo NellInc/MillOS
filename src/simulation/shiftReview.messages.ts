@@ -120,7 +120,7 @@ export const shiftReviewMessages = defineMessages({
     tryNoCommitment:
       'Try next: accept the next delivery programme in Overview, so the shift has a customer to serve.',
     tryQuality:
-      'Try next: hold loading until QC releases the batch, and check the order’s recipe quality target under Replay guided delivery before a truck leaves.',
+      'Try next: hold loading until QC releases the batch, and check the active order’s recipe quality target in Overview before a truck leaves.',
     tryUnsafe: (p: { titles: string; count: number }) =>
       p.count > 1
         ? `Try next: acknowledge and mitigate ${p.titles} in Overview as soon as each is raised, then resolve them before the shift closes.`
@@ -145,7 +145,7 @@ export const shiftReviewMessages = defineMessages({
     noCommitment: 'Nenhum compromisso com clientes neste turno.',
     nothingDue: 'Nada venceu neste turno e nada foi expedido, por isso ele não recebe nota.',
     tryNothingDue:
-      'Próximo passo: deixe a primeira carga ensacada e liberada antes da chegada do caminhão.',
+      'Tente a seguir: deixe a primeira carga ensacada e liberada antes da chegada do caminhão.',
     nothingDueIncident:
       'Nada venceu neste turno e nada foi expedido, mas uma ocorrência não resolvida segue aberta.',
     nothingDueIncidents:
@@ -207,7 +207,7 @@ export const shiftReviewMessages = defineMessages({
     tryNoCommitment:
       'Tente a seguir: aceite o próximo programa de entregas na Visão geral, para que o turno tenha um cliente a atender.',
     tryQuality:
-      'Tente a seguir: segure o carregamento até o CQ liberar o lote e confira a meta de qualidade da receita do pedido em Repetir a entrega guiada antes de o caminhão sair.',
+      'Tente a seguir: segure o carregamento até o CQ liberar o lote e confira a meta de qualidade da receita no pedido ativo na Visão geral antes de o caminhão sair.',
     tryUnsafe: (p: { titles: string; count: number }) =>
       p.count > 1
         ? `Tente a seguir: reconheça e mitigue ${p.titles} na Visão geral assim que cada uma surgir, e resolva todas antes de o turno fechar.`

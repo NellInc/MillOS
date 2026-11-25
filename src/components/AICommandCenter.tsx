@@ -84,35 +84,25 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
   );
 
   // Get state from stores using useShallow to prevent unnecessary re-renders
-  const {
-    aiDecisions,
-    machines: _machines,
-    metrics,
-    recordDecisionResponse,
-  } = useProductionStore(
+  const { aiDecisions, metrics, recordDecisionResponse } = useProductionStore(
     useShallow((state) => ({
       aiDecisions: state.aiDecisions,
-      machines: state.machines,
       metrics: state.metrics,
       recordDecisionResponse: state.recordDecisionResponse,
     }))
   );
 
   const alerts = useUIStore((state) => state.alerts);
-  const hasOpenProposal = usePartnerProposalStore((state) =>
-    state.proposals.some((proposal) => proposal.status === 'open')
+  const openProposalCount = usePartnerProposalStore(
+    (state) => state.proposals.filter((proposal) => proposal.status === 'open').length
   );
+  const hasOpenProposal = openProposalCount > 0;
+  const totalDecisionCount = aiDecisions.length + openProposalCount;
 
-  const {
-    weather,
-    currentShift,
-    gameTime: _gameTime,
-    emergencyDrillMode,
-  } = useGameSimulationStore(
+  const { weather, currentShift, emergencyDrillMode } = useGameSimulationStore(
     useShallow((state) => ({
       weather: state.weather,
       currentShift: state.currentShift,
-      gameTime: state.gameTime,
       emergencyDrillMode: state.emergencyDrillMode,
     }))
   );
@@ -182,11 +172,6 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
 
   // Master interval removed - AI logic now runs in background via aiEngine.ts logic
   // This component now strictly visualizes the state
-
-  // Force update when decisions change
-  useEffect(() => {
-    // Optional: add any side effects needed on decision updates
-  }, [aiDecisions]);
 
   // The tactical pass flips its flag within one synchronous task, so on its own
   // it never renders; the slow async strategic call is what the player waits on.
@@ -278,7 +263,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
                 <span className="text-purple-400 ml-1" data-testid="ai-decisions-count">
                   {/* The list itself, as the Decisions tab counts it: the engine's
                       status sample lags it by up to a loop, and stops with the engine. */}
-                  {formatFixed(aiDecisions.length, 0)}
+                  {formatFixed(totalDecisionCount, 0)}
                 </span>
               </div>
               <div className="bg-slate-800/50 rounded px-2 py-1">
@@ -336,7 +321,7 @@ export const AICommandCenter: React.FC<AICommandCenterProps> = ({
               }`}
             >
               <Activity className="h-3 w-3 shrink-0" aria-hidden="true" />
-              {t('tabDecisions', { count: formatFixed(aiDecisions.length, 0) })}
+              {t('tabDecisions', { count: formatFixed(totalDecisionCount, 0) })}
             </button>
 
             <button

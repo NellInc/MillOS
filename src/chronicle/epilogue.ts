@@ -134,7 +134,7 @@ export const EPILOGUE_SECTIONS: readonly EpilogueSection[] = [
       },
       {
         when: { marks: { all: ['granary-village', 'promise-broken'] } },
-        text: 'The village bakery kept the old granary. The polenta kitchen told the federation that the mill’s promises were worth less than its deeds.',
+        text: 'The village bakery kept the old granary. The polenta kitchen told the federation that the mill’s promises were worth less than the paper they were written on.',
       },
       {
         when: { marks: { all: ['granary-village'] } },

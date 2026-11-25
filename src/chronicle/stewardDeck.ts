@@ -410,7 +410,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
   {
     id: 'evt-sacks-short-again',
     title: 'The bales come up short again',
-    text: 'The packers count a bale by hand for the first time since arbitration day, and it is four sacks short. The supplier has been short-counting for weeks.',
+    text: 'The packers count a bale by hand for the first time since arbitration day, and it is four sacks short. The supplier has been short-counting since arbitration day.',
     polarity: 'negative',
     weight: 1,
     routine: false,
@@ -605,7 +605,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
         text: 'The village committee speaks first. Its bakery has lost the old granary and is keeping flour in a barn, and it asks what the mill gives the village it stands in.',
       },
       {
-        when: { marks: { any: ['cover-floor', 'cover-yard'] } },
+        when: { marks: { any: ['cover-floor', 'cover-yard'], none: ['culvert-rebuilt'] } },
         because: 'Because the standby cover was placed away from the intake',
         text: 'The growers ask about the storm season. The intake has no standby cover, and they want to know who will be there when the bins flood.',
       },
@@ -615,6 +615,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
         id: 'speak',
         label: 'Answer from the mill’s record',
         requires: {
+          suspended: false,
           anyOf: [
             { party: { id: 'growers', tier: 'warm' } },
             { party: { id: 'village', tier: 'warm' } },
@@ -884,7 +885,13 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
       {
         id: 'decline',
         label: 'Decline the premium',
-        effect: { result: 'The wholesaler looks elsewhere.' },
+        effect: {
+          relationship: [
+            { customer: 'riverside', delta: 2 },
+            { customer: 'school', delta: 2 },
+          ],
+          result: 'The wholesaler looks elsewhere, and the regular local customers take note.',
+        },
       },
     ],
     defaultChoiceId: 'decline',
@@ -1001,7 +1008,7 @@ export const STEWARD_DECK: ChronicleEventDefinition[] = [
     // the federation offers and the assembly decides.
     id: FEDERATION_ADMINISTRATOR_EVENT_ID,
     title: 'The federation offers an administrator',
-    text: 'The regional federation offers to send an administrator for four shifts: the policies held where they stand, upkeep x1.1 for its keep, and the AI partner acting at Forecasts or above. The mill is its members’ own, so the assembly can accept the support or refuse it.',
+    text: 'The regional federation offers to send an administrator for four shifts: the policies held where they stand, upkeep x1.1 (paid by the federation), and the AI partner acting at Forecasts or above. The mill is its members’ own, so the assembly can accept the support or refuse it.',
     polarity: 'neutral',
     weight: 1,
     routine: false,

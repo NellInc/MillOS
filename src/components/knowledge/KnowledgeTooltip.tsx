@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Lightbulb,
@@ -92,7 +93,14 @@ export function KnowledgeTooltip({
 }: KnowledgeTooltipProps) {
   const t = useT(knowledgeTooltipMessages);
   const [isVisible, setIsVisible] = useState(false);
-  const { getEntry, isUnlocked, showTooltips } = useKnowledgeStore();
+  const { getEntry, isUnlocked, showTooltips } = useKnowledgeStore(
+    useShallow((s) => ({
+      getEntry: s.getEntry,
+      isUnlocked: s.isUnlocked,
+      showTooltips: s.showTooltips,
+      unlockedEntries: s.unlockedEntries,
+    }))
+  );
 
   if (!showTooltips) {
     return <>{children}</>;
@@ -168,7 +176,14 @@ interface KnowledgeHintProps {
 export function KnowledgeHint({ entryId, onOpenLibrary }: KnowledgeHintProps) {
   const t = useT(knowledgeTooltipMessages);
   const [isVisible, setIsVisible] = useState(false);
-  const { getEntry, isUnlocked, showTooltips } = useKnowledgeStore();
+  const { getEntry, isUnlocked, showTooltips } = useKnowledgeStore(
+    useShallow((s) => ({
+      getEntry: s.getEntry,
+      isUnlocked: s.isUnlocked,
+      showTooltips: s.showTooltips,
+      unlockedEntries: s.unlockedEntries,
+    }))
+  );
 
   if (!showTooltips) {
     return null;
@@ -249,7 +264,14 @@ export function ContextualInsight({
   onDismiss,
 }: ContextualInsightProps) {
   const t = useT(knowledgeTooltipMessages);
-  const { getEntry, isUnlocked, showTooltips } = useKnowledgeStore();
+  const { getEntry, isUnlocked, showTooltips } = useKnowledgeStore(
+    useShallow((s) => ({
+      getEntry: s.getEntry,
+      isUnlocked: s.isUnlocked,
+      showTooltips: s.showTooltips,
+      unlockedEntries: s.unlockedEntries,
+    }))
+  );
 
   if (!showTooltips) {
     return null;

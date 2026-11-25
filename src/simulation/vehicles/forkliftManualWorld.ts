@@ -23,7 +23,7 @@ import {
   walkingBlocks,
 } from '../../utils/castleNavigation';
 import { positionRegistry } from '../../utils/positionRegistry';
-import { hallWallBlocks } from '../../utils/walkingObstacles';
+import { walkingObstacleBlocks } from '../../utils/walkingObstacles';
 import {
   truckPhaseDirection,
   truckSweepAheadMeets,
@@ -103,7 +103,7 @@ export function manualStaticBlocked(
 ): boolean {
   if (Math.hypot(x, z) > WORLD_RADIUS - radius) return true;
   for (const box of BOXES) if (circleMeetsBox(x, z, radius, box)) return true;
-  if (hallWallBlocks(x, z, radius)) return true;
+  if (walkingObstacleBlocks(x, z, radius)) return true;
   if (!isDryWalkingGround(x, z, segments)) return true;
   const ground = sampleWalkingGroundHeight(x, z, segments);
   if (Math.abs(ground - originGround) > FORKLIFT_GROUND_STEP_METRES) return true;

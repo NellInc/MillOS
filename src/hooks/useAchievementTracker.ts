@@ -43,6 +43,7 @@ import { useOperationsCampaignStore } from '../stores/operationsCampaignStore';
 import { useQCLabStore } from '../stores/qcLabStore';
 import { useWorkplaceStore } from '../stores/workplaceStore';
 import { useChronicleStore } from '../stores/chronicleStore';
+import { usePartnerProposalStore } from '../stores/partnerProposalStore';
 import type { AIDecision } from '../types';
 import type { WorkplaceState } from '../types/workplace';
 import { translate } from '../i18n';
@@ -277,6 +278,39 @@ const startTracking = (): (() => void) => {
         }
       }
     )
+  );
+
+  // --- Partner proposal answers (bilateral achievements) --------------------
+  // Operator answers on live partner proposal cards count toward the same
+  // bilateral achievements as AI Command Center decisions: agreeing with the
+  // partner's recommendation counts toward collaborative-spirit, overriding it
+  // counts toward boundary-setter, and either counts toward first-preference.
+  const countedProposals = new Set<string>(
+    usePartnerProposalStore
+      .getState()
+      .proposals.filter((p) => p.status === 'resolved' && p.resolution?.decidedBy === 'operator')
+      .map((p) => p.id)
+  );
+  cleanups.push(
+    usePartnerProposalStore.subscribe((state) => {
+      for (const proposal of state.proposals) {
+        if (proposal.status === 'open') {
+          countedProposals.delete(proposal.id);
+          continue;
+        }
+        if (proposal.status !== 'resolved' || proposal.resolution?.decidedBy !== 'operator') {
+          continue;
+        }
+        if (countedProposals.has(proposal.id)) continue;
+        countedProposals.add(proposal.id);
+        addProgress('first-preference', 1);
+        if (proposal.resolution.optionId !== proposal.defaultOptionId) {
+          addProgress('boundary-setter', 1);
+        } else {
+          addProgress('collaborative-spirit', 1);
+        }
+      }
+    })
   );
 
   // --- The game's own milestones (plan 2.3) ----------------------------------

@@ -12,7 +12,7 @@ import { PALETTE } from '../../utils/digitalTwinPalette';
 import { FLOOR_LAYERS, POLYGON_OFFSET, RENDER_ORDER } from '../../constants/renderLayers';
 
 interface WireframeOverlayProps {
-  transition: number;
+  transitionRef: React.MutableRefObject<number>;
 }
 
 // Store original material states for restoration
@@ -178,8 +178,9 @@ const gridFragmentShader = `
   }
 `;
 
-export const WireframeOverlay: React.FC<WireframeOverlayProps> = ({ transition }) => {
+export const WireframeOverlay: React.FC<WireframeOverlayProps> = ({ transitionRef }) => {
   const { scene } = useThree();
+  const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const lastTransitionRef = useRef(0);
 
@@ -195,6 +196,10 @@ export const WireframeOverlay: React.FC<WireframeOverlayProps> = ({ transition }
 
   // Apply wireframe effect to scene based on transition
   useFrame((state) => {
+    const transition = transitionRef.current;
+    if (meshRef.current) {
+      meshRef.current.visible = transition >= 0.01;
+    }
     // Update grid shader
     if (materialRef.current) {
       materialRef.current.uniforms.time.value = state.clock.elapsedTime;
@@ -202,7 +207,10 @@ export const WireframeOverlay: React.FC<WireframeOverlayProps> = ({ transition }
     }
 
     // Only update scene materials when transition changes significantly
-    if (Math.abs(transition - lastTransitionRef.current) > 0.02) {
+    if (transition < 0.01 && lastTransitionRef.current >= 0.01) {
+      restoreScene(scene);
+      lastTransitionRef.current = 0;
+    } else if (Math.abs(transition - lastTransitionRef.current) > 0.02) {
       applyWireframeToScene(scene, transition);
       lastTransitionRef.current = transition;
     }
@@ -216,17 +224,9 @@ export const WireframeOverlay: React.FC<WireframeOverlayProps> = ({ transition }
     };
   }, [scene]);
 
-  // Restore when transition hits zero
-  useEffect(() => {
-    if (transition < 0.01) {
-      restoreScene(scene);
-    }
-  }, [transition, scene]);
-
-  if (transition < 0.01) return null;
-
   return (
     <mesh
+      ref={meshRef}
       position={[0, FLOOR_LAYERS.grid, 0]}
       rotation={[-Math.PI / 2, 0, 0]}
       renderOrder={RENDER_ORDER.floorText}

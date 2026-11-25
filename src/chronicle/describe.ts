@@ -8,12 +8,19 @@ import { localizedMarkLabel, localizedPartyName } from './record';
  * button (Predynastic Egypt's choice hints) rather than in helper text.
  */
 import { INCIDENT_DEFINITIONS } from '../stores/operationsCampaignStore';
+import { incidentTitle } from '../stores/incidentText';
 import { SUSPENSION_CUSTOMER_DELTA } from './certifier';
 import { EVENT_DECK } from './eventDeck';
 import { FORECASTS } from './forecasts';
 import { FRONTS } from './longNight';
 import { MARKS, partyName } from './record';
-import type { ChronicleEventEffect, ForecastKind, ModifierValues } from './types';
+import type {
+  ChronicleEventChoice,
+  ChronicleEventDefinition,
+  ChronicleEventEffect,
+  ForecastKind,
+  ModifierValues,
+} from './types';
 
 function signed(value: number): string {
   return `${value > 0 ? '+' : ''}${value}`;
@@ -44,7 +51,13 @@ export function describeModifier(values: ModifierValues): string[] {
 export function describeEffect(
   effect: ChronicleEventEffect,
   /** A suspended mill's standing does not move, so its button names no change. */
-  context: { suspended?: boolean } = {}
+  context: {
+    suspended?: boolean;
+    resolveRuling?: (
+      event: ChronicleEventDefinition,
+      conventional: ChronicleEventChoice
+    ) => ChronicleEventChoice;
+  } = {}
 ): string {
   const parts: string[] = [];
   if (effect.fund) parts.push(`fund ${signed(effect.fund)}`);
@@ -82,7 +95,11 @@ export function describeEffect(
     const rulings = effect.resolveChain
       .map((id) => {
         const event = EVENT_DECK.find((candidate) => candidate.id === id);
-        const choice = event?.choices.find((c) => c.id === event.defaultChoiceId);
+        const conventional = event?.choices.find((c) => c.id === event.defaultChoiceId);
+        const choice =
+          event && conventional && context.resolveRuling
+            ? context.resolveRuling(event, conventional)
+            : conventional;
         // Each case's default is itself a hand-over, so name the ruling by its record entry.
         const label = choice?.effect.marks?.[0] ? MARKS[choice.effect.marks[0]]?.label : null;
         return label ? label.charAt(0).toLowerCase() + label.slice(1) : null;
@@ -120,7 +137,13 @@ export function localizedDescribeModifier(values: ModifierValues): string[] {
 export function localizedDescribeEffect(
   effect: ChronicleEventEffect,
   /** A suspended mill's standing does not move, so its button names no change. */
-  context: { suspended?: boolean } = {}
+  context: {
+    suspended?: boolean;
+    resolveRuling?: (
+      event: ChronicleEventDefinition,
+      conventional: ChronicleEventChoice
+    ) => ChronicleEventChoice;
+  } = {}
 ): string {
   const t = createTranslator(describeMessages, getLocale());
   const parts: string[] = [];
@@ -158,7 +181,11 @@ export function localizedDescribeEffect(
     const rulings = effect.resolveChain
       .map((id) => {
         const event = EVENT_DECK.find((candidate) => candidate.id === id);
-        const choice = event?.choices.find((c) => c.id === event.defaultChoiceId);
+        const conventional = event?.choices.find((c) => c.id === event.defaultChoiceId);
+        const choice =
+          event && conventional && context.resolveRuling
+            ? context.resolveRuling(event, conventional)
+            : conventional;
         // Each case's default is itself a hand-over, so name the ruling by its record entry.
         const label = choice?.effect.marks?.[0] ? localizedMarkLabel(choice.effect.marks[0]) : null;
         return label ? label.charAt(0).toLowerCase() + label.slice(1) : null;
@@ -168,7 +195,14 @@ export function localizedDescribeEffect(
   }
   if (effect.treatCrop) parts.push(t('m19'));
   if (effect.incident)
-    parts.push(t('m20', { incident: INCIDENT_DEFINITIONS[effect.incident].title.toLowerCase() }));
+    parts.push(
+      t('m20', {
+        incident: incidentTitle(
+          { kind: effect.incident, title: effect.incident.replace(/_/g, ' ') },
+          getLocale()
+        ).toLowerCase(),
+      })
+    );
   if (effect.closeInspection) parts.push(t('m21'));
   return parts.join('; ');
 }

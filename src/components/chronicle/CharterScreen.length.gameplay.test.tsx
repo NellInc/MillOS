@@ -8,7 +8,7 @@ import { setLocale } from '../../i18n';
 
 // Item 4.2 (D3): the charter offers 27 shifts beside 63, and the Sign button's
 // commitment follows the length chosen.
-const sign = () => screen.getByRole('button', { name: /Sign the charter|Assinar a carta/ });
+const sign = () => screen.getByRole('button', { name: /Sign the charter|Assinar o estatuto/ });
 
 describe('The charter offers a short chronicle', () => {
   beforeEach(() => {

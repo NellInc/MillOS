@@ -114,8 +114,17 @@ export class WebSocketAdapter implements IProtocolAdapter {
       return Promise.reject(new Error('WebSocket adapter requires proxyUrl or baseUrl in config'));
     }
 
-    // Convert http(s) to ws(s) if needed
-    const url = wsUrl.replace(/^http/, 'ws');
+    // Convert http(s) to ws(s) if needed and validate protocol.
+    let parsedWsUrl: URL;
+    try {
+      parsedWsUrl = new URL(wsUrl.replace(/^http/i, 'ws'));
+    } catch {
+      return Promise.reject(new Error(`Invalid WebSocket URL: ${wsUrl}`));
+    }
+    if (parsedWsUrl.protocol !== 'wss:' && parsedWsUrl.protocol !== 'ws:') {
+      return Promise.reject(new Error(`Unsupported WebSocket protocol: ${parsedWsUrl.protocol}`));
+    }
+    const url = parsedWsUrl.toString();
 
     let socket: WebSocket;
     try {

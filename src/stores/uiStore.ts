@@ -54,12 +54,16 @@ const MAX_ALERTS = 10;
  * keeps on the music, PA flavour and AI reflection.
  * Working if a breakdown stays in the bell until acknowledged or back to normal.
  */
+const isProtectedBellAlert = (alert: AlertData): boolean =>
+  isStandingCriticalAlert(alert) ||
+  (!alert.acknowledged && alert.id.startsWith('partner-proposal-'));
+
 function capAlerts(alerts: UIAlert[]): UIAlert[] {
   const kept = [...alerts];
   while (kept.length > MAX_ALERTS) {
     let routine = kept.length - 1;
-    while (routine >= 0 && isStandingCriticalAlert(kept[routine])) routine -= 1;
-    // Eleven standing criticals: the oldest goes, as before.
+    while (routine >= 0 && isProtectedBellAlert(kept[routine])) routine -= 1;
+    // Eleven protected notices: the oldest goes, as before.
     kept.splice(routine === -1 ? kept.length - 1 : routine, 1);
   }
   return kept;

@@ -17,38 +17,51 @@ interface ZoneLabelProps {
   label: string;
   position: [number, number, number];
   color: string;
-  transition: number;
+  transitionRef: React.MutableRefObject<number>;
 }
 
-const ZoneLabel: React.FC<ZoneLabelProps> = ({ label, position, color, transition }) => {
+const ZoneLabel: React.FC<ZoneLabelProps> = ({ label, position, color, transitionRef }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const textRef = useRef<{ fillOpacity?: number } | null>(null);
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const leftBracketRef = useRef<THREE.MeshBasicMaterial>(null);
+  const rightBracketRef = useRef<THREE.MeshBasicMaterial>(null);
 
   // Holographic floating animation
   useFrame((state) => {
+    const transition = transitionRef.current;
     if (groupRef.current) {
+      groupRef.current.visible = transition >= 0.01;
       groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.8) * 0.3;
+    }
+    if (textRef.current) {
+      textRef.current.fillOpacity = transition;
     }
     if (materialRef.current) {
       // Subtle pulse effect
       const pulse = Math.sin(state.clock.elapsedTime * 2) * 0.1 + 0.9;
       materialRef.current.opacity = transition * pulse * 0.9;
     }
+    if (leftBracketRef.current) {
+      leftBracketRef.current.opacity = transition * 0.5;
+    }
+    if (rightBracketRef.current) {
+      rightBracketRef.current.opacity = transition * 0.5;
+    }
   });
-
-  if (transition < 0.01) return null;
 
   return (
     <group ref={groupRef} position={position}>
       {/* Main label text */}
       <Text
+        ref={textRef}
         fontSize={2.5}
         color={color}
         anchorX="center"
         anchorY="middle"
         outlineWidth={0.08}
         outlineColor="#000000"
-        fillOpacity={transition}
+        fillOpacity={transitionRef.current}
       >
         {label}
       </Text>
@@ -60,7 +73,7 @@ const ZoneLabel: React.FC<ZoneLabelProps> = ({ label, position, color, transitio
           ref={materialRef}
           color={color}
           transparent
-          opacity={transition * 0.7}
+          opacity={transitionRef.current * 0.7}
           depthWrite={false}
         />
       </mesh>
@@ -69,18 +82,20 @@ const ZoneLabel: React.FC<ZoneLabelProps> = ({ label, position, color, transitio
       <mesh position={[-label.length * 0.6, 0.8, 0]}>
         <planeGeometry args={[0.3, 0.8]} />
         <meshBasicMaterial
+          ref={leftBracketRef}
           color={color}
           transparent
-          opacity={transition * 0.5}
+          opacity={transitionRef.current * 0.5}
           depthWrite={false}
         />
       </mesh>
       <mesh position={[label.length * 0.6, 0.8, 0]}>
         <planeGeometry args={[0.3, 0.8]} />
         <meshBasicMaterial
+          ref={rightBracketRef}
           color={color}
           transparent
-          opacity={transition * 0.5}
+          opacity={transitionRef.current * 0.5}
           depthWrite={false}
         />
       </mesh>
@@ -89,7 +104,7 @@ const ZoneLabel: React.FC<ZoneLabelProps> = ({ label, position, color, transitio
 };
 
 interface ZoneLabelsProps {
-  transition: number;
+  transitionRef: React.MutableRefObject<number>;
 }
 
 // Zone configurations with positions and colors. Labels are message keys,
@@ -121,9 +136,8 @@ const ZONES = [
   },
 ] as const;
 
-export const ZoneLabels: React.FC<ZoneLabelsProps> = ({ transition }) => {
+export const ZoneLabels: React.FC<ZoneLabelsProps> = ({ transitionRef }) => {
   const t = useT(zoneLabelsMessages);
-  if (transition < 0.01) return null;
 
   return (
     <group name="zone-labels">
@@ -133,7 +147,7 @@ export const ZoneLabels: React.FC<ZoneLabelsProps> = ({ transition }) => {
           label={t(zone.labelKey)}
           position={zone.position}
           color={zone.color}
-          transition={transition}
+          transitionRef={transitionRef}
         />
       ))}
     </group>

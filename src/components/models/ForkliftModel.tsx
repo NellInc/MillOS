@@ -1242,7 +1242,9 @@ const GLTFForklift: React.FC<ForkliftModelProps> = ({
       authoredWheelSteering.setFromAxisAngle(
         THREE.Object3D.DEFAULT_UP,
         // The steered wheels are the rear axle, which yaws opposite to the turn.
-        steered ? -(steeringAngleRef?.current ?? 0) : 0
+        // Clamp visual yaw inside the counterweight wheel-well clearance (D-069)
+        // while keeping the full physics turning radius in forkliftManualDrive.
+        steered ? -THREE.MathUtils.clamp(steeringAngleRef?.current ?? 0, -0.34, 0.34) : 0
       );
       object.quaternion
         .copy(authoredWheelSteering)

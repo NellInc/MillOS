@@ -51,7 +51,7 @@ export type { GraphicsQuality, GraphicsSettings } from './stores/graphicsStore';
 // SCADA Integration
 // =========================================================================
 
-import { initializeSCADA, shutdownSCADA } from './scada/SCADAService';
+import { initializeSCADA, peekSCADAService, shutdownSCADA } from './scada/SCADAService';
 import { ALARM_STARTUP_WARMUP_MS } from './scada/AlarmManager';
 import { useGameSimulationStore, useProductionStore, useUIStore } from './stores';
 import {
@@ -576,17 +576,23 @@ export function initializeSCADASync(): () => void {
   const cleanupFunctions: Array<() => void> = [];
   let scadaInitialized = false;
   let initCancelled = false;
+  let startedService: Awaited<ReturnType<typeof initializeSCADA>> | null = null;
 
   // Initialize SCADA service asynchronously
-  const initPromise = initializeSCADA()
+  void initializeSCADA()
     .then(async (service) => {
       // Component unmounted before init finished
       if (initCancelled) {
-        await service.stop();
+        if (peekSCADAService() === service) {
+          await shutdownSCADA();
+        } else {
+          await service.stop();
+        }
         return;
       }
 
       logger.info('[SCADA Sync] Service connected, setting up sync...');
+      startedService = service;
       scadaInitialized = true;
 
       // 1. STORE → SCADA: Sync machine states to simulation adapter
@@ -997,18 +1003,14 @@ export function initializeSCADASync(): () => void {
         logger.error('[SCADA Sync] Error during cleanup:', cleanupError);
       }
     });
-    // Only shutdown SCADA if it was successfully initialized
-    if (scadaInitialized) {
+    // Only shutdown SCADA if this session still owns the active singleton.
+    // A rapid off/on toggle may have installed a newer service while init ran.
+    if (scadaInitialized && startedService && peekSCADAService() === startedService) {
       try {
         shutdownSCADA();
       } catch (shutdownError) {
         logger.error('[SCADA Sync] Error during SCADA shutdown:', shutdownError);
       }
-    } else {
-      // If init finishes after unmount, stop the service immediately
-      initPromise.then(() => {
-        shutdownSCADA();
-      });
     }
 
     // Mark SCADA as offline in store

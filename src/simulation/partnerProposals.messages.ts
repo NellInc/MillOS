@@ -12,7 +12,7 @@ type MachineBell = { machine: string };
 type NumberBell = { number: number };
 type DispatchBell = { customer: string; minimum: number };
 type CustomerBell = { customer: string };
-type CommitmentBell = { number: number; kg: number; late: number };
+type CommitmentBell = { number: number; kg: number; late: number; take?: number };
 type ForfeitBell = { customer: string; minimum: number; best: number };
 /**
  * What the other answer would have cost, said by a "decide and tell me" bell:
@@ -161,10 +161,12 @@ export const partnerProposalMessages = defineMessages({
     optionWait: 'Wait',
     reasonCommitment: 'Programme {number} can be taken now, beside the one running: {kg} kg.',
     subjectCommitment: 'programme {number} early',
-    bellCommitmentProposed: (p: CommitmentBell) =>
-      p.late > 0
-        ? `Programme ${formatFixed(p.number, 0, 'en')} can be taken now: ${formatGrouped(p.kg, undefined, 'en')} kg, about ${enTime(Math.round(p.late))} late in all. Partner: wait.`
-        : `Programme ${formatFixed(p.number, 0, 'en')} can be taken now: ${formatGrouped(p.kg, undefined, 'en')} kg, all on time. Partner: wait.`,
+    bellCommitmentProposed: (p: CommitmentBell) => {
+      const choice = p.take === 1 ? 'take it now' : 'wait';
+      return p.late > 0
+        ? `Programme ${formatFixed(p.number, 0, 'en')} can be taken now: ${formatGrouped(p.kg, undefined, 'en')} kg, about ${enTime(Math.round(p.late))} late in all. Partner: ${choice}.`
+        : `Programme ${formatFixed(p.number, 0, 'en')} can be taken now: ${formatGrouped(p.kg, undefined, 'en')} kg, all on time. Partner: ${choice}.`;
+    },
     bellCommitmentTaken: (p: NumberBell) =>
       `The partner took programme ${formatFixed(p.number, 0, 'en')} beside the one running.`,
     bellCommitmentWaited: (p: NumberBell) =>
@@ -260,10 +262,12 @@ export const partnerProposalMessages = defineMessages({
     optionWait: 'Esperar',
     reasonCommitment: 'O programa {number} pode ser aceito já, junto ao que está rodando: {kg} kg.',
     subjectCommitment: 'o programa {number} antecipado',
-    bellCommitmentProposed: (p: CommitmentBell) =>
-      p.late > 0
-        ? `O programa ${formatFixed(p.number, 0, 'pt-BR')} pode ser aceito já: ${formatGrouped(p.kg, undefined, 'pt-BR')} kg, cerca de ${ptTime(Math.round(p.late))} de atraso no total. Parceiro: esperar.`
-        : `O programa ${formatFixed(p.number, 0, 'pt-BR')} pode ser aceito já: ${formatGrouped(p.kg, undefined, 'pt-BR')} kg, tudo no prazo. Parceiro: esperar.`,
+    bellCommitmentProposed: (p: CommitmentBell) => {
+      const choice = p.take === 1 ? 'aceitar já' : 'esperar';
+      return p.late > 0
+        ? `O programa ${formatFixed(p.number, 0, 'pt-BR')} pode ser aceito já: ${formatGrouped(p.kg, undefined, 'pt-BR')} kg, cerca de ${ptTime(Math.round(p.late))} de atraso no total. Parceiro: ${choice}.`
+        : `O programa ${formatFixed(p.number, 0, 'pt-BR')} pode ser aceito já: ${formatGrouped(p.kg, undefined, 'pt-BR')} kg, tudo no prazo. Parceiro: ${choice}.`;
+    },
     bellCommitmentTaken: (p: NumberBell) =>
       `O parceiro aceitou o programa ${formatFixed(p.number, 0, 'pt-BR')} junto ao que está rodando.`,
     bellCommitmentWaited: (p: NumberBell) =>

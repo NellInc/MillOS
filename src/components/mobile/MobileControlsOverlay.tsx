@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -299,7 +300,13 @@ interface MobileControlsOverlayProps {
 export const MobileControlsOverlay: React.FC<MobileControlsOverlayProps> = ({
   showTouchControls = true,
 }) => {
-  const { mobilePanelVisible, mobilePanelContent, closeMobilePanel } = useMobileControlStore();
+  const { mobilePanelVisible, mobilePanelContent, closeMobilePanel } = useMobileControlStore(
+    useShallow((s) => ({
+      mobilePanelVisible: s.mobilePanelVisible,
+      mobilePanelContent: s.mobilePanelContent,
+      closeMobilePanel: s.closeMobilePanel,
+    }))
+  );
   const fpsMode = useUIStore((s) => s.fpsMode);
   const driving = useForkliftDriveStore((s) => s.drivenId !== null);
 

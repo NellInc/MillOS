@@ -250,6 +250,75 @@ describe('executeAgentCommand never approves', () => {
       remove();
     }
   });
+
+  it('blocks window.__MILLOS_AGENT__ from impersonating on-device-operator or its grant', async () => {
+    useOperationsCampaignStore.setState(useOperationsCampaignStore.getInitialState(), true);
+    useOperationsCampaignStore.getState().initializeCampaign();
+    const incident = useOperationsCampaignStore.getState().triggerIncident('severe_rain')!;
+    const { handle, operator, remove } = fixture();
+    try {
+      const targetUri = `millos://incident/${incident.id}`;
+      expect(() =>
+        handle.draft({
+          capabilityId: 'incident.mitigate',
+          targetUri,
+          parameters: { incidentUri: targetUri },
+          reason: 'Impersonation attempt.',
+          actorUri: ON_DEVICE_OPERATOR_URI,
+          grantId: ON_DEVICE_OPERATOR_GRANT_ID,
+        })
+      ).toThrow(/ACTOR_NOT_ALLOWED_ON_HANDLE/);
+      expect(() =>
+        handle.draft({
+          capabilityId: 'incident.mitigate',
+          targetUri,
+          parameters: { incidentUri: targetUri },
+          reason: 'Grant hijack attempt.',
+          grantId: ON_DEVICE_OPERATOR_GRANT_ID,
+        })
+      ).toThrow(/GRANT_NOT_ALLOWED_ON_HANDLE/);
+      expect(() =>
+        handle.legalOptions({
+          targetUri,
+          actorUri: ON_DEVICE_OPERATOR_URI,
+          grantId: ON_DEVICE_OPERATOR_GRANT_ID,
+        })
+      ).toThrow(/ACTOR_NOT_ALLOWED_ON_HANDLE/);
+
+      // External high-risk previews appear in the operator's pending approvals queue.
+      prepareCover();
+      const pending = await handle.preview(handle.draft(planRequest()));
+      expect(pending.status).toBe('requires-approval');
+      expect(operator.listPendingPreviews().map((p) => p.previewId)).toContain(pending.previewId);
+      const token = operator.approve(pending.previewId, 'Approved in Agent Cockpit queue.');
+      const receipt = await operator.commit(pending, token);
+      expect(receipt.status).toBe('verified');
+      expect(operator.listPendingPreviews().map((p) => p.previewId)).not.toContain(
+        pending.previewId
+      );
+    } finally {
+      remove();
+    }
+  });
+
+  it('blocks an external agent from unpausing a player P pause', async () => {
+    const { handle, remove } = fixture();
+    useGameSimulationStore.setState({ gameSpeed: 0, clockHolds: [] });
+    try {
+      const preview = await handle.preview(
+        handle.draft({
+          capabilityId: 'simulation.set-speed',
+          targetUri: 'millos://simulation/local',
+          parameters: { simulationUri: 'millos://simulation/local', speed: 2 },
+          reason: 'Try to unpause player pause.',
+        })
+      );
+      expect(preview.status).toBe('denied');
+      expect(preview.problems.map((p) => p.code)).toContain('PRE.SPEED.PLAYER_PAUSE');
+    } finally {
+      remove();
+    }
+  });
 });
 
 describe('objections, lessons and evidence through the handle', () => {

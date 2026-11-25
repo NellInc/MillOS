@@ -1909,8 +1909,8 @@ which make drying free or half price for three shifts.
 Why: drying won 114 comparisons of 114. Wet year, ten shifts: never dry, 0 of 16 strong-white
 orders made, net 15,822; always dry, 16 of 19, net 41,105. Figures are Kansas State MF-2353's
 only. No dry-year card: a dry year has no penalty.
-Unfinished: attentive players sit at 0.0079 a kg against Grid Winter's 0.008 cap, so drying in
-a wet Grid Winter would break it.
+Resolved (2026-11-25): `trialEnergyCost` in `src/chronicle/engine.ts` already subtracts
+drying energy from Grid Winter's 0.008 cap, so drying in a wet Grid Winter no longer breaks it.
 To reverse: `temper` in `DELEGATION_EVIDENCE`; `src/chronicle/temper.ts`.
 Source: wave log 7c.
 

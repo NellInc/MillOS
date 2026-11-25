@@ -242,6 +242,42 @@ const stepOnce = (
       ? forkliftFootprintBlocked(x, z, heading, loaded, blocked)
       : deeperInside(forkliftFootprintDepth(x, z, heading, loaded, blocked), startDepth))
   ) {
+    // On a grazing contact from clear space, try sliding along the free world
+    // axis at damped speed so narrow aisles feel smooth instead of snagging.
+    if (startDepth === 0) {
+      const dx = Math.abs(x - state.x);
+      const dz = Math.abs(z - state.z);
+      const slideCandidates: Array<[number, number, number]> =
+        dx >= dz
+          ? [
+              [x, state.z, dx],
+              [state.x, z, dz],
+            ]
+          : [
+              [state.x, z, dz],
+              [x, state.z, dx],
+            ];
+      for (const [sx, sz, span] of slideCandidates) {
+        if (span <= 1e-4) continue;
+        if (!forkliftFootprintBlocked(sx, sz, state.heading, loaded, blocked)) {
+          return {
+            ...state,
+            x: sx,
+            z: sz,
+            heading: state.heading,
+            speed: speed * 0.6,
+            acceleration: 0,
+            steeringAngle,
+            innerSteeringAngle: wheels.inner,
+            outerSteeringAngle: wheels.outer,
+            forkHeight,
+            wheelTravel:
+              state.wheelTravel + Math.hypot(sx - state.x, sz - state.z) * Math.sign(speed),
+            blocked: true,
+          };
+        }
+      }
+    }
     // Stopped dead against it, wheels still turned; reversing away stays possible.
     return {
       ...state,

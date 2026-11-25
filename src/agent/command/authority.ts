@@ -251,8 +251,14 @@ export class AgentAuthorityEngine {
       if ((this.commandCounts.get(grant.id) ?? 0) >= grant.resourceBudget.maximumCommands) {
         reasons.push('Grant command budget is exhausted.');
       }
-      if (capability.costModel.externalCalls && grant.resourceBudget.maximumExternalCalls <= 0) {
-        reasons.push('Grant forbids external calls.');
+      if (capability.costModel.externalCalls) {
+        if (grant.resourceBudget.maximumExternalCalls <= 0) {
+          reasons.push('Grant forbids external calls.');
+        } else if (
+          (this.externalCallCounts.get(grant.id) ?? 0) >= grant.resourceBudget.maximumExternalCalls
+        ) {
+          reasons.push('Grant external call budget is exhausted.');
+        }
       }
     }
 
@@ -311,11 +317,12 @@ export class AgentAuthorityEngine {
     capabilityIds: string[],
     statement: string,
     requestedDisposition: AgentPolicyObjection['requestedDisposition'] = 'pause',
-    modes: AgentCommandEnvelope['mode'][] = ['simulation', 'shadow', 'replay', 'live-external']
+    modes: AgentCommandEnvelope['mode'][] = ['simulation', 'shadow', 'replay', 'live-external'],
+    raisedBy: string = DEFAULT_AGENT_ACTOR_URI
   ): AgentPolicyObjection {
     const objection: AgentPolicyObjection = {
       id: `objection.${revisionFor({ capabilityIds, statement, at: this.now().toISOString() }).slice(3)}`,
-      raisedBy: DEFAULT_AGENT_ACTOR_URI,
+      raisedBy,
       capabilityIds: [...new Set(capabilityIds)],
       modes: [...new Set(modes)],
       statement: statement.trim(),
