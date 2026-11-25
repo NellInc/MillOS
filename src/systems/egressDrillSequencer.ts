@@ -37,13 +37,9 @@ function gameSecondsForTick(ctx: TickContext, liveGameSpeed: number): number {
   return Number.isFinite(speed) && speed > 0 && ctx.deltaSeconds > 0 ? ctx.deltaSeconds * speed : 0;
 }
 
-/** Consecutive all-blocked intervals before the drill closes with a failed-route audit record. */
-export const MAX_BLOCKED_DRILL_INTERVALS = 2;
-
 export function createEgressDrillSequencer(): (ctx: TickContext) => void {
   let elapsedGameSeconds = 0;
   let drillStartedAt: number | null = null;
-  let consecutiveBlockedIntervals = 0;
 
   return (ctx) => {
     const state = useGameSimulationStore.getState();
@@ -51,13 +47,11 @@ export function createEgressDrillSequencer(): (ctx: TickContext) => void {
     if (!state.emergencyDrillMode || !drillMetrics.active) {
       elapsedGameSeconds = 0;
       drillStartedAt = null;
-      consecutiveBlockedIntervals = 0;
       return;
     }
     if (drillStartedAt !== drillMetrics.startTime) {
       drillStartedAt = drillMetrics.startTime;
       elapsedGameSeconds = 0;
-      consecutiveBlockedIntervals = 0;
     }
 
     const gameSeconds = gameSecondsForTick(ctx, state.gameSpeed);
@@ -107,16 +101,7 @@ export function createEgressDrillSequencer(): (ctx: TickContext) => void {
       }
       state.recordDrillZoneCheck(recordOf(access));
     }
-    if (!zone || !verified) {
-      consecutiveBlockedIntervals += 1;
-      if (consecutiveBlockedIntervals >= MAX_BLOCKED_DRILL_INTERVALS) {
-        consecutiveBlockedIntervals = 0;
-        elapsedGameSeconds = 0;
-        state.endEmergencyDrill();
-      }
-      return;
-    }
-    consecutiveBlockedIntervals = 0;
+    if (!zone || !verified) return;
     state.markZoneVerified(zone.id, recordOf(verified));
     // The completion hold starts from the last verification, not mid-interval.
     if (useGameSimulationStore.getState().drillMetrics.verificationComplete) {

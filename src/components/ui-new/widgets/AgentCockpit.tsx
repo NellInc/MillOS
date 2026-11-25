@@ -108,7 +108,7 @@ export const AgentCockpit: React.FC = () => {
     [api, refreshTick]
   );
   const pendingApprovals = useMemo(
-    () => api?.listPendingPreviews() ?? [],
+    () => (typeof api?.listPendingPreviews === 'function' ? api.listPendingPreviews() : []),
 
     [api, refreshTick, receipt]
   );

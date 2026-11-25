@@ -173,7 +173,7 @@ export function nearestPedestrianAhead(
  * and this far off the line's heading. Close enough that the pick or drop the
  * autopilot runs from that pose eases the difference out over the creep in.
  */
-export const MANUAL_WORK_REACH_METRES = 0.65;
+export const MANUAL_WORK_REACH_METRES = 0.55;
 export const MANUAL_WORK_HEADING_RADIANS = 0.28;
 /**
  * How far the forks may stand from the work surface's height (the floor, or

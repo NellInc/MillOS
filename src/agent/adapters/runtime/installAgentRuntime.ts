@@ -9,6 +9,8 @@ import {
   DEFAULT_AGENT_GRANT_ID,
   HUMAN_OPERATOR_URI,
   isAgentSideActor,
+  ON_DEVICE_OPERATOR_GRANT_ID,
+  ON_DEVICE_OPERATOR_URI,
 } from '../../command/authority';
 import { bindAgentRuntime } from '../../client/operatorRuntime';
 import { AgentCausalLedger } from '../../command/causalLedger';
@@ -254,20 +256,20 @@ function composeMillOSAgentRuntime(): {
     importEvidence: (value) => immutable(ledger.import(value)),
   };
 
-  // Any script on the page can call window.__MILLOS_AGENT__, so pin it strictly
-  // to the default agent-driver actor and grant: it cannot impersonate the
-  // on-device operator (which bypasses human approval for incident.mitigate) or
-  // attest a person. Trusted module-scoped callers (executeAgentCommand) use
-  // internalHandle, which still cannot approve.
+  // Any script on the page can call window.__MILLOS_AGENT__, so block it from
+  // impersonating the privileged on-device operator or using its incident grant
+  // (which bypasses human approval for incident.mitigate). Trusted module-scoped
+  // callers (executeAgentCommand) use internalHandle, which still cannot approve.
+  // Human-operator drafts still flow through kernel.preview() and deny cleanly.
   const assertHandleActorAndGrant = (actorUri?: string, grantId?: string) => {
-    if (actorUri !== undefined && actorUri !== DEFAULT_AGENT_ACTOR_URI) {
+    if (actorUri === ON_DEVICE_OPERATOR_URI) {
       throw new Error(
-        `ACTOR_NOT_ALLOWED_ON_HANDLE: window.__MILLOS_AGENT__ acts only as ${DEFAULT_AGENT_ACTOR_URI}, not ${actorUri}.`
+        `ACTOR_NOT_ALLOWED_ON_HANDLE: window.__MILLOS_AGENT__ cannot act as ${ON_DEVICE_OPERATOR_URI}.`
       );
     }
-    if (grantId !== undefined && grantId !== DEFAULT_AGENT_GRANT_ID) {
+    if (grantId === ON_DEVICE_OPERATOR_GRANT_ID) {
       throw new Error(
-        `GRANT_NOT_ALLOWED_ON_HANDLE: window.__MILLOS_AGENT__ uses only ${DEFAULT_AGENT_GRANT_ID}, not ${grantId}.`
+        `GRANT_NOT_ALLOWED_ON_HANDLE: window.__MILLOS_AGENT__ cannot use ${ON_DEVICE_OPERATOR_GRANT_ID}.`
       );
     }
   };
@@ -316,20 +318,22 @@ function composeMillOSAgentRuntime(): {
 
   const handle: AgentRuntimeApi = {
     ...internalHandle,
+    grants: () =>
+      immutable(authority.grants.filter((grant) => grant.id !== ON_DEVICE_OPERATOR_GRANT_ID)),
     legalOptions: (request) => {
       assertHandleActorAndGrant(request.actorUri, request.grantId);
       return kernel.legalOptions({
         ...request,
-        actorUri: DEFAULT_AGENT_ACTOR_URI,
-        grantId: DEFAULT_AGENT_GRANT_ID,
+        actorUri: request.actorUri ?? DEFAULT_AGENT_ACTOR_URI,
+        grantId: request.grantId ?? DEFAULT_AGENT_GRANT_ID,
       });
     },
     draft: (request) => {
       assertHandleActorAndGrant(request.actorUri, request.grantId);
       return kernel.draft({
         ...request,
-        actorUri: DEFAULT_AGENT_ACTOR_URI,
-        grantId: DEFAULT_AGENT_GRANT_ID,
+        actorUri: request.actorUri ?? DEFAULT_AGENT_ACTOR_URI,
+        grantId: request.grantId ?? DEFAULT_AGENT_GRANT_ID,
       });
     },
     preview: (command) => {

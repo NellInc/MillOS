@@ -91,14 +91,20 @@ const RUNS: Array<[string, () => PlayResult]> = [
  * worded as its buttons are ("4 prepared, 2 needed"). The no-trials run moved
  * nothing. Before: p3gv80v29k, 3crjdu5o9b, 1b97cjvzsjt, gj2eq6hic4,
  * 2ez9y1raad0.
+ *
+ * Re-pinned for the deep audit polish pass: legacy plans re-priced in plans.ts,
+ * preventive maintenance wear amortized in avoided.ts, premium-buyer decline
+ * loyalty adjusted in stewardDeck.ts, and Federation Administrator upkeep
+ * wording updated in engine.ts and stewardDeck.ts. Before: 2f5dgbr66xh,
+ * 1o0e3ld51qr, 3zo1su1ir0, s3th12olqe, 1km4oq0fqeg, fykjz693yr.
  */
 const PINNED: Record<string, string> = {
-  'seed 3, answering': '2f5dgbr66xh',
-  'seed 11, lapsing': '1o0e3ld51qr',
-  'seed 29, delegated': '3zo1su1ir0',
-  'seed 7, hard charter, answering': 's3th12olqe',
-  'seed 5, no dispatch': '1km4oq0fqeg',
-  'seed 13, no trials': 'fykjz693yr',
+  'seed 3, answering': 'e5bo4q24c2',
+  'seed 11, lapsing': '1b3pzyr9456',
+  'seed 29, delegated': '4tny4mbo4e',
+  'seed 7, hard charter, answering': '1w3fqsh6qcu',
+  'seed 5, no dispatch': '218ztawhhnw',
+  'seed 13, no trials': '1cds541jx60',
 };
 
 describe('the 63-shift chronicle is unchanged to the last value', () => {

@@ -185,7 +185,7 @@ export const messages = defineMessages({
     needsAssembly: 'Em votação na assembleia',
     needsProposal: '{ladder}: de {from} para {to}',
     needsOrganisations: 'Organizações',
-    needsCooling: '{party}: esfriando',
+    needsCooling: '{party}: quase fria',
     marginsLabel: 'Melhor qualidade diante do mínimo de cada receita',
     margin: '{recipe} {best} / {minimum}',
     recipe_strong_white: 'Farinha forte',

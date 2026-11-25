@@ -480,6 +480,7 @@ const PINNED_SAVED_FIELDS: Record<string, string[]> = {
     'bagCarry',
     'departureCount',
     'milestones',
+    'receivingDelay',
     'receivingReady',
     'shippingDelay',
     'shippingLoad',

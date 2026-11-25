@@ -896,6 +896,7 @@ export function answerPartnerProposal(
             : candidate
         )
     );
+  useUIStore.getState().acknowledgeAlert(`partner-proposal-${proposalId}`);
   return true;
 }
 
@@ -944,6 +945,7 @@ export function stepPartnerProposals(inputs: PartnerTickInputs): void {
     const settled = settleProposal(proposal, world);
     if (!settled) return proposal;
     changed = true;
+    useUIStore.getState().acknowledgeAlert(`partner-proposal-${proposal.id}`);
     return settled.type === 'withdrawn'
       ? withdrawProposal(proposal)
       : resolveProposal(proposal, settled.optionId, settled.decidedBy, minute, true);
@@ -964,6 +966,7 @@ export function stepPartnerProposals(inputs: PartnerTickInputs): void {
           )
         : candidate
     );
+    useUIStore.getState().acknowledgeAlert(`partner-proposal-${proposal.id}`);
     if (tellsDecision(proposal)) ringDecision(proposal, ran);
     changed = true;
   }

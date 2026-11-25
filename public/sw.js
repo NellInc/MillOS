@@ -288,7 +288,7 @@ async function networkFirst(event, request, cacheName) {
 
     if (request.mode === 'navigate') {
       const indexResponse = await cache.match(INDEX_URL);
-      if (indexResponse && (await shellIsComplete(indexResponse))) return indexResponse;
+      if (indexResponse) return indexResponse;
     }
     return new Response('Offline', {
       status: 503,

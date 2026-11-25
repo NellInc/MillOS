@@ -349,7 +349,7 @@ export const presentationMessages = defineMessages({
     window: 'O prazo terminou.',
     qualityFail: '{n0} kg ficaram abaixo do limite de qualidade da receita.',
     cleanFail: '{n0} de {n1} encerramentos de turno consecutivos sem falhas.',
-    failDispatch: 'A expedição a fez falhar: {g0} de {g1} kg expedidos.',
+    failDispatch: 'O despacho a fez falhar: {g0} de {g1} kg expedidos.',
     failEnergy: 'A energia a fez falhar: {n0} por kg frente a {n1}.',
     failGrade: 'A nota a fez falhar: média de pontos de nota de {n0} frente a {n1}.',
     failQuality:

@@ -247,6 +247,8 @@ const PT_AGENT_TEXT: Record<string, string> = {
     'Material retido ou recolhido não pode ser expedido.',
   'Shipping transfer is ready.': 'A transferência de expedição está pronta.',
   'Speed must be finite.': 'A velocidade deve ser um número finito.',
+  'The player paused the simulation clock; an agent cannot unpause it.':
+    'O jogador pausou o relógio da simulação; um agente não pode retomá-lo.',
   'Speed control is local to simulation or shadow mode.':
     'O controle de velocidade é restrito ao modo de simulação ou sombra.',
   'Simulation speed matches the request.': 'A velocidade da simulação corresponde à solicitação.',

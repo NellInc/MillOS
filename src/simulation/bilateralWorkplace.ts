@@ -1055,8 +1055,9 @@ const AUTHORED_VALUE_KEYS = {
 function authoredChairBallot(s: WorkplaceState, memberId: string): string {
   if (memberId === 'quality') return 'quality';
   if (memberId === 'maintenance') {
+    const shift = s.campaign?.shift ?? 0;
     const decliner = s.campaign ? campaignDraw(s.campaign).decliner : null;
-    return decliner === 'coordinator' ? 'quality' : 'coordinator';
+    return shift > 0 && decliner === 'coordinator' ? 'quality' : 'coordinator';
   }
   return 'coordinator';
 }
