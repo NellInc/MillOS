@@ -110,6 +110,8 @@ export function CompactConveyorSystem({ productionSpeed }: { readonly production
   const rollerRef = useRef<THREE.InstancedMesh>(null);
   const bagRef = useRef<THREE.InstancedMesh>(null);
   const objectRef = useRef(new THREE.Object3D());
+  const lastRollerTimeRef = useRef(Number.NaN);
+  const lastBagStateRef = useRef({ time: Number.NaN, count: -1 });
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
   useEffect(() => () => beltMaterial.dispose(), [beltMaterial]);
@@ -191,7 +193,12 @@ export function CompactConveyorSystem({ productionSpeed }: { readonly production
       camera.position.x * camera.position.x +
       (camera.position.y - 0.88) * (camera.position.y - 0.88) +
       (camera.position.z - 21) * (camera.position.z - 21);
-    if (rollerRef.current && rollerDistanceSquared < 90 * 90) {
+    if (
+      rollerRef.current &&
+      rollerDistanceSquared < 90 * 90 &&
+      simulationTime !== lastRollerTimeRef.current
+    ) {
+      lastRollerTimeRef.current = simulationTime;
       const object = objectRef.current;
       ROLLER_POSITIONS.forEach((x, index) => {
         object.position.set(x, 0.88, 21);
@@ -216,6 +223,15 @@ export function CompactConveyorSystem({ productionSpeed }: { readonly production
       12
     );
     bagRef.current.count = activeBagCount;
+    if (
+      simulationTime === lastBagStateRef.current.time &&
+      activeBagCount === lastBagStateRef.current.count
+    ) {
+      return;
+    }
+    lastBagStateRef.current.time = simulationTime;
+    lastBagStateRef.current.count = activeBagCount;
+    if (activeBagCount <= 0) return;
     const object = objectRef.current;
     for (let index = 0; index < activeBagCount; index += 1) {
       const onMainBelt = index < 7;

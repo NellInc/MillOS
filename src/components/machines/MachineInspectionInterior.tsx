@@ -126,6 +126,7 @@ export function MachineInspectionInterior({
       useCameraStore.getState().releaseFocus(owned);
     };
   }, [kind, stage, px, py, pz, sx, sy, sz]);
+  const lastParticleStateRef = useRef({ phase: Number.NaN, stage: -1, kind: '' });
   useFrame(() => {
     const p = pose.current;
     if (!p || !root.current) return;
@@ -150,19 +151,26 @@ export function MachineInspectionInterior({
     root.current.userData.state = p.state;
     root.current.userData.fill = p.fill;
     if (particles.current) {
-      particles.current.visible = p.phase !== null && kind !== 'silo';
-      for (let i = 0; i < 18; i++) {
-        sampleMachineInspectionGrain(
-          kind,
-          stage,
-          (((t * 0.15 + i / 18) % 1) + 1) % 1,
-          scratch.point
-        );
-        scratch.point.multiply(scratch.scale);
-        scratch.matrix.makeTranslation(scratch.point);
-        particles.current.setMatrixAt(i, scratch.matrix);
+      const showParticles = p.phase !== null && kind !== 'silo';
+      particles.current.visible = showParticles;
+      const last = lastParticleStateRef.current;
+      if (showParticles && (t !== last.phase || stage !== last.stage || kind !== last.kind)) {
+        last.phase = t;
+        last.stage = stage;
+        last.kind = kind;
+        for (let i = 0; i < 18; i++) {
+          sampleMachineInspectionGrain(
+            kind,
+            stage,
+            (((t * 0.15 + i / 18) % 1) + 1) % 1,
+            scratch.point
+          );
+          scratch.point.multiply(scratch.scale);
+          scratch.matrix.makeTranslation(scratch.point);
+          particles.current.setMatrixAt(i, scratch.matrix);
+        }
+        particles.current.instanceMatrix.needsUpdate = true;
       }
-      particles.current.instanceMatrix.needsUpdate = true;
     }
   });
   const pick = (event: ThreeEvent<MouseEvent>) => {

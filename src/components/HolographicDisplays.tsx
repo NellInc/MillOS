@@ -348,6 +348,7 @@ const DataParticles: React.FC = React.memo(() => {
   const particlesRef = useRef<THREE.Points>(null);
   const graphicsQuality = useGraphicsStore((state) => state.graphics.quality);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
+  const reducedMotion = useReducedMotion();
   const count = graphicsQuality === 'low' ? 50 : 100; // Reduce particle count on low
 
   const positions = React.useMemo(() => {
@@ -364,8 +365,8 @@ const DataParticles: React.FC = React.memo(() => {
   }, [count]);
 
   useFrame(() => {
-    // PERFORMANCE: Skip when tab hidden
-    if (!isTabVisible) return;
+    // PERFORMANCE: Skip when tab hidden, reduced motion, or paused
+    if (!isTabVisible || reducedMotion || useGameSimulationStore.getState().gameSpeed <= 0) return;
     // Use shared throttle utility for consistent performance
     const throttle = getThrottleLevel(graphicsQuality);
     if (!shouldRunThisFrame(throttle)) return;

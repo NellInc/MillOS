@@ -195,6 +195,7 @@ export const LakeAquaticLife = memo(function LakeAquaticLife() {
       tails = tail.current;
     return () => disposeLakeFishResources(geometry, material, bodies, tails);
   }, [geometry, material]);
+  const lastTimeRef = useRef(Number.NaN);
   useFrame((state) => {
     if (!body.current || !tail.current) return;
     const dx = state.camera.position.x - LAKE_BASIN.x,
@@ -203,6 +204,8 @@ export const LakeAquaticLife = memo(function LakeAquaticLife() {
     body.current.visible = tail.current.visible = visible;
     if (!visible) return;
     const time = WATER_VISUAL_TIME.value;
+    if (time === lastTimeRef.current) return;
+    lastTimeRef.current = time;
     for (let i = 0; i < LAKE_FISH_COUNT; i++) {
       writeLakeFishPose(i, time, scratch.object);
       scratch.body.copy(scratch.object.matrix);

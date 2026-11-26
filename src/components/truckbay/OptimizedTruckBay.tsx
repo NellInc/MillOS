@@ -1319,10 +1319,33 @@ export function OptimizedTruckVisual({
   // dual's rim face is the bare steel a real inner dual shows.
   const hubLayout = wheelLayout;
 
-  const updateWheelMatrices = (state: TruckAnimState, wheelRotation: number): void => {
+  const lastWheelPoseRef = useRef({
+    rotation: Number.NaN,
+    trailerAngle: Number.NaN,
+    steeringAngle: Number.NaN,
+  });
+  const lastLandingGearRef = useRef(Number.NaN);
+
+  const updateWheelMatrices = (
+    state: TruckAnimState,
+    wheelRotation: number,
+    force = false
+  ): void => {
     const wheels = wheelsRef.current;
     const hubs = hubsRef.current;
     if (!wheels || !hubs) return;
+    const last = lastWheelPoseRef.current;
+    if (
+      !force &&
+      wheelRotation === last.rotation &&
+      state.trailerAngle === last.trailerAngle &&
+      state.steeringAngle === last.steeringAngle
+    ) {
+      return;
+    }
+    last.rotation = wheelRotation;
+    last.trailerAngle = state.trailerAngle;
+    last.steeringAngle = state.steeringAngle;
     const object = wheelDummyRef.current;
     const trailerCos = Math.cos(state.trailerAngle);
     const trailerSin = Math.sin(state.trailerAngle);
@@ -1348,11 +1371,13 @@ export function OptimizedTruckVisual({
     hubs.instanceMatrix.needsUpdate = true;
   };
 
-  const updateLandingGearMatrices = (amount: number): void => {
+  const updateLandingGearMatrices = (amount: number, force = false): void => {
     const landingGear = landingGearRef.current;
     if (!landingGear) return;
-    const object = landingGearDummyRef.current;
     const deployed = THREE.MathUtils.clamp(amount, 0, 1);
+    if (!force && deployed === lastLandingGearRef.current) return;
+    lastLandingGearRef.current = deployed;
+    const object = landingGearDummyRef.current;
     const legLength = THREE.MathUtils.lerp(0.18, 0.5, deployed);
     const legCentreY = 0.62 - legLength / 2;
     const footY = THREE.MathUtils.lerp(0.46, 0.07, deployed);
@@ -1422,8 +1447,8 @@ export function OptimizedTruckVisual({
     wheelsRef.current?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     hubsRef.current?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     landingGearRef.current?.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    updateWheelMatrices(stateRef.current, wheelRotationRef.current);
-    updateLandingGearMatrices(stateRef.current.landingGearAmount);
+    updateWheelMatrices(stateRef.current, wheelRotationRef.current, true);
+    updateLandingGearMatrices(stateRef.current.landingGearAmount, true);
     wheelsRef.current?.computeBoundingSphere();
     hubsRef.current?.computeBoundingSphere();
     landingGearRef.current?.computeBoundingSphere();

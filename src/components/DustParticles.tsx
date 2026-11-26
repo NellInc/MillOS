@@ -364,11 +364,15 @@ function animateGrainFlow(entry: GrainFlowEntry, delta: number, gameSpeed: numbe
     );
   }
 
+  if (step <= 0) return;
+
+  let moved = false;
   for (let i = 0; i < entry.count; i++) {
     const routeSlot = entry.routeIndex[i] % entry.routes.length;
     const route = entry.routes[routeSlot];
     const activity = entry.routeActivity[routeSlot];
     if (activity <= 0) continue;
+    moved = true;
     let t = entry.progress[i] + (step * activity * entry.rates[i]) / Math.max(1, route.length);
     if (t >= 1) t -= Math.floor(t);
     entry.progress[i] = t;
@@ -381,7 +385,7 @@ function animateGrainFlow(entry: GrainFlowEntry, delta: number, gameSpeed: numbe
     posArray[idx + 2] = _grainPoint.z + entry.jitter[idx + 2];
   }
 
-  posAttr.needsUpdate = true;
+  if (moved) posAttr.needsUpdate = true;
   // Positions span the whole pipe network; recomputing per frame would cost
   // more than it saves, so the bounds are set once at seed time.
 }

@@ -105,7 +105,7 @@ describe('a list saved before the game milestones', () => {
 
   it('names every new achievement in Brazilian Portuguese too', () => {
     setLocale('pt-BR');
-    expect(achievement('charter-signed')?.name).toBe('Carta assinada');
+    expect(achievement('charter-signed')?.name).toBe('Estatuto assinado');
     expect(achievement('first-on-time-delivery')?.name).toBe('No prazo');
     expect(achievement('first-hold-resolved')?.description).toMatch(/retenção de qualidade/);
   });

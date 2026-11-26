@@ -22,7 +22,7 @@ const catalog = defineMessages({
     m5: 'ele',
     m6: '{plans}: instalado',
     m7: ' ou ',
-    m8: '{party}: relação receptiva',
+    m8: '{party}: relação calorosa',
     m9: 'Reserva da cooperativa em {n} ou mais',
   },
 });

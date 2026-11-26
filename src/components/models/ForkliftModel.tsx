@@ -775,6 +775,13 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
     }
   }, []);
 
+  const lastWheelPoseRef = useRef({
+    angle: Number.NaN,
+    centre: Number.NaN,
+    inner: Number.NaN,
+    outer: Number.NaN,
+  });
+
   useFrame(() => {
     if (!isTabVisible) {
       hasPreviousWorldPositionRef.current = false;
@@ -802,19 +809,35 @@ const CompactForklift: React.FC<ForkliftModelProps> = ({
       }
     }
 
+    const centreSteering = steeringAngleRef?.current ?? 0;
+    const innerSteering = innerSteeringAngleRef?.current ?? centreSteering;
+    const outerSteering = outerSteeringAngleRef?.current ?? centreSteering;
+    const lastWheelPose = lastWheelPoseRef.current;
+    if (
+      wheelAngleRef.current === lastWheelPose.angle &&
+      centreSteering === lastWheelPose.centre &&
+      innerSteering === lastWheelPose.inner &&
+      outerSteering === lastWheelPose.outer
+    ) {
+      return;
+    }
+    lastWheelPose.angle = wheelAngleRef.current;
+    lastWheelPose.centre = centreSteering;
+    lastWheelPose.inner = innerSteering;
+    lastWheelPose.outer = outerSteering;
+
     compactWheelSpin.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, wheelAngleRef.current);
 
     compactWheelPositions.forEach(([x, y, z], index) => {
-      const centreSteering = steeringAngleRef?.current ?? 0;
       const rearSteering =
         index === 2
           ? centreSteering > 0
-            ? (outerSteeringAngleRef?.current ?? centreSteering)
-            : (innerSteeringAngleRef?.current ?? centreSteering)
+            ? outerSteering
+            : innerSteering
           : index === 3
             ? centreSteering > 0
-              ? (innerSteeringAngleRef?.current ?? centreSteering)
-              : (outerSteeringAngleRef?.current ?? centreSteering)
+              ? innerSteering
+              : outerSteering
             : 0;
       // Rear-axle steering: a rear wheel yaws opposite to the turn it produces.
       compactWheelSteering.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, -rearSteering);

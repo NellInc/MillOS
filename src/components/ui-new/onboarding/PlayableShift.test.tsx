@@ -461,9 +461,7 @@ describe('playable shift UI', () => {
       screen.getByText(/^Riverside Bakers' Cooperative: 6,000 of 6,000 kg/)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Now: Community Polenta Kitchen, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
-      )
+      screen.getByText('Now: Community Polenta Kitchen, 1,000 of 4,000 kg shipped. Due in 1h 0m.')
     ).toBeInTheDocument();
     expect(screen.getByText('Check shipping in SCADA')).toBeInTheDocument();
     // One next-step line (D-012): the step's explanation, cut from the play
@@ -480,9 +478,7 @@ describe('playable shift UI', () => {
     // delivery's inspection status or deadline.
     fireEvent.click(screen.getByRole('button', { name: 'Compact delivery guide' }));
     expect(
-      screen.getByText(
-        'Now: Community Polenta Kitchen, 1,000 of 4,000 kg shipped. Due in 1h 0m (simulated).'
-      )
+      screen.getByText('Now: Community Polenta Kitchen, 1,000 of 4,000 kg shipped. Due in 1h 0m.')
     ).toBeInTheDocument();
     expect(screen.queryByText(/^Inspection: /)).not.toBeInTheDocument();
     expect(useOperationsCampaignStore.getState()).toBe(before);
@@ -525,7 +521,7 @@ describe('playable shift UI', () => {
       render(<FirstDeliveryJourney selectedMachine={null} onOpenWorkspace={vi.fn()} />);
       expect(
         screen.getByText(
-          'Agora: Community Polenta Kitchen, 1.000 de 4.000 kg expedidos. Vence em 1h 0min (tempo simulado).'
+          'Agora: Community Polenta Kitchen, 1.000 de 4.000 kg expedidos. Vence em 1h 0min.'
         )
       ).toBeInTheDocument();
     } finally {
@@ -545,12 +541,12 @@ describe('playable shift UI', () => {
       </>
     );
     expect(screen.getAllByLabelText('Delivery deadline')).toHaveLength(2);
-    expect(screen.getAllByText('Due in 1h 5m (simulated)')).toHaveLength(2);
+    expect(screen.getAllByText('Due in 1h 5m')).toHaveLength(2);
     expect(useOperationsCampaignStore.getState()).toBe(before);
     fireEvent.change(screen.getAllByLabelText('Shift pace')[0], { target: { value: '0' } });
-    expect(screen.getAllByText('Due in 1h 5m (simulated)')).toHaveLength(2);
+    expect(screen.getAllByText('Due in 1h 5m')).toHaveLength(2);
     act(() => useOperationsCampaignStore.setState({ elapsedMinutes: order.dueAtMinute + 0.1 }));
-    expect(screen.getAllByText('Overdue by 1m (simulated)')).toHaveLength(2);
+    expect(screen.getAllByText('Overdue by 1m')).toHaveLength(2);
     act(() =>
       useOperationsCampaignStore.setState({
         orders: before.orders.map((item) =>

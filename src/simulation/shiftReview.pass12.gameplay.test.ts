@@ -49,7 +49,7 @@ describe('the open order line in this shift so far', () => {
     const due = order(240);
     const now = 149.6; // 90.4 simulated minutes left
     const card = deriveDeliveryDeadline(due, now)!.label;
-    expect(card).toBe('Due in 1h 31m (simulated)');
+    expect(card).toBe('Due in 1h 31m');
     expect(describeOrderOutcome(outcome(due), now, 'en')).toBe(
       "Riverside Bakers' Cooperative: 0 of 6,000 kg so far, due in 1h 31m."
     );
@@ -58,7 +58,7 @@ describe('the open order line in this shift so far', () => {
   it('names the same minutes overdue as the shift card above it', () => {
     const due = order(240);
     const now = 241.4; // 1.4 simulated minutes past due
-    expect(deriveDeliveryDeadline(due, now)!.label).toBe('Overdue by 2m (simulated)');
+    expect(deriveDeliveryDeadline(due, now)!.label).toBe('Overdue by 2m');
     expect(describeOrderOutcome(outcome(due), now, 'en')).toBe(
       "Riverside Bakers' Cooperative: 0 of 6,000 kg so far, 2m overdue."
     );

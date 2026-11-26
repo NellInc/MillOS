@@ -25,10 +25,10 @@ describe('the commitment on the HUD (2.1)', () => {
   it('names the active order, shipped of required and its due time, and opens the commitment', () => {
     render(<StatusHUD />);
     const commitment = screen.getByRole('button', {
-      name: "Open the commitment: Riverside Bakers' Cooperative, 0 of 6,000 kg shipped. Due in 4h 0m (simulated)",
+      name: "Open the commitment: Riverside Bakers' Cooperative, 0 of 6,000 kg shipped. Due in 4h 0m",
     });
     expect(commitment).toHaveTextContent(
-      "Riverside Bakers' Cooperative · 0 / 6,000 kg · Due in 4h 0m (simulated)"
+      "Riverside Bakers' Cooperative · 0 / 6,000 kg · Due in 4h 0m"
     );
     // The route the shift card's own buttons take: Overview, which leads with it.
     const opened = vi.fn();
@@ -53,15 +53,11 @@ describe('the commitment on the HUD (2.1)', () => {
       })
     );
     expect(
-      screen.getByText(
-        "Riverside Bakers' Cooperative · 5,000 / 6,000 kg · Overdue by 10m (simulated)"
-      )
+      screen.getByText("Riverside Bakers' Cooperative · 5,000 / 6,000 kg · Overdue by 10m")
     ).toBeVisible();
     act(() => setLocale('pt-BR'));
     expect(
-      screen.getByText(
-        "Riverside Bakers' Cooperative · 5.000 / 6.000 kg · Atrasado em 10min (tempo simulado)"
-      )
+      screen.getByText("Riverside Bakers' Cooperative · 5.000 / 6.000 kg · Atrasado em 10min")
     ).toBeVisible();
   });
 

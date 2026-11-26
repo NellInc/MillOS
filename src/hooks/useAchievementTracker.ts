@@ -292,7 +292,11 @@ const startTracking = (): (() => void) => {
       .map((p) => p.id)
   );
   cleanups.push(
-    usePartnerProposalStore.subscribe((state) => {
+    usePartnerProposalStore.subscribe((state, previous) => {
+      if (state.proposals.length === 0) countedProposals.clear();
+      if ((state.delegationChosen?.length ?? 0) > (previous.delegationChosen?.length ?? 0)) {
+        addProgress('first-preference', 1);
+      }
       for (const proposal of state.proposals) {
         if (proposal.status === 'open') {
           countedProposals.delete(proposal.id);

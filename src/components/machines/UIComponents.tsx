@@ -267,9 +267,7 @@ export const SCADAValueOverlay: React.FC<{
   return (
     <Html position={position} center distanceFactor={15}>
       <div className="bg-slate-900/85 backdrop-blur px-2 py-1 rounded border border-slate-700/50 min-w-[80px] pointer-events-none">
-        <div className="text-[8px] text-slate-500 uppercase tracking-wider mb-0.5">
-          SCADA SIMULATED
-        </div>
+        <div className="text-[8px] text-slate-500 uppercase tracking-wider mb-0.5">SCADA</div>
         <div className="space-y-0.5">
           {tagValues.temperature !== undefined && (
             <div className="flex items-center justify-between gap-2">

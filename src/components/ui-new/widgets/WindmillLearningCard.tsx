@@ -1,5 +1,6 @@
 import { useProcessInspectionStore } from '../../../stores/processInspectionStore';
 import { useEffect, useId, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useT } from '../../../i18n';
 import { useWindmillLearningStore } from '../../../stores/windmillLearningStore';
 import { windmillLearningMessages as messages } from './WindmillLearningCard.messages';
@@ -10,7 +11,19 @@ const buttonClass =
 export function WindmillLearningCard() {
   const t = useT(messages);
   const { ready, open, stage, feedback, start, close, answer, next, back } =
-    useWindmillLearningStore();
+    useWindmillLearningStore(
+      useShallow((state) => ({
+        ready: state.ready,
+        open: state.open,
+        stage: state.stage,
+        feedback: state.feedback,
+        start: state.start,
+        close: state.close,
+        answer: state.answer,
+        next: state.next,
+        back: state.back,
+      }))
+    );
   const heading = useRef<HTMLHeadingElement>(null);
   const headingId = useId();
   useEffect(() => {

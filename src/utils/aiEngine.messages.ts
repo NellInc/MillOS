@@ -83,8 +83,7 @@ export const aiEngineMessages = defineMessages({
       'Checked before the zone was verified: its step-free route along the east walkway to the level door beside the receiving dock, and the refuge point outside that door, are clear of stopped vehicles. The dock deck is a metre up, so this door is the way out for everyone.',
     accessEgressBlockedReasoning:
       "Stopped vehicles stand on this zone's step-free route and on its alternative. A zone is verified only with a step-free way out, so it stays unverified; personnel hold their safe positions, and END DRILL remains available.",
-    accessEgressImpact:
-      'Egress is verified for everyone who works here, not only for those who can use steps.',
+    accessEgressImpact: 'Egress is verified on step-free routes for everyone who works here.',
     accessQuietAction: 'Moved the air-line purge from {from} to {to}',
     accessQuietReasoning:
       'The quiet room is booked from {from} to {to} by a packing operator who asked for it for their breaks. The purge is loud enough to carry into it, so it runs when the booking ends.',
@@ -169,7 +168,7 @@ export const aiEngineMessages = defineMessages({
     accessEgressBlockedReasoning:
       'Há veículos parados na rota sem degraus desta zona e na sua alternativa. Uma zona só é verificada com uma saída sem degraus, então ela segue sem verificação; as pessoas mantêm suas posições seguras, e ENCERRAR SIMULADO continua disponível.',
     accessEgressImpact:
-      'As saídas ficam verificadas para todas as pessoas que trabalham aqui, não só para quem consegue usar escadas.',
+      'As saídas ficam verificadas em rotas sem degraus para todas as pessoas que trabalham aqui.',
     accessQuietAction: 'Purga da linha de ar movida de {from} para {to}',
     accessQuietReasoning:
       'A sala silenciosa está reservada de {from} a {to} por quem opera a embalagem e pediu a sala para os intervalos. A purga faz barulho suficiente para chegar lá dentro, então ela roda quando a reserva termina.',

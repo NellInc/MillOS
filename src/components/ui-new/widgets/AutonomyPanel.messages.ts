@@ -21,7 +21,7 @@ export const autonomyPanelMessages = defineMessages({
     activeAssetsDetail: (p: CountParams) =>
       `${p.count} ${p.count === 1 ? 'needs' : 'need'} diagnostic attention`,
     throughput: 'Throughput',
-    throughputDetail: 'bags per simulated hour',
+    throughputDetail: 'bags per hour',
     programme: 'Programme',
     programmeDetail: '{shipped} of {committed} t shipped',
     safetyStops: 'Safety stops',
@@ -48,7 +48,7 @@ export const autonomyPanelMessages = defineMessages({
     activeAssetsDetail: (p: CountParams) =>
       `${formatFixed(p.count, 0, 'pt-BR')} ${p.count === 1 ? 'precisa' : 'precisam'} de atenção de diagnóstico`,
     throughput: 'Vazão',
-    throughputDetail: 'sacos por hora simulada',
+    throughputDetail: 'sacos por hora',
     programme: 'Programa',
     programmeDetail: '{shipped} de {committed} t expedidas',
     safetyStops: 'Paradas de segurança',

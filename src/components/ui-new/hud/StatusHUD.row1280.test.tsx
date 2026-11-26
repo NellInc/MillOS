@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 const commitmentText = () =>
-  screen.getByText("Riverside Bakers' Cooperative · 0 / 6,000 kg · Due in 4h 0m (simulated)");
+  screen.getByText("Riverside Bakers' Cooperative · 0 / 6,000 kg · Due in 4h 0m");
 
 /**
  * jsdom has no layout. Overflow is read from the metrics row's scrollWidth

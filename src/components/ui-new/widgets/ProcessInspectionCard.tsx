@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { CircleCheck } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { formatFixed, useT } from '../../../i18n';
 import {
   inspectionChoiceOrder,
@@ -47,7 +48,22 @@ export function ProcessInspectionCard({ subjectId }: { subjectId?: string }) {
     answer,
     next,
     back,
-  } = useProcessInspectionStore();
+  } = useProcessInspectionStore(
+    useShallow((state) => ({
+      available: state.available,
+      active: state.active,
+      stage: state.stage,
+      feedback: state.feedback,
+      seed: state.seed,
+      run: state.run,
+      completed: state.completed,
+      liveFillPercent: state.liveFillPercent,
+      start: state.start,
+      answer: state.answer,
+      next: state.next,
+      back: state.back,
+    }))
+  );
   const [selectedId, setSelectedId] = useState('');
   const subjects = Object.values(available);
   const id =

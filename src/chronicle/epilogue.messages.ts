@@ -24,7 +24,7 @@ const catalog = defineMessages({
     m19: 'Valley Haulage served its crop year’s notice without a missed run, and the notice was withdrawn.',
     m20: 'The old granary',
     m21: 'The village bakery kept the old granary and the polenta kitchen got its east bin. Both still carry the mill’s lease plates.',
-    m22: 'The village bakery kept the old granary. The polenta kitchen told the federation that the mill’s promises were worth less than its deeds.',
+    m22: 'The village bakery kept the old granary. The polenta kitchen told the federation that the mill’s promises were worth less than the paper they were written on.',
     m23: 'The village bakery kept the old granary and, in time, outgrew it.',
     m24: 'The polenta kitchen filled the old granary with cornmeal. The village bakery moved into a barn and later closed.',
     m25: 'The seed merchant’s rent put a new roof on the old granary. The village never asked the mill for anything again.',

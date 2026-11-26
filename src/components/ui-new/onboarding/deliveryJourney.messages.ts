@@ -7,11 +7,11 @@ const PT_GRAIN: Record<string, string> = {
 
 export const deliveryJourneyMessages = defineMessages({
   en: {
-    dueNow: 'Due now (simulated)',
+    dueNow: 'Due now',
     durationHours: '{hours}h {minutes}m',
     durationMinutes: '{minutes}m',
-    overdueBy: 'Overdue by {duration} (simulated)',
-    dueIn: 'Due in {duration} (simulated)',
+    overdueBy: 'Overdue by {duration}',
+    dueIn: 'Due in {duration}',
     chooseTitle: 'Choose a delivery',
     chooseDetail: 'Choose an available customer in Your shift commitment in Overview.',
     qualityTarget: 'Recipe quality target: {minimum}/100.',
@@ -37,7 +37,7 @@ export const deliveryJourneyMessages = defineMessages({
     tripStatus: (p: { loads: number; loadsText: string; capacity: string; left: string }) =>
       ` At least ${p.loadsText} ${p.loads === 1 ? 'load' : 'loads'} needed (up to ${p.capacity} kg each); ${p.left} kg still to ship.`,
     nextTruckOnWay: ' The next truck is on its way to the dock.',
-    nextTruckDue: ' The next truck is due on site in {minutes} min (simulated).',
+    nextTruckDue: ' The next truck is due on site in {minutes} min.',
     readyToLoadTitle: 'Ready for the shipping truck',
     releasedWaiting: '{kg} kg of released {product} is waiting at shipping.',
     loadingTitle: 'Loading the shipping truck',
@@ -56,11 +56,11 @@ export const deliveryJourneyMessages = defineMessages({
       'Source inventory: {sourceKg} kg of {grain}. Production speed: {speed}%. Released {product}: {releasedKg} kg. {quality}',
   },
   'pt-BR': {
-    dueNow: 'Vence agora (tempo simulado)',
+    dueNow: 'Vence agora',
     durationHours: '{hours}h {minutes}min',
     durationMinutes: '{minutes}min',
-    overdueBy: 'Atrasado em {duration} (tempo simulado)',
-    dueIn: 'Vence em {duration} (tempo simulado)',
+    overdueBy: 'Atrasado em {duration}',
+    dueIn: 'Vence em {duration}',
     chooseTitle: 'Escolha uma entrega',
     chooseDetail: 'Escolha um cliente disponível em Seu compromisso do turno, na Visão geral.',
     qualityTarget: 'Meta de qualidade da receita: {minimum}/100.',
@@ -86,7 +86,7 @@ export const deliveryJourneyMessages = defineMessages({
     tripStatus: (p: { loads: number; loadsText: string; capacity: string; left: string }) =>
       ` ${p.loads === 1 ? 'É necessária pelo menos' : 'São necessárias pelo menos'} ${p.loadsText} ${p.loads === 1 ? 'carga' : 'cargas'} (até ${p.capacity} kg cada); faltam expedir ${p.left} kg.`,
     nextTruckOnWay: ' O próximo caminhão está a caminho da doca.',
-    nextTruckDue: ' O próximo caminhão chega ao pátio em {minutes} min (tempo simulado).',
+    nextTruckDue: ' O próximo caminhão chega ao pátio em {minutes} min.',
     readyToLoadTitle: 'Pronto para o caminhão de expedição',
     releasedWaiting: '{kg} kg liberados de {product} aguardam na expedição.',
     loadingTitle: 'Carregando o caminhão de expedição',

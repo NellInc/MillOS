@@ -90,6 +90,7 @@ function HenhouseInterior({
     },
     [materials, kernel]
   );
+  const lastGrainTimeRef = useRef(Number.NaN);
   useFrame(() => {
     const simulation = useGameSimulationStore.getState();
     const running = !reducedMotion && simulation.isTabVisible && simulation.gameSpeed > 0;
@@ -112,13 +113,17 @@ function HenhouseInterior({
     if (floorHen.current) floorHen.current.scale.y = 1 + Math.sin(t * 1.7) * 0.006;
     if (perchHen.current) perchHen.current.scale.y = 1 + Math.sin(t * 1.5 + 1) * 0.006;
     if (grains.current) {
-      grains.current.visible = stage === 1;
-      for (let i = 0; i < 12; i++) {
-        sampleHenhouseGrain(t * 0.1 + i / 12, scratch.point).multiplyScalar(placement.scale);
-        scratch.matrix.makeTranslation(scratch.point);
-        grains.current.setMatrixAt(i, scratch.matrix);
+      const showGrains = stage === 1;
+      grains.current.visible = showGrains;
+      if (showGrains && t !== lastGrainTimeRef.current) {
+        lastGrainTimeRef.current = t;
+        for (let i = 0; i < 12; i++) {
+          sampleHenhouseGrain(t * 0.1 + i / 12, scratch.point).multiplyScalar(placement.scale);
+          scratch.matrix.makeTranslation(scratch.point);
+          grains.current.setMatrixAt(i, scratch.matrix);
+        }
+        grains.current.instanceMatrix.needsUpdate = true;
       }
-      grains.current.instanceMatrix.needsUpdate = true;
     }
   });
   const p = (x: number, y: number, z: number): THREE.Vector3Tuple => [

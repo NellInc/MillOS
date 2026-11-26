@@ -326,13 +326,15 @@ function RollingWheels({
   movement: { current: number };
 }) {
   const wheels = useRef<THREE.InstancedMesh>(null);
+  const lastMovementRef = useRef(Number.NaN);
   const scratch = useRef({
     matrix: new THREE.Matrix4(),
     rotation: new THREE.Quaternion(),
     position: new THREE.Vector3(),
   });
   useFrame(() => {
-    if (!wheels.current) return;
+    if (!wheels.current || movement.current === lastMovementRef.current) return;
+    lastMovementRef.current = movement.current;
     const s = scratch.current;
     s.rotation.setFromAxisAngle(X_AXIS, movement.current / radius);
     positions.forEach((p, i) => {
@@ -613,6 +615,7 @@ export function CommunityBicycle({ pose }: { pose: CommunityBicyclePose }) {
   const cranks = useRef<THREE.InstancedMesh>(null);
   const pedals = useRef<THREE.InstancedMesh>(null);
   const movement = useRef(0);
+  const lastPhaseRef = useRef(Number.NaN);
   const previous = useRef({ x: pose.x, z: pose.z, visible: false });
   const scratch = useRef({
     matrix: new THREE.Matrix4(),
@@ -638,6 +641,8 @@ export function CommunityBicycle({ pose }: { pose: CommunityBicyclePose }) {
     root.current.position.set(pose.x, 0, pose.z);
     root.current.rotation.y = pose.rotation;
     const phase = Number.isFinite(pose.pedalPhase) ? pose.pedalPhase : 0;
+    if (phase === lastPhaseRef.current) return;
+    lastPhaseRef.current = phase;
     const targets = communityBicyclePedals(phase);
     const s = scratch.current;
     targets.forEach((target, index) => {

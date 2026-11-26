@@ -32,7 +32,7 @@ export const costEstimationOverlayMessages = defineMessages({
     onDevice: 'On-device inference has no API charge.',
     chatgptNote: 'ChatGPT plan usage is separate from BYOK API billing and this dollar cap.',
     pricingNote:
-      "{model}: direct-provider estimate ${input}/1M in, ${output}/1M out; OpenRouter reports account and any upstream BYOK costs. This tab's cap is an estimate, not a provider billing limit.",
+      "{model}: direct-provider estimate ${input}/1M in, ${output}/1M out; OpenRouter reports account and any upstream BYOK costs. This tab's cap is an in-app estimate; your provider enforces actual billing limits.",
   },
   'pt-BR': {
     title: 'Uso da API (BYOK)',
@@ -54,6 +54,6 @@ export const costEstimationOverlayMessages = defineMessages({
     chatgptNote:
       'O uso do plano do ChatGPT é separado da cobrança da API BYOK e deste limite em dólares.',
     pricingNote:
-      '{model}: estimativa pelo preço direto do provedor, US$ {input}/1M de entrada, US$ {output}/1M de saída; o OpenRouter informa os custos da conta e eventuais custos BYOK do provedor de origem. O limite desta aba é uma estimativa, não um limite de cobrança do provedor.',
+      '{model}: estimativa pelo preço direto do provedor, US$ {input}/1M de entrada, US$ {output}/1M de saída; o OpenRouter informa os custos da conta e eventuais custos BYOK do provedor de origem. O limite desta aba é uma estimativa local; o provedor define o limite real de cobrança.',
   },
 });

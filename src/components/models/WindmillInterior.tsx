@@ -374,6 +374,7 @@ export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: Wind
     [geometry, kernelGeometry]
   );
   useEffect(() => () => Object.values(materials).forEach((item) => item.dispose()), [materials]);
+  const lastGrainStateRef = useRef({ angle: Number.NaN, stage: '' });
   useFrame(() => {
     if (root.current) {
       light.position.value.set(0.09 * modelScale, -0.05 * modelScale, 0.11 * modelScale);
@@ -385,7 +386,17 @@ export function WindmillInterior({ angle, stage, modelScale, modelOrigin }: Wind
     if (nut.current) nut.current.rotation.y = angle.value * angularRatios.stoneNut;
     if (runner.current) runner.current.rotation.y = angle.value * angularRatios.runner;
     if (!grain.current) return;
-    grain.current.visible = stage !== 'power';
+    const showGrain = stage !== 'power';
+    grain.current.visible = showGrain;
+    if (!showGrain) return;
+    if (
+      angle.value === lastGrainStateRef.current.angle &&
+      stage === lastGrainStateRef.current.stage
+    ) {
+      return;
+    }
+    lastGrainStateRef.current.angle = angle.value;
+    lastGrainStateRef.current.stage = stage;
     for (let i = 0; i < 24; i++) {
       const phase = grainPhase(angle.value, i);
       sampleGrainPath(stage, phase, scratch.position).multiplyScalar(modelScale);

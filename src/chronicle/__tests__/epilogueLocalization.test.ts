@@ -18,7 +18,12 @@ import {
   type ChronicleState,
   type ShiftCloseEvidence,
 } from '../engine';
-import { epilogue, GOVERNANCE_EPILOGUE_SECTIONS, localizedEpilogue } from '../epilogue';
+import {
+  epilogue,
+  EPILOGUE_SECTIONS,
+  GOVERNANCE_EPILOGUE_SECTIONS,
+  localizedEpilogue,
+} from '../epilogue';
 import { copy } from '../epilogue.messages';
 import { EVENT_DECK } from '../eventDeck';
 import { COUNTDOWN_SHIFTS, CREW_PROFILES, CREW_ROLE_IDS } from '../governance';
@@ -195,10 +200,12 @@ describe('the localized epilogue', () => {
     );
   });
 
-  it('has Portuguese for every part-three title and slide, reached or not', () => {
+  it('has Portuguese for every epilogue title and slide, reached or not', () => {
     setLocale('pt-BR');
-    for (const section of GOVERNANCE_EPILOGUE_SECTIONS) {
-      expect(copy(section.title), section.title).not.toBe(section.title);
+    for (const section of [...EPILOGUE_SECTIONS, ...GOVERNANCE_EPILOGUE_SECTIONS]) {
+      if (section.id !== 'haulier' && section.id !== 'standards') {
+        expect(copy(section.title), section.title).not.toBe(section.title);
+      }
       for (const slide of section.slides) expect(copy(slide.text), slide.text).not.toBe(slide.text);
     }
     expect(copy('The AI partner made the one decision in the record.')).not.toMatch(/AI partner/);
