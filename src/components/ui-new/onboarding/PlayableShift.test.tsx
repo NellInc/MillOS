@@ -1073,7 +1073,7 @@ it.each([
       id: 'order-due-order-001',
       severity: 'warning',
       label: 'Commitment due soon',
-      detail: '85 simulated minutes remain.',
+      detail: '85 minutes remain.',
       relatedId: null,
     },
     'order-overdue': {

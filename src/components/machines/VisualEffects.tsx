@@ -126,7 +126,7 @@ export const SteamVent: React.FC<{ position: [number, number, number]; intensity
     }, []);
 
     useFrame((_, delta) => {
-      if (!isTabVisible || isLowQuality) return;
+      if (!isTabVisible || isLowQuality || useGameSimulationStore.getState().gameSpeed <= 0) return;
       // Throttle steam vent animation - looks fine at 15-20fps
       if (!shouldRunThisFrame(ventThrottle)) return;
       if (!particlesRef.current || intensity <= 0) return;
@@ -194,7 +194,7 @@ export const Sparks: React.FC<{ position: [number, number, number]; active: bool
     );
 
     useFrame((_state, delta) => {
-      if (!isTabVisible || isLowQuality) return;
+      if (!isTabVisible || isLowQuality || useGameSimulationStore.getState().gameSpeed <= 0) return;
       // Throttle sparks animation - 20fps+ is sufficient
       if (!shouldRunThisFrame(sparkThrottle)) return;
       if (!particlesRef.current || !active) return;
@@ -270,9 +270,10 @@ export const RotatingFan: React.FC<{
 
   // Shared geometry for all fan blades
   const bladeGeometry = useMemo(() => new THREE.BoxGeometry(size * 1.8, 0.02, size * 0.3), [size]);
+  useEffect(() => () => bladeGeometry.dispose(), [bladeGeometry]);
 
   useFrame((_, delta) => {
-    if (!isTabVisible || isLowQuality) return;
+    if (!isTabVisible || isLowQuality || useGameSimulationStore.getState().gameSpeed <= 0) return;
     if (!shouldRunThisFrame(fanThrottle)) return;
     if (fanRef.current && speed > 0) {
       fanRef.current.rotation.z += delta * speed * 0.5;

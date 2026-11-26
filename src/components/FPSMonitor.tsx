@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { GraphicsQuality } from '../stores/graphicsStore';
 import { useGraphicsStore } from '../stores/graphicsStore';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
+import { formatFixed } from '../i18n';
 
 interface PerformanceMemory {
   usedJSHeapSize: number;
@@ -355,7 +356,7 @@ const ProfileBar: React.FC<{ label: string; value: number; max: number; color: s
           style={{ width: `${percentage}%` }}
         />
       </div>
-      <span className="text-slate-400 font-mono w-12 text-right">{value.toFixed(1)}ms</span>
+      <span className="text-slate-400 font-mono w-12 text-right">{formatFixed(value, 1)}ms</span>
     </div>
   );
 };
@@ -536,11 +537,11 @@ export const FPSDisplay: React.FC<FPSDisplayProps> = ({ showDetailed = false }) 
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] border-t border-slate-700/50 pt-2">
         <div className="flex justify-between">
           <span className="text-slate-500">Avg:</span>
-          <span className="text-slate-300 font-mono">{avgFps.toFixed(0)}</span>
+          <span className="text-slate-300 font-mono">{formatFixed(avgFps, 0)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">Frame:</span>
-          <span className="text-slate-300 font-mono">{frameTime.toFixed(1)}ms</span>
+          <span className="text-slate-300 font-mono">{formatFixed(frameTime, 1)}ms</span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">Min:</span>
@@ -552,7 +553,7 @@ export const FPSDisplay: React.FC<FPSDisplayProps> = ({ showDetailed = false }) 
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">Tris:</span>
-          <span className="text-cyan-400 font-mono">{(triangles / 1000).toFixed(1)}k</span>
+          <span className="text-cyan-400 font-mono">{formatFixed(triangles / 1000, 1)}k</span>
         </div>
         <div className="flex justify-between">
           <span className="text-slate-500">Draws:</span>
@@ -624,7 +625,7 @@ export const FPSDisplay: React.FC<FPSDisplayProps> = ({ showDetailed = false }) 
           {memoryUsage > 0 && (
             <div className="flex justify-between text-[10px] pt-1">
               <span className="text-slate-500">Memory:</span>
-              <span className="text-orange-400 font-mono">{memoryUsage.toFixed(0)} MB</span>
+              <span className="text-orange-400 font-mono">{formatFixed(memoryUsage, 0)} MB</span>
             </div>
           )}
         </div>

@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { Environment } from '@react-three/drei';
 import { SceneText as Text } from './shared/SceneText';
 import * as THREE from 'three';
+import { formatFixed } from '../i18n';
 
 // Import static assets so Vite handles base path correctly
 import warehouseHdrUrl from '/hdri/warehouse.hdr?url';
@@ -270,7 +271,7 @@ const HeatMapPoint = React.memo<{
           outlineWidth={0.02}
           outlineColor="#000"
         >
-          {point.intensity.toFixed(0)}x
+          {formatFixed(point.intensity, 0)}x
         </Text>
       )}
     </group>

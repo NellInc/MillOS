@@ -115,7 +115,7 @@ describe('an order fulfilled on the tick that closes a shift', () => {
 });
 
 describe('deadline copy agrees in number', () => {
-  it('reads one simulated minute, not one simulated minutes', () => {
+  it('reads one minute, not one minutes', () => {
     const overdue = translate(operationsCampaignMessages, 'constraintOverdueDetail', {
       customer: 'Riverside',
       count: 1,
@@ -126,15 +126,15 @@ describe('deadline copy agrees in number', () => {
       count: 1,
       minutes: '1',
     });
-    expect(overdue).toBe('Riverside is 1 simulated minute overdue.');
-    expect(dueSoon).toBe('1 simulated minute remains for Riverside.');
+    expect(overdue).toBe('Riverside is 1 minute overdue.');
+    expect(dueSoon).toBe('1 minute remains for Riverside.');
     expect(
       translate(operationsCampaignMessages, 'constraintDueSoonDetail', {
         customer: 'Riverside',
         count: 12,
         minutes: '12',
       })
-    ).toBe('12 simulated minutes remain for Riverside.');
+    ).toBe('12 minutes remain for Riverside.');
   });
 
   it('the live constraint at one minute to the deadline is singular', () => {
@@ -142,7 +142,7 @@ describe('deadline copy agrees in number', () => {
     const due = useOperationsCampaignStore
       .getState()
       .constraints.find((constraint) => constraint.id === 'order-due-order-001');
-    expect(due?.detail).toBe("1 simulated minute remains for Riverside Bakers' Cooperative.");
+    expect(due?.detail).toBe("1 minute remains for Riverside Bakers' Cooperative.");
   });
 });
 

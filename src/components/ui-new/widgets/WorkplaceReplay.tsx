@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { STANDARD_GAME_SPEED } from '../../../simulation/pace';
 import {
   exportWorkplaceReplayReport,
@@ -46,7 +47,16 @@ export function WorkplaceReplay({
 }) {
   const t = useT(workplaceReplayMessages);
   const tFault = useT(predictiveMaintenancePanelMessages);
-  const replay = useWorkplaceReplayStore();
+  const replay = useWorkplaceReplayStore(
+    useShallow((state) => ({
+      checkpoint: state.checkpoint,
+      runs: state.runs,
+      begin: state.begin,
+      capture: state.capture,
+      record: state.record,
+      forget: state.forget,
+    }))
+  );
   const gameSpeed = useGameSimulationStore((state) => state.gameSpeed);
   // Kept keyed and resolved at render, so the status line follows a language
   // switch. Working if a refused capture reads in the language chosen after.

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useMobileDetection } from '../../../hooks/useMobileDetection';
 import { useWorkplaceAutoplay } from '../../../simulation/workplaceAutoplay';
 import {
@@ -44,7 +45,17 @@ export function WorkplaceParticipation({
   report: (result: WorkplaceTransitionResult) => void;
 }) {
   const t = useT(workplaceParticipationMessages);
-  const store = useWorkplaceStore();
+  const store = useWorkplaceStore(
+    useShallow((state) => ({
+      workplace: state.workplace,
+      turn: state.turn,
+      participationMode: state.participationMode,
+      setParticipationMode: state.setParticipationMode,
+      answerTurnCheck: state.answerTurnCheck,
+      endTurn: state.endTurn,
+      startTurn: state.startTurn,
+    }))
+  );
   const s = store.workplace;
   const [role, setRole] = useState('packing');
   const current = store.turn;
@@ -232,7 +243,12 @@ export function WorkplaceSeasonEntry({
   onStart: () => void;
 }) {
   const t = useT(workplaceParticipationMessages);
-  const store = useWorkplaceStore();
+  const store = useWorkplaceStore(
+    useShallow((state) => ({
+      workplace: state.workplace,
+      startMission: state.startMission,
+    }))
+  );
   // D4: a season is offered once the first delivery is in.
   const firstDone = useOperationsCampaignStore((s) => firstDeliveryFulfilled(s.orders));
   if (store.workplace.phase !== 'idle' || !firstDone) return null;
@@ -272,8 +288,7 @@ export function WorkplaceSeasonEntry({
 }
 export function WorkplaceFairness() {
   const t = useT(workplaceParticipationMessages);
-  const store = useWorkplaceStore();
-  const s = store.workplace;
+  const s = useWorkplaceStore((state) => state.workplace);
   return (
     <details className="border-t border-slate-700 pt-3">
       <summary className="min-h-11 cursor-pointer py-2 font-semibold text-white">
@@ -345,7 +360,13 @@ export function WorkplaceDemonstration({
   report: (r: WorkplaceTransitionResult) => void;
 }) {
   const t = useT(workplaceParticipationMessages);
-  const store = useWorkplaceStore();
+  const store = useWorkplaceStore(
+    useShallow((state) => ({
+      workplace: state.workplace,
+      participationMode: state.participationMode,
+      rehearseReload: state.rehearseReload,
+    }))
+  );
   const [enabled, setEnabled] = useState(false);
   const beats = demonstrationBeats(store.workplace);
   return (
@@ -409,8 +430,24 @@ export function WorkplaceDemonstration({
 export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile }) {
   const t = useT(workplaceParticipationMessages);
   const tAuto = useT(workplaceAutoplayMessages);
-  const store = useWorkplaceStore();
-  const automatic = useWorkplaceAutoplay();
+  const store = useWorkplaceStore(
+    useShallow((state) => ({
+      participationMode: state.participationMode,
+      workplace: state.workplace,
+    }))
+  );
+  const automatic = useWorkplaceAutoplay(
+    useShallow((state) => ({
+      running: state.running,
+      manual: state.manual,
+      resumeProfile: state.resumeProfile,
+      messageKey: state.messageKey,
+      reasonCopy: state.reasonCopy,
+      message: state.message,
+      start: state.start,
+      pause: state.pause,
+    }))
+  );
   const running = automatic.running;
   const pauseRef = useRef<HTMLButtonElement>(null);
   const startRef = useRef<HTMLButtonElement>(null);
@@ -480,8 +517,21 @@ export function WorkplaceAutomaticDemo({ profile }: { profile: WorkplaceProfile 
 export function WorkplaceAutoplayStatus() {
   const t = useT(workplaceParticipationMessages);
   const { isMobile } = useMobileDetection();
-  const automatic = useWorkplaceAutoplay();
-  const store = useWorkplaceStore();
+  const automatic = useWorkplaceAutoplay(
+    useShallow((state) => ({
+      running: state.running,
+      manual: state.manual,
+      resumeProfile: state.resumeProfile,
+      start: state.start,
+      pause: state.pause,
+    }))
+  );
+  const store = useWorkplaceStore(
+    useShallow((state) => ({
+      participationMode: state.participationMode,
+      workplace: state.workplace,
+    }))
+  );
   const orderId = useOperationsCampaignStore((s) => s.activeOrderId);
   // GameInterface publishes `introStep !== null` as the PA onboarding context;
   // both stores are leaves, so reading them here adds no import cycle.

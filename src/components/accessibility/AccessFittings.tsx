@@ -287,9 +287,19 @@ function HallFittings() {
       const seated = person.userData.seated === true;
       target = nearDoor && !seated ? 1 : 0;
     }
+    if (signal.current) {
+      const nextMat = inside ? POD_IN_USE : POD_FREE;
+      if (signal.current.material !== nextMat) signal.current.material = nextMat;
+    }
+    if (Math.abs(target - doorOpen.current) <= 1e-4) {
+      if (doorOpen.current !== target) {
+        doorOpen.current = target;
+        if (door.current) door.current.position.x = QUIET_ROOM.doorWidth * 0.98 * target;
+      }
+      return;
+    }
     doorOpen.current = THREE.MathUtils.damp(doorOpen.current, target, 5, Math.min(0.1, delta));
     if (door.current) door.current.position.x = QUIET_ROOM.doorWidth * 0.98 * doorOpen.current;
-    if (signal.current) signal.current.material = inside ? POD_IN_USE : POD_FREE;
   });
   const [bx, , bz] = QC_BENCH.centre;
   const [tx, , tz] = QC_BREAK_TABLE.centre;
@@ -385,9 +395,12 @@ function VisualAlarms() {
   );
   const lenses = useRef<Array<THREE.Mesh | null>>([]);
   const glows = useRef<Array<THREE.Mesh | null>>([]);
+  const lastFlashRef = useRef<boolean | null>(null);
   // All devices flash together, as synchronised strobes must.
   useFrame(({ clock }) => {
     const flash = isAlarmSignalling() && strobeOn(clock.elapsedTime, reducedMotion);
+    if (flash === lastFlashRef.current) return;
+    lastFlashRef.current = flash;
     const lamp = lenses.current.length - 1;
     for (let index = 0; index < lenses.current.length; index++) {
       const lens = lenses.current[index];

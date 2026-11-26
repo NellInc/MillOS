@@ -422,6 +422,12 @@ const DockMechanism: React.FC<DockMechanismProps> = ({
 
   useFrame((_state, delta) => {
     const target = docked ? LEVELER_DEPLOYED_PITCH : 0;
+    if (pitchRef.current === target) return;
+    if (Math.abs(target - pitchRef.current) <= 1e-5) {
+      pitchRef.current = target;
+      if (levelerRef.current) levelerRef.current.rotation.x = target;
+      return;
+    }
     // Exponential damping, framerate independent. A discrete assignment would
     // teleport a 29 m steel plate through 7 degrees in one frame.
     const alpha = 1 - Math.exp(-Math.max(0, delta) / LEVELER_SMOOTH_TIME);

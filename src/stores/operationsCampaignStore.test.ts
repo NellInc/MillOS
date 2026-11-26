@@ -469,7 +469,7 @@ describe('autonomous operations programme', () => {
       expect.objectContaining({
         id: 'order-due-order-001',
         label: 'Commitment overdue',
-        detail: expect.stringMatching(/ is \d+ simulated minutes overdue\.$/),
+        detail: expect.stringMatching(/ is \d+ minutes overdue\.$/),
       })
     );
   });

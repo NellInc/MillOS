@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Download, RotateCcw, Undo2, Redo2, X, Route, RefreshCw, Pause, Play } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useFocusTrap } from '../../../hooks/useFocusTrap';
 import { useProductionStore } from '../../../stores/productionStore';
 import { useMaterialFlowStore } from '../../../stores/materialFlowStore';
@@ -231,7 +232,16 @@ export const LayoutPlanner: React.FC<{ onClose: () => void }> = ({ onClose }) =>
   const dialog = useRef<HTMLDivElement>(null);
   useFocusTrap(dialog as React.RefObject<HTMLElement>, true, onClose);
   const [snapshot, setSnapshot] = useState(captureLayout);
-  const applied = useLogisticsLayoutStore();
+  const applied = useLogisticsLayoutStore(
+    useShallow((s) => ({
+      layout: s.layout,
+      revision: s.revision,
+      previous: s.previous,
+      before: s.before,
+      retainedAfter: s.retainedAfter,
+      observation: s.observation,
+    }))
+  );
   // The shift clock is the one pause: at 0 the tick, trucks and forklifts all
   // stop, so the line setpoint is left as the operator set it.
   const paused = useGameSimulationStore((s) => s.gameSpeed === 0);

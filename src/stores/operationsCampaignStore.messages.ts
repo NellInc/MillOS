@@ -104,11 +104,11 @@ export const operationsCampaignMessages = defineMessages({
     // A carried risk named by the order it is about: "Commitment overdue (Customer)".
     riskNamed: (p: { label: string; subject: string }) => `${p.label} (${p.subject})`,
     constraintOverdueDetail: (p: { customer: string; minutes: string; count: number }) =>
-      `${p.customer} is ${p.minutes} ${p.count === 1 ? 'simulated minute' : 'simulated minutes'} overdue.`,
+      `${p.customer} is ${p.minutes} ${p.count === 1 ? 'minute' : 'minutes'} overdue.`,
     constraintDueSoonDetail: (p: { customer: string; minutes: string; count: number }) =>
       p.count === 1
-        ? `${p.minutes} simulated minute remains for ${p.customer}.`
-        : `${p.minutes} simulated minutes remain for ${p.customer}.`,
+        ? `${p.minutes} minute remains for ${p.customer}.`
+        : `${p.minutes} minutes remain for ${p.customer}.`,
     constraintDispatchLabel: 'Dispatch isolated',
     constraintDispatchDetail:
       'An active incident requires the shipping quality gate to remain closed.',
@@ -222,11 +222,11 @@ export const operationsCampaignMessages = defineMessages({
     constraintDueSoonLabel: 'Compromisso com prazo próximo',
     riskNamed: (p: { label: string; subject: string }) => `${p.label} (${p.subject})`,
     constraintOverdueDetail: (p: { customer: string; minutes: string; count: number }) =>
-      `Compromisso de ${p.customer} atrasado em ${p.minutes} ${p.count === 1 ? 'minuto simulado' : 'minutos simulados'}.`,
+      `Compromisso de ${p.customer} atrasado em ${p.minutes} ${p.count === 1 ? 'minuto' : 'minutos'}.`,
     constraintDueSoonDetail: (p: { customer: string; minutes: string; count: number }) =>
       p.count === 1
-        ? `Resta ${p.minutes} minuto simulado para ${p.customer}.`
-        : `Restam ${p.minutes} minutos simulados para ${p.customer}.`,
+        ? `Resta ${p.minutes} minuto para ${p.customer}.`
+        : `Restam ${p.minutes} minutos para ${p.customer}.`,
     constraintDispatchLabel: 'Expedição isolada',
     constraintDispatchDetail:
       'Uma ocorrência ativa exige que a barreira de qualidade da expedição permaneça fechada.',

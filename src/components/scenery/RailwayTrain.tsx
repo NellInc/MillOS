@@ -478,6 +478,7 @@ export const RailwayTrain: React.FC = React.memo(() => {
   );
   const armsRef = useRef<THREE.InstancedMesh>(null);
   const armAngles = useRef<number[] | null>(null);
+  const lastConsistHourRef = useRef(Number.NaN);
   const clock = useRef<{ hour: number; world: number } | null>(null);
   const steam = useRef<SteamState>({
     puffs: Array.from(
@@ -525,6 +526,7 @@ export const RailwayTrain: React.FC = React.memo(() => {
       const first = !armAngles.current;
       if (!armAngles.current) armAngles.current = RAILWAY_SIGNALS.map(() => 0);
       const step = state.hour !== previousHour ? Math.min(Math.max(delta, 0), 0.1) : 0;
+      let armsChanged = first;
       for (let i = 0; i < RAILWAY_SIGNALS.length; i++) {
         const signal = RAILWAY_SIGNALS[i];
         const clear =
@@ -533,61 +535,68 @@ export const RailwayTrain: React.FC = React.memo(() => {
           (_pose.phase === 'standing' || _pose.phase === 'departing') &&
           signal.direction * (tail - signal.s) < 1;
         const target = clear ? SIGNAL_CLEAR : 0;
-        const angle = first ? target : THREE.MathUtils.damp(armAngles.current[i], target, 3, step);
+        const prevAngle = armAngles.current[i];
+        const angle = first ? target : THREE.MathUtils.damp(prevAngle, target, 3, step);
+        if (!first && angle === prevAngle) continue;
+        armsChanged = true;
         armAngles.current[i] = angle;
         _yaw.setFromAxisAngle(_up, signal.arm > 0 ? 0 : Math.PI);
         _spin.setFromAxisAngle(_forward, angle);
         _position.set(signal.x + signal.arm * 0.1, SIGNAL_PIVOT_Y, signal.z);
         arms.setMatrixAt(i, _matrix.compose(_position, _yaw.multiply(_spin), _unit));
       }
-      arms.instanceMatrix.needsUpdate = true;
+      if (armsChanged) arms.instanceMatrix.needsUpdate = true;
     }
 
     const puffs = steam.current;
     if (!_pose.visible) {
       puffs.seeded = false;
       puffs.lastHead = Number.NaN;
+      lastConsistHourRef.current = Number.NaN;
       return;
     }
-    placeRailwayConsist(_pose, _vehicles);
+    if (state.hour !== lastConsistHourRef.current) {
+      lastConsistHourRef.current = state.hour;
+      placeRailwayConsist(_pose, _vehicles);
 
-    let coachIndex = 0;
-    let wheelIndex = 0;
-    const offset = trackOffset(_pose.track);
-    for (let i = 0; i < RAILWAY_CONSIST.length; i++) {
-      const vehicle = _vehicles[i];
-      const kind = RAILWAY_CONSIST[i].kind;
-      _yaw.setFromAxisAngle(_up, vehicle.yaw);
-      _position.set(vehicle.x, RAILWAY_LEVELS.railTop, vehicle.z);
-      if (kind === 'engine') {
-        engineRef.current?.position.copy(_position);
-        engineRef.current?.quaternion.copy(_yaw);
-      } else {
-        _matrix.compose(_position, _yaw, _unit);
-        coachRef.current?.setMatrixAt(coachIndex, _matrix);
-        coachGlassRef.current?.setMatrixAt(coachIndex, _matrix);
-        coachIndex++;
+      let coachIndex = 0;
+      let wheelIndex = 0;
+      const offset = trackOffset(_pose.track);
+      for (let i = 0; i < RAILWAY_CONSIST.length; i++) {
+        const vehicle = _vehicles[i];
+        const kind = RAILWAY_CONSIST[i].kind;
+        _yaw.setFromAxisAngle(_up, vehicle.yaw);
+        _position.set(vehicle.x, RAILWAY_LEVELS.railTop, vehicle.z);
+        if (kind === 'engine') {
+          engineRef.current?.position.copy(_position);
+          engineRef.current?.quaternion.copy(_yaw);
+        } else {
+          _matrix.compose(_position, _yaw, _unit);
+          coachRef.current?.setMatrixAt(coachIndex, _matrix);
+          coachGlassRef.current?.setMatrixAt(coachIndex, _matrix);
+          coachIndex++;
+        }
+        if (kind === 'engine') _chimney.copy(CHIMNEY_TOP).applyQuaternion(_yaw).add(_position);
+        const axles = AXLES[kind];
+        for (let a = 0; a < axles.length; a++) {
+          const axle = axles[a];
+          sampleOffset(vehicle.s + _pose.direction * axle.z, offset, _axle);
+          _position.set(_axle.x, RAILWAY_LEVELS.railTop + axle.r, _axle.z);
+          // Face the vehicle's own forward, which is the direction of travel.
+          _yaw.setFromAxisAngle(
+            _up,
+            Math.atan2(_axle.dirX * _pose.direction, _axle.dirZ * _pose.direction)
+          );
+          _spin.setFromAxisAngle(_across, (_pose.headS * _pose.direction) / axle.r);
+          _scale.set(1, axle.r, axle.r);
+          _matrix.compose(_position, _yaw.multiply(_spin), _scale);
+          wheelRef.current?.setMatrixAt(wheelIndex++, _matrix);
+        }
       }
-      if (kind === 'engine') _chimney.copy(CHIMNEY_TOP).applyQuaternion(_yaw).add(_position);
-      const axles = AXLES[kind];
-      for (let a = 0; a < axles.length; a++) {
-        const axle = axles[a];
-        sampleOffset(vehicle.s + _pose.direction * axle.z, offset, _axle);
-        _position.set(_axle.x, RAILWAY_LEVELS.railTop + axle.r, _axle.z);
-        // Face the vehicle's own forward, which is the direction of travel.
-        _yaw.setFromAxisAngle(
-          _up,
-          Math.atan2(_axle.dirX * _pose.direction, _axle.dirZ * _pose.direction)
-        );
-        _spin.setFromAxisAngle(_across, (_pose.headS * _pose.direction) / axle.r);
-        _scale.set(1, axle.r, axle.r);
-        _matrix.compose(_position, _yaw.multiply(_spin), _scale);
-        wheelRef.current?.setMatrixAt(wheelIndex++, _matrix);
-      }
+      if (coachRef.current) coachRef.current.instanceMatrix.needsUpdate = true;
+      if (coachGlassRef.current) coachGlassRef.current.instanceMatrix.needsUpdate = true;
+      if (wheelRef.current) wheelRef.current.instanceMatrix.needsUpdate = true;
     }
-    if (coachRef.current) coachRef.current.instanceMatrix.needsUpdate = true;
-    if (coachGlassRef.current) coachGlassRef.current.instanceMatrix.needsUpdate = true;
-    if (wheelRef.current) wheelRef.current.instanceMatrix.needsUpdate = true;
 
     // ---- Steam ---------------------------------------------------------------
     const steamMesh = steamRef.current;

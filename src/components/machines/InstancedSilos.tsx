@@ -6,6 +6,7 @@ import { MachineData, GrainQuality } from '../../types';
 import { useGraphicsStore } from '../../stores/graphicsStore';
 import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 import { useShallow } from 'zustand/react/shallow';
+import { formatFixed } from '../../i18n';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
 import {
   getSiloBodyGeometry,
@@ -121,7 +122,7 @@ const SiloOverlay: React.FC<{
       distanceFactor={15}
     >
       <div className="bg-slate-900/90 backdrop-blur px-2 py-1 rounded-lg border border-slate-700 min-w-[70px]">
-        <div className="text-xs font-mono text-white font-bold">{fillLevel.toFixed(0)}%</div>
+        <div className="text-xs font-mono text-white font-bold">{formatFixed(fillLevel, 0)}%</div>
         <div className="text-[9px] text-slate-400">{grainType}</div>
         <div className="flex items-center gap-1 mt-0.5">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: qualityColor }} />

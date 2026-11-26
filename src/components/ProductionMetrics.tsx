@@ -4,6 +4,7 @@ import { useProductionStore } from '../stores/productionStore';
 import { useSafetyStore } from '../stores/safetyStore';
 import { useGameSimulationStore } from '../stores/gameSimulationStore';
 import { BAG_WEIGHT_KG, MachineType, MachineData } from '../types';
+import { formatFixed } from '../i18n';
 
 interface MetricsData {
   time: string;
@@ -183,7 +184,9 @@ export const ProductionMetrics: React.FC = () => {
     prevEfficiencyRef.current = storeMetrics.efficiency;
   }, [storeMetrics.efficiency]);
   const efficiencyTrend =
-    efficiencyDiff >= 0 ? `+${efficiencyDiff.toFixed(1)}%` : `${efficiencyDiff.toFixed(1)}%`;
+    efficiencyDiff >= 0
+      ? `+${formatFixed(efficiencyDiff, 1)}%`
+      : `${formatFixed(efficiencyDiff, 1)}%`;
 
   // Calculate time since last safety incident
   const getTimeSinceIncident = () => {
@@ -305,9 +308,9 @@ export const ProductionMetrics: React.FC = () => {
             {data.slice(-5).map((point, idx) => (
               <tr key={idx}>
                 <td>{point.time}</td>
-                <td>{point.throughput.toFixed(1)}</td>
-                <td>{point.efficiency.toFixed(1)}</td>
-                <td>{point.quality.toFixed(1)}</td>
+                <td>{formatFixed(point.throughput, 1)}</td>
+                <td>{formatFixed(point.efficiency, 1)}</td>
+                <td>{formatFixed(point.quality, 1)}</td>
               </tr>
             ))}
           </tbody>

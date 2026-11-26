@@ -1605,15 +1605,22 @@ export const RailwayStation: React.FC = React.memo(() => {
     [geometry]
   );
   const handsRef = useRef<THREE.InstancedMesh>(null);
+  const lastLampLevelRef = useRef(Number.NaN);
+  const lastClockHourRef = useRef(Number.NaN);
   useFrame(() => {
     const level = EXTERIOR_LAMP_LEVEL.value;
-    RAILWAY_GLASS_MATERIAL.color.copy(DAY_GLASS).lerp(NIGHT_GLASS, level);
-    RAILWAY_GLASS_MATERIAL.emissiveIntensity = level * 0.6;
+    if (level !== lastLampLevelRef.current) {
+      lastLampLevelRef.current = level;
+      RAILWAY_GLASS_MATERIAL.color.copy(DAY_GLASS).lerp(NIGHT_GLASS, level);
+      RAILWAY_GLASS_MATERIAL.emissiveIntensity = level * 0.6;
+    }
     // The platform clock keeps the plant's own time.
     const hands = handsRef.current;
     if (!hands) return;
     const hour = useGameSimulationStore.getState().gameTime;
     const safe = Number.isFinite(hour) ? hour : 12;
+    if (safe === lastClockHourRef.current) return;
+    lastClockHourRef.current = safe;
     const minuteTurn = ((safe * 60) % 60) / 60;
     const hourTurn = (safe % 12) / 12;
     for (let i = 0; i < CLOCK_HANDS.length; i++) {

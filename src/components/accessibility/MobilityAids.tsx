@@ -267,7 +267,10 @@ const WHEELCHAIR_GEOMETRY = (() => {
 
 function Wheelchair({ state }: { state: MobilityState }) {
   const wheels = useRef<Array<THREE.Group | null>>([]);
+  const lastAngleRef = useRef(Number.NaN);
   useFrame(() => {
+    if (state.wheelAngle === lastAngleRef.current) return;
+    lastAngleRef.current = state.wheelAngle;
     for (const wheel of wheels.current) if (wheel) wheel.rotation.x = state.wheelAngle;
   });
   const W = WHEELCHAIR;
@@ -348,10 +351,13 @@ const _dir = new THREE.Vector3();
 
 function LongCane({ state }: { state: MobilityState }) {
   const group = useRef<THREE.Group>(null);
+  const lastSweepRef = useRef(Number.NaN);
   useFrame(() => {
     const node = group.current;
     if (!node) return;
     node.visible = state.shown;
+    if (!state.shown || state.sweep === lastSweepRef.current) return;
+    lastSweepRef.current = state.sweep;
     longCanePoints(state.sweep, _grip, _tip);
     node.position.set(_grip.x, _grip.y, _grip.z);
     _dir.set(_tip.x - _grip.x, _tip.y - _grip.y, _tip.z - _grip.z).normalize();

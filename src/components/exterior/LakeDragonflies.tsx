@@ -309,6 +309,7 @@ export const LakeDragonflies = memo(function LakeDragonflies({
       leg = legs.current;
     return () => disposeLakeDragonflies(geometry, materials, body, wing, leg);
   }, [geometry, materials]);
+  const lastTimeRef = useRef(Number.NaN);
   useFrame((state) => {
     if (!bodies.current || !wings.current || !legs.current) return;
     const hour = useGameSimulationStore.getState().gameTime;
@@ -322,6 +323,8 @@ export const LakeDragonflies = memo(function LakeDragonflies({
     bodies.current.visible = wings.current.visible = legs.current.visible = visible;
     if (!visible) return;
     const time = WATER_VISUAL_TIME.value;
+    if (time === lastTimeRef.current) return;
+    lastTimeRef.current = time;
     for (let i = 0; i < LAKE_DRAGONFLY_COUNT; i++) {
       const lift = writeLakeDragonflyPose(i, time, perches[i], scratch.object);
       scratch.body.copy(scratch.object.matrix);

@@ -840,13 +840,13 @@ const ForkliftBillboard: React.FC<{
   // The far tier draws the same pallet presence as the near models.
   const cargoMeshRef = useRef<THREE.Mesh>(null);
   const cargoMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
+  const cargoMaterialsListRef = useRef<Array<THREE.MeshStandardMaterial | undefined>>([undefined]);
   const isTabVisible = useGameSimulationStore((state) => state.isTabVisible);
 
   useFrame(() => {
     if (!isTabVisible) return;
-    applyCargoPresence(cargoPresenceRef, cargoMeshRef.current, [
-      cargoMaterialRef.current ?? undefined,
-    ]);
+    cargoMaterialsListRef.current[0] = cargoMaterialRef.current ?? undefined;
+    applyCargoPresence(cargoPresenceRef, cargoMeshRef.current, cargoMaterialsListRef.current);
   });
 
   return (
