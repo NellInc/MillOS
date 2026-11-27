@@ -21,7 +21,7 @@ export const safetyPanelMessages = defineMessages({
     featureZoneCustomization: 'Zone customization',
 
     emergencyResponse: 'Emergency Response',
-    simulatedSafetyEvent: 'Simulated safety event',
+    simulatedSafetyEvent: 'Safety event',
     safetyInterlock: 'Safety interlock',
     stage: (p: { value: string }) => p.value,
     acknowledgementNote: 'Acknowledged in the Safety workspace',
@@ -84,7 +84,7 @@ export const safetyPanelMessages = defineMessages({
     featureZoneCustomization: 'Personalização de zonas',
 
     emergencyResponse: 'Resposta a emergências',
-    simulatedSafetyEvent: 'Evento de segurança simulado',
+    simulatedSafetyEvent: 'Evento de segurança',
     safetyInterlock: 'Intertravamento de segurança',
     stage: (p: { value: string }) => PT_STAGE[p.value] ?? p.value,
     acknowledgementNote: 'Reconhecido no espaço de trabalho de Segurança',

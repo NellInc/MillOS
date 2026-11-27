@@ -105,7 +105,7 @@ export const aiSettingsModalMessages = defineMessages({
     openRouterKeyAdvice:
       'Set a session cap above, then use a lifetime spend-limited OpenRouter inference key with BYOK usage included in its limit. MillOS checks that limit before every paid request.',
     openRouterConsent:
-      'Send simulated plant telemetry to OpenRouter and its model provider. My account pays for strategic requests. The app cap is an estimate; my provider bill is authoritative.',
+      'Send plant telemetry to OpenRouter and its model provider. My account pays for strategic requests. The app cap is an estimate; my provider bill is authoritative.',
     keyMemoryNote:
       'Your key stays in this page’s memory and is sent directly to {provider} with plant telemetry. Reloading clears it. MillOS has no server-side key vault; page scripts and browser extensions can access a key while this page is open.',
     keyCheckFree: 'The key check is free; strategic requests are billable.',
@@ -228,7 +228,7 @@ export const aiSettingsModalMessages = defineMessages({
     openRouterKeyAdvice:
       'Defina um limite de sessão acima e depois use uma chave de inferência da OpenRouter com limite de gastos vitalício que inclua o uso BYOK. O MillOS verifica esse limite antes de cada solicitação paga.',
     openRouterConsent:
-      'Enviar a telemetria simulada da planta para a OpenRouter e o provedor do modelo. Minha conta paga as solicitações estratégicas. O limite do app é uma estimativa; a fatura do meu provedor é a referência oficial.',
+      'Enviar a telemetria da planta para a OpenRouter e o provedor do modelo. Minha conta paga as solicitações estratégicas. O limite do app é uma estimativa; a fatura do meu provedor é a referência oficial.',
     keyMemoryNote:
       'Sua chave fica na memória desta página e é enviada diretamente à {provider} com a telemetria da planta. Recarregar a página a apaga. O MillOS não tem cofre de chaves no servidor; scripts da página e extensões do navegador podem acessar uma chave enquanto esta página estiver aberta.',
     keyCheckFree: 'A verificação da chave é gratuita; as solicitações estratégicas são cobradas.',

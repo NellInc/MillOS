@@ -98,7 +98,7 @@ export const decisionReplayMessages = defineMessages({
     awaitingResponse: 'Awaiting a response.',
     noControlResponse: 'No control response was recorded.',
     measuredOutcome: 'Measured outcome',
-    noMeasuredResult: 'No measured result has been recorded for this simulated decision.',
+    noMeasuredResult: 'No measured result has been recorded for this decision.',
     // English is capitalised by CSS, as before.
     measurementLabel: (p: { key: string }) => EN_MEASUREMENTS[p.key] ?? spacedKey(p.key),
     closeReplay: 'Close Replay',
@@ -131,7 +131,7 @@ export const decisionReplayMessages = defineMessages({
     awaitingResponse: 'Aguardando resposta.',
     noControlResponse: 'Nenhuma resposta de controle foi registrada.',
     measuredOutcome: 'Resultado medido',
-    noMeasuredResult: 'Nenhum resultado medido foi registrado para esta decisão simulada.',
+    noMeasuredResult: 'Nenhum resultado medido foi registrado para esta decisão.',
     measurementLabel: (p: { key: string }) =>
       upperFirst(PT_MEASUREMENTS[p.key] ?? spacedKey(p.key)),
     closeReplay: 'Fechar reprodução',

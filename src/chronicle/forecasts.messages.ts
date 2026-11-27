@@ -23,7 +23,7 @@ const catalog = defineMessages({
     m4: 'Acúmulo de pó',
     m5: 'A pressão diferencial dos filtros está subindo na aspiração do piso de peneiramento.',
     m6: 'Obras na estrada',
-    m7: 'A administração local fechou uma faixa da estrada de transporte. As coletas podem atrasar.',
+    m7: 'O condado fechou uma faixa da estrada de transporte. As coletas podem atrasar.',
     m8: 'Limpar os drenos',
     m9: 'Contratar resposta à demanda',
     m10: 'Limpar os filtros por pulsos',

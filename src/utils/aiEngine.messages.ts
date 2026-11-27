@@ -20,7 +20,7 @@ export const aiEngineMessages = defineMessages({
     coordinationImpact: 'A notice only: accepting changes nothing on the plant.',
     maintenanceAction: 'Return {machine} to warning if it is critical',
     maintenanceReasoning:
-      'Telemetry reports {temperature} C, {vibration} mm/s vibration, and {wear} percent wear.',
+      'Telemetry reports {temperature} °C, {vibration} mm/s vibration, and {wear} percent wear.',
     maintenanceImpact:
       'Books no maintenance. A worn-out or broken-down unit stays stopped; in an emergency the return waits for the release.',
     safetyAction: 'Put {machine} in a safe state',
@@ -29,7 +29,7 @@ export const aiEngineMessages = defineMessages({
     safetyImpact: 'Idles the unit if it is running; one already stopped stays as it is.',
     predictionAction: 'Statistical anomaly detected on {machine}',
     predictionReasoning:
-      'Trend analysis combines {temperature} C, {vibration} mm/s vibration, {load} percent load, and {wear} percent wear.',
+      'Trend analysis combines {temperature} °C, {vibration} mm/s vibration, {load} percent load, and {wear} percent wear.',
     predictionImpact: 'A notice only: accepting changes nothing on the plant.',
     optimizationAction: 'Lower the line rate by 2% for the load on {machine}',
     optimizationReasoning:
@@ -107,10 +107,10 @@ export const aiEngineMessages = defineMessages({
     predictionReasoning:
       'A análise de tendência combina {temperature} °C, vibração de {vibration} mm/s, {load}% de carga e {wear}% de desgaste.',
     predictionImpact: 'Só um aviso: aceitar não muda nada na planta.',
-    optimizationAction: 'Reduzir a taxa da linha em 2% pela carga em {machine}',
+    optimizationAction: 'Reduzir o ritmo da linha em 2% pela carga em {machine}',
     optimizationReasoning:
       'A linha opera com {load}% de carga e {efficiency}% de eficiência local.',
-    optimizationImpact: 'Reduz a taxa de toda a linha em 2%, nunca abaixo de 55%.',
+    optimizationImpact: 'Reduz o ritmo de toda a linha em 2%, nunca abaixo de 55%.',
     completedAutomatic: 'Concluída pela camada de controle autônoma',
     completedConfirmed: 'Concluída após confirmação do controle',
     deferralReturned:
