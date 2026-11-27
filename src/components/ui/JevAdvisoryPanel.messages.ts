@@ -46,7 +46,7 @@ export const jevAdvisoryPanelMessages = defineMessages({
     regionLabel: 'Recomendação do Jev',
     title: 'Encaminhamento de ocorrências do Jev',
     titleOpenAI: 'Encaminhamento de ocorrências pelo OpenAI Decisions',
-    apiKeyLabel: 'Sua chave de API do OpenRouter',
+    apiKeyLabel: 'Sua chave de API da OpenRouter',
     apiKeyLabelOpenAI: 'Sua chave de API da OpenAI',
     providerLabel: 'Modelo de decisão',
     providerJev: 'Jev 1.14 · OpenRouter',
@@ -70,7 +70,7 @@ export const jevAdvisoryPanelMessages = defineMessages({
     characterCount: '{count}/{max} caracteres',
     reviewLatestAlert: 'Revisar o alerta mais recente',
     consent:
-      'Permito que o texto acima seja enviado ao OpenRouter e ao TypeSafe quando eu selecionar Enviar ao Jev. As requisições usam o meu saldo no OpenRouter.',
+      'Permito que o texto acima seja enviado à OpenRouter e à TypeSafe quando eu selecionar Enviar ao Jev. As requisições usam o meu saldo na OpenRouter.',
     requesting: 'Solicitando recomendação...',
     send: 'Enviar ao Jev',
     cancelRequest: 'Cancelar requisição',

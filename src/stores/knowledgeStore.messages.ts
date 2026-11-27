@@ -135,7 +135,7 @@ export const knowledgeStoreMessages = defineMessages({
     autonomousEvidenceBrief:
       'Autonomy is trustworthy when you can ask it why. Every decision carries its evidence.',
     autonomousEvidenceArticle: `## Legible Autonomy\n\nTrust requires transparency. Every autonomous decision captures its telemetry, timestamp, assumptions, alternatives, expected effect, and the equipment in scope. You can always ask why.\n\nThe replay ledger samples machine state, alerts, and vehicle positions without credentials or personal data. Commands are stored separately from frames, so a review can tell what happened from what requested it.\n\nConfidence always comes with its reasoning attached. When evidence does not justify intervention, the system holds steady rather than guessing.`,
-    autonomousEvidenceSeeInAction: 'AI Command Centre\nDecision replay',
+    autonomousEvidenceSeeInAction: 'AI Partner\nDecision replay',
     // How a flour mill works. Sources for every fact: millingSources.ts.
     categoryMilling: 'How Flour Is Milled',
     // milling-cleaning-tempering
@@ -183,10 +183,10 @@ export const knowledgeStoreMessages = defineMessages({
     millingDustExplosionsSeeInAction: 'Safety panel\nPredictive maintenance',
   },
   'pt-BR': {
-    historyUnlock: 'Desbloqueado por um evento na Crônica do Moinho',
+    historyUnlock: 'Desbloqueado por um evento na Crônica do moinho',
     farmLessonUnlock: 'Desbloqueado ao concluir a inspeção do galinheiro na fazenda',
     windmillNoteUnlock:
-      'Desbloqueado pela lição do moinho de vento da fazenda ou por uma turbina eólica na Crônica do Moinho',
+      'Desbloqueado pela lição do moinho de vento da fazenda ou por uma turbina eólica na Crônica do moinho',
     farmHenhouseTitle: 'O galinheiro',
     farmHenhouseTooltip: 'Ninhos, ração e água, poleiros e coleta cuidadosa.',
     farmHenhouseBrief:
@@ -315,7 +315,7 @@ export const knowledgeStoreMessages = defineMessages({
     autonomousEvidenceBrief:
       'A autonomia é confiável quando você pode perguntar o porquê. Cada decisão traz suas evidências.',
     autonomousEvidenceArticle: `## Autonomia legível\n\nConfiança exige transparência. Cada decisão autônoma registra sua telemetria, o horário, as premissas, as alternativas, o efeito esperado e os equipamentos no escopo. Você sempre pode perguntar por quê.\n\nO registro de reprodução amostra o estado das máquinas, os alertas e as posições dos veículos sem credenciais nem dados pessoais. Os comandos ficam armazenados separados dos quadros, para que uma revisão consiga distinguir o que aconteceu daquilo que o solicitou.\n\nO nível de confiança vem sempre acompanhado do raciocínio. Quando as evidências não justificam uma intervenção, o sistema se mantém estável em vez de adivinhar.`,
-    autonomousEvidenceSeeInAction: 'Central de comando de IA\nReprodução da decisão',
+    autonomousEvidenceSeeInAction: 'Parceiro de IA\nReprodução da decisão',
     categoryMilling: 'Como a farinha é moída',
     // milling-cleaning-tempering
     millingCleaningTemperingTitle: 'Limpeza e condicionamento',
