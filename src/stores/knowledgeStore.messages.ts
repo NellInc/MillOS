@@ -232,15 +232,15 @@ export const knowledgeStoreMessages = defineMessages({
       'Os lotes de origem continuam rastreáveis pelos silos, moinhos de rolos, plansifters e ensacadeiras.',
     autonomousMaterialFlowBrief:
       'Cada saco de farinha pode ter a origem rastreada até o grão que chegou à doca.',
-    autonomousMaterialFlowArticle: `## Fluxo causal de material\n\nO grão chega como um romaneio de recebimento e se torna um lote de origem. Cada transformação (moagem, peneiramento, ensaque) registra o que entrou, o que saiu, qual máquina fez o trabalho e quando. A expedição só pode carregar material liberado. Sem atalhos.\n\nO balanço da genealogia compara a massa recebida, em processo, expedida e perdida. Toda discrepância é tratada como um defeito de controle. As retenções de qualidade acompanham os lotes afetados, em vez de aplicar uma penalidade geral à linha inteira.\n\nIsso dá ao espaço de trabalho SCADA evidências para cada ação importante. Um estado pode ser reconstruído diretamente a partir das suas entradas.`,
-    autonomousMaterialFlowSeeInAction: 'Procedência no SCADA\nGenealogia dos lotes',
+    autonomousMaterialFlowArticle: `## Fluxo causal de material\n\nO grão chega como um romaneio de recebimento e se torna um lote de origem. Cada transformação (moagem, peneiramento, ensaque) registra o que entrou, o que saiu, qual máquina fez o trabalho e quando. A expedição só pode carregar material liberado. Sem atalhos.\n\nO balanço da genealogia compara a massa recebida, em processo, expedida e perdida. Toda discrepância é tratada como um defeito de controle. As retenções de qualidade acompanham os lotes afetados, em vez de aplicar uma penalidade geral à linha inteira.\n\nIsso dá à área de trabalho SCADA evidências para cada ação importante. Um estado pode ser reconstruído diretamente a partir das suas entradas.`,
+    autonomousMaterialFlowSeeInAction: 'Rastreabilidade no SCADA\nGenealogia dos lotes',
     // scada-alarm-lifecycle
     scadaAlarmLifecycleTitle: 'Ciclo de vida dos alarmes SCADA',
     scadaAlarmLifecycleTooltip:
       'Os alarmes mostram estado, reconhecimento, tratamento e recuperação.',
     scadaAlarmLifecycleBrief:
       'Um alarme é uma condição, um tratamento, uma evidência e um registro de quem fez o quê a respeito.',
-    scadaAlarmLifecycleArticle: `## O estado do alarme é evidência\n\nCada alarme registra a tag, o limite, o valor medido, a prioridade, o horário e a condição literal. Reconhecer um alarme não faz a condição do processo desaparecer. O retorno ao normal não dispensa você de reconhecê-lo.\n\nColocar em espera oculta um alarme temporariamente. A supressão é uma decisão de controle deliberada e delimitada. Fora de serviço significa que, no momento, o sinal não é confiável. Cada uma dessas ações exige um nome e um motivo, para que a linha do tempo continue honesta.\n\nO monitoramento de avalanches de alarmes conta ocorrências em uma janela móvel. O histórico de eventos fica separado da lista de alarmes ativos, para que um sintoma resolvido permaneça na memória operacional.`,
+    scadaAlarmLifecycleArticle: `## O estado do alarme é evidência\n\nCada alarme registra a tag, o limite, o valor medido, a prioridade, o horário e a condição literal. Reconhecer um alarme não faz a condição do processo desaparecer. O retorno ao normal não dispensa você de reconhecê-lo.\n\nEngavetar oculta um alarme temporariamente. A supressão é uma decisão de controle deliberada e delimitada. Fora de serviço significa que, no momento, o sinal não é confiável. Cada uma dessas ações exige um nome e um motivo, para que a linha do tempo continue honesta.\n\nO monitoramento de avalanches de alarmes conta ocorrências em uma janela móvel. O histórico de eventos fica separado da lista de alarmes ativos, para que um sintoma resolvido permaneça na memória operacional.`,
     scadaAlarmLifecycleSeeInAction: 'Alarmes do SCADA\nHistórico de eventos',
     // predictive-maintenance
     predictiveMaintenanceTitle: 'Ciclo de manutenção preditiva',
@@ -249,7 +249,8 @@ export const knowledgeStoreMessages = defineMessages({
     predictiveMaintenanceBrief:
       'Conserte as coisas antes que quebrem. E, quando quebrarem, conserte direito, com peças, evidências e um religamento controlado.',
     predictiveMaintenanceArticle: `## Do sinal ao retorno à operação\n\nTemperatura, vibração, carga e desgaste podem gerar um alerta preditivo antes que algo realmente quebre. Quando algo quebra, abre-se uma ordem de serviço com a causa diagnosticada e as peças necessárias. Sem peças, sem reparo: o sistema não vai fingir.\n\nDespache uma unidade de serviço pelo painel Manutenção preditiva para levar a ordem até o reparo e a verificação. A máquina fica bloqueada até que o religamento controlado seja confirmado, o desgaste seja reduzido e ela informe que está pronta.\n\nCada transição de fase fica registrada. Uma barra de progresso não pode alegar recuperação enquanto o modelo de produção ainda considera a máquina crítica.`,
-    predictiveMaintenanceSeeInAction: 'Manutenção preditiva\nProcedência da manutenção no SCADA',
+    predictiveMaintenanceSeeInAction:
+      'Manutenção preditiva\nRastreabilidade da manutenção no SCADA',
     // batch-quality
     batchQualityTitle: 'Qualidade de lotes e recolhimento',
     batchQualityTooltip:
@@ -258,7 +259,7 @@ export const knowledgeStoreMessages = defineMessages({
       'Retenções de lote isolam o material afetado. Certificação vencida, contaminação não resolvida ou resultado de laboratório reprovado também podem bloquear toda a expedição.',
     batchQualityArticle: `## Decisões de qualidade delimitadas\n\nUm teste de qualidade identifica o lote, os lotes de origem, o equipamento, o tipo de teste, as medições e quem o solicitou. Uma retenção de lote interrompe a expedição do material suspeito enquanto o restante da linha continua funcionando. Um reteste aprovado libera o escopo investigado. Um recolhimento isola apenas o que precisa ser isolado.\n\nA certificação, a contaminação não resolvida e o resultado de laboratório mais recente são verificações separadas de expedição para toda a planta. Liberar um lote não resolve essas condições. Resolva-as pelos controles do CQ antes do carregamento.\n\nIsso informa mais do que uma única nota de qualidade que sobe ou desce. A nota continua útil para tendências, mas os registros de genealogia e de destinação trazem as evidências de que você realmente precisa para agir.`,
     batchQualitySeeInAction:
-      'Genealogia dos lotes na Visão geral\nProcedência da qualidade no SCADA',
+      'Genealogia dos lotes na Visão geral\nRastreabilidade da qualidade no SCADA',
     // autonomous-logistics
     autonomousLogisticsTitle: 'Coreografia logística autônoma',
     autonomousLogisticsTooltip:
@@ -348,7 +349,7 @@ export const knowledgeStoreMessages = defineMessages({
       'A extração é a parte do trigo que vira farinha. O moleiro quer o máximo possível com o mínimo de farelo, e o teste de cinzas mostra quanto farelo entrou.',
     millingExtractionAshArticle: `## Quanta farinha, e quão limpa\n\nNa moagem, cerca de 70 a 75% do grão vira farinha. Os outros 25 a 30% saem como subprodutos, como farelo, farelinho e gérmen, em grande parte para ração animal.\n\nO objetivo do moleiro é extrair o máximo de endosperma possível mantendo as cinzas baixas. Cinzas são o que resta quando uma amostra é aquecida a 585 °C até o peso se estabilizar, normalmente durante a noite: os minerais, que ficam sobretudo no farelo. Por exemplo, um trigo pode ter {wheatAsh}% de cinzas e uma farinha, {flourAsh}%, normalmente expressos na base de 14% de umidade.\n\nAssim, as cinzas mostram quanto farelo foi parar na farinha, e escurecem a farinha. As farinhas muito brancas vêm apenas dos primeiros fluxos, as farinhas escuras usam a maior parte dos fluxos e a integral reúne de novo todos eles.`,
     millingExtractionAshSeeInAction:
-      'Genealogia dos lotes na Visão geral\nProcedência da qualidade no SCADA',
+      'Genealogia dos lotes na Visão geral\nRastreabilidade da qualidade no SCADA',
     // milling-baker-needs
     millingBakerNeedsTitle: 'O que um padeiro precisa da farinha',
     millingBakerNeedsTooltip: 'Proteína, número de queda e absorção de água.',
@@ -356,7 +357,7 @@ export const knowledgeStoreMessages = defineMessages({
       'O padeiro compra farinha por especificação: proteína suficiente para o produto, um número de queda que mostre grão sadio e uma absorção de água conhecida.',
     millingBakerNeedsArticle: `## Proteína, número de queda e água\n\nProteína: a farinha para pão precisa de bastante, porque o glúten que ela forma retém as bolhas de gás e mantém o pão crescido. Bolos e biscoitos precisam de menos. Mais proteína normalmente exige mais água e uma mistura mais longa.\n\nNúmero de queda: uma pasta de farinha e água é aquecida em banho-maria fervente, e os segundos que um agitador leva para atravessá-la são a leitura. Um número alto (por exemplo, acima de 300 segundos) indica pouca atividade enzimática e grão sadio; um baixo (por exemplo, abaixo de 250 segundos) indica muita, o sinal de trigo germinado. Atividade demais deixa a massa pegajosa e a textura ruim, e as enzimas não podem ser retiradas da farinha. Os moinhos do Reino Unido medem o número de queda de Hagberg quando o trigo chega.\n\nAbsorção de água: a água de que uma farinha precisa para atingir uma consistência de massa definida no farinógrafo, em porcentagem. Uma farinha de glúten fraco absorve menos, e mantém essa consistência por menos tempo, que uma de glúten forte.`,
     millingBakerNeedsSeeInAction:
-      'Pedidos de clientes na Visão geral\nProcedência da qualidade no SCADA',
+      'Pedidos de clientes na Visão geral\nRastreabilidade da qualidade no SCADA',
     // milling-dust-explosions
     millingDustExplosionsTitle: 'Explosões de poeira',
     millingDustExplosionsTooltip: 'Poeira de farinha em nuvem, confinada e inflamada, explode.',

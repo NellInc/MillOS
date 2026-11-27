@@ -8,7 +8,7 @@ const PT_DELIVERY: Record<string, string> = {
   pending: 'pendente',
 };
 const PT_AGREEMENT: Record<string, string> = {
-  honoured: 'honrado',
+  honoured: 'cumprido',
   incomplete: 'incompleto',
   pending: 'pendente',
 };

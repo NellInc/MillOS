@@ -231,13 +231,13 @@ const rootIndex = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="refresh" content="0;url=/${currentVersion}/">
   <title>MillOS | 3D Grain Mill Operations Simulator</title>
-  <meta name="description" content="Explore MillOS, a browser-based autonomous 3D grain mill operations simulator with deterministic logistics, production metrics, and a simulated SCADA workspace." />
+  <meta name="description" content="Explore MillOS, a browser-based autonomous 3D grain mill operations simulator with deterministic logistics, production metrics, and a SCADA workspace." />
   <link rel="canonical" href="${currentCanonicalUrl}" />
   <link rel="describedby" href="/llms.txt" type="text/plain" />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://www.millos.net/" />
   <meta property="og:title" content="MillOS | 3D Grain Mill Operations Simulator" />
-  <meta property="og:description" content="Explore an autonomous browser-based grain mill simulator with deterministic logistics, production metrics, and a simulated SCADA workspace." />
+  <meta property="og:description" content="Explore an autonomous browser-based grain mill simulator with deterministic logistics, production metrics, and a SCADA workspace." />
   <meta property="og:image" content="https://www.millos.net/og-image.png" />
   <meta property="og:image:alt" content="A staffed 3D grain mill: a glass-walled milling hall, grain silos and truck yard below green hills" />
   <meta property="og:image:width" content="1200" />
@@ -247,7 +247,7 @@ const rootIndex = `<!DOCTYPE html>
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:url" content="https://www.millos.net/" />
   <meta name="twitter:title" content="MillOS | 3D Grain Mill Operations Simulator" />
-  <meta name="twitter:description" content="An autonomous browser-based 3D grain mill simulator with deterministic logistics, production metrics, and simulated SCADA." />
+  <meta name="twitter:description" content="An autonomous browser-based 3D grain mill simulator with deterministic logistics, production metrics, and a SCADA workspace." />
   <meta name="twitter:image" content="https://www.millos.net/og-image.png" />
   <meta name="twitter:image:alt" content="A staffed 3D grain mill: a glass-walled milling hall, grain silos and truck yard below green hills" />
   <meta name="twitter:creator" content="@NellWatson" />

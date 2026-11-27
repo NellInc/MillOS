@@ -67,7 +67,7 @@ Status da linha de produção:
 - Moinhos de rolos: 4 de 4 operando com carga média de 78%
 - Plansifters: 3 de 3 operando com carga média de 71%
 - Ensacadeiras: 3 de 3 operando com carga média de 82%
-- Rede de controle: online
+- Rede de controle: on-line
 Alarmes críticos ativos: nenhum`,
     encodingError: 'Erro ao codificar o VCL',
     savedBadge: '{percent}% DE ECONOMIA',

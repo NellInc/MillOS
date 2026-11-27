@@ -59,7 +59,7 @@ export const jevClientMessages = defineMessages({
     rateLimitedOpenAI: 'A OpenAI está limitando as requisições. Tente novamente mais tarde.',
     unavailableOpenAI: 'O OpenAI Decisions está indisponível. Tente novamente mais tarde.',
     localOnlyOpenAI:
-      'O OpenAI Decisions com a sua própria chave funciona apenas no companheiro local.',
+      'O OpenAI Decisions com a sua própria chave funciona apenas no app auxiliar local.',
     invalidAdvisoryAnthropic:
       'O Haiku retornou uma recomendação inválida. Nenhuma ação foi tomada.',
     invalidKeyAnthropic: 'Informe uma chave de API válida da Anthropic.',
@@ -69,7 +69,7 @@ export const jevClientMessages = defineMessages({
     moreCreditAnthropic: 'A Anthropic exige mais crédito para esta requisição.',
     rateLimitedAnthropic: 'A Anthropic está limitando as requisições. Tente novamente mais tarde.',
     unavailableAnthropic: 'O Haiku está indisponível. Tente novamente mais tarde.',
-    localOnlyAnthropic: 'O Haiku com a sua própria chave funciona apenas no companheiro local.',
+    localOnlyAnthropic: 'O Haiku com a sua própria chave funciona apenas no app auxiliar local.',
     unavailableLocal: 'O modelo no dispositivo não está carregado.',
     invalidAdvisoryLocal:
       'O modelo no dispositivo retornou uma recomendação inválida. Nenhuma ação foi tomada.',

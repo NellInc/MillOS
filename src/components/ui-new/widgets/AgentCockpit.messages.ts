@@ -181,7 +181,7 @@ const PT_AGENT_TEXT: Record<string, string> = {
   'Consent, understanding, objections and funding checked.':
     'Consentimento, compreensão, objeções e financiamento verificados.',
   'Workshop and Pilot preparation have no plant control.':
-    'A preparação de oficina e de piloto não controla a planta.',
+    'A Oficina e a Preparação do piloto não controlam a planta.',
   'No new work during an emergency.': 'Nenhum trabalho novo durante uma emergência.',
   'The agreed local plan is active.': 'O plano local acordado está ativo.',
   'Make the target order active.': 'Tornar ativo o pedido alvo.',

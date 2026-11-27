@@ -7,7 +7,7 @@ import { defineMessages } from '../../../i18n';
  */
 const PT_OBJECTION_KIND: Record<string, string> = {
   rest: 'descanso',
-  burden: 'sobrecarga',
+  burden: 'carga de trabalho',
   privacy: 'privacidade',
   authority: 'autoridade',
 };
@@ -194,7 +194,7 @@ export const workplaceImprovementPanelMessages = defineMessages({
     modeLabel: 'Modo da passagem de turno',
     modeGame: 'Jogo',
     modeWorkshop: 'Oficina',
-    modePilot: 'Preparação de piloto',
+    modePilot: 'Preparação do piloto',
     governanceLabel: 'Governança da passagem de turno',
     openExperiment: 'Abrir o experimento de passagem de turno',
     holdHeading: 'Relógio da planta parado para esta decisão',
@@ -202,7 +202,7 @@ export const workplaceImprovementPanelMessages = defineMessages({
     resumeDeliberation: 'Retomar a deliberação com novo consentimento',
     seasonOpened: 'Temporada aberta. Use Turno e Acordo / Vozes para as decisões atuais.',
     pilotPlanningOnly:
-      'A preparação de piloto continua apenas como planejamento. Use Jogo ou Oficina para um experimento local.',
+      'A preparação do piloto continua apenas como planejamento. Use Jogo ou Oficina para um experimento local.',
     shiftHeading: 'O experimento de passagem de turno, turno {cycle}',
     remediesLabel: 'Reparações da passagem de turno',
     remediesHeading: 'De quem é a preocupação que precisa de reparação?',

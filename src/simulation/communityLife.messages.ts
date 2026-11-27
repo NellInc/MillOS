@@ -38,7 +38,7 @@ export const communityAgreementMessages = defineMessages({
     protectedRecovery: 'Recuperação protegida',
     protectedRest: 'Descanso protegido',
     voluntaryCover: 'Cobertura voluntária',
-    paidBriefing: 'Briefing remunerado de passagem de função',
+    paidBriefing: 'Briefing remunerado de passagem de turno',
     agreed: 'Acordado: {task}',
   },
 });

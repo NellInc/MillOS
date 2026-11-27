@@ -412,7 +412,7 @@ export const workplaceLabMessages = defineMessages({
     mode: 'Modo',
     scenarioSeed: 'Semente do cenário',
     seedInvalid: 'A semente é um número inteiro de 1 a {max}.',
-    heldSeparateTurns: 'Em turnos separados, cada função responde por si.',
+    heldSeparateTurns: 'No modo cada um na sua vez, cada função responde por si.',
     livingCooperative: 'Temporada cooperativa',
     adoptionProfile: 'Perfil de adoção',
     startCampaign: 'Iniciar temporada cooperativa de 3 turnos (1x)',

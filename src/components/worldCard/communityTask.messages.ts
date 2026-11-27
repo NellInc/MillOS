@@ -74,7 +74,7 @@ export const communityTaskMessages = defineMessages({
     greetingPassingNeighbour: 'Cumprimentando um vizinho que passa',
     momentOutsideShop: 'Um momento em frente à loja',
     holdingForStop: 'Parado em local seguro durante a parada de segurança do local',
-    paidBriefing: 'Num briefing remunerado de passagem de função, no posto de observação seguro',
+    paidBriefing: 'Num briefing remunerado de passagem de turno, no posto de observação seguro',
     diagnosedFault: 'Revisando a falha diagnosticada do posto de inspeção seguro',
     awaitingParts: 'Aguardando peças de manutenção',
     monitoringRepair: 'Acompanhando a manutenção do posto de inspeção seguro',

@@ -1,5 +1,13 @@
 import { defineMessages } from '../i18n';
 
+type ProviderParams = { provider: string };
+
+const PT_MASCULINE_PROVIDERS = new Set(['OpenRouter', 'Google']);
+const ptDeProvider = (provider: string): string =>
+  PT_MASCULINE_PROVIDERS.has(provider) ? `do ${provider}` : `da ${provider}`;
+const ptAProvider = (provider: string): string =>
+  PT_MASCULINE_PROVIDERS.has(provider) ? `ao ${provider}` : `à ${provider}`;
+
 export const aiSettingsModalMessages = defineMessages({
   en: {
     // Visualization toggles
@@ -95,19 +103,19 @@ export const aiSettingsModalMessages = defineMessages({
     localCoreOnline: 'Local neural core online • {model}',
 
     // Cloud key flow
-    apiKeyLabel: '{provider} API Key',
+    apiKeyLabel: (p: ProviderParams) => `${p.provider} API Key`,
     placeholderUpdate: 'Enter new key to update...',
-    placeholderEnter: 'Enter your {provider} API key...',
-    replaceKey: 'Replace {provider} API key',
-    enterKey: 'Enter {provider} API key',
+    placeholderEnter: (p: ProviderParams) => `Enter your ${p.provider} API key...`,
+    replaceKey: (p: ProviderParams) => `Replace ${p.provider} API key`,
+    enterKey: (p: ProviderParams) => `Enter ${p.provider} API key`,
     getKeyFrom: 'Get your API key from',
-    providerConsole: '{provider} Console',
+    providerConsole: (p: ProviderParams) => `${p.provider} Console`,
     openRouterKeyAdvice:
       'Set a session cap above, then use a lifetime spend-limited OpenRouter inference key with BYOK usage included in its limit. MillOS checks that limit before every paid request.',
     openRouterConsent:
       'Send plant telemetry to OpenRouter and its model provider. My account pays for strategic requests. The app cap is an estimate; my provider bill is authoritative.',
-    keyMemoryNote:
-      'Your key stays in this page’s memory and is sent directly to {provider} with plant telemetry. Reloading clears it. MillOS has no server-side key vault; page scripts and browser extensions can access a key while this page is open.',
+    keyMemoryNote: (p: ProviderParams) =>
+      `Your key stays in this page’s memory and is sent directly to ${p.provider} with plant telemetry. Reloading clears it. MillOS has no server-side key vault; page scripts and browser extensions can access a key while this page is open.`,
     keyCheckFree: 'The key check is free; strategic requests are billable.',
     keyTestsBillable: 'Key tests and strategic requests are billable.',
 
@@ -184,7 +192,7 @@ export const aiSettingsModalMessages = defineMessages({
     continueWithChatGPT: 'Continuar com o ChatGPT',
 
     keyVerifiedOpenRouter:
-      'Chave e limite de gastos da OpenRouter verificados. O acesso ao modelo é verificado na primeira solicitação.',
+      'Chave e limite de gastos do OpenRouter verificados. O acesso ao modelo é verificado na primeira solicitação.',
     keyVerified: 'Chave e acesso ao modelo verificados para esta sessão.',
     connectionFailed: 'Falha na conexão.',
     connectedForSession: 'Conectado nesta sessão da página.',
@@ -208,7 +216,7 @@ export const aiSettingsModalMessages = defineMessages({
     noCap: ' Nenhum limite definido.',
     capSet: (p: { cap: string }) => ` Limite: US$ ${p.cap}.`,
     costNote:
-      'A OpenRouter exige um limite e uma chave de inferência com limite de gastos vitalício que inclua o uso BYOK. A verificação dessa chave é gratuita; testes de chave feitos diretamente com o provedor no localhost são cobrados. Esta aba reserva uma estimativa antes das chamadas pagas; as cobranças podem ultrapassá-la. A OpenRouter informa a cobrança da sua conta e qualquer cobrança BYOK do provedor de origem. Confira a fatura do seu provedor.',
+      'O OpenRouter exige um limite e uma chave de inferência com limite de gastos vitalício que inclua o uso BYOK. A verificação dessa chave é gratuita; testes de chave feitos diretamente com o provedor no localhost são cobrados. Esta aba reserva uma estimativa antes das chamadas pagas; as cobranças podem ultrapassá-la. O OpenRouter informa a cobrança da sua conta e qualquer cobrança BYOK do provedor de origem. Confira a fatura do seu provedor.',
 
     currentMode: 'Modo atual:',
     localOnly: 'Somente local',
@@ -218,19 +226,20 @@ export const aiSettingsModalMessages = defineMessages({
     connectedStatus: 'Conectado • {model} • chave mantida na memória',
     localCoreOnline: 'Núcleo neural local on-line • {model}',
 
-    apiKeyLabel: 'Chave de API da {provider}',
+    apiKeyLabel: (p: ProviderParams) => `Chave de API ${ptDeProvider(p.provider)}`,
     placeholderUpdate: 'Digite uma nova chave para atualizar...',
-    placeholderEnter: 'Digite sua chave de API da {provider}...',
-    replaceKey: 'Substituir chave de API da {provider}',
-    enterKey: 'Inserir chave de API da {provider}',
+    placeholderEnter: (p: ProviderParams) =>
+      `Digite sua chave de API ${ptDeProvider(p.provider)}...`,
+    replaceKey: (p: ProviderParams) => `Substituir chave de API ${ptDeProvider(p.provider)}`,
+    enterKey: (p: ProviderParams) => `Inserir chave de API ${ptDeProvider(p.provider)}`,
     getKeyFrom: 'Obtenha sua chave de API no',
-    providerConsole: 'Console da {provider}',
+    providerConsole: (p: ProviderParams) => `Console ${ptDeProvider(p.provider)}`,
     openRouterKeyAdvice:
-      'Defina um limite de sessão acima e depois use uma chave de inferência da OpenRouter com limite de gastos vitalício que inclua o uso BYOK. O MillOS verifica esse limite antes de cada solicitação paga.',
+      'Defina um limite de sessão acima e depois use uma chave de inferência do OpenRouter com limite de gastos vitalício que inclua o uso BYOK. O MillOS verifica esse limite antes de cada solicitação paga.',
     openRouterConsent:
-      'Enviar a telemetria da planta para a OpenRouter e o provedor do modelo. Minha conta paga as solicitações estratégicas. O limite do app é uma estimativa; a fatura do meu provedor é a referência oficial.',
-    keyMemoryNote:
-      'Sua chave fica na memória desta página e é enviada diretamente à {provider} com a telemetria da planta. Recarregar a página a apaga. O MillOS não tem cofre de chaves no servidor; scripts da página e extensões do navegador podem acessar uma chave enquanto esta página estiver aberta.',
+      'Enviar a telemetria da planta para o OpenRouter e o provedor do modelo. Minha conta paga as solicitações estratégicas. O limite do app é uma estimativa; a fatura do meu provedor é a referência oficial.',
+    keyMemoryNote: (p: ProviderParams) =>
+      `Sua chave fica na memória desta página e é enviada diretamente ${ptAProvider(p.provider)} com a telemetria da planta. Recarregar a página a apaga. O MillOS não tem cofre de chaves no servidor; scripts da página e extensões do navegador podem acessar uma chave enquanto esta página estiver aberta.`,
     keyCheckFree: 'A verificação da chave é gratuita; as solicitações estratégicas são cobradas.',
     keyTestsBillable: 'Testes de chave e solicitações estratégicas são cobrados.',
 
