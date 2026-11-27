@@ -403,7 +403,7 @@ export const stewardDeckMessages = defineMessages({
       'O pedreiro recebe os agradecimentos e o bueiro fica como está.',
     'evt-switchgear-survey.title': 'A inspeção dos equipamentos elétricos',
     'evt-switchgear-survey.text':
-      'A empresa de instalações elétricas oferece uma inspeção dos equipamentos de manobra do setor de moagem enquanto a linha para para limpeza. Não esperam encontrar nada urgente. O que passar despercebido apareceria numa falha da rede.',
+      'A empresa de instalações elétricas oferece uma inspeção dos equipamentos de manobra do setor de moagem enquanto a linha está parada para limpeza. Não esperam encontrar nada urgente. O que passar despercebido apareceria numa falha da rede.',
     'evt-switchgear-survey.choices.survey.label': 'Contratar a inspeção',
     'evt-switchgear-survey.choices.survey.effect.result':
       'A inspeção encontra duas conexões de barramento frouxas e um contator desgastado, todos corrigidos.',

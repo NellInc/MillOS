@@ -54,7 +54,7 @@ const catalog = defineMessages({
     m7: 'desgaste x0,85, fundo 300',
     m8: 'Instalações em operação',
     m9: 'desgaste x1,00, fundo 240',
-    m10: 'Máquinas desgastadas',
+    m10: 'Maquinário desgastado',
     m11: 'desgaste x1,25, fundo 180',
     m12: 'Clientes locais fiéis',
     m13: 'clientes começam calorosos',
