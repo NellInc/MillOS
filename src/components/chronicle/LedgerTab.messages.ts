@@ -29,7 +29,7 @@ export const messages = defineMessages({
     m6: 'Livro-caixa da planta',
     m7: 'Contribuição da planta',
     m8: '{unit} por origem',
-    m9: 'Fundo desde a assinatura da carta',
+    m9: 'Fundo desde a assinatura do estatuto',
     m10: 'Variação líquida',
     m11: 'Planos: manutenção e custos evitados',
     m12: 'Plano',

@@ -383,7 +383,7 @@ export const eventDeckMessages = defineMessages({
     'evt-dull-roll-flutes.choices.worst.effect.modifier.label': 'Par com raiamento renovado',
     'evt-dull-roll-flutes.choices.worst.effect.result':
       'O raiamento do pior par é refeito e a corrente do motor se estabiliza.',
-    'evt-dull-roll-flutes.choices.run-on.label': 'Usar por mais uma semana',
+    'evt-dull-roll-flutes.choices.run-on.label': 'Usar por mais quatro turnos',
     'evt-dull-roll-flutes.choices.run-on.effect.modifier.label': 'Raiamento gasto',
     'evt-dull-roll-flutes.choices.run-on.effect.result':
       'Os rolos gastos continuam em uso e consomem mais energia para liberar menos material.',

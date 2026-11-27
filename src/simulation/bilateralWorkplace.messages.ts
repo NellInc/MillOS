@@ -385,7 +385,7 @@ export const bilateralWorkplaceMessages = defineMessages({
     declineCoverDoneCoordinator:
       'The Coordinator declines cover: it has already covered this season, and once is its share.',
     declineCoverMaintenance:
-      'Maintenance declines cover this season: the machines it keeps need it at the mill, not on the packing line.',
+      'Maintenance declines cover this season: the machines it keeps need its full attention on the mill floor.',
     declineCoverCoordinator:
       'The Coordinator declines cover this season: someone has to keep the shift to its plan, and that is its work.',
     // 5.3 (D5): each authored role's stated value, its why-line beside what it
@@ -862,7 +862,7 @@ export const bilateralWorkplaceMessages = defineMessages({
     declineCoverDoneCoordinator:
       'A Coordenação recusa a cobertura: já cobriu nesta temporada, e uma vez é a sua parte.',
     declineCoverMaintenance:
-      'A Manutenção recusa a cobertura nesta temporada: as máquinas de que cuida precisam dela no moinho, não na linha de ensaque.',
+      'A Manutenção recusa a cobertura nesta temporada: as máquinas de que cuida precisam de toda a sua atenção no chão do moinho.',
     declineCoverCoordinator:
       'A Coordenação recusa a cobertura nesta temporada: alguém precisa manter o turno no plano, e esse é o seu trabalho.',
     valueQuality:

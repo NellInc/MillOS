@@ -517,7 +517,8 @@ export const stewardDeckMessages = defineMessages({
     'evt-premium-buyer.choices.coop.effect.result':
       'O atacadista compra nas condições da cooperativa, atrás dos clientes regulares.',
     'evt-premium-buyer.choices.decline.label': 'Recusar o preço extra',
-    'evt-premium-buyer.choices.decline.effect.result': 'O atacadista procura outro fornecedor.',
+    'evt-premium-buyer.choices.decline.effect.result':
+      'O atacadista procura outro fornecedor, e os clientes locais regulares tomam nota.',
     'evt-second-haulier.title': 'Uma transportadora maior faz contato',
     'evt-second-haulier.text':
       'Uma transportadora maior oferece assumir as coletas do moinho por uma tarifa menor, com mais caminhões e menos atenção a cada cliente. Valley Haulage fica sabendo no mesmo dia.',

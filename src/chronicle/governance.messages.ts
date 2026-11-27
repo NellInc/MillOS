@@ -146,7 +146,7 @@ const portugueseConditions: Record<StandingConditionId, ConditionCopy> = {
   administration: {
     label: 'Sob o administrador da federação',
     effectText:
-      'custo de manutenção x{n0}, políticas bloqueadas, o parceiro de IA age no nível Previsões ou acima',
+      'custo de manutenção x{n0} (pago pela federação), políticas bloqueadas, o parceiro de IA age no nível Previsões ou acima',
     clearText: 'o administrador vai embora após quatro turnos',
   },
 };
