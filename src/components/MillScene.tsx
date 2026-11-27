@@ -304,7 +304,13 @@ const IncidentHeatMap: React.FC = () => {
 
   // Single centralized animation loop
   useFrame((state) => {
-    if (!showIncidentHeatMap || animatedRefs.current.size === 0) return;
+    if (
+      !showIncidentHeatMap ||
+      animatedRefs.current.size === 0 ||
+      !useGameSimulationStore.getState().isTabVisible
+    ) {
+      return;
+    }
 
     // Runs every frame for a smooth pulse. Under reduced motion every hotspot
     // holds its authored resting opacity (pulse 1); colour and size still
@@ -316,9 +322,12 @@ const IncidentHeatMap: React.FC = () => {
       const circle = refs.circle.current;
       const ring = refs.ring.current;
       const column = refs.column.current;
-      if (circle) circle.opacity = 0.3 * pulse * refs.intensityRef.current;
-      if (ring) ring.opacity = 0.6 * pulse;
-      if (column) column.opacity = 0.2 * pulse;
+      const targetCircleOpacity = 0.3 * pulse * refs.intensityRef.current;
+      const targetRingOpacity = 0.6 * pulse;
+      const targetColumnOpacity = 0.2 * pulse;
+      if (circle && circle.opacity !== targetCircleOpacity) circle.opacity = targetCircleOpacity;
+      if (ring && ring.opacity !== targetRingOpacity) ring.opacity = targetRingOpacity;
+      if (column && column.opacity !== targetColumnOpacity) column.opacity = targetColumnOpacity;
     });
   });
 
@@ -373,13 +382,17 @@ const ServiceEgressMarkers = React.memo(() => {
   // Pending markers pulse during the automated verification sequence. Verified
   // markers, and every marker under reduced motion, hold their resting glow.
   useFrame((state) => {
-    if (!emergencyDrillMode) return;
+    if (!emergencyDrillMode || !useGameSimulationStore.getState().isTabVisible) return;
     const pulse = Math.sin(state.clock.elapsedTime * 4) * 0.3 + 0.7;
     materialRefs.current.forEach((mat, i) => {
       if (!mat) return;
       if (reducedMotion || verified[i]) {
-        mat.emissiveIntensity = EGRESS_RING_REST.emissiveIntensity;
-        mat.opacity = EGRESS_RING_REST.opacity;
+        if (mat.emissiveIntensity !== EGRESS_RING_REST.emissiveIntensity) {
+          mat.emissiveIntensity = EGRESS_RING_REST.emissiveIntensity;
+        }
+        if (mat.opacity !== EGRESS_RING_REST.opacity) {
+          mat.opacity = EGRESS_RING_REST.opacity;
+        }
         return;
       }
       mat.emissiveIntensity = pulse * 2;

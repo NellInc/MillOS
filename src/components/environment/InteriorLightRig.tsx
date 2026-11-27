@@ -156,12 +156,16 @@ export function InteriorLightRig() {
   const poolsRef = useRef<THREE.InstancedMesh>(null);
   const rigRef = useRef<THREE.Group>(null);
   const atmosphere = useMemo(() => createAtmosphereState(), []);
+  const lastIntensityRef = useRef(Number.NaN);
   useFrame(() => {
-    const { gameDay, gameTime, weather } = useGameSimulationStore.getState();
+    const { gameDay, gameTime, weather, isTabVisible } = useGameSimulationStore.getState();
+    if (!isTabVisible) return;
     const daylight = referenceLighting
       ? 1
       : sampleAtmosphere(gameDay, gameTime, weather, atmosphere).daylight;
     const intensity = zoneWorkLightIntensity(daylight, quality, referenceBanks, indoorSkyOcclusion);
+    if (intensity === lastIntensityRef.current) return;
+    lastIntensityRef.current = intensity;
     for (const child of rigRef.current?.children ?? []) {
       if (child instanceof THREE.PointLight) child.intensity = intensity;
     }

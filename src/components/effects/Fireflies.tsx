@@ -137,6 +137,9 @@ const Fireflies: React.FC<FirefliesProps> = ({ count = 50, bounds, color = '#ccf
     // motion the swarm holds the resting positions seeded above.
     if (quality === 'low' || reducedMotion) return;
 
+    const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+    if (!isTabVisible || gameSpeed <= 0) return;
+
     // Throttle firefly animation to every 3rd frame (~20 FPS)
     const throttle = 3;
     if (!shouldRunThisFrame(throttle)) return;

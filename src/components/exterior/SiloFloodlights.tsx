@@ -190,12 +190,17 @@ export function SiloFloodlights() {
     []
   );
 
+  const lastLevelRef = useRef(Number.NaN);
+
   useFrame(() => {
     // The lamp clock's damped level, gated by the sun (getSiloFloodLevel).
     // Below a visible level the shader skips the floods outright.
-    const level =
+    const rawLevel =
       EXTERIOR_LAMP_LEVEL.value * getSiloFloodLevel(useGameSimulationStore.getState().gameTime);
-    writeSiloFloodLight(level > 0.002 ? level : 0);
+    const level = rawLevel > 0.002 ? rawLevel : 0;
+    if (level === lastLevelRef.current) return;
+    lastLevelRef.current = level;
+    writeSiloFloodLight(level);
   });
 
   return (

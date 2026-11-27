@@ -107,10 +107,15 @@ export const StatusRing: React.FC<StatusRingProps> = ({
     };
   }, [material]);
 
-  // Update time uniform for animation
+  const lastTimeRef = useRef(Number.NaN);
+
+  // Update time uniform for animation only when simulationTime advances
   useFrame(() => {
     if (!isStatic && materialRef.current?.uniforms.time) {
-      materialRef.current.uniforms.time.value = useMaterialFlowStore.getState().simulationTime;
+      const simulationTime = useMaterialFlowStore.getState().simulationTime;
+      if (simulationTime === lastTimeRef.current) return;
+      lastTimeRef.current = simulationTime;
+      materialRef.current.uniforms.time.value = simulationTime;
     }
   });
 

@@ -193,15 +193,19 @@ export const DataFlowLine: React.FC<DataFlowLineProps> = ({
     );
   }, [geometry, material]);
 
-  // Animate time uniform
+  const lastStateRef = useRef({ time: Number.NaN, active: false });
+
+  // Animate time uniform only when the simulation clock or active state changes
   useFrame(() => {
-    if (materialRef.current?.uniforms) {
-      updateDataFlowUniforms(
-        materialRef.current,
-        active,
-        useMaterialFlowStore.getState().simulationTime
-      );
+    const mat = materialRef.current;
+    if (!mat?.uniforms) return;
+    const simulationTime = useMaterialFlowStore.getState().simulationTime;
+    if (lastStateRef.current.time === simulationTime && lastStateRef.current.active === active) {
+      return;
     }
+    lastStateRef.current.time = simulationTime;
+    lastStateRef.current.active = active;
+    updateDataFlowUniforms(mat, active, simulationTime);
   });
 
   // Use primitive element for the pre-built Three.js Mesh

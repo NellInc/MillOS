@@ -152,7 +152,10 @@ export function createSignMaterial(colour: string, map: THREE.Texture | null = n
 function useSignMaterial(colour: string, map: THREE.Texture | null = null, backlit = true) {
   const material = useMemo(() => createSignMaterial(colour, map), [colour, map]);
   useFrame(() => {
-    material.emissiveIntensity = backlit ? EXTERIOR_LAMP_LEVEL.value * 0.85 : 0;
+    const next = backlit ? EXTERIOR_LAMP_LEVEL.value * 0.85 : 0;
+    if (material.emissiveIntensity !== next) {
+      material.emissiveIntensity = next;
+    }
   });
   useEffect(() => () => material.dispose(), [material]);
   return material;

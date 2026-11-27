@@ -14,7 +14,15 @@ import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Billboard, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { useBreakdownStore, type BreakdownEvent } from '../../stores/breakdownStore';
+import {
+  useBreakdownStore,
+  breakdownDescription,
+  type BreakdownEvent,
+} from '../../stores/breakdownStore';
+import { breakdownStoreMessages } from '../../stores/breakdownStore.messages';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { formatFixed, useT } from '../../i18n';
 
 // Constants
 const SPARK_COUNT = 20;
@@ -69,9 +77,12 @@ const BreakdownSparks: React.FC<{
   }, []);
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const reducedMotion = useReducedMotion();
 
   useFrame((_, delta) => {
-    if (!sparksRef.current) return;
+    if (!sparksRef.current || reducedMotion) return;
+    const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+    if (!isTabVisible || gameSpeed <= 0) return;
 
     sparkData.current.forEach((spark, i) => {
       // Update life
@@ -152,9 +163,12 @@ const BreakdownSmoke: React.FC<{
   }, []);
 
   const dummy = useMemo(() => new THREE.Object3D(), []);
+  const reducedMotion = useReducedMotion();
 
   useFrame((_, delta) => {
-    if (!smokeRef.current) return;
+    if (!smokeRef.current || reducedMotion) return;
+    const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+    if (!isTabVisible || gameSpeed <= 0) return;
 
     smokeData.current.forEach((smoke, i) => {
       smoke.life -= delta;
@@ -197,11 +211,16 @@ const WarningBeacon: React.FC<{
 }> = ({ position }) => {
   const lightRef = useRef<THREE.PointLight>(null);
   const meshRef = useRef<THREE.Mesh>(null);
+  const reducedMotion = useReducedMotion();
+  const lastPulseRef = useRef(Number.NaN);
 
   useFrame((state) => {
+    if (!useGameSimulationStore.getState().isTabVisible) return;
     const t = state.clock.elapsedTime;
-    // Pulsing intensity
-    const pulse = Math.sin(t * 8) * 0.5 + 0.5;
+    // Pulsing intensity (steady under reduced motion)
+    const pulse = reducedMotion ? 0.5 : Math.sin(t * 8) * 0.5 + 0.5;
+    if (pulse === lastPulseRef.current) return;
+    lastPulseRef.current = pulse;
     const intensity = 10 + pulse * 20;
 
     if (lightRef.current) {
@@ -249,6 +268,9 @@ const BreakdownOverlay: React.FC<{
   breakdown: BreakdownEvent;
   position: [number, number, number];
 }> = ({ breakdown, position }) => {
+  const t = useT(breakdownStoreMessages);
+  const description = breakdownDescription(breakdown);
+  const roundedProgress = Math.round(breakdown.repairProgress);
   return (
     <Billboard
       position={[position[0], position[1] + 3, position[2]]}
@@ -261,21 +283,23 @@ const BreakdownOverlay: React.FC<{
         <div
           role="alert"
           aria-live="assertive"
-          aria-label={`Machine fault: ${breakdown.description}`}
+          aria-label={t('overlayFaultAria', { description })}
           className="bg-red-900/90 border-2 border-red-500 rounded-lg p-3 min-w-[150px] text-center"
         >
-          <div className="text-red-400 font-bold text-sm mb-1">FAULT</div>
-          <div className="text-white text-xs mb-2">{breakdown.description}</div>
+          <div className="text-red-400 font-bold text-sm mb-1">{t('overlayFaultTitle')}</div>
+          <div className="text-white text-xs mb-2">{description}</div>
           <div className="text-amber-400 text-xs">
-            {breakdown.repairProgress > 0 ? 'Service unit active' : 'Diagnostic lockout active'}
+            {breakdown.repairProgress > 0
+              ? t('overlayServiceActive')
+              : t('overlayDiagnosticLockout')}
           </div>
           {/* Progress bar */}
           {breakdown.repairProgress > 0 && (
             <div
               className="mt-2"
               role="progressbar"
-              aria-label="Repair progress"
-              aria-valuenow={Math.round(breakdown.repairProgress)}
+              aria-label={t('overlayRepairProgressAria')}
+              aria-valuenow={roundedProgress}
               aria-valuemin={0}
               aria-valuemax={100}
             >
@@ -286,7 +310,7 @@ const BreakdownOverlay: React.FC<{
                 />
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                {Math.round(breakdown.repairProgress)}% complete
+                {t('overlayCompletePct', { pct: formatFixed(roundedProgress, 0) })}
               </div>
             </div>
           )}

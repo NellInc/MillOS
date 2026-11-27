@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import { shouldRunThisFrame } from '../../utils/frameThrottle';
+import { useGameSimulationStore } from '../../stores/gameSimulationStore';
 
 const HEART_SHAPE = new THREE.Shape();
 HEART_SHAPE.moveTo(0, -0.42);
@@ -27,6 +28,9 @@ export const HeartParticle = React.memo<{
   const ageRef = useRef(0);
 
   useFrame((_, delta) => {
+    const { isTabVisible, gameSpeed } = useGameSimulationStore.getState();
+    if (!isTabVisible || gameSpeed <= 0) return;
+
     // Throttle heart animation to every 2nd frame (~30 FPS)
     const throttle = 2;
     if (!shouldRunThisFrame(throttle)) return;

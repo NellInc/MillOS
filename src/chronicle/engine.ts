@@ -1488,7 +1488,7 @@ function recordChallengeMedals(step: Step, evidence: ShiftCloseEvidence): Step {
           },
           'trial',
           `Recovery challenge: ${medal}`,
-          `${Math.round(run.deadlineMinute - (run.endedAtMinute ?? run.deadlineMinute))} simulated minutes to spare.`
+          `${Math.round(run.deadlineMinute - (run.endedAtMinute ?? run.deadlineMinute))} minutes to spare.`
         ),
         commands: next.commands,
       };
@@ -2561,7 +2561,7 @@ export function suppressFire(
     next,
     'event',
     method === 'suppress' ? 'Suppression under way' : 'Cleaning the duct by hand',
-    `Restart in about ${minutes} simulated minutes.`
+    `Restart in about ${minutes} minutes.`
   );
   if (actor === 'ai-partner')
     next = initiative(next, {

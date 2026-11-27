@@ -80,7 +80,10 @@ const Block: React.FC<{
 /** Drives the stair glazing from the shared lamp level (shared material: idempotent). */
 const StairLightDriver: React.FC = () => {
   useFrame(() => {
-    STAIR_LIGHT_GLAZING.emissiveIntensity = stairLightIntensity(EXTERIOR_LAMP_LEVEL.value);
+    const next = stairLightIntensity(EXTERIOR_LAMP_LEVEL.value);
+    if (STAIR_LIGHT_GLAZING.emissiveIntensity !== next) {
+      STAIR_LIGHT_GLAZING.emissiveIntensity = next;
+    }
   });
   return null;
 };
